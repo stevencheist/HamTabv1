@@ -1102,6 +1102,30 @@
     return div.innerHTML;
   }
 
+  // --- Bearing & local time helpers ---
+
+  function bearingTo(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const dLon = (lon2 - lon1) * r;
+    const y = Math.sin(dLon) * Math.cos(lat2 * r);
+    const x = Math.cos(lat1 * r) * Math.sin(lat2 * r) - Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos(dLon);
+    return (Math.atan2(y, x) / r + 360) % 360;
+  }
+
+  function bearingToCardinal(deg) {
+    const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+    return dirs[Math.round(deg / 45) % 8];
+  }
+
+  function localTimeAtLon(lon) {
+    // Approximate local time using longitude offset from UTC
+    const now = new Date();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+    const offsetMs = (lon / 15) * 3600000;
+    const local = new Date(utcMs + offsetMs);
+    return local.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: !use24h });
+  }
+
   // --- Render map markers ---
 
   function renderMarkers() {
@@ -1118,10 +1142,18 @@
 
       const callsign = esc(spot.activator || '');
       const qrzUrl = `https://www.qrz.com/db/${encodeURIComponent(spot.activator || '')}`;
+      let dirLine = '';
+      if (myLat !== null && myLon !== null) {
+        const deg = bearingTo(myLat, myLon, lat, lon);
+        dirLine = `<div class="popup-dir">Direction: ${bearingToCardinal(deg)}</div>`;
+      }
+      const localTime = localTimeAtLon(lon);
       marker.bindPopup(`
         <div class="popup-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${callsign}</a></div>
         <div class="popup-freq">${esc(spot.frequency || '')} ${esc(spot.mode || '')}</div>
         <div class="popup-park"><strong>${esc(spot.reference || '')}</strong> ${esc(spot.name || '')}</div>
+        ${dirLine}
+        <div class="popup-time">Local time: ${esc(localTime)}</div>
         ${spot.comments ? '<div style="margin-top:4px;font-size:0.78rem;color:#8899aa;">' + esc(spot.comments) + '</div>' : ''}
       `);
 

@@ -178,6 +178,46 @@
     }
   }
 
+  function centerMapOnUser() {
+    if (myLat !== null && myLon !== null) {
+      map.setView([myLat, myLon], map.getZoom());
+    }
+  }
+
+  function updateUserMarker() {
+    if (myLat === null || myLon === null) return;
+    const call = myCallsign || 'ME';
+    const grid = latLonToGrid(myLat, myLon).substring(0, 4).toUpperCase();
+    const popupHtml =
+      `<div class="user-popup">` +
+      `<div class="user-popup-title">${esc(call)}</div>` +
+      `<div class="user-popup-row">${myLat.toFixed(4)}, ${myLon.toFixed(4)}</div>` +
+      `<div class="user-popup-row">Grid: ${esc(grid)}</div>` +
+      `<div class="user-popup-row">${manualLoc ? 'Manual override' : 'GPS'}</div>` +
+      `</div>`;
+
+    if (userMarker) {
+      userMarker.setLatLng([myLat, myLon]);
+      userMarker.setPopupContent(popupHtml);
+      // Update icon in case callsign changed
+      userMarker.setIcon(L.divIcon({
+        className: 'user-icon',
+        html: `<span class="user-icon-diamond">&#9889;</span><span class="user-icon-call">${esc(call)}</span>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      }));
+    } else {
+      const icon = L.divIcon({
+        className: 'user-icon',
+        html: `<span class="user-icon-diamond">&#9889;</span><span class="user-icon-call">${esc(call)}</span>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0],
+      });
+      userMarker = L.marker([myLat, myLon], { icon, zIndexOffset: 9000 }).addTo(map);
+      userMarker.bindPopup(popupHtml, { maxWidth: 200 });
+    }
+  }
+
   function updateOperatorDisplay() {
     if (myCallsign) {
       const qrz = `https://www.qrz.com/db/${encodeURIComponent(myCallsign)}`;
@@ -204,6 +244,8 @@
         myLat = pos.coords.latitude;
         myLon = pos.coords.longitude;
         updateOperatorDisplay();
+        centerMapOnUser();
+        updateUserMarker();
       },
       () => {
         opLoc.textContent = 'Location denied';
@@ -255,6 +297,8 @@
     splashGridDropdown.classList.remove('open');
     splash.classList.add('hidden');
     updateOperatorDisplay();
+    centerMapOnUser();
+    updateUserMarker();
     initApp();
   }
 
@@ -397,6 +441,8 @@
           splashGrid.value = latLonToGrid(myLat, myLon).substring(0, 4).toUpperCase();
           syncingFields = false;
           updateOperatorDisplay();
+          centerMapOnUser();
+          updateUserMarker();
           updateLocStatus('Using GPS');
         },
         () => {
@@ -441,6 +487,9 @@
   map.createPane('grayline');
   map.getPane('grayline').style.zIndex = 250;
   let grayLinePolygon = null;
+
+  // User location marker
+  let userMarker = null;
 
   // ISS tracking state
   let issMarker = null;
@@ -1357,6 +1406,8 @@
     localStorage.removeItem(WIDGET_STORAGE_KEY);
     applyLayout(getDefaultLayout());
     saveWidgets();
+    centerMapOnUser();
+    updateUserMarker();
   }
 
   function initWidgets() {
@@ -1419,6 +1470,8 @@
   if (myCallsign) {
     splash.classList.add('hidden');
     updateOperatorDisplay();
+    centerMapOnUser();
+    updateUserMarker();
     initApp();
   } else {
     showSplash();

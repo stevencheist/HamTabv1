@@ -11,6 +11,7 @@ const helmet = require('helmet');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const selfsigned = require('selfsigned');
+const { XMLParser } = require('fast-xml-parser');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -397,34 +398,68 @@ async function fetchText(url) {
 }
 
 function parseSolarXML(xml) {
-  const get = (tag) => {
-    const match = xml.match(new RegExp(`<${tag}>([^<]*)</${tag}>`));
-    return match ? match[1].trim() : '';
-  };
+  const parser = new XMLParser({
+    ignoreAttributes: false,
+    attributeNamePrefix: '@_',
+    textNodeName: '#text',
+  });
+
+  const doc = parser.parse(xml);
+  const sd = doc.solar.solardata;
+
+  const str = (v) => (v != null ? String(v).trim() : '');
 
   const indices = {
-    sfi: get('solarflux'),
-    sunspots: get('sunspots'),
-    aindex: get('aindex'),
-    kindex: get('kindex'),
-    xray: get('xray'),
-    signalnoise: get('signalnoise'),
-    updated: get('updated'),
+    sfi:           str(sd.solarflux),
+    sunspots:      str(sd.sunspots),
+    aindex:        str(sd.aindex),
+    kindex:        str(sd.kindex),
+    xray:          str(sd.xray),
+    signalnoise:   str(sd.signalnoise),
+    updated:       str(sd.updated),
+    solarwind:     str(sd.solarwind),
+    magneticfield: str(sd.magneticfield),
+    protonflux:    str(sd.protonflux),
+    electonflux:   str(sd.electonflux),
+    aurora:        str(sd.aurora),
+    latdegree:     str(sd.latdegree),
+    heliumline:    str(sd.heliumline),
+    geomagfield:   str(sd.geomagfield),
+    kindexnt:      str(sd.kindexnt),
+    fof2:          str(sd.fof2),
+    muffactor:     str(sd.muffactor),
+    muf:           str(sd.muf),
   };
 
-  // Parse band conditions
+  // Parse HF band conditions
   const bands = [];
-  const bandRegex = /<band name="([^"]*)" time="([^"]*)"[^>]*>([^<]*)<\/band>/g;
-  let match;
-  while ((match = bandRegex.exec(xml)) !== null) {
-    bands.push({
-      band: match[1],
-      time: match[2],
-      condition: match[3].trim(),
+  const rawBands = sd.calculatedconditions?.band;
+  if (rawBands) {
+    const bandArr = Array.isArray(rawBands) ? rawBands : [rawBands];
+    bandArr.forEach(b => {
+      bands.push({
+        band:      b['@_name']  || '',
+        time:      b['@_time']  || '',
+        condition: String(typeof b === 'object' ? b['#text'] : b || '').trim(),
+      });
     });
   }
 
-  return { indices, bands };
+  // Parse VHF conditions
+  const vhf = [];
+  const rawVhf = sd.calculatedvhfconditions?.phenomenon;
+  if (rawVhf) {
+    const vhfArr = Array.isArray(rawVhf) ? rawVhf : [rawVhf];
+    vhfArr.forEach(p => {
+      vhf.push({
+        name:      p['@_name']     || '',
+        location:  p['@_location'] || '',
+        condition: String(typeof p === 'object' ? p['#text'] : p || '').trim(),
+      });
+    });
+  }
+
+  return { indices, bands, vhf };
 }
 
 // --- TLS certificate management ---

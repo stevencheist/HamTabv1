@@ -514,6 +514,29 @@ header {
   border-bottom: 1px solid var(--border);
 }
 
+.widget-cfg-btn {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.widget-cfg-btn:hover {
+  opacity: 1;
+  color: var(--text);
+}
+
+.solar-cfg-box .splash-widget-list {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
 .widget-body {
   flex: 1;
   overflow: auto;

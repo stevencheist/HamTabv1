@@ -842,8 +842,10 @@
   // --- Band helpers ---
 
   function freqToBand(freqStr) {
-    const freq = parseFloat(freqStr);
+    let freq = parseFloat(freqStr);
     if (isNaN(freq)) return null;
+    // POTA API sends frequencies in kHz; convert to MHz if > 1000
+    if (freq > 1000) freq = freq / 1000;
     if (freq >= 1.8 && freq <= 2.0) return '160m';
     if (freq >= 3.5 && freq <= 4.0) return '80m';
     if (freq >= 5.3 && freq <= 5.4) return '60m';

@@ -1,10 +1,71 @@
+require('dotenv').config();
+
 const express = require('express');
-const http = require('http');
 const https = require('https');
 const { URL } = require('url');
+const helmet = require('helmet');
+const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
+
+// --- Security middleware ---
+
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "https://cdnjs.cloudflare.com"],
+      styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
+      imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com"],
+      connectSrc: ["'self'"],
+      frameSrc: ["'none'"],
+    },
+  },
+}));
+
+// CORS — restrict to same-origin, localhost, and RFC 1918 private ranges
+app.use(cors({
+  origin(origin, callback) {
+    // Allow requests with no Origin header (same-origin, curl, etc.)
+    if (!origin) return callback(null, true);
+
+    try {
+      const { hostname } = new URL(origin);
+
+      // Allow localhost
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') {
+        return callback(null, true);
+      }
+
+      // Allow RFC 1918 private ranges
+      const parts = hostname.split('.').map(Number);
+      if (parts.length === 4 && parts.every(p => !isNaN(p))) {
+        const [a, b] = parts;
+        if (a === 10) return callback(null, true);                          // 10.0.0.0/8
+        if (a === 172 && b >= 16 && b <= 31) return callback(null, true);   // 172.16.0.0/12
+        if (a === 192 && b === 168) return callback(null, true);            // 192.168.0.0/16
+      }
+
+      // Reject public origins
+      callback(new Error('CORS not allowed'));
+    } catch {
+      callback(new Error('CORS not allowed'));
+    }
+  },
+}));
+
+// Rate limiting — /api/ routes only, 60 requests per minute per IP
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again later.' },
+});
+app.use('/api/', apiLimiter);
 
 app.use(express.static('public'));
 
@@ -190,32 +251,86 @@ function moonPhaseName(elongation) {
   return 'New Moon';
 }
 
-function fetch(url) {
+// --- Hardened fetch ---
+
+const MAX_REDIRECTS = 5;
+const MAX_RESPONSE_BYTES = 5 * 1024 * 1024; // 5 MB
+const REQUEST_TIMEOUT_MS = 10000; // 10 seconds
+
+function isPrivateHost(hostname) {
+  // Block localhost
+  if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
+  // Block IPv4 private ranges
+  const parts = hostname.split('.').map(Number);
+  if (parts.length === 4 && parts.every(p => !isNaN(p) && p >= 0 && p <= 255)) {
+    const [a, b] = parts;
+    if (a === 10) return true;
+    if (a === 172 && b >= 16 && b <= 31) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 169 && b === 254) return true; // link-local
+    if (a === 127) return true;
+    if (a === 0) return true;
+  }
+  return false;
+}
+
+function secureFetch(url, redirectCount = 0) {
   return new Promise((resolve, reject) => {
+    if (redirectCount > MAX_REDIRECTS) {
+      return reject(new Error('Too many redirects'));
+    }
+
     const parsed = new URL(url);
-    const client = parsed.protocol === 'https:' ? https : http;
-    client.get(url, { headers: { 'User-Agent': 'POTA-App/1.0' } }, (resp) => {
+
+    // SSRF guard: HTTPS-only for external requests
+    if (parsed.protocol !== 'https:') {
+      return reject(new Error('Only HTTPS URLs are allowed'));
+    }
+
+    // SSRF guard: block private/internal IPs
+    if (isPrivateHost(parsed.hostname)) {
+      return reject(new Error('Requests to private addresses are blocked'));
+    }
+
+    const req = https.get(url, { headers: { 'User-Agent': 'POTA-App/1.0' } }, (resp) => {
       if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
-        return fetch(resp.headers.location).then(resolve).catch(reject);
+        resp.resume(); // drain socket
+        return secureFetch(resp.headers.location, redirectCount + 1).then(resolve).catch(reject);
       }
       if (resp.statusCode !== 200) {
+        resp.resume(); // drain socket
         return reject(new Error(`HTTP ${resp.statusCode}`));
       }
+
       let data = '';
-      resp.on('data', chunk => data += chunk);
+      let bytes = 0;
+      resp.on('data', (chunk) => {
+        bytes += chunk.length;
+        if (bytes > MAX_RESPONSE_BYTES) {
+          resp.destroy();
+          return reject(new Error('Response too large'));
+        }
+        data += chunk;
+      });
       resp.on('end', () => resolve(data));
       resp.on('error', reject);
-    }).on('error', reject);
+    });
+
+    req.on('error', reject);
+    req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      req.destroy();
+      reject(new Error('Request timed out'));
+    });
   });
 }
 
 async function fetchJSON(url) {
-  const data = await fetch(url);
+  const data = await secureFetch(url);
   return JSON.parse(data);
 }
 
 async function fetchText(url) {
-  return fetch(url);
+  return secureFetch(url);
 }
 
 function parseSolarXML(xml) {
@@ -249,6 +364,6 @@ function parseSolarXML(xml) {
   return { indices, bands };
 }
 
-app.listen(PORT, () => {
-  console.log(`POTA app running at http://localhost:${PORT}`);
+app.listen(PORT, HOST, () => {
+  console.log(`POTA app running at http://${HOST}:${PORT}`);
 });

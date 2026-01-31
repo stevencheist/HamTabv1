@@ -532,10 +532,15 @@
     cards.forEach(c => {
       const div = document.createElement('div');
       div.className = 'solar-card';
-      div.innerHTML = `
-        <div class="label">${c.label}</div>
-        <div class="value" ${c.color ? `style="color:${c.color}"` : ''}>${c.value || '-'}</div>
-      `;
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'label';
+      labelDiv.textContent = c.label;
+      const valueDiv = document.createElement('div');
+      valueDiv.className = 'value';
+      if (c.color) valueDiv.style.color = c.color;
+      valueDiv.textContent = c.value || '-';
+      div.appendChild(labelDiv);
+      div.appendChild(valueDiv);
       solarIndices.appendChild(div);
     });
 
@@ -553,11 +558,17 @@
       const tr = document.createElement('tr');
       const day = bandMap[band]['day'] || '-';
       const night = bandMap[band]['night'] || '-';
-      tr.innerHTML = `
-        <td>${band}</td>
-        <td class="${condClass(day)}">${day}</td>
-        <td class="${condClass(night)}">${night}</td>
-      `;
+      const tdBand = document.createElement('td');
+      tdBand.textContent = band;
+      const tdDay = document.createElement('td');
+      tdDay.className = condClass(day);
+      tdDay.textContent = day;
+      const tdNight = document.createElement('td');
+      tdNight.className = condClass(night);
+      tdNight.textContent = night;
+      tr.appendChild(tdBand);
+      tr.appendChild(tdDay);
+      tr.appendChild(tdNight);
       bandBody.appendChild(tr);
     });
   }
@@ -793,10 +804,15 @@
     cards.forEach(c => {
       const div = document.createElement('div');
       div.className = 'solar-card';
-      div.innerHTML = `
-        <div class="label">${c.label}</div>
-        <div class="value" ${c.color ? `style="color:${c.color}"` : ''}>${c.value}</div>
-      `;
+      const labelDiv = document.createElement('div');
+      labelDiv.className = 'label';
+      labelDiv.textContent = c.label;
+      const valueDiv = document.createElement('div');
+      valueDiv.className = 'value';
+      if (c.color) valueDiv.style.color = c.color;
+      valueDiv.textContent = c.value;
+      div.appendChild(labelDiv);
+      div.appendChild(valueDiv);
       lunarCards.appendChild(div);
     });
   }

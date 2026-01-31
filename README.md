@@ -72,8 +72,12 @@ Needed to clone the repository.
 | Package | Version | Purpose |
 |---------|---------|---------|
 | [Express](https://expressjs.com/) | ^4.21.0 | HTTP server and API proxy |
+| [helmet](https://helmetjs.github.io/) | ^8.x | Security headers and CSP |
+| [cors](https://github.com/expressjs/cors) | ^2.x | CORS origin filtering (LAN only) |
+| [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) | ^7.x | API rate limiting (60 req/min) |
+| [dotenv](https://github.com/motdotla/dotenv) | ^16.x | Environment variable configuration |
 
-All other functionality (Leaflet maps, marker clustering) is loaded from CDNs in the browser. No additional server-side dependencies are required.
+All other functionality (Leaflet maps, marker clustering) is loaded from CDNs in the browser with SRI integrity hashes.
 
 ### External APIs Used
 
@@ -129,7 +133,7 @@ Or directly:
 node server.js
 ```
 
-Then open your browser to **http://localhost:3000**.
+Then open your browser to **http://localhost:3000** (or **http://\<your-LAN-IP\>:3000** from other devices on the network).
 
 On first launch you'll be prompted to enter your callsign. The app will request your browser's geolocation to display your Maidenhead grid square.
 
@@ -141,12 +145,54 @@ On first launch you'll be prompted to enter your callsign. The app will request 
 - **Reset Layout** — Click the "Reset Layout" button in the header to restore the default widget arrangement
 - **Auto-refresh** — Spots refresh every 60 seconds by default; toggle with the checkbox in the header
 
+## Network Configuration
+
+By default the server binds to `0.0.0.0` (all interfaces) so other devices on your LAN can access it.
+
+### Environment Variables
+
+Create a `.env` file in the project root (already in `.gitignore`):
+
+```
+PORT=3000
+HOST=0.0.0.0
+```
+
+Or override at launch:
+
+```bash
+PORT=8080 npm start
+```
+
+### Finding Your LAN IP
+
+- **Linux:** `hostname -I | awk '{print $1}'`
+- **macOS:** `ipconfig getifaddr en0`
+- **Windows:** `ipconfig` — look for the IPv4 address on your Wi-Fi or Ethernet adapter
+
+Then visit `http://<your-LAN-IP>:3000` from any device on the same network.
+
+### Firewall Rules
+
+If other devices can't connect, you may need to allow the port through your firewall:
+
+- **Linux (ufw):**
+  ```bash
+  sudo ufw allow 3000/tcp
+  ```
+- **Windows Firewall (PowerShell, run as admin):**
+  ```powershell
+  New-NetFirewallRule -DisplayName "HamTab" -Direction Inbound -LocalPort 3000 -Protocol TCP -Action Allow
+  ```
+- **macOS:** System Settings → Network → Firewall → allow incoming connections for Node.js (or disable firewall for local testing)
+
 ## Project Structure
 
 ```
 HamTabv1/
   server.js           Express server with API proxy endpoints
   package.json        Node.js project config
+  .env                Environment variables (PORT, HOST)
   public/
     index.html        Main HTML page
     style.css         All styles (dark theme, widgets, map, tables)

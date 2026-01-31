@@ -274,12 +274,22 @@ function computeLunar() {
   const avgDistance = 384400;
   const pathLoss = 20 * Math.log10(distance / avgDistance);
 
+  // Right ascension
+  const sinRA = Math.cos(betaRad) * Math.sin(lambdaRad) * Math.cos(epsilonRad)
+    - Math.sin(betaRad) * Math.sin(epsilonRad);
+  const cosRA = Math.cos(betaRad) * Math.cos(lambdaRad);
+  const rightAscension = Math.atan2(sinRA, cosRA) / rad;
+
   return {
     phase,
     illumination: Math.round(illumination * 10) / 10,
     declination: Math.round(declination * 10) / 10,
     distance: Math.round(distance),
     pathLoss: Math.round(pathLoss * 100) / 100,
+    elongation: Math.round(elongation * 10) / 10,
+    eclipticLon: Math.round(lambda * 10) / 10,
+    eclipticLat: Math.round(beta * 100) / 100,
+    rightAscension: Math.round(mod360(rightAscension) * 10) / 10,
   };
 }
 

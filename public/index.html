@@ -73,6 +73,15 @@
     </div>
   </div>
 
+  <!-- Lunar field config overlay -->
+  <div class="splash-overlay hidden" id="lunarCfgSplash">
+    <div class="splash-box lunar-cfg-box">
+      <h2>Lunar / EME Fields</h2>
+      <div class="splash-widget-list" id="lunarFieldList"></div>
+      <button id="lunarCfgOk">OK</button>
+    </div>
+  </div>
+
   <header>
     <div class="header-left">
       <div class="op-info">
@@ -154,7 +163,7 @@
 
     <!-- Map -->
     <div class="widget" id="widget-map">
-      <div class="widget-header">Map</div>
+      <div class="widget-header">HamMap</div>
       <div class="widget-body">
         <div id="map"></div>
       </div>
@@ -172,7 +181,7 @@
 
     <!-- Lunar / EME -->
     <div class="widget" id="widget-lunar">
-      <div class="widget-header">Lunar / EME</div>
+      <div class="widget-header">Lunar / EME <button class="widget-cfg-btn" id="lunarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
         <div class="lunar-cards" id="lunarCards"></div>
       </div>

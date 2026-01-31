@@ -1144,7 +1144,7 @@
     const sid = spotId(spot);
     selectSpot(sid);
 
-    map.flyTo([lat, lon], 10, { duration: 0.8 });
+    map.flyTo([lat, lon], 5, { duration: 0.8 });
 
     const marker = markers[sid];
     if (marker) {

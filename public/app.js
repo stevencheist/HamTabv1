@@ -56,6 +56,84 @@
     setTimeout(() => map.invalidateSize(), 50);
   }
 
+  // Solar field registry (single source of truth)
+  const SOLAR_FIELD_DEFS = [
+    // Currently displayed (default: visible)
+    { key: 'sfi',           label: 'Solar Flux',      unit: '',      colorFn: null,           defaultVisible: true  },
+    { key: 'sunspots',      label: 'Sunspots',        unit: '',      colorFn: null,           defaultVisible: true  },
+    { key: 'aindex',        label: 'A-Index',         unit: '',      colorFn: aColor,         defaultVisible: true  },
+    { key: 'kindex',        label: 'K-Index',         unit: '',      colorFn: kColor,         defaultVisible: true  },
+    { key: 'xray',          label: 'X-Ray',           unit: '',      colorFn: null,           defaultVisible: true  },
+    { key: 'signalnoise',   label: 'Signal Noise',    unit: '',      colorFn: null,           defaultVisible: true  },
+    // New fields (default: hidden)
+    { key: 'solarwind',     label: 'Solar Wind',      unit: ' km/s', colorFn: solarWindColor, defaultVisible: false },
+    { key: 'magneticfield', label: 'Bz (IMF)',        unit: ' nT',   colorFn: bzColor,        defaultVisible: false },
+    { key: 'protonflux',    label: 'Proton Flux',     unit: '',      colorFn: null,           defaultVisible: false },
+    { key: 'electonflux',   label: 'Electron Flux',   unit: '',      colorFn: null,           defaultVisible: false },
+    { key: 'aurora',        label: 'Aurora',           unit: '',      colorFn: auroraColor,    defaultVisible: false },
+    { key: 'latdegree',     label: 'Aurora Lat',      unit: '\u00B0',colorFn: null,           defaultVisible: false },
+    { key: 'heliumline',    label: 'He 10830\u00C5',  unit: '',      colorFn: null,           defaultVisible: false },
+    { key: 'geomagfield',   label: 'Geomag Field',    unit: '',      colorFn: geomagColor,    defaultVisible: false },
+    { key: 'kindexnt',      label: 'K-Index (Night)', unit: '',      colorFn: kColor,         defaultVisible: false },
+    { key: 'muf',           label: 'MUF',             unit: ' MHz',  colorFn: null,           defaultVisible: false },
+    { key: 'fof2',          label: 'foF2',            unit: ' MHz',  colorFn: null,           defaultVisible: false },
+    { key: 'muffactor',     label: 'MUF Factor',      unit: '',      colorFn: null,           defaultVisible: false },
+  ];
+
+  // Solar field visibility state
+  const SOLAR_VIS_KEY = 'pota_solar_fields';
+  let solarFieldVisibility = loadSolarFieldVisibility();
+
+  function loadSolarFieldVisibility() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SOLAR_VIS_KEY));
+      if (saved && typeof saved === 'object') return saved;
+    } catch (e) {}
+    const vis = {};
+    SOLAR_FIELD_DEFS.forEach(f => vis[f.key] = f.defaultVisible);
+    return vis;
+  }
+
+  function saveSolarFieldVisibility() {
+    localStorage.setItem(SOLAR_VIS_KEY, JSON.stringify(solarFieldVisibility));
+  }
+
+  // Solar color functions (must be function declarations for hoisting)
+  function solarWindColor(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return '';
+    if (n < 400) return 'var(--green)';
+    if (n < 600) return 'var(--yellow)';
+    return 'var(--red)';
+  }
+
+  function bzColor(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return '';
+    if (n >= 0) return 'var(--green)';
+    if (n > -10) return 'var(--yellow)';
+    return 'var(--red)';
+  }
+
+  function auroraColor(val) {
+    const n = parseInt(val);
+    if (isNaN(n)) return '';
+    if (n <= 3) return 'var(--green)';
+    if (n <= 6) return 'var(--yellow)';
+    return 'var(--red)';
+  }
+
+  function geomagColor(val) {
+    const s = (val || '').toLowerCase();
+    if (s.includes('quiet')) return 'var(--green)';
+    if (s.includes('unsettled') || s.includes('active')) return 'var(--yellow)';
+    if (s.includes('storm') || s.includes('major')) return 'var(--red)';
+    return '';
+  }
+
+  // Cached solar data for re-rendering after config changes
+  let lastSolarData = null;
+
   // DOM refs
   const spotsBody = document.getElementById('spotsBody');
   const spotCount = document.getElementById('spotCount');
@@ -88,6 +166,10 @@
   const clockUtc = document.getElementById('clockUtc');
   const timeFmt12 = document.getElementById('timeFmt12');
   const timeFmt24 = document.getElementById('timeFmt24');
+  const solarCfgBtn = document.getElementById('solarCfgBtn');
+  const solarCfgSplash = document.getElementById('solarCfgSplash');
+  const solarFieldList = document.getElementById('solarFieldList');
+  const solarCfgOk = document.getElementById('solarCfgOk');
 
   // --- Operator callsign & location ---
 
@@ -383,6 +465,43 @@
     if (e.key === 'Enter') dismissSplash();
   });
 
+  // --- Solar config overlay ---
+
+  // Prevent config button mousedown from triggering widget drag
+  solarCfgBtn.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+  });
+
+  solarCfgBtn.addEventListener('click', () => {
+    showSolarCfg();
+  });
+
+  function showSolarCfg() {
+    solarFieldList.innerHTML = '';
+    SOLAR_FIELD_DEFS.forEach(f => {
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.dataset.fieldKey = f.key;
+      cb.checked = solarFieldVisibility[f.key] !== false;
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(f.label));
+      solarFieldList.appendChild(label);
+    });
+    solarCfgSplash.classList.remove('hidden');
+  }
+
+  function dismissSolarCfg() {
+    solarFieldList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      solarFieldVisibility[cb.dataset.fieldKey] = cb.checked;
+    });
+    saveSolarFieldVisibility();
+    solarCfgSplash.classList.add('hidden');
+    if (lastSolarData) renderSolar(lastSolarData);
+  }
+
+  solarCfgOk.addEventListener('click', dismissSolarCfg);
+
   // --- Bidirectional lat/lon <-> grid sync ---
 
   splashLat.addEventListener('input', () => {
@@ -600,6 +719,7 @@
       const resp = await fetch('/api/solar');
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
+      lastSolarData = data;
       renderSolar(data);
     } catch (err) {
       console.error('Failed to fetch solar:', err);
@@ -950,25 +1070,25 @@
     const { indices, bands } = data;
 
     solarIndices.innerHTML = '';
-    const cards = [
-      { label: 'Solar Flux', value: indices.sfi, color: '' },
-      { label: 'Sunspots', value: indices.sunspots, color: '' },
-      { label: 'A-Index', value: indices.aindex, color: aColor(indices.aindex) },
-      { label: 'K-Index', value: indices.kindex, color: kColor(indices.kindex) },
-      { label: 'X-Ray', value: indices.xray, color: '' },
-      { label: 'Signal Noise', value: indices.signalnoise, color: '' },
-    ];
 
-    cards.forEach(c => {
+    SOLAR_FIELD_DEFS.forEach(f => {
+      if (solarFieldVisibility[f.key] === false) return;
+
+      const rawVal = indices[f.key];
+      const displayVal = (rawVal === '' || rawVal === undefined || rawVal === 'NoRpt')
+        ? '-'
+        : String(rawVal) + (f.unit || '');
+      const color = f.colorFn ? f.colorFn(rawVal) : '';
+
       const div = document.createElement('div');
       div.className = 'solar-card';
       const labelDiv = document.createElement('div');
       labelDiv.className = 'label';
-      labelDiv.textContent = c.label;
+      labelDiv.textContent = f.label;
       const valueDiv = document.createElement('div');
       valueDiv.className = 'value';
-      if (c.color) valueDiv.style.color = c.color;
-      valueDiv.textContent = c.value || '-';
+      if (color) valueDiv.style.color = color;
+      valueDiv.textContent = displayVal;
       div.appendChild(labelDiv);
       div.appendChild(valueDiv);
       solarIndices.appendChild(div);
@@ -1527,9 +1647,6 @@
 
   function resetLayout() {
     localStorage.removeItem(WIDGET_STORAGE_KEY);
-    WIDGET_DEFS.forEach(w => widgetVisibility[w.id] = true);
-    saveWidgetVisibility();
-    applyWidgetVisibility();
     applyLayout(getDefaultLayout());
     saveWidgets();
     centerMapOnUser();

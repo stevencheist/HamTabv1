@@ -64,6 +64,15 @@
     </div>
   </div>
 
+  <!-- Solar field config overlay -->
+  <div class="splash-overlay hidden" id="solarCfgSplash">
+    <div class="splash-box solar-cfg-box">
+      <h2>Solar &amp; Propagation Fields</h2>
+      <div class="splash-widget-list" id="solarFieldList"></div>
+      <button id="solarCfgOk">OK</button>
+    </div>
+  </div>
+
   <header>
     <div class="header-left">
       <div class="op-info">
@@ -154,7 +163,7 @@
 
     <!-- Solar -->
     <div class="widget" id="widget-solar">
-      <div class="widget-header">Solar &amp; Propagation</div>
+      <div class="widget-header">Solar &amp; Propagation <button class="widget-cfg-btn" id="solarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
         <div class="solar-indices" id="solarIndices"></div>
       </div>

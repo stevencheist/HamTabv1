@@ -532,7 +532,8 @@ header {
   color: var(--text);
 }
 
-.solar-cfg-box .splash-widget-list {
+.solar-cfg-box .splash-widget-list,
+.lunar-cfg-box .splash-widget-list {
   max-height: 400px;
   overflow-y: auto;
 }

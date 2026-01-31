@@ -131,8 +131,59 @@
     return '';
   }
 
-  // Cached solar data for re-rendering after config changes
+  // Lunar field registry (single source of truth)
+  const LUNAR_FIELD_DEFS = [
+    // Currently displayed (default: visible)
+    { key: 'phase',          label: 'Moon Phase',      unit: '',      colorFn: null,          defaultVisible: true  },
+    { key: 'illumination',   label: 'Illumination',    unit: '%',     colorFn: null,          defaultVisible: true  },
+    { key: 'declination',    label: 'Declination',     unit: '\u00B0',colorFn: lunarDecColor, defaultVisible: true  },
+    { key: 'distance',       label: 'Distance',        unit: ' km',   colorFn: null,          defaultVisible: true  },
+    { key: 'pathLoss',       label: 'Path Loss',       unit: ' dB',   colorFn: lunarPlColor,  defaultVisible: true  },
+    // New fields (default: hidden)
+    { key: 'elongation',     label: 'Elongation',      unit: '\u00B0',colorFn: null,          defaultVisible: false },
+    { key: 'eclipticLon',    label: 'Ecl. Longitude',  unit: '\u00B0',colorFn: null,          defaultVisible: false },
+    { key: 'eclipticLat',    label: 'Ecl. Latitude',   unit: '\u00B0',colorFn: null,          defaultVisible: false },
+    { key: 'rightAscension', label: 'Right Ascension', unit: '\u00B0',colorFn: null,          defaultVisible: false },
+  ];
+
+  // Lunar field visibility state
+  const LUNAR_VIS_KEY = 'pota_lunar_fields';
+  let lunarFieldVisibility = loadLunarFieldVisibility();
+
+  function loadLunarFieldVisibility() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
+      if (saved && typeof saved === 'object') return saved;
+    } catch (e) {}
+    const vis = {};
+    LUNAR_FIELD_DEFS.forEach(f => vis[f.key] = f.defaultVisible);
+    return vis;
+  }
+
+  function saveLunarFieldVisibility() {
+    localStorage.setItem(LUNAR_VIS_KEY, JSON.stringify(lunarFieldVisibility));
+  }
+
+  // Lunar color functions
+  function lunarDecColor(val) {
+    const n = Math.abs(parseFloat(val));
+    if (isNaN(n)) return '';
+    if (n < 15) return 'var(--green)';
+    if (n < 25) return 'var(--yellow)';
+    return 'var(--red)';
+  }
+
+  function lunarPlColor(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return '';
+    if (n < -0.5) return 'var(--green)';
+    if (n < 0.5) return 'var(--yellow)';
+    return 'var(--red)';
+  }
+
+  // Cached data for re-rendering after config changes
   let lastSolarData = null;
+  let lastLunarData = null;
 
   // DOM refs
   const spotsBody = document.getElementById('spotsBody');
@@ -170,6 +221,10 @@
   const solarCfgSplash = document.getElementById('solarCfgSplash');
   const solarFieldList = document.getElementById('solarFieldList');
   const solarCfgOk = document.getElementById('solarCfgOk');
+  const lunarCfgBtn = document.getElementById('lunarCfgBtn');
+  const lunarCfgSplash = document.getElementById('lunarCfgSplash');
+  const lunarFieldList = document.getElementById('lunarFieldList');
+  const lunarCfgOk = document.getElementById('lunarCfgOk');
 
   // --- Operator callsign & location ---
 
@@ -501,6 +556,42 @@
   }
 
   solarCfgOk.addEventListener('click', dismissSolarCfg);
+
+  // --- Lunar config overlay ---
+
+  lunarCfgBtn.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
+  });
+
+  lunarCfgBtn.addEventListener('click', () => {
+    showLunarCfg();
+  });
+
+  function showLunarCfg() {
+    lunarFieldList.innerHTML = '';
+    LUNAR_FIELD_DEFS.forEach(f => {
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.dataset.fieldKey = f.key;
+      cb.checked = lunarFieldVisibility[f.key] !== false;
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(f.label));
+      lunarFieldList.appendChild(label);
+    });
+    lunarCfgSplash.classList.remove('hidden');
+  }
+
+  function dismissLunarCfg() {
+    lunarFieldList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      lunarFieldVisibility[cb.dataset.fieldKey] = cb.checked;
+    });
+    saveLunarFieldVisibility();
+    lunarCfgSplash.classList.add('hidden');
+    if (lastLunarData) renderLunar(lastLunarData);
+  }
+
+  lunarCfgOk.addEventListener('click', dismissLunarCfg);
 
   // --- Bidirectional lat/lon <-> grid sync ---
 
@@ -1338,6 +1429,7 @@
       const resp = await fetch('/api/lunar');
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
+      lastLunarData = data;
       renderLunar(data);
     } catch (err) {
       console.error('Failed to fetch lunar:', err);
@@ -1346,28 +1438,32 @@
 
   function renderLunar(data) {
     lunarCards.innerHTML = '';
-    const absDec = Math.abs(data.declination);
-    const decColor = absDec < 15 ? 'var(--green)' : absDec < 25 ? 'var(--yellow)' : 'var(--red)';
-    const plColor = data.pathLoss < -0.5 ? 'var(--green)' : data.pathLoss < 0.5 ? 'var(--yellow)' : 'var(--red)';
 
-    const cards = [
-      { label: 'Moon Phase', value: data.phase, color: '' },
-      { label: 'Illumination', value: data.illumination + '%', color: '' },
-      { label: 'Declination', value: data.declination + '\u00B0', color: decColor },
-      { label: 'Distance', value: data.distance.toLocaleString() + ' km', color: '' },
-      { label: 'Path Loss', value: (data.pathLoss > 0 ? '+' : '') + data.pathLoss + ' dB', color: plColor },
-    ];
+    LUNAR_FIELD_DEFS.forEach(f => {
+      if (lunarFieldVisibility[f.key] === false) return;
 
-    cards.forEach(c => {
+      const rawVal = data[f.key];
+      let displayVal;
+      if (rawVal === undefined || rawVal === null || rawVal === '') {
+        displayVal = '-';
+      } else if (f.key === 'distance') {
+        displayVal = Number(rawVal).toLocaleString() + f.unit;
+      } else if (f.key === 'pathLoss') {
+        displayVal = (rawVal > 0 ? '+' : '') + rawVal + f.unit;
+      } else {
+        displayVal = String(rawVal) + f.unit;
+      }
+      const color = f.colorFn ? f.colorFn(rawVal) : '';
+
       const div = document.createElement('div');
       div.className = 'solar-card';
       const labelDiv = document.createElement('div');
       labelDiv.className = 'label';
-      labelDiv.textContent = c.label;
+      labelDiv.textContent = f.label;
       const valueDiv = document.createElement('div');
       valueDiv.className = 'value';
-      if (c.color) valueDiv.style.color = c.color;
-      valueDiv.textContent = c.value;
+      if (color) valueDiv.style.color = color;
+      valueDiv.textContent = displayVal;
       div.appendChild(labelDiv);
       div.appendChild(valueDiv);
       lunarCards.appendChild(div);

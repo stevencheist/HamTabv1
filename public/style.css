@@ -764,6 +764,12 @@ header {
   font-size: 0.8rem;
 }
 
+.leaflet-popup-content .popup-dir,
+.leaflet-popup-content .popup-time {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+}
+
 /* ---- Solar widget ---- */
 
 .solar-indices {

@@ -131,7 +131,6 @@
     return '';
   }
 
-<<<<<<< HEAD
   // Lunar field registry (single source of truth)
   const LUNAR_FIELD_DEFS = [
     // Currently displayed (default: visible)

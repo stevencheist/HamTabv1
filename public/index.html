@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>POTA Activations</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Splash screen -->
+  <div class="splash-overlay" id="splash">
+    <div class="splash-box">
+      <h2>POTA Activations</h2>
+      <label for="splashCallsign">Your Callsign</label>
+      <input type="text" id="splashCallsign" placeholder="e.g. W1AW" autocomplete="off" spellcheck="false" />
+      <button id="splashOk">Start</button>
+    </div>
+  </div>
+
+  <header>
+    <div class="header-left">
+      <div class="op-call" id="opCall"></div>
+      <div class="op-loc-row">
+        <span class="op-loc" id="opLoc">Location unknown</span>
+        <button class="op-btn" id="editCallBtn" title="Edit callsign">Edit</button>
+        <button class="op-btn" id="refreshLocBtn" title="Refresh location">Loc</button>
+      </div>
+    </div>
+    <div class="header-right">
+      <span class="last-updated" id="lastUpdated"></span>
+      <span class="countdown" id="countdown"></span>
+      <label class="auto-refresh-toggle">
+        <input type="checkbox" id="autoRefresh" checked />
+        Auto-refresh
+      </label>
+      <button id="refreshBtn">Refresh</button>
+      <button id="resetLayoutBtn" title="Reset widget layout">Reset Layout</button>
+    </div>
+  </header>
+
+  <div class="widget-area" id="widgetArea">
+    <!-- Activations -->
+    <div class="widget" id="widget-activations">
+      <div class="widget-header">Activations <span id="spotCount" class="spot-count"></span></div>
+      <div class="widget-body">
+        <div class="widget-filters">
+          <div class="band-filters" id="bandFilters"></div>
+          <div class="mode-filters" id="modeFilters"></div>
+          <select id="countryFilter"><option value="">All Countries</option></select>
+          <select id="stateFilter"><option value="">All States</option></select>
+          <select id="gridFilter"><option value="">All Grids</option></select>
+        </div>
+        <div class="table-wrap">
+          <table id="spotsTable">
+            <thead>
+              <tr>
+                <th>Callsign</th>
+                <th>Freq</th>
+                <th>Mode</th>
+                <th>Park</th>
+                <th>Name</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody id="spotsBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Map -->
+    <div class="widget" id="widget-map">
+      <div class="widget-header">Map</div>
+      <div class="widget-body">
+        <div id="map"></div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Solar -->
+    <div class="widget" id="widget-solar">
+      <div class="widget-header">Solar &amp; Propagation</div>
+      <div class="widget-body">
+        <div class="solar-indices" id="solarIndices"></div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Band Conditions -->
+    <div class="widget" id="widget-bands">
+      <div class="widget-header">Band Conditions</div>
+      <div class="widget-body">
+        <div class="band-table-wrap">
+          <table class="band-table" id="bandTable">
+            <thead>
+              <tr><th>Band</th><th>Day</th><th>Night</th></tr>
+            </thead>
+            <tbody id="bandBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Lunar / EME -->
+    <div class="widget" id="widget-lunar">
+      <div class="widget-header">Lunar / EME</div>
+      <div class="widget-body">
+        <div class="lunar-cards" id="lunarCards"></div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

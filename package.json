@@ -11,6 +11,7 @@
     "dotenv": "^17.2.3",
     "express": "^4.21.0",
     "express-rate-limit": "^8.2.1",
-    "helmet": "^8.1.0"
+    "helmet": "^8.1.0",
+    "selfsigned": "^2.4.1"
   }
 }

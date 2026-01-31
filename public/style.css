@@ -426,21 +426,6 @@ header {
   background: var(--accent);
 }
 
-#updateBtn {
-  padding: 4px 12px;
-  font-size: 0.8rem;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-#updateBtn:hover {
-  background: var(--accent);
-}
-
 #fullscreenBtn {
   padding: 4px 12px;
   font-size: 0.8rem;
@@ -456,28 +441,60 @@ header {
   background: var(--accent);
 }
 
-#updateBtn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
+/* ---- Update indicator ---- */
 
-#updateBtn.updating {
-  background: var(--yellow);
-  color: #111;
-  border-color: var(--yellow);
-}
-
-.update-status {
-  font-size: 0.75rem;
+.update-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: default;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 0.78rem;
   color: var(--text-dim);
+  border: 1px solid var(--border);
+  background: var(--surface2);
 }
 
-.update-status.success {
-  color: var(--green);
+.update-indicator:hover {
+  background: var(--surface);
 }
 
-.update-status.error {
-  color: var(--red);
+.update-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.update-dot.gray { background: var(--text-dim); }
+.update-dot.green { background: var(--green); cursor: pointer; }
+.update-dot.yellow { background: var(--yellow); }
+.update-dot.red { background: var(--red); }
+
+.update-dot.green ~ .update-label { cursor: pointer; }
+
+.update-label {
+  white-space: nowrap;
+}
+
+/* ---- Splash update interval ---- */
+
+.splash-update-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.splash-update-section select {
+  padding: 4px 8px;
+  font-size: 0.82rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 /* ---- Widget system ---- */

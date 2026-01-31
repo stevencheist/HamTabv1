@@ -13,7 +13,7 @@
   <!-- Splash screen -->
   <div class="splash-overlay" id="splash">
     <div class="splash-box">
-      <h2>POTA Activations</h2>
+      <h2>HamTab Configuration</h2>
       <label for="splashCallsign">Your Callsign</label>
       <input type="text" id="splashCallsign" placeholder="e.g. W1AW" autocomplete="off" spellcheck="false" />
 
@@ -54,6 +54,12 @@
         </div>
       </div>
 
+      <div class="splash-divider"></div>
+      <div class="splash-widgets-section">
+        <span class="splash-loc-title">Widgets</span>
+        <div class="splash-widget-list" id="splashWidgetList"></div>
+      </div>
+
       <button id="splashOk">OK</button>
     </div>
   </div>
@@ -65,12 +71,12 @@
         <div class="op-loc" id="opLoc">Location unknown</div>
       </div>
       <div class="op-btns">
-        <button class="op-btn" id="editCallBtn" title="Edit callsign">Edit</button>
+        <button class="op-btn" id="editCallBtn" title="Configuration">Config</button>
         <button class="op-btn" id="refreshLocBtn" title="Refresh location">Loc</button>
       </div>
     </div>
     <div class="header-center" id="headerBands">
-      <div class="header-bands-title">Band Conditions</div>
+      <div class="header-bands-title">Band Conditions <span class="header-bands-hint">(Day / Night)</span></div>
       <div class="header-bands-row" id="headerBandsRow"></div>
     </div>
     <div class="header-right">
@@ -82,6 +88,7 @@
       </label>
       <button id="refreshBtn">Refresh</button>
       <button id="resetLayoutBtn" title="Reset widget layout">Reset Layout</button>
+      <button id="fullscreenBtn" title="Toggle fullscreen">Fullscreen</button>
       <button id="updateBtn" title="Check for updates">Update</button>
       <span id="updateStatus" class="update-status"></span>
     </div>

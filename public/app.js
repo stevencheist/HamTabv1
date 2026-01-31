@@ -15,6 +15,47 @@
   let countdownTimer = null;
   let use24h = localStorage.getItem('pota_time24') !== 'false';
 
+  // Widget registry (single source of truth)
+  const WIDGET_DEFS = [
+    { id: 'widget-clock-local', name: 'Local Time' },
+    { id: 'widget-clock-utc',   name: 'UTC' },
+    { id: 'widget-activations', name: 'Activations' },
+    { id: 'widget-map',         name: 'Map' },
+    { id: 'widget-solar',       name: 'Solar & Propagation' },
+    { id: 'widget-lunar',       name: 'Lunar / EME' },
+  ];
+
+  // Widget visibility state
+  const WIDGET_VIS_KEY = 'pota_widget_vis';
+  let widgetVisibility = loadWidgetVisibility();
+
+  function loadWidgetVisibility() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
+      if (saved && typeof saved === 'object') return saved;
+    } catch (e) {}
+    const vis = {};
+    WIDGET_DEFS.forEach(w => vis[w.id] = true);
+    return vis;
+  }
+
+  function saveWidgetVisibility() {
+    localStorage.setItem(WIDGET_VIS_KEY, JSON.stringify(widgetVisibility));
+  }
+
+  function applyWidgetVisibility() {
+    WIDGET_DEFS.forEach(w => {
+      const el = document.getElementById(w.id);
+      if (!el) return;
+      if (widgetVisibility[w.id] === false) {
+        el.style.display = 'none';
+      } else {
+        el.style.display = '';
+      }
+    });
+    setTimeout(() => map.invalidateSize(), 50);
+  }
+
   // DOM refs
   const spotsBody = document.getElementById('spotsBody');
   const spotCount = document.getElementById('spotCount');
@@ -285,6 +326,20 @@
     timeFmt24.checked = use24h;
     timeFmt12.checked = !use24h;
 
+    // Populate widget visibility checkboxes
+    const widgetList = document.getElementById('splashWidgetList');
+    widgetList.innerHTML = '';
+    WIDGET_DEFS.forEach(w => {
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.dataset.widgetId = w.id;
+      cb.checked = widgetVisibility[w.id] !== false;
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(w.name));
+      widgetList.appendChild(label);
+    });
+
     splashGridDropdown.classList.remove('open');
     splashGridDropdown.innerHTML = '';
     gridHighlightIdx = -1;
@@ -304,6 +359,14 @@
 
     use24h = timeFmt24.checked;
     localStorage.setItem('pota_time24', String(use24h));
+
+    // Read widget visibility checkboxes
+    const widgetList = document.getElementById('splashWidgetList');
+    widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      widgetVisibility[cb.dataset.widgetId] = cb.checked;
+    });
+    saveWidgetVisibility();
+    applyWidgetVisibility();
 
     splashGridDropdown.classList.remove('open');
     splash.classList.add('hidden');
@@ -1258,6 +1321,26 @@
     refreshAll();
   });
 
+  // --- Fullscreen ---
+
+  const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+  function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen();
+    }
+  }
+
+  fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+  document.addEventListener('fullscreenchange', () => {
+    fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
+    // Recalculate widget area after fullscreen transition
+    setTimeout(() => map.invalidateSize(), 100);
+  });
+
   // --- Widget Management ---
 
   let zCounter = 10;
@@ -1444,6 +1527,9 @@
 
   function resetLayout() {
     localStorage.removeItem(WIDGET_STORAGE_KEY);
+    WIDGET_DEFS.forEach(w => widgetVisibility[w.id] = true);
+    saveWidgetVisibility();
+    applyWidgetVisibility();
     applyLayout(getDefaultLayout());
     saveWidgets();
     centerMapOnUser();
@@ -1475,6 +1561,7 @@
     }
 
     applyLayout(layout);
+    applyWidgetVisibility();
 
     document.querySelectorAll('.widget').forEach(widget => {
       const header = widget.querySelector('.widget-header');

@@ -477,6 +477,11 @@
       widgetList.appendChild(label);
     });
 
+    // Set update interval picker
+    const intervalSelect = document.getElementById('splashUpdateInterval');
+    const savedInterval = localStorage.getItem('pota_update_interval') || '60';
+    intervalSelect.value = savedInterval;
+
     splashGridDropdown.classList.remove('open');
     splashGridDropdown.innerHTML = '';
     gridHighlightIdx = -1;
@@ -504,6 +509,16 @@
     });
     saveWidgetVisibility();
     applyWidgetVisibility();
+
+    // Save and send update interval
+    const intervalSelect = document.getElementById('splashUpdateInterval');
+    const intervalVal = intervalSelect.value;
+    localStorage.setItem('pota_update_interval', intervalVal);
+    fetch('/api/update/interval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
+    }).catch(() => {});
 
     splashGridDropdown.classList.remove('open');
     splash.classList.add('hidden');
@@ -1793,27 +1808,24 @@
 
   document.getElementById('resetLayoutBtn').addEventListener('click', resetLayout);
 
-  // --- Self-update ---
+  // --- Auto-update status ---
 
-  const updateBtn = document.getElementById('updateBtn');
-  const updateStatus = document.getElementById('updateStatus');
+  const updateIndicator = document.getElementById('updateIndicator');
+  const updateDot = document.getElementById('updateDot');
+  const updateLabel = document.getElementById('updateLabel');
 
-  function setUpdateStatus(msg, type) {
-    updateStatus.textContent = msg;
-    updateStatus.className = 'update-status' + (type ? ' ' + type : '');
-  }
+  let updateStatusPolling = null;
 
   function pollForServer(attempts) {
     if (attempts <= 0) {
-      setUpdateStatus('Server did not come back', 'error');
-      updateBtn.disabled = false;
-      updateBtn.classList.remove('updating');
+      updateLabel.textContent = 'Server did not come back';
+      updateDot.className = 'update-dot red';
       return;
     }
     setTimeout(() => {
       fetch('/api/spots').then(resp => {
         if (resp.ok) {
-          setUpdateStatus('Reloading...', 'success');
+          updateLabel.textContent = 'Reloading...';
           location.reload();
         } else {
           pollForServer(attempts - 1);
@@ -1824,44 +1836,85 @@
     }, 1000);
   }
 
-  async function performUpdate() {
-    updateBtn.disabled = true;
-    updateBtn.classList.add('updating');
-    setUpdateStatus('Updating...', '');
+  async function checkUpdateStatus() {
+    try {
+      const resp = await fetch('/api/update/status');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.available) {
+        updateDot.className = 'update-dot green';
+        updateLabel.textContent = 'Update available';
+      } else {
+        updateDot.className = 'update-dot gray';
+        updateLabel.textContent = data.lastCheck
+          ? 'Checked ' + fmtTime(new Date(data.lastCheck), { hour: '2-digit', minute: '2-digit' })
+          : 'No updates';
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  function startUpdateStatusPolling() {
+    if (updateStatusPolling) clearInterval(updateStatusPolling);
+    checkUpdateStatus();
+    updateStatusPolling = setInterval(checkUpdateStatus, 30000);
+  }
+
+  async function applyUpdate() {
+    updateDot.className = 'update-dot yellow';
+    updateLabel.textContent = 'Applying...';
+    updateIndicator.style.pointerEvents = 'none';
 
     try {
-      const resp = await fetch('/api/update', { method: 'POST' });
+      const resp = await fetch('/api/update/apply', { method: 'POST' });
       const data = await resp.json();
 
       if (!resp.ok) {
-        setUpdateStatus(data.error || 'Update failed', 'error');
-        updateBtn.disabled = false;
-        updateBtn.classList.remove('updating');
+        updateDot.className = 'update-dot red';
+        updateLabel.textContent = data.error || 'Failed';
+        updateIndicator.style.pointerEvents = '';
         return;
       }
 
       if (!data.updated) {
-        setUpdateStatus('Already up to date', 'success');
-        updateBtn.disabled = false;
-        updateBtn.classList.remove('updating');
+        updateDot.className = 'update-dot gray';
+        updateLabel.textContent = 'Already up to date';
+        updateIndicator.style.pointerEvents = '';
         return;
       }
 
       if (data.serverRestarting) {
-        setUpdateStatus('Server restarting...', '');
+        updateLabel.textContent = 'Restarting...';
         pollForServer(30);
       } else {
-        setUpdateStatus('Updated — reloading...', 'success');
+        updateLabel.textContent = 'Reloading...';
         setTimeout(() => location.reload(), 500);
       }
     } catch (err) {
-      setUpdateStatus('Update failed: ' + err.message, 'error');
-      updateBtn.disabled = false;
-      updateBtn.classList.remove('updating');
+      updateDot.className = 'update-dot red';
+      updateLabel.textContent = 'Error';
+      updateIndicator.style.pointerEvents = '';
     }
   }
 
-  updateBtn.addEventListener('click', performUpdate);
+  updateIndicator.addEventListener('click', () => {
+    if (updateDot.classList.contains('green')) {
+      applyUpdate();
+    }
+  });
+
+  // Send saved update interval to server on load
+  function sendUpdateInterval() {
+    const saved = localStorage.getItem('pota_update_interval');
+    if (saved) {
+      fetch('/api/update/interval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seconds: parseInt(saved, 10) }),
+      }).catch(() => {});
+    }
+  }
 
   // --- Init ---
 
@@ -1873,6 +1926,8 @@
     refreshAll();
     startAutoRefresh();
     fetchLocation();
+    startUpdateStatusPolling();
+    sendUpdateInterval();
   }
 
   // Initialize widget positions before anything else

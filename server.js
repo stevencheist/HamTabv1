@@ -139,20 +139,75 @@ app.get('/api/lunar', (req, res) => {
   }
 });
 
-// --- Self-update endpoint ---
+// --- Auto-update system ---
 
-let updateInProgress = false;
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const SERVER_FILES = ['server.js', 'package.json', 'package-lock.json'];
 
-app.post('/api/update', (req, res) => {
+let updateAvailable = false;
+let lastCheckTime = null;
+let checking = false;
+let updateInProgress = false;
+let updateCheckInterval = (parseInt(process.env.UPDATE_INTERVAL_SECONDS, 10) || 60) * 1000;
+let updateTimer = null;
+
+function checkForUpdates() {
+  if (checking || updateInProgress) return;
+  checking = true;
+  execFile('git', ['fetch'], { timeout: 30000, cwd: __dirname }, (fetchErr) => {
+    if (fetchErr) {
+      console.error('git fetch failed:', fetchErr.message);
+      checking = false;
+      lastCheckTime = new Date().toISOString();
+      return;
+    }
+    execFile('git', ['rev-parse', 'HEAD'], { timeout: 5000, cwd: __dirname }, (errLocal, localHash) => {
+      if (errLocal) { checking = false; lastCheckTime = new Date().toISOString(); return; }
+      execFile('git', ['rev-parse', '@{u}'], { timeout: 5000, cwd: __dirname }, (errRemote, remoteHash) => {
+        checking = false;
+        lastCheckTime = new Date().toISOString();
+        if (errRemote) return;
+        updateAvailable = (localHash || '').trim() !== (remoteHash || '').trim();
+        console.log(`Update check: ${updateAvailable ? 'update available' : 'up to date'}`);
+      });
+    });
+  });
+}
+
+function startUpdateTimer() {
+  if (updateTimer) clearInterval(updateTimer);
+  updateTimer = setInterval(checkForUpdates, updateCheckInterval);
+  console.log(`Update check interval: ${updateCheckInterval / 1000}s`);
+}
+
+// Run initial check and start timer
+checkForUpdates();
+startUpdateTimer();
+
+// Status endpoint
+app.get('/api/update/status', (req, res) => {
+  res.json({ available: updateAvailable, lastCheck: lastCheckTime, checking });
+});
+
+// Set check interval
+app.post('/api/update/interval', (req, res) => {
+  const seconds = parseInt(req.body.seconds, 10);
+  if (!seconds || seconds < 10) {
+    return res.status(400).json({ error: 'Invalid interval' });
+  }
+  updateCheckInterval = seconds * 1000;
+  startUpdateTimer();
+  res.json({ interval: seconds });
+});
+
+// Apply pending update
+app.post('/api/update/apply', (req, res) => {
   if (updateInProgress) {
     return res.status(409).json({ error: 'Update already in progress' });
   }
   updateInProgress = true;
 
-  // Step 1: git pull
-  execFile('git', ['pull'], { timeout: 30000, cwd: __dirname }, (gitErr, gitStdout, gitStderr) => {
+  execFile('git', ['pull'], { timeout: 30000, cwd: __dirname }, (gitErr, gitStdout) => {
     if (gitErr) {
       updateInProgress = false;
       console.error('git pull failed:', gitErr.message);
@@ -164,11 +219,11 @@ app.post('/api/update', (req, res) => {
 
     if (gitOutput === 'Already up to date.') {
       updateInProgress = false;
+      updateAvailable = false;
       return res.json({ updated: false, message: 'Already up to date' });
     }
 
-    // Step 2: npm install
-    execFile(npmCmd, ['install', '--production'], { timeout: 60000, cwd: __dirname }, (npmErr, npmStdout, npmStderr) => {
+    execFile(npmCmd, ['install', '--production'], { timeout: 60000, cwd: __dirname }, (npmErr, npmStdout) => {
       if (npmErr) {
         updateInProgress = false;
         console.error('npm install failed:', npmErr.message);
@@ -176,17 +231,15 @@ app.post('/api/update', (req, res) => {
       }
 
       console.log('npm install:', (npmStdout || '').trim());
-
-      // Check if server-side files changed
       const serverChanged = SERVER_FILES.some(f => gitOutput.includes(f));
 
       if (serverChanged) {
-        // Send response before exiting so the client knows to poll
         res.json({ updated: true, serverRestarting: true, message: 'Server files changed — restarting' });
         console.log('Server files changed. Exiting for restart...');
         setTimeout(() => process.exit(0), 1500);
       } else {
         updateInProgress = false;
+        updateAvailable = false;
         res.json({ updated: true, serverRestarting: false, message: 'Frontend files updated' });
       }
     });

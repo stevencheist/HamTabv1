@@ -244,6 +244,36 @@ html, body {
   color: var(--red);
 }
 
+/* -- Time format section -- */
+
+.splash-time-format {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.splash-time-options {
+  display: flex;
+  gap: 12px;
+}
+
+.splash-time-options label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.82rem;
+  color: var(--text);
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.splash-time-options input[type="radio"] {
+  width: auto;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
 /* ---- Header ---- */
 
 header {
@@ -258,6 +288,13 @@ header {
 }
 
 .header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.op-info {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -280,15 +317,15 @@ header {
   text-decoration: underline;
 }
 
-.op-loc-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .op-loc {
   font-size: 0.72rem;
   color: var(--text-dim);
+}
+
+.op-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
 }
 
 .op-btn {
@@ -668,40 +705,50 @@ header {
   margin-top: 2px;
 }
 
-/* ---- Band conditions widget ---- */
+/* ---- Header band conditions strip ---- */
 
-.band-table-wrap {
-  padding: 8px 10px;
+.header-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
-.band-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.78rem;
+.header-bands-title {
+  font-size: 0.68rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
 }
 
-.band-table th {
-  background: var(--surface2);
-  padding: 5px 6px;
-  text-align: center;
+.header-bands-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.header-band-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.header-band-name {
   color: var(--text-dim);
   font-weight: 600;
 }
 
-.band-table th:first-child {
-  text-align: left;
-}
-
-.band-table td {
-  padding: 4px 6px;
-  border-bottom: 1px solid var(--border);
-  text-align: center;
-}
-
-.band-table td:first-child {
-  text-align: left;
+.header-band-day,
+.header-band-night {
   font-weight: 600;
 }
+
 
 .cond-good { color: var(--green); font-weight: 600; }
 .cond-fair { color: var(--yellow); font-weight: 600; }

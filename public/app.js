@@ -20,7 +20,7 @@
     { id: 'widget-clock-local', name: 'Local Time' },
     { id: 'widget-clock-utc',   name: 'UTC' },
     { id: 'widget-activations', name: 'Activations' },
-    { id: 'widget-map',         name: 'Map' },
+    { id: 'widget-map',         name: 'HamMap' },
     { id: 'widget-solar',       name: 'Solar & Propagation' },
     { id: 'widget-lunar',       name: 'Lunar / EME' },
   ];
@@ -131,6 +131,7 @@
     return '';
   }
 
+<<<<<<< HEAD
   // Lunar field registry (single source of truth)
   const LUNAR_FIELD_DEFS = [
     // Currently displayed (default: visible)

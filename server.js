@@ -22,8 +22,10 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com", "https://cdnjs.cloudflare.com"],
       connectSrc: ["'self'"],
       frameSrc: ["'none'"],
+      upgradeInsecureRequests: null,
     },
   },
+  strictTransportSecurity: false,
 }));
 
 // CORS — restrict to same-origin, localhost, and RFC 1918 private ranges

@@ -186,11 +186,36 @@ If other devices can't connect, you may need to allow the port through your fire
   ```
 - **macOS:** System Settings → Network → Firewall → allow incoming connections for Node.js (or disable firewall for local testing)
 
-### WSL2 — LAN Access
+## WSL2 Setup
 
-WSL2 runs in its own virtual network, so binding to `0.0.0.0` inside WSL2 is not enough — the Windows host needs to forward traffic from its LAN IP into WSL2.
+WSL2 uses a lightweight VM with its own virtual network adapter. This means extra steps are needed to access the app from Windows or other devices on your LAN.
 
-**Option A — Port proxy (run in an admin PowerShell on Windows):**
+### Accessing the App from Windows
+
+By default, WSL2 forwards `localhost` traffic from Windows into the VM. After starting the server inside WSL2, open **http://localhost:3000** in your Windows browser.
+
+If `localhost` doesn't work:
+
+1. **Check that localhost forwarding is enabled.** Add to `%USERPROFILE%\.wslconfig`:
+   ```ini
+   [wsl2]
+   localhostForwarding=true
+   ```
+   Then restart WSL: `wsl --shutdown`
+
+2. **Use the WSL2 IP directly.** Find it from inside WSL2:
+   ```bash
+   hostname -I | awk '{print $1}'
+   ```
+   Then visit `http://<WSL2-IP>:3000` from Windows.
+
+### Accessing the App from Other LAN Devices
+
+WSL2's virtual network is not directly reachable from other machines on your LAN. You have two options:
+
+**Option A — Port proxy (works on all WSL2 versions)**
+
+Run in an **admin PowerShell** on the Windows host:
 
 ```powershell
 # Get WSL2's internal IP
@@ -199,19 +224,27 @@ $wslIp = wsl hostname -I | ForEach-Object { $_.Trim().Split()[0] }
 # Forward port 3000 from all Windows interfaces into WSL2
 netsh interface portproxy add v4tov4 listenport=3000 listenaddress=0.0.0.0 connectport=3000 connectaddress=$wslIp
 
-# Verify
+# Allow through Windows Firewall
+netsh advfirewall firewall add rule name="HamTab WSL2" dir=in action=allow protocol=TCP localport=3000
+
+# Verify the proxy rule
 netsh interface portproxy show v4tov4
 ```
 
-The WSL2 IP changes on each reboot, so re-run the proxy command after restarting WSL.
+Other devices can then reach the app at `http://<your-Windows-IP>:3000`.
 
-To remove the proxy later:
+> **Note:** The WSL2 IP changes on every reboot. You'll need to re-run the port proxy command after restarting WSL. To automate this, add the commands above to a startup script or Windows Task Scheduler task.
+
+To remove the proxy and firewall rule later:
 
 ```powershell
 netsh interface portproxy delete v4tov4 listenport=3000 listenaddress=0.0.0.0
+netsh advfirewall firewall delete rule name="HamTab WSL2"
 ```
 
-**Option B — Mirrored networking (WSL 2.0.5+):**
+**Option B — Mirrored networking (Windows 11 23H2+, WSL 2.0.5+)**
+
+Mirrored mode makes WSL2 share the Windows host's network stack directly — no port proxy needed and the WSL2 IP no longer changes.
 
 Add to `%USERPROFILE%\.wslconfig`:
 
@@ -220,7 +253,24 @@ Add to `%USERPROFILE%\.wslconfig`:
 networkingMode=mirrored
 ```
 
-Then restart WSL (`wsl --shutdown`). With mirrored mode, WSL2 shares the host's network stack and no port proxy is needed.
+Then restart WSL (`wsl --shutdown`). The app will be available on your Windows IP without any forwarding.
+
+### Linux Firewall (inside WSL2)
+
+If you're running `ufw` or `iptables` inside WSL2, make sure port 3000 is allowed:
+
+```bash
+sudo ufw allow 3000/tcp
+```
+
+### Troubleshooting
+
+- **Browser shows HTTPS error or refuses to connect to localhost** — A previous session may have cached an HSTS policy. Clear it in your browser:
+  - **Chrome/Edge:** Visit `chrome://net-internals/#hsts` (or `edge://net-internals/#hsts`), enter `localhost` under "Delete domain security policies," and click Delete.
+  - **Firefox:** Clear recent history for localhost, or restart with a fresh profile.
+- **Page loads but shows unstyled text** — Check the browser dev tools console (F12) for CSP or mixed-content errors. The server must be accessed over plain HTTP, not HTTPS.
+- **WSL2 IP changed after reboot** — Re-run the port proxy command from Option A, or switch to mirrored networking (Option B) to avoid this entirely.
+- **Connection refused from another device** — Verify the Windows Firewall rule is active and that you're using the Windows host IP, not the WSL2 internal IP.
 
 ## Project Structure
 

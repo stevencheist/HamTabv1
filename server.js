@@ -19,7 +19,7 @@ app.use(helmet({
       defaultSrc: ["'self'"],
       scriptSrc: ["'self'", "https://cdnjs.cloudflare.com"],
       styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com"],
+      imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com", "https://cdnjs.cloudflare.com"],
       connectSrc: ["'self'"],
       frameSrc: ["'none'"],
     },

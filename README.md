@@ -186,6 +186,42 @@ If other devices can't connect, you may need to allow the port through your fire
   ```
 - **macOS:** System Settings → Network → Firewall → allow incoming connections for Node.js (or disable firewall for local testing)
 
+### WSL2 — LAN Access
+
+WSL2 runs in its own virtual network, so binding to `0.0.0.0` inside WSL2 is not enough — the Windows host needs to forward traffic from its LAN IP into WSL2.
+
+**Option A — Port proxy (run in an admin PowerShell on Windows):**
+
+```powershell
+# Get WSL2's internal IP
+$wslIp = wsl hostname -I | ForEach-Object { $_.Trim().Split()[0] }
+
+# Forward port 3000 from all Windows interfaces into WSL2
+netsh interface portproxy add v4tov4 listenport=3000 listenaddress=0.0.0.0 connectport=3000 connectaddress=$wslIp
+
+# Verify
+netsh interface portproxy show v4tov4
+```
+
+The WSL2 IP changes on each reboot, so re-run the proxy command after restarting WSL.
+
+To remove the proxy later:
+
+```powershell
+netsh interface portproxy delete v4tov4 listenport=3000 listenaddress=0.0.0.0
+```
+
+**Option B — Mirrored networking (WSL 2.0.5+):**
+
+Add to `%USERPROFILE%\.wslconfig`:
+
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+
+Then restart WSL (`wsl --shutdown`). With mirrored mode, WSL2 shares the host's network stack and no port proxy is needed.
+
 ## Project Structure
 
 ```

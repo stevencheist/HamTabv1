@@ -1148,10 +1148,7 @@
 
     const marker = markers[sid];
     if (marker) {
-      // Ensure cluster is spiderfied so marker is visible
-      clusterGroup.zoomToShowLayer(marker, () => {
-        marker.openPopup();
-      });
+      marker.openPopup();
     }
   }
 

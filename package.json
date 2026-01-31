@@ -4,7 +4,8 @@
   "description": "POTA Activations Web App with map and solar data",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "start:wrapper": "bash start.sh"
   },
   "dependencies": {
     "cors": "^2.8.6",

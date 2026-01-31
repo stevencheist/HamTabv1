@@ -357,6 +357,45 @@ header {
   background: var(--accent);
 }
 
+#updateBtn {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#updateBtn:hover {
+  background: var(--accent);
+}
+
+#updateBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#updateBtn.updating {
+  background: var(--yellow);
+  color: #111;
+  border-color: var(--yellow);
+}
+
+.update-status {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.update-status.success {
+  color: var(--green);
+}
+
+.update-status.error {
+  color: var(--red);
+}
+
 /* ---- Widget system ---- */
 
 .widget-area {

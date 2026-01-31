@@ -1472,6 +1472,76 @@
 
   document.getElementById('resetLayoutBtn').addEventListener('click', resetLayout);
 
+  // --- Self-update ---
+
+  const updateBtn = document.getElementById('updateBtn');
+  const updateStatus = document.getElementById('updateStatus');
+
+  function setUpdateStatus(msg, type) {
+    updateStatus.textContent = msg;
+    updateStatus.className = 'update-status' + (type ? ' ' + type : '');
+  }
+
+  function pollForServer(attempts) {
+    if (attempts <= 0) {
+      setUpdateStatus('Server did not come back', 'error');
+      updateBtn.disabled = false;
+      updateBtn.classList.remove('updating');
+      return;
+    }
+    setTimeout(() => {
+      fetch('/api/spots').then(resp => {
+        if (resp.ok) {
+          setUpdateStatus('Reloading...', 'success');
+          location.reload();
+        } else {
+          pollForServer(attempts - 1);
+        }
+      }).catch(() => {
+        pollForServer(attempts - 1);
+      });
+    }, 1000);
+  }
+
+  async function performUpdate() {
+    updateBtn.disabled = true;
+    updateBtn.classList.add('updating');
+    setUpdateStatus('Updating...', '');
+
+    try {
+      const resp = await fetch('/api/update', { method: 'POST' });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        setUpdateStatus(data.error || 'Update failed', 'error');
+        updateBtn.disabled = false;
+        updateBtn.classList.remove('updating');
+        return;
+      }
+
+      if (!data.updated) {
+        setUpdateStatus('Already up to date', 'success');
+        updateBtn.disabled = false;
+        updateBtn.classList.remove('updating');
+        return;
+      }
+
+      if (data.serverRestarting) {
+        setUpdateStatus('Server restarting...', '');
+        pollForServer(30);
+      } else {
+        setUpdateStatus('Updated — reloading...', 'success');
+        setTimeout(() => location.reload(), 500);
+      }
+    } catch (err) {
+      setUpdateStatus('Update failed: ' + err.message, 'error');
+      updateBtn.disabled = false;
+      updateBtn.classList.remove('updating');
+    }
+  }
+
+  updateBtn.addEventListener('click', performUpdate);
+
   // --- Init ---
 
   function initApp() {

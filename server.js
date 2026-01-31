@@ -5,7 +5,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
+const { execSync, execFile } = require('child_process');
 const { URL } = require('url');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -75,6 +75,7 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
+app.use(express.json());
 app.use(express.static('public'));
 
 // Proxy POTA spots API
@@ -147,6 +148,60 @@ app.get('/api/lunar', (req, res) => {
     console.error('Error computing lunar data:', err.message);
     res.status(500).json({ error: 'Failed to compute lunar data' });
   }
+});
+
+// --- Self-update endpoint ---
+
+let updateInProgress = false;
+const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const SERVER_FILES = ['server.js', 'package.json', 'package-lock.json'];
+
+app.post('/api/update', (req, res) => {
+  if (updateInProgress) {
+    return res.status(409).json({ error: 'Update already in progress' });
+  }
+  updateInProgress = true;
+
+  // Step 1: git pull
+  execFile('git', ['pull'], { timeout: 30000, cwd: __dirname }, (gitErr, gitStdout, gitStderr) => {
+    if (gitErr) {
+      updateInProgress = false;
+      console.error('git pull failed:', gitErr.message);
+      return res.status(500).json({ error: 'git pull failed: ' + gitErr.message });
+    }
+
+    const gitOutput = (gitStdout || '').trim();
+    console.log('git pull:', gitOutput);
+
+    if (gitOutput === 'Already up to date.') {
+      updateInProgress = false;
+      return res.json({ updated: false, message: 'Already up to date' });
+    }
+
+    // Step 2: npm install
+    execFile(npmCmd, ['install', '--production'], { timeout: 60000, cwd: __dirname }, (npmErr, npmStdout, npmStderr) => {
+      if (npmErr) {
+        updateInProgress = false;
+        console.error('npm install failed:', npmErr.message);
+        return res.status(500).json({ error: 'npm install failed: ' + npmErr.message });
+      }
+
+      console.log('npm install:', (npmStdout || '').trim());
+
+      // Check if server-side files changed
+      const serverChanged = SERVER_FILES.some(f => gitOutput.includes(f));
+
+      if (serverChanged) {
+        // Send response before exiting so the client knows to poll
+        res.json({ updated: true, serverRestarting: true, message: 'Server files changed — restarting' });
+        console.log('Server files changed. Exiting for restart...');
+        setTimeout(() => process.exit(0), 1500);
+      } else {
+        updateInProgress = false;
+        res.json({ updated: true, serverRestarting: false, message: 'Frontend files updated' });
+      }
+    });
+  });
 });
 
 // --- Lunar math (simplified Meeus algorithms) ---

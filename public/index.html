@@ -16,7 +16,36 @@
       <h2>POTA Activations</h2>
       <label for="splashCallsign">Your Callsign</label>
       <input type="text" id="splashCallsign" placeholder="e.g. W1AW" autocomplete="off" spellcheck="false" />
-      <button id="splashOk">Start</button>
+
+      <div class="splash-divider"></div>
+
+      <div class="splash-loc-header">
+        <span class="splash-loc-title">Location Override</span>
+        <button type="button" class="splash-gps-btn" id="splashGpsBtn">Use GPS</button>
+      </div>
+
+      <div class="splash-loc-fields">
+        <div class="splash-loc-row">
+          <div class="splash-field">
+            <label for="splashLat">Lat</label>
+            <input type="text" id="splashLat" placeholder="e.g. 41.71" autocomplete="off" spellcheck="false" />
+          </div>
+          <div class="splash-field">
+            <label for="splashLon">Lon</label>
+            <input type="text" id="splashLon" placeholder="e.g. -72.73" autocomplete="off" spellcheck="false" />
+          </div>
+        </div>
+      </div>
+
+      <div class="splash-grid-wrap">
+        <label for="splashGrid">Grid Square</label>
+        <input type="text" id="splashGrid" placeholder="e.g. FN31" autocomplete="off" spellcheck="false" />
+        <div class="splash-grid-dropdown" id="splashGridDropdown"></div>
+      </div>
+
+      <div class="splash-loc-status" id="splashLocStatus"></div>
+
+      <button id="splashOk">OK</button>
     </div>
   </div>
 

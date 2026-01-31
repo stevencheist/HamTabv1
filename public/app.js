@@ -1117,6 +1117,15 @@
     return dirs[Math.round(deg / 45) % 8];
   }
 
+  function distanceMi(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const R = 3958.8; // Earth radius in miles
+    const dLat = (lat2 - lat1) * r;
+    const dLon = (lon2 - lon1) * r;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
   function localTimeAtLon(lon) {
     // Approximate local time using longitude offset from UTC
     const now = new Date();
@@ -1143,9 +1152,12 @@
       const callsign = esc(spot.activator || '');
       const qrzUrl = `https://www.qrz.com/db/${encodeURIComponent(spot.activator || '')}`;
       let dirLine = '';
+      let distLine = '';
       if (myLat !== null && myLon !== null) {
         const deg = bearingTo(myLat, myLon, lat, lon);
+        const mi = Math.round(distanceMi(myLat, myLon, lat, lon));
         dirLine = `<div class="popup-dir">Direction: ${bearingToCardinal(deg)}</div>`;
+        distLine = `<div class="popup-dist">Distance: ~${mi.toLocaleString()} mi</div>`;
       }
       const localTime = localTimeAtLon(lon);
       marker.bindPopup(`
@@ -1153,6 +1165,7 @@
         <div class="popup-freq">${esc(spot.frequency || '')} ${esc(spot.mode || '')}</div>
         <div class="popup-park"><strong>${esc(spot.reference || '')}</strong> ${esc(spot.name || '')}</div>
         ${dirLine}
+        ${distLine}
         <div class="popup-time">Local time: ${esc(localTime)}</div>
         ${spot.comments ? '<div style="margin-top:4px;font-size:0.78rem;color:#8899aa;">' + esc(spot.comments) + '</div>' : ''}
       `);

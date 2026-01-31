@@ -765,6 +765,7 @@ header {
 }
 
 .leaflet-popup-content .popup-dir,
+.leaflet-popup-content .popup-dist,
 .leaflet-popup-content .popup-time {
   color: var(--text-dim);
   font-size: 0.78rem;

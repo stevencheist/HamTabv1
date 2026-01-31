@@ -357,6 +357,45 @@ header {
   background: var(--accent);
 }
 
+#updateBtn {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+#updateBtn:hover {
+  background: var(--accent);
+}
+
+#updateBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+#updateBtn.updating {
+  background: var(--yellow);
+  color: #111;
+  border-color: var(--yellow);
+}
+
+.update-status {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.update-status.success {
+  color: var(--green);
+}
+
+.update-status.error {
+  color: var(--red);
+}
+
 /* ---- Widget system ---- */
 
 .widget-area {
@@ -794,6 +833,20 @@ header {
 .marker-cluster-medium div { background-color: rgba(255, 214, 0, 0.7); color: #111; }
 .marker-cluster-large { background-color: rgba(233, 69, 96, 0.4); }
 .marker-cluster-large div { background-color: rgba(233, 69, 96, 0.7); color: #fff; }
+
+/* ---- Clock widget ---- */
+
+.clock-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-family: monospace;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: 1px;
+}
 
 /* ---- Scrollbar ---- */
 

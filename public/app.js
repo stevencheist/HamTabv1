@@ -42,6 +42,8 @@
   const splashGridDropdown = document.getElementById('splashGridDropdown');
   const splashGpsBtn = document.getElementById('splashGpsBtn');
   const splashLocStatus = document.getElementById('splashLocStatus');
+  const clockLocal = document.getElementById('clockLocal');
+  const clockUtc = document.getElementById('clockUtc');
 
   // --- Operator callsign & location ---
 
@@ -1171,6 +1173,18 @@
     });
   }
 
+  // --- Clocks ---
+
+  function updateClocks() {
+    const now = new Date();
+    clockLocal.textContent = now.toLocaleTimeString();
+    const utcParts = now.toUTCString().match(/(\d{2}:\d{2}:\d{2})/);
+    clockUtc.textContent = utcParts ? utcParts[1] : now.toISOString().substring(11, 19);
+  }
+
+  updateClocks();
+  setInterval(updateClocks, 1000);
+
   // --- Auto-refresh ---
 
   function resetCountdown() {
@@ -1243,9 +1257,14 @@
     const centerW = W - leftW - rightW - pad * 4;
     const rightThird = Math.round((H - pad * 4) / 3);
 
+    const clockH = 60;
+    const clockW = Math.round((centerW - pad) / 2);
+
     return {
+      'widget-clock-local': { left: leftW + pad * 2, top: pad, width: clockW, height: clockH },
+      'widget-clock-utc': { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
       'widget-activations': { left: pad, top: pad, width: leftW, height: H - pad * 2 },
-      'widget-map': { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
+      'widget-map': { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
       'widget-solar': { left: leftW + centerW + pad * 3, top: pad, width: rightW, height: rightThird },
       'widget-bands': { left: leftW + centerW + pad * 3, top: rightThird + pad * 2, width: rightW, height: rightThird },
       'widget-lunar': { left: leftW + centerW + pad * 3, top: rightThird * 2 + pad * 3, width: rightW, height: H - rightThird * 2 - pad * 4 },
@@ -1452,6 +1471,76 @@
   }
 
   document.getElementById('resetLayoutBtn').addEventListener('click', resetLayout);
+
+  // --- Self-update ---
+
+  const updateBtn = document.getElementById('updateBtn');
+  const updateStatus = document.getElementById('updateStatus');
+
+  function setUpdateStatus(msg, type) {
+    updateStatus.textContent = msg;
+    updateStatus.className = 'update-status' + (type ? ' ' + type : '');
+  }
+
+  function pollForServer(attempts) {
+    if (attempts <= 0) {
+      setUpdateStatus('Server did not come back', 'error');
+      updateBtn.disabled = false;
+      updateBtn.classList.remove('updating');
+      return;
+    }
+    setTimeout(() => {
+      fetch('/api/spots').then(resp => {
+        if (resp.ok) {
+          setUpdateStatus('Reloading...', 'success');
+          location.reload();
+        } else {
+          pollForServer(attempts - 1);
+        }
+      }).catch(() => {
+        pollForServer(attempts - 1);
+      });
+    }, 1000);
+  }
+
+  async function performUpdate() {
+    updateBtn.disabled = true;
+    updateBtn.classList.add('updating');
+    setUpdateStatus('Updating...', '');
+
+    try {
+      const resp = await fetch('/api/update', { method: 'POST' });
+      const data = await resp.json();
+
+      if (!resp.ok) {
+        setUpdateStatus(data.error || 'Update failed', 'error');
+        updateBtn.disabled = false;
+        updateBtn.classList.remove('updating');
+        return;
+      }
+
+      if (!data.updated) {
+        setUpdateStatus('Already up to date', 'success');
+        updateBtn.disabled = false;
+        updateBtn.classList.remove('updating');
+        return;
+      }
+
+      if (data.serverRestarting) {
+        setUpdateStatus('Server restarting...', '');
+        pollForServer(30);
+      } else {
+        setUpdateStatus('Updated — reloading...', 'success');
+        setTimeout(() => location.reload(), 500);
+      }
+    } catch (err) {
+      setUpdateStatus('Update failed: ' + err.message, 'error');
+      updateBtn.disabled = false;
+      updateBtn.classList.remove('updating');
+    }
+  }
+
+  updateBtn.addEventListener('click', performUpdate);
 
   // --- Init ---
 

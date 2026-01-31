@@ -1866,7 +1866,11 @@
 
   // --- Init ---
 
+  let appInitialized = false;
+
   function initApp() {
+    if (appInitialized) return;
+    appInitialized = true;
     refreshAll();
     startAutoRefresh();
     fetchLocation();

@@ -36,12 +36,35 @@
   const opLoc = document.getElementById('opLoc');
   const editCallBtn = document.getElementById('editCallBtn');
   const refreshLocBtn = document.getElementById('refreshLocBtn');
+  const splashLat = document.getElementById('splashLat');
+  const splashLon = document.getElementById('splashLon');
+  const splashGrid = document.getElementById('splashGrid');
+  const splashGridDropdown = document.getElementById('splashGridDropdown');
+  const splashGpsBtn = document.getElementById('splashGpsBtn');
+  const splashLocStatus = document.getElementById('splashLocStatus');
 
   // --- Operator callsign & location ---
 
   let myCallsign = localStorage.getItem('pota_callsign') || '';
   let myLat = null;
   let myLon = null;
+  let manualLoc = false;
+  let syncingFields = false;
+  let gridHighlightIdx = -1;
+
+  // Load manual location from localStorage if present
+  const savedLat = localStorage.getItem('pota_lat');
+  const savedLon = localStorage.getItem('pota_lon');
+  if (savedLat !== null && savedLon !== null) {
+    myLat = parseFloat(savedLat);
+    myLon = parseFloat(savedLon);
+    if (!isNaN(myLat) && !isNaN(myLon)) {
+      manualLoc = true;
+    } else {
+      myLat = null;
+      myLon = null;
+    }
+  }
 
   function latLonToGrid(lat, lon) {
     lon += 180;
@@ -53,6 +76,106 @@
     const e = String.fromCharCode(97 + Math.floor(((lon % 2) * 12)));
     const f = String.fromCharCode(97 + Math.floor(((lat % 1) * 24)));
     return a + b + c + d + e + f;
+  }
+
+  function gridToLatLon(grid) {
+    if (!grid || grid.length !== 4) return null;
+    const g = grid.toUpperCase();
+    if (!/^[A-R]{2}[0-9]{2}$/.test(g)) return null;
+    const lon = (g.charCodeAt(0) - 65) * 20 + parseInt(g[2]) * 2 + 1 - 180;
+    const lat = (g.charCodeAt(1) - 65) * 10 + parseInt(g[3]) * 1 + 0.5 - 90;
+    return { lat, lon };
+  }
+
+  function getGridSuggestions(prefix) {
+    const results = [];
+    const p = prefix.toUpperCase();
+    if (p.length === 0 || p.length >= 4) return results;
+
+    const fieldChars = 'ABCDEFGHIJKLMNOPQR';
+    const digitChars = '0123456789';
+
+    function generate(current, pos) {
+      if (results.length >= 20) return;
+      if (current.length === 4) {
+        results.push(current);
+        return;
+      }
+      const chars = pos < 2 ? fieldChars : digitChars;
+      for (let i = 0; i < chars.length; i++) {
+        if (results.length >= 20) return;
+        const ch = chars[i];
+        if (pos < p.length) {
+          if (ch === p[pos]) {
+            generate(current + ch, pos + 1);
+          }
+        } else {
+          generate(current + ch, pos + 1);
+        }
+      }
+    }
+
+    generate('', 0);
+    return results;
+  }
+
+  function showGridSuggestions(prefix) {
+    const suggestions = getGridSuggestions(prefix);
+    splashGridDropdown.innerHTML = '';
+    gridHighlightIdx = -1;
+
+    if (suggestions.length === 0) {
+      splashGridDropdown.classList.remove('open');
+      return;
+    }
+
+    suggestions.forEach((grid, idx) => {
+      const div = document.createElement('div');
+      div.className = 'grid-option';
+      div.textContent = grid;
+      div.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+        selectGridSuggestion(grid);
+      });
+      splashGridDropdown.appendChild(div);
+    });
+
+    splashGridDropdown.classList.add('open');
+  }
+
+  function selectGridSuggestion(grid) {
+    splashGrid.value = grid;
+    splashGridDropdown.classList.remove('open');
+    splashGridDropdown.innerHTML = '';
+    gridHighlightIdx = -1;
+
+    const ll = gridToLatLon(grid);
+    if (ll) {
+      syncingFields = true;
+      splashLat.value = ll.lat.toFixed(2);
+      splashLon.value = ll.lon.toFixed(2);
+      myLat = ll.lat;
+      myLon = ll.lon;
+      syncingFields = false;
+      manualLoc = true;
+      splashGpsBtn.classList.remove('active');
+      updateLocStatus('Manual location set');
+    }
+  }
+
+  function updateLocStatus(msg, isError) {
+    splashLocStatus.textContent = msg || '';
+    splashLocStatus.classList.toggle('error', !!isError);
+  }
+
+  function updateGridHighlight() {
+    const options = splashGridDropdown.querySelectorAll('.grid-option');
+    options.forEach((opt, i) => {
+      opt.classList.toggle('highlighted', i === gridHighlightIdx);
+    });
+    if (gridHighlightIdx >= 0 && options[gridHighlightIdx]) {
+      options[gridHighlightIdx].scrollIntoView({ block: 'nearest' });
+    }
   }
 
   function updateOperatorDisplay() {
@@ -71,6 +194,7 @@
   }
 
   function fetchLocation() {
+    if (manualLoc) return;
     if (!navigator.geolocation) {
       opLoc.textContent = 'Geolocation unavailable';
       return;
@@ -91,6 +215,29 @@
   function showSplash() {
     splash.classList.remove('hidden');
     splashCallsign.value = myCallsign;
+
+    if (myLat !== null && myLon !== null) {
+      splashLat.value = myLat.toFixed(2);
+      splashLon.value = myLon.toFixed(2);
+      const grid = latLonToGrid(myLat, myLon);
+      splashGrid.value = grid.substring(0, 4).toUpperCase();
+    } else {
+      splashLat.value = '';
+      splashLon.value = '';
+      splashGrid.value = '';
+    }
+
+    if (manualLoc) {
+      splashGpsBtn.classList.remove('active');
+      updateLocStatus('Manual override active');
+    } else {
+      splashGpsBtn.classList.add('active');
+      updateLocStatus('Using GPS');
+    }
+
+    splashGridDropdown.classList.remove('open');
+    splashGridDropdown.innerHTML = '';
+    gridHighlightIdx = -1;
     splashCallsign.focus();
   }
 
@@ -99,6 +246,13 @@
     if (!val) return;
     myCallsign = val;
     localStorage.setItem('pota_callsign', myCallsign);
+
+    if (manualLoc && myLat !== null && myLon !== null) {
+      localStorage.setItem('pota_lat', String(myLat));
+      localStorage.setItem('pota_lon', String(myLon));
+    }
+
+    splashGridDropdown.classList.remove('open');
     splash.classList.add('hidden');
     updateOperatorDisplay();
     initApp();
@@ -109,13 +263,164 @@
     if (e.key === 'Enter') dismissSplash();
   });
 
+  // --- Bidirectional lat/lon <-> grid sync ---
+
+  splashLat.addEventListener('input', () => {
+    if (syncingFields) return;
+    manualLoc = true;
+    splashGpsBtn.classList.remove('active');
+    const lat = parseFloat(splashLat.value);
+    const lon = parseFloat(splashLon.value);
+    if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+      syncingFields = true;
+      splashGrid.value = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
+      myLat = lat;
+      myLon = lon;
+      syncingFields = false;
+      updateLocStatus('Manual location set');
+    } else {
+      updateLocStatus('');
+    }
+  });
+
+  splashLon.addEventListener('input', () => {
+    if (syncingFields) return;
+    manualLoc = true;
+    splashGpsBtn.classList.remove('active');
+    const lat = parseFloat(splashLat.value);
+    const lon = parseFloat(splashLon.value);
+    if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+      syncingFields = true;
+      splashGrid.value = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
+      myLat = lat;
+      myLon = lon;
+      syncingFields = false;
+      updateLocStatus('Manual location set');
+    } else {
+      updateLocStatus('');
+    }
+  });
+
+  splashGrid.addEventListener('input', () => {
+    if (syncingFields) return;
+    manualLoc = true;
+    splashGpsBtn.classList.remove('active');
+    const val = splashGrid.value.toUpperCase();
+
+    if (val.length === 4) {
+      const ll = gridToLatLon(val);
+      if (ll) {
+        syncingFields = true;
+        splashLat.value = ll.lat.toFixed(2);
+        splashLon.value = ll.lon.toFixed(2);
+        myLat = ll.lat;
+        myLon = ll.lon;
+        syncingFields = false;
+        updateLocStatus('Manual location set');
+      }
+      splashGridDropdown.classList.remove('open');
+      splashGridDropdown.innerHTML = '';
+      gridHighlightIdx = -1;
+    } else if (val.length > 0 && val.length < 4) {
+      showGridSuggestions(val);
+    } else {
+      splashGridDropdown.classList.remove('open');
+      splashGridDropdown.innerHTML = '';
+      gridHighlightIdx = -1;
+      updateLocStatus('');
+    }
+  });
+
+  // Grid autocomplete keyboard navigation
+  splashGrid.addEventListener('keydown', (e) => {
+    const options = splashGridDropdown.querySelectorAll('.grid-option');
+    if (!splashGridDropdown.classList.contains('open') || options.length === 0) {
+      if (e.key === 'Enter') dismissSplash();
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      gridHighlightIdx = Math.min(gridHighlightIdx + 1, options.length - 1);
+      updateGridHighlight();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      gridHighlightIdx = Math.max(gridHighlightIdx - 1, 0);
+      updateGridHighlight();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (gridHighlightIdx >= 0 && options[gridHighlightIdx]) {
+        selectGridSuggestion(options[gridHighlightIdx].textContent);
+      }
+    } else if (e.key === 'Escape') {
+      splashGridDropdown.classList.remove('open');
+      splashGridDropdown.innerHTML = '';
+      gridHighlightIdx = -1;
+    }
+  });
+
+  // Close dropdown on blur with delay for mousedown to fire first
+  splashGrid.addEventListener('blur', () => {
+    setTimeout(() => {
+      splashGridDropdown.classList.remove('open');
+      splashGridDropdown.innerHTML = '';
+      gridHighlightIdx = -1;
+    }, 150);
+  });
+
+  // Enter key on lat/lon fields dismisses splash
+  splashLat.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') dismissSplash();
+  });
+  splashLon.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') dismissSplash();
+  });
+
+  // "Use GPS" button handler
+  splashGpsBtn.addEventListener('click', () => {
+    manualLoc = false;
+    localStorage.removeItem('pota_lat');
+    localStorage.removeItem('pota_lon');
+    splashGpsBtn.classList.add('active');
+    updateLocStatus('Using GPS');
+
+    // Fetch GPS and update fields
+    if (navigator.geolocation) {
+      opLoc.textContent = 'Locating...';
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          myLat = pos.coords.latitude;
+          myLon = pos.coords.longitude;
+          syncingFields = true;
+          splashLat.value = myLat.toFixed(2);
+          splashLon.value = myLon.toFixed(2);
+          splashGrid.value = latLonToGrid(myLat, myLon).substring(0, 4).toUpperCase();
+          syncingFields = false;
+          updateOperatorDisplay();
+          updateLocStatus('Using GPS');
+        },
+        () => {
+          updateLocStatus('Location denied', true);
+          opLoc.textContent = 'Location denied';
+        },
+        { enableHighAccuracy: false, timeout: 10000 }
+      );
+    } else {
+      updateLocStatus('Geolocation unavailable', true);
+    }
+  });
+
   editCallBtn.addEventListener('click', () => {
     showSplash();
   });
 
   refreshLocBtn.addEventListener('click', () => {
-    opLoc.textContent = 'Locating...';
-    fetchLocation();
+    if (manualLoc) {
+      showSplash();
+    } else {
+      opLoc.textContent = 'Locating...';
+      fetchLocation();
+    }
   });
 
   // Map setup

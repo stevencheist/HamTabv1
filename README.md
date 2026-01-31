@@ -76,6 +76,7 @@ Needed to clone the repository.
 | [cors](https://github.com/expressjs/cors) | ^2.x | CORS origin filtering (LAN only) |
 | [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) | ^7.x | API rate limiting (60 req/min) |
 | [dotenv](https://github.com/motdotla/dotenv) | ^16.x | Environment variable configuration |
+| [selfsigned](https://github.com/jfromaniello/selfsigned) | ^2.x | Auto-generated self-signed TLS certificates |
 
 All other functionality (Leaflet maps, marker clustering) is loaded from CDNs in the browser with SRI integrity hashes.
 
@@ -133,9 +134,16 @@ Or directly:
 node server.js
 ```
 
-Then open your browser to **http://localhost:3000** (or **http://\<your-LAN-IP\>:3000** from other devices on the network).
+Then open your browser to **http://localhost:3000** (or **https://\<your-LAN-IP\>:3443** from other devices on the network).
+
+On first startup the server auto-generates a self-signed TLS certificate (saved to `certs/`). Two servers start:
+
+- **HTTP** on port 3000 — for localhost/desktop use
+- **HTTPS** on port 3443 — for LAN/mobile access
 
 On first launch you'll be prompted to enter your callsign. The app will request your browser's geolocation to display your Maidenhead grid square.
+
+> **Mobile geolocation:** Browsers require a secure context (HTTPS) for the Geolocation API. When accessing from a phone on your LAN, use `https://<your-LAN-IP>:3443`. You'll need to accept the self-signed certificate warning on first visit.
 
 ## Usage
 
@@ -155,6 +163,7 @@ Create a `.env` file in the project root (already in `.gitignore`):
 
 ```
 PORT=3000
+HTTPS_PORT=3443
 HOST=0.0.0.0
 ```
 
@@ -221,17 +230,19 @@ Run in an **admin PowerShell** on the Windows host:
 # Get WSL2's internal IP
 $wslIp = wsl hostname -I | ForEach-Object { $_.Trim().Split()[0] }
 
-# Forward port 3000 from all Windows interfaces into WSL2
+# Forward ports from all Windows interfaces into WSL2
 netsh interface portproxy add v4tov4 listenport=3000 listenaddress=0.0.0.0 connectport=3000 connectaddress=$wslIp
+netsh interface portproxy add v4tov4 listenport=3443 listenaddress=0.0.0.0 connectport=3443 connectaddress=$wslIp
 
 # Allow through Windows Firewall
 netsh advfirewall firewall add rule name="HamTab WSL2" dir=in action=allow protocol=TCP localport=3000
+netsh advfirewall firewall add rule name="HamTab WSL2 HTTPS" dir=in action=allow protocol=TCP localport=3443
 
 # Verify the proxy rule
 netsh interface portproxy show v4tov4
 ```
 
-Other devices can then reach the app at `http://<your-Windows-IP>:3000`.
+Other devices can then reach the app at `http://<your-Windows-IP>:3000` or `https://<your-Windows-IP>:3443` (for mobile geolocation).
 
 > **Note:** The WSL2 IP changes on every reboot. You'll need to re-run the port proxy command after restarting WSL. To automate this, add the commands above to a startup script or Windows Task Scheduler task.
 
@@ -239,7 +250,9 @@ To remove the proxy and firewall rule later:
 
 ```powershell
 netsh interface portproxy delete v4tov4 listenport=3000 listenaddress=0.0.0.0
+netsh interface portproxy delete v4tov4 listenport=3443 listenaddress=0.0.0.0
 netsh advfirewall firewall delete rule name="HamTab WSL2"
+netsh advfirewall firewall delete rule name="HamTab WSL2 HTTPS"
 ```
 
 **Option B — Mirrored networking (Windows 11 23H2+, WSL 2.0.5+)**
@@ -278,7 +291,8 @@ sudo ufw allow 3000/tcp
 HamTabv1/
   server.js           Express server with API proxy endpoints
   package.json        Node.js project config
-  .env                Environment variables (PORT, HOST)
+  .env                Environment variables (PORT, HTTPS_PORT, HOST)
+  certs/              Auto-generated TLS certificates (gitignored)
   public/
     index.html        Main HTML page
     style.css         All styles (dark theme, widgets, map, tables)

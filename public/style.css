@@ -99,6 +99,151 @@ html, body {
   opacity: 0.9;
 }
 
+/* -- Location override section -- */
+
+.splash-divider {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0;
+}
+
+.splash-loc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.splash-loc-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+
+.splash-gps-btn {
+  padding: 3px 10px;
+  font-size: 0.72rem;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.splash-gps-btn:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.splash-gps-btn.active {
+  background: var(--green);
+  border-color: var(--green);
+  color: #fff;
+}
+
+.splash-loc-fields {
+  margin-bottom: 8px;
+}
+
+.splash-loc-row {
+  display: flex;
+  gap: 10px;
+}
+
+.splash-field {
+  flex: 1;
+}
+
+.splash-field label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+  text-align: left;
+}
+
+.splash-field input,
+.splash-grid-wrap input {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 0.95rem;
+  font-family: monospace;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  outline: none;
+  margin-bottom: 0;
+}
+
+.splash-field input:focus,
+.splash-grid-wrap input:focus {
+  border-color: var(--accent);
+}
+
+#splashLat,
+#splashLon {
+  text-transform: none;
+}
+
+.splash-grid-wrap {
+  position: relative;
+  margin-bottom: 8px;
+  text-align: left;
+}
+
+.splash-grid-wrap label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.splash-grid-dropdown {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  max-height: 160px;
+  overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0 0 4px 4px;
+  z-index: 100;
+  display: none;
+}
+
+.splash-grid-dropdown.open {
+  display: block;
+}
+
+.grid-option {
+  padding: 5px 10px;
+  font-size: 0.85rem;
+  font-family: monospace;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.grid-option:hover,
+.grid-option.highlighted {
+  background: var(--surface2);
+  color: #fff;
+}
+
+.splash-loc-status {
+  font-size: 0.75rem;
+  color: var(--green);
+  margin-bottom: 10px;
+  min-height: 1.2em;
+  text-align: left;
+}
+
+.splash-loc-status.error {
+  color: var(--red);
+}
+
 /* ---- Header ---- */
 
 header {

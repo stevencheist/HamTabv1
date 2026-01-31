@@ -13,6 +13,7 @@
   let refreshInterval = null;
   let countdownSeconds = 60;
   let countdownTimer = null;
+  let use24h = localStorage.getItem('pota_time24') !== 'false';
 
   // DOM refs
   const spotsBody = document.getElementById('spotsBody');
@@ -28,7 +29,7 @@
   const autoRefreshCb = document.getElementById('autoRefresh');
   const refreshBtn = document.getElementById('refreshBtn');
   const solarIndices = document.getElementById('solarIndices');
-  const bandBody = document.getElementById('bandBody');
+  const headerBandsRow = document.getElementById('headerBandsRow');
   const splash = document.getElementById('splash');
   const splashCallsign = document.getElementById('splashCallsign');
   const splashOk = document.getElementById('splashOk');
@@ -44,6 +45,8 @@
   const splashLocStatus = document.getElementById('splashLocStatus');
   const clockLocal = document.getElementById('clockLocal');
   const clockUtc = document.getElementById('clockUtc');
+  const timeFmt12 = document.getElementById('timeFmt12');
+  const timeFmt24 = document.getElementById('timeFmt24');
 
   // --- Operator callsign & location ---
 
@@ -279,6 +282,9 @@
       updateLocStatus('Using GPS');
     }
 
+    timeFmt24.checked = use24h;
+    timeFmt12.checked = !use24h;
+
     splashGridDropdown.classList.remove('open');
     splashGridDropdown.innerHTML = '';
     gridHighlightIdx = -1;
@@ -296,11 +302,16 @@
       localStorage.setItem('pota_lon', String(myLon));
     }
 
+    use24h = timeFmt24.checked;
+    localStorage.setItem('pota_time24', String(use24h));
+
     splashGridDropdown.classList.remove('open');
     splash.classList.add('hidden');
     updateOperatorDisplay();
     centerMapOnUser();
     updateUserMarker();
+    updateClocks();
+    renderSpots();
     initApp();
   }
 
@@ -515,7 +526,7 @@
       updateCountryFilter();
       updateStateFilter();
       updateGridFilter();
-      lastUpdated.textContent = 'Updated: ' + new Date().toLocaleTimeString();
+      lastUpdated.textContent = 'Updated: ' + fmtTime(new Date());
     } catch (err) {
       console.error('Failed to fetch spots:', err);
     }
@@ -780,7 +791,7 @@
       if (sid === selectedSpotId) tr.classList.add('selected');
 
       const time = spot.spotTime ? new Date(spot.spotTime) : null;
-      const timeStr = time ? time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+      const timeStr = time ? fmtTime(time, { hour: '2-digit', minute: '2-digit' }) : '';
 
       tr.innerHTML = `
         <td class="callsign">${esc(spot.activator || '')}</td>
@@ -900,8 +911,8 @@
       solarIndices.appendChild(div);
     });
 
-    // Band conditions table
-    bandBody.innerHTML = '';
+    // Band conditions in header strip
+    headerBandsRow.innerHTML = '';
     const bandMap = {};
     bands.forEach(b => {
       if (!bandMap[b.band]) bandMap[b.band] = {};
@@ -911,22 +922,29 @@
     const bandOrder = ['80m-40m', '30m-20m', '17m-15m', '12m-10m'];
     bandOrder.forEach(band => {
       if (!bandMap[band]) return;
-      const tr = document.createElement('tr');
       const day = bandMap[band]['day'] || '-';
       const night = bandMap[band]['night'] || '-';
-      const tdBand = document.createElement('td');
-      tdBand.textContent = band;
-      const tdDay = document.createElement('td');
-      tdDay.className = condClass(day);
-      tdDay.textContent = day;
-      const tdNight = document.createElement('td');
-      tdNight.className = condClass(night);
-      tdNight.textContent = night;
-      tr.appendChild(tdBand);
-      tr.appendChild(tdDay);
-      tr.appendChild(tdNight);
-      bandBody.appendChild(tr);
+      const item = document.createElement('div');
+      item.className = 'header-band-item';
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'header-band-name';
+      nameSpan.textContent = band;
+      const daySpan = document.createElement('span');
+      daySpan.className = 'header-band-day ' + condClass(day);
+      daySpan.textContent = day;
+      const sep = document.createElement('span');
+      sep.textContent = '/';
+      sep.style.color = 'var(--text-dim)';
+      const nightSpan = document.createElement('span');
+      nightSpan.className = 'header-band-night ' + condClass(night);
+      nightSpan.textContent = night;
+      item.appendChild(nameSpan);
+      item.appendChild(daySpan);
+      item.appendChild(sep);
+      item.appendChild(nightSpan);
+      headerBandsRow.appendChild(item);
     });
+
   }
 
   function condClass(cond) {
@@ -1175,11 +1193,15 @@
 
   // --- Clocks ---
 
+  function fmtTime(date, options) {
+    const opts = Object.assign({ hour12: !use24h }, options || {});
+    return date.toLocaleTimeString([], opts);
+  }
+
   function updateClocks() {
     const now = new Date();
-    clockLocal.textContent = now.toLocaleTimeString();
-    const utcParts = now.toUTCString().match(/(\d{2}:\d{2}:\d{2})/);
-    clockUtc.textContent = utcParts ? utcParts[1] : now.toISOString().substring(11, 19);
+    clockLocal.textContent = fmtTime(now);
+    clockUtc.textContent = fmtTime(now, { timeZone: 'UTC' });
   }
 
   updateClocks();
@@ -1255,7 +1277,7 @@
     const leftW = Math.round(W * 0.30);
     const rightW = Math.round(W * 0.25);
     const centerW = W - leftW - rightW - pad * 4;
-    const rightThird = Math.round((H - pad * 4) / 3);
+    const rightHalf = Math.round((H - pad * 3) / 2);
 
     const clockH = 60;
     const clockW = Math.round((centerW - pad) / 2);
@@ -1265,9 +1287,8 @@
       'widget-clock-utc': { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
       'widget-activations': { left: pad, top: pad, width: leftW, height: H - pad * 2 },
       'widget-map': { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
-      'widget-solar': { left: leftW + centerW + pad * 3, top: pad, width: rightW, height: rightThird },
-      'widget-bands': { left: leftW + centerW + pad * 3, top: rightThird + pad * 2, width: rightW, height: rightThird },
-      'widget-lunar': { left: leftW + centerW + pad * 3, top: rightThird * 2 + pad * 3, width: rightW, height: H - rightThird * 2 - pad * 4 },
+      'widget-solar': { left: leftW + centerW + pad * 3, top: pad, width: rightW, height: rightHalf },
+      'widget-lunar': { left: leftW + centerW + pad * 3, top: rightHalf + pad * 2, width: rightW, height: H - rightHalf - pad * 3 },
     };
   }
 

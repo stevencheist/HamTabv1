@@ -1227,16 +1227,25 @@
   let tooltipHideTimer = null;
 
   function showCallTooltip(td, info) {
-    let html = `<div class="call-tooltip-name">${esc(info.name)}</div>`;
+    let html = '';
+    if (info.name) html += `<div class="call-tooltip-name">${esc(info.name)}</div>`;
     if (info.addr2) html += `<div class="call-tooltip-loc">${esc(info.addr2)}</div>`;
     if (info.class) html += `<div class="call-tooltip-class">${esc(info.class)}</div>`;
     if (info.grid) html += `<div class="call-tooltip-grid">${esc(info.grid)}</div>`;
+    if (!html) { hideCallTooltip(); return; }
     callTooltip.innerHTML = html;
     callTooltip.classList.add('visible');
 
     const rect = td.getBoundingClientRect();
-    callTooltip.style.left = rect.left + 'px';
-    callTooltip.style.top = (rect.bottom + 4) + 'px';
+    let left = rect.left;
+    let top = rect.bottom + 4;
+    // Keep tooltip on screen
+    const ttWidth = callTooltip.offsetWidth;
+    const ttHeight = callTooltip.offsetHeight;
+    if (left + ttWidth > window.innerWidth) left = window.innerWidth - ttWidth - 4;
+    if (top + ttHeight > window.innerHeight) top = rect.top - ttHeight - 4;
+    callTooltip.style.left = left + 'px';
+    callTooltip.style.top = top + 'px';
   }
 
   function hideCallTooltip() {
@@ -1259,10 +1268,13 @@
       callTooltip.style.left = rect.left + 'px';
       callTooltip.style.top = (rect.bottom + 4) + 'px';
       fetchCallsignInfo(call).then(info => {
-        if (info && callTooltip.classList.contains('visible')) {
-          showCallTooltip(td, info);
-        } else if (!info) {
-          hideCallTooltip();
+        // Only update if tooltip is still showing for this cell
+        if (callTooltip.classList.contains('visible')) {
+          if (info) {
+            showCallTooltip(td, info);
+          } else {
+            hideCallTooltip();
+          }
         }
       });
     }

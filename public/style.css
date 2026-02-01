@@ -692,20 +692,19 @@ header {
 
 .call-tooltip {
   position: fixed;
-  z-index: 20000;
+  z-index: 99999;
   background: var(--surface2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent);
   border-radius: 5px;
   padding: 8px 12px;
   pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.12s;
+  display: none;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
   max-width: 260px;
 }
 
 .call-tooltip.visible {
-  opacity: 1;
+  display: block;
 }
 
 .call-tooltip-name {

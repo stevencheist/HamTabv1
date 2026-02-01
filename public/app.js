@@ -134,6 +134,18 @@
           state.myLon = null;
         }
       }
+      if (!state.manualLoc) {
+        const gpsLat = localStorage.getItem("hamtab_gps_lat");
+        const gpsLon = localStorage.getItem("hamtab_gps_lon");
+        if (gpsLat !== null && gpsLon !== null) {
+          const lat = parseFloat(gpsLat);
+          const lon = parseFloat(gpsLon);
+          if (!isNaN(lat) && !isNaN(lon)) {
+            state.myLat = lat;
+            state.myLon = lon;
+          }
+        }
+      }
       state_default = state;
     }
   });
@@ -1845,7 +1857,35 @@
         el.style.display = "";
       }
     });
+    redistributeRightColumn();
     if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
+  }
+  function redistributeRightColumn() {
+    const { height: H } = getWidgetArea();
+    const pad = 6;
+    const solarEl = document.getElementById("widget-solar");
+    if (!solarEl || solarEl.style.display === "none") return;
+    const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
+    const rightX = parseInt(solarEl.style.left) || 0;
+    const rightW = parseInt(solarEl.style.width) || 0;
+    const rightBottomIds = ["widget-lunar", "widget-rst", "widget-spot-detail"];
+    const vis = state_default.widgetVisibility || {};
+    const visible = rightBottomIds.filter((id) => vis[id] !== false);
+    if (visible.length === 0) return;
+    const bottomSpace = H - solarBottom - pad;
+    const gaps = visible.length - 1;
+    const slotH = Math.round((bottomSpace - gaps * pad) / visible.length);
+    let curY = solarBottom + pad;
+    visible.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.left = rightX + "px";
+      el.style.top = curY + "px";
+      el.style.width = rightW + "px";
+      el.style.height = slotH + "px";
+      curY += slotH + pad;
+    });
+    saveWidgets();
   }
   function getWidgetArea() {
     const area = document.getElementById("widgetArea");
@@ -1866,11 +1906,23 @@
       "widget-clock-utc": { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
       "widget-activations": { left: pad, top: pad, width: leftW, height: H - pad * 2 },
       "widget-map": { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
-      "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf },
-      "widget-lunar": { left: rightX, top: rightHalf + pad * 2, width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) },
-      "widget-rst": { left: rightX, top: rightHalf + pad * 2 + Math.round((H - rightHalf - pad * 4) / 3) + pad, width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) },
-      "widget-spot-detail": { left: rightX, top: rightHalf + pad * 2 + 2 * (Math.round((H - rightHalf - pad * 4) / 3) + pad), width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) }
+      "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
     };
+    const rightBottomIds = ["widget-lunar", "widget-rst", "widget-spot-detail"];
+    const vis = state_default.widgetVisibility || {};
+    const visibleBottom = rightBottomIds.filter((id) => vis[id] !== false);
+    const bottomSpace = H - rightHalf - pad * 2;
+    const gaps = visibleBottom.length > 0 ? visibleBottom.length - 1 : 0;
+    const slotH = visibleBottom.length > 0 ? Math.round((bottomSpace - gaps * pad) / visibleBottom.length) : 0;
+    let curY = rightHalf + pad * 2;
+    visibleBottom.forEach((id) => {
+      layout[id] = { left: rightX, top: curY, width: rightW, height: slotH };
+      curY += slotH + pad;
+    });
+    rightBottomIds.filter((id) => vis[id] === false).forEach((id) => {
+      layout[id] = { left: rightX, top: rightHalf + pad * 2, width: rightW, height: 150 };
+    });
+    return layout;
   }
   function clampPosition(left, top, wW, wH) {
     const { width: aW, height: aH } = getWidgetArea();
@@ -1901,16 +1953,16 @@
     return { w, h };
   }
   function saveWidgets() {
-    const layout = {};
+    const layout2 = {};
     document.querySelectorAll(".widget").forEach((w) => {
-      layout[w.id] = {
+      layout2[w.id] = {
         left: parseInt(w.style.left) || 0,
         top: parseInt(w.style.top) || 0,
         width: parseInt(w.style.width) || 200,
         height: parseInt(w.style.height) || 150
       };
     });
-    localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(layout));
+    localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(layout2));
   }
   function bringToFront(widget) {
     state_default.zCounter++;
@@ -1980,9 +2032,9 @@
       document.addEventListener("mouseup", onUp);
     });
   }
-  function applyLayout(layout) {
+  function applyLayout(layout2) {
     document.querySelectorAll(".widget").forEach((widget) => {
-      const pos = layout[widget.id];
+      const pos = layout2[widget.id];
       if (pos) {
         widget.style.left = pos.left + "px";
         widget.style.top = pos.top + "px";
@@ -2001,27 +2053,27 @@
     updateUserMarker();
   }
   function initWidgets() {
-    let layout;
+    let layout2;
     try {
       const saved = localStorage.getItem(WIDGET_STORAGE_KEY);
       if (saved) {
-        layout = JSON.parse(saved);
+        layout2 = JSON.parse(saved);
         const { width: aW, height: aH } = getWidgetArea();
-        for (const id of Object.keys(layout)) {
-          const p = layout[id];
+        for (const id of Object.keys(layout2)) {
+          const p = layout2[id];
           if (p.left > aW - 30 || p.top > aH - 30 || p.left + p.width < 30 || p.top + p.height < 10) {
-            layout = null;
+            layout2 = null;
             break;
           }
         }
       }
     } catch (e) {
-      layout = null;
+      layout2 = null;
     }
-    if (!layout) {
-      layout = getDefaultLayout();
+    if (!layout2) {
+      layout2 = getDefaultLayout();
     }
-    applyLayout(layout);
+    applyLayout(layout2);
     applyWidgetVisibility();
     document.querySelectorAll(".widget").forEach((widget) => {
       const header = widget.querySelector(".widget-header");
@@ -2399,7 +2451,8 @@
         $("clockLocalWeather").innerHTML = line1 + (line2 ? "<br>" + line2 : "");
         setWxSource("nws");
       }
-    }).catch(() => {
+    }).catch((err) => {
+      console.warn("NWS conditions fetch failed:", err);
     });
   }
   function applyWeatherBackground(forecast, isDaytime2) {
@@ -2502,11 +2555,17 @@
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        state_default.myLat = pos.coords.latitude;
-        state_default.myLon = pos.coords.longitude;
+        const newLat = pos.coords.latitude;
+        const newLon = pos.coords.longitude;
+        const changed = state_default.myLat !== newLat || state_default.myLon !== newLon;
+        state_default.myLat = newLat;
+        state_default.myLon = newLon;
+        localStorage.setItem("hamtab_gps_lat", String(newLat));
+        localStorage.setItem("hamtab_gps_lon", String(newLon));
         updateOperatorDisplay2();
         centerMapOnUser();
         updateUserMarker();
+        if (changed && state_default.appInitialized) startNwsPolling();
       },
       () => {
         $("opLoc").textContent = "Location denied";

@@ -1,10 +1,12 @@
 {
-  "name": "pota-app",
+  "name": "hamtab",
   "version": "1.0.0",
-  "description": "POTA Activations Web App with map and solar data",
+  "description": "HamTab — POTA + SOTA ham radio dashboard with map and solar data",
   "main": "server.js",
   "scripts": {
-    "start": "bash start.sh",
+    "build": "node esbuild.mjs",
+    "dev": "node esbuild.mjs --watch",
+    "start": "node esbuild.mjs && node server.js",
     "start:direct": "node server.js"
   },
   "dependencies": {
@@ -15,5 +17,8 @@
     "fast-xml-parser": "^5.3.4",
     "helmet": "^8.1.0",
     "selfsigned": "^2.4.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
   }
 }

@@ -8,6 +8,8 @@ export const WIDGET_DEFS = [
   { id: 'widget-map',         name: 'HamMap' },
   { id: 'widget-solar',       name: 'Solar & Propagation' },
   { id: 'widget-lunar',       name: 'Lunar / EME' },
+  { id: 'widget-rst',          name: 'RST Reference' },
+  { id: 'widget-spot-detail', name: 'DX Detail' },
 ];
 
 export const SOURCE_DEFS = {

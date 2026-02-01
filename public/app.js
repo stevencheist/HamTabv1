@@ -273,6 +273,11 @@
   const lunarCfgSplash = document.getElementById('lunarCfgSplash');
   const lunarFieldList = document.getElementById('lunarFieldList');
   const lunarCfgOk = document.getElementById('lunarCfgOk');
+  const bandRefBtn = document.getElementById('bandRefBtn');
+  const bandRefSplash = document.getElementById('bandRefSplash');
+  const bandRefOk = document.getElementById('bandRefOk');
+  const bandRefMyPriv = document.getElementById('bandRefMyPriv');
+  const bandRefContent = document.getElementById('bandRefContent');
   const propContainer = document.getElementById('propContainer');
   const spotsHead = document.getElementById('spotsHead');
   const sourceTabs = document.getElementById('sourceTabs');
@@ -755,6 +760,56 @@
   }
 
   lunarCfgOk.addEventListener('click', dismissLunarCfg);
+
+  // --- Band reference popup ---
+
+  bandRefBtn.addEventListener('click', () => {
+    renderBandRef();
+    bandRefSplash.classList.remove('hidden');
+  });
+
+  bandRefOk.addEventListener('click', () => {
+    bandRefSplash.classList.add('hidden');
+  });
+
+  bandRefMyPriv.addEventListener('change', () => {
+    renderBandRef();
+  });
+
+  function renderBandRef() {
+    const myPrivOnly = bandRefMyPriv.checked;
+    const hasClass = isUSCallsign(myCallsign) && !!licenseClass;
+
+    // If no US license class, disable checkbox and show all
+    bandRefMyPriv.disabled = !hasClass;
+    if (!hasClass) bandRefMyPriv.checked = false;
+
+    const MODE_LABELS = { all: 'All', cw: 'CW', cwdig: 'CW/Digital', phone: 'Phone' };
+
+    let classesToShow;
+    if (myPrivOnly && hasClass) {
+      classesToShow = [licenseClass.toUpperCase()];
+    } else {
+      classesToShow = ['EXTRA', 'GENERAL', 'TECHNICIAN', 'NOVICE'];
+    }
+
+    const CLASS_DISPLAY = { EXTRA: 'Extra', GENERAL: 'General', TECHNICIAN: 'Technician', NOVICE: 'Novice' };
+
+    let html = '';
+    for (const cls of classesToShow) {
+      const privs = US_PRIVILEGES[cls];
+      if (!privs) continue;
+      html += `<h3>${CLASS_DISPLAY[cls] || cls}</h3>`;
+      html += '<table class="band-ref-table"><thead><tr><th>Band</th><th>Frequency Range (MHz)</th><th>Modes</th></tr></thead><tbody>';
+      for (const [lo, hi, modes] of privs) {
+        const band = freqToBand(String(lo)) || '?';
+        html += `<tr><td>${band}</td><td>${lo} – ${hi}</td><td>${MODE_LABELS[modes] || modes}</td></tr>`;
+      }
+      html += '</tbody></table>';
+    }
+
+    bandRefContent.innerHTML = html;
+  }
 
   // --- Bidirectional lat/lon <-> grid sync ---
 

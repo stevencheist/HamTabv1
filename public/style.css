@@ -524,6 +524,12 @@ header {
   display: none;
 }
 
+.platform-label {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
 /* ---- Splash update interval ---- */
 
 .splash-update-section {

@@ -5,7 +5,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync, execFile, spawn } = require('child_process');
+const { execSync, spawn } = require('child_process');
 const { URL } = require('url');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -401,45 +401,80 @@ app.get('/api/callsign/:call', async (req, res) => {
   }
 });
 
-// --- Auto-update system ---
+// --- Auto-update system (GitHub Releases) ---
 
-const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-const SERVER_FILES = ['server.js', 'package.json', 'package-lock.json'];
+const currentVersion = require('./package.json').version;
+const GITHUB_RELEASES_URL = 'https://api.github.com/repos/stevencheist/HamTabv1/releases/latest';
 
-// Capture git hash at startup so clients can detect stale server
-let startupHash = '';
-try {
-  startupHash = execSync('git rev-parse HEAD', { timeout: 5000, cwd: __dirname, encoding: 'utf-8' }).trim();
-} catch { /* ignore */ }
+// Detect platform label once at startup
+function detectPlatform() {
+  const platform = os.platform();
+  const arch = os.arch();
+  // Check for Raspberry Pi via device-tree model
+  try {
+    const model = fs.readFileSync('/proc/device-tree/model', 'utf-8');
+    if (/raspberry/i.test(model)) return 'Raspberry Pi';
+  } catch { /* not linux or no device-tree */ }
+  if (platform === 'win32') return 'Windows';
+  if (platform === 'darwin') return 'macOS';
+  if (platform === 'linux') {
+    // Try to get distro name
+    try {
+      const release = fs.readFileSync('/etc/os-release', 'utf-8');
+      const match = release.match(/^PRETTY_NAME="?([^"\n]+)"?/m);
+      if (match) return match[1];
+    } catch { /* fallback */ }
+    return 'Linux';
+  }
+  return `${platform}/${arch}`;
+}
+const serverPlatform = detectPlatform();
 
 let updateAvailable = false;
+let latestVersion = null;
+let releaseUrl = null;
 let lastCheckTime = null;
 let checking = false;
-let updateInProgress = false;
-let updateCheckInterval = (parseInt(process.env.UPDATE_INTERVAL_SECONDS, 10) || 60) * 1000;
+let updateCheckInterval = Math.min(Math.max(parseInt(process.env.UPDATE_INTERVAL_SECONDS, 10) || 900, 60), 86400) * 1000;
 let updateTimer = null;
 
-function checkForUpdates() {
-  if (checking || updateInProgress) return;
+// Simple semver compare: returns 1 if a > b, -1 if a < b, 0 if equal
+function compareSemver(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na > nb) return 1;
+    if (na < nb) return -1;
+  }
+  return 0;
+}
+
+async function checkForUpdates() {
+  if (checking) return;
   checking = true;
-  execFile('git', ['fetch'], { timeout: 30000, cwd: __dirname }, (fetchErr) => {
-    if (fetchErr) {
-      console.error('git fetch failed:', fetchErr.message);
-      checking = false;
-      lastCheckTime = new Date().toISOString();
-      return;
+  try {
+    const raw = await secureFetch(GITHUB_RELEASES_URL);
+    const release = JSON.parse(raw);
+    const tag = (release.tag_name || '').replace(/^v/, '');
+    if (tag && compareSemver(tag, currentVersion) > 0) {
+      latestVersion = tag;
+      releaseUrl = release.html_url || null;
+      updateAvailable = true;
+      console.log(`Update check: v${tag} available (current: v${currentVersion})`);
+    } else {
+      updateAvailable = false;
+      latestVersion = null;
+      releaseUrl = null;
+      console.log('Update check: up to date');
     }
-    execFile('git', ['rev-parse', 'HEAD'], { timeout: 5000, cwd: __dirname }, (errLocal, localHash) => {
-      if (errLocal) { checking = false; lastCheckTime = new Date().toISOString(); return; }
-      execFile('git', ['rev-parse', '@{u}'], { timeout: 5000, cwd: __dirname }, (errRemote, remoteHash) => {
-        checking = false;
-        lastCheckTime = new Date().toISOString();
-        if (errRemote) return;
-        updateAvailable = (localHash || '').trim() !== (remoteHash || '').trim();
-        console.log(`Update check: ${updateAvailable ? 'update available' : 'up to date'}`);
-      });
-    });
-  });
+  } catch (err) {
+    console.error('Update check failed:', err.message);
+  } finally {
+    checking = false;
+    lastCheckTime = new Date().toISOString();
+  }
 }
 
 function startUpdateTimer() {
@@ -454,64 +489,26 @@ startUpdateTimer();
 
 // Status endpoint
 app.get('/api/update/status', (req, res) => {
-  res.json({ available: updateAvailable, lastCheck: lastCheckTime, checking, serverHash: startupHash });
+  res.json({
+    available: updateAvailable,
+    currentVersion,
+    latestVersion,
+    releaseUrl,
+    lastCheck: lastCheckTime,
+    checking,
+    platform: serverPlatform,
+  });
 });
 
-// Set check interval
+// Set check interval (min 60s, max 86400s)
 app.post('/api/update/interval', (req, res) => {
   const seconds = parseInt(req.body.seconds, 10);
-  if (!seconds || seconds < 10) {
-    return res.status(400).json({ error: 'Invalid interval' });
+  if (!seconds || seconds < 60 || seconds > 86400) {
+    return res.status(400).json({ error: 'Interval must be between 60 and 86400 seconds' });
   }
   updateCheckInterval = seconds * 1000;
   startUpdateTimer();
   res.json({ interval: seconds });
-});
-
-// Apply pending update
-app.post('/api/update/apply', (req, res) => {
-  if (updateInProgress) {
-    return res.status(409).json({ error: 'Update already in progress' });
-  }
-  updateInProgress = true;
-
-  execFile('git', ['pull'], { timeout: 30000, cwd: __dirname }, (gitErr, gitStdout) => {
-    if (gitErr) {
-      updateInProgress = false;
-      console.error('git pull failed:', gitErr.message);
-      return res.status(500).json({ error: 'git pull failed: ' + gitErr.message });
-    }
-
-    const gitOutput = (gitStdout || '').trim();
-    console.log('git pull:', gitOutput);
-
-    if (gitOutput === 'Already up to date.') {
-      updateInProgress = false;
-      updateAvailable = false;
-      return res.json({ updated: false, message: 'Already up to date' });
-    }
-
-    execFile(npmCmd, ['install', '--production'], { timeout: 60000, cwd: __dirname }, (npmErr, npmStdout) => {
-      if (npmErr) {
-        updateInProgress = false;
-        console.error('npm install failed:', npmErr.message);
-        return res.status(500).json({ error: 'npm install failed: ' + npmErr.message });
-      }
-
-      console.log('npm install:', (npmStdout || '').trim());
-      const serverChanged = SERVER_FILES.some(f => gitOutput.includes(f));
-
-      if (serverChanged) {
-        res.json({ updated: true, serverRestarting: true, message: 'Server files changed — restarting' });
-        console.log('Server files changed. Exiting for restart...');
-        gracefulRestart(1500);
-      } else {
-        updateInProgress = false;
-        updateAvailable = false;
-        res.json({ updated: true, serverRestarting: false, message: 'Frontend files updated' });
-      }
-    });
-  });
 });
 
 // Graceful restart — if running under start.sh wrapper, just exit and let it

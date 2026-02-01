@@ -105,8 +105,7 @@
         zCounter: 10,
         // Update
         updateStatusPolling: null,
-        knownServerHash: null,
-        restartNeeded: false,
+        updateReleaseUrl: null,
         // Init flag
         appInitialized: false,
         // Day/night
@@ -2967,7 +2966,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.5.1";
+    $("splashVersion").textContent = "0.6.0";
     $("splashCallsign").focus();
   }
   function dismissSplash() {
@@ -3433,16 +3432,17 @@
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
       const data = await resp.json();
-      if (data.serverHash) {
-        if (!state_default.knownServerHash) state_default.knownServerHash = data.serverHash;
-      }
-      if (state_default.restartNeeded) return;
-      if (data.available) {
+      if (data.available && data.latestVersion) {
         $("updateDot").className = "update-dot green";
-        $("updateLabel").textContent = "Update available";
+        $("updateLabel").textContent = `v${data.latestVersion} available`;
+        state_default.updateReleaseUrl = data.releaseUrl || null;
       } else {
         $("updateDot").className = "update-dot gray";
         $("updateLabel").textContent = data.lastCheck ? "Checked " + fmtTime(new Date(data.lastCheck), { hour: "2-digit", minute: "2-digit" }) : "No updates";
+        state_default.updateReleaseUrl = null;
+      }
+      if (data.platform && data.currentVersion) {
+        $("platformLabel").textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
       }
     } catch (e) {
     }
@@ -3471,55 +3471,6 @@
       });
     }, 1e3);
   }
-  function showRestartNeeded() {
-    state_default.restartNeeded = true;
-    $("updateDot").className = "update-dot yellow";
-    $("updateLabel").textContent = "Restart needed";
-    $("restartBtn").classList.remove("hidden");
-  }
-  async function applyUpdate() {
-    $("updateDot").className = "update-dot yellow";
-    $("updateLabel").textContent = "Applying...";
-    $("updateIndicator").style.pointerEvents = "none";
-    try {
-      const resp = await fetch("/api/update/apply", { method: "POST" });
-      const data = await resp.json();
-      if (!resp.ok) {
-        $("updateDot").className = "update-dot red";
-        $("updateLabel").textContent = data.error || "Failed";
-        $("updateIndicator").style.pointerEvents = "";
-        return;
-      }
-      if (!data.updated) {
-        $("updateDot").className = "update-dot gray";
-        $("updateLabel").textContent = "Already up to date";
-        $("updateIndicator").style.pointerEvents = "";
-        return;
-      }
-      if (data.serverRestarting) {
-        $("updateLabel").textContent = "Restarting...";
-        pollForServer(30);
-      } else {
-        try {
-          const statusResp = await fetch("/api/update/status");
-          if (statusResp.ok) {
-            const statusData = await statusResp.json();
-            if (statusData.serverHash && state_default.knownServerHash && statusData.serverHash !== state_default.knownServerHash) {
-              showRestartNeeded();
-              return;
-            }
-          }
-        } catch {
-        }
-        $("updateLabel").textContent = "Reloading...";
-        setTimeout(() => location.reload(), 500);
-      }
-    } catch (err) {
-      $("updateDot").className = "update-dot red";
-      $("updateLabel").textContent = "Error";
-      $("updateIndicator").style.pointerEvents = "";
-    }
-  }
   function sendUpdateInterval() {
     const saved = localStorage.getItem("hamtab_update_interval");
     if (saved) {
@@ -3533,8 +3484,8 @@
   }
   function initUpdateListeners() {
     $("updateIndicator").addEventListener("click", () => {
-      if ($("updateDot").classList.contains("green") && !state_default.restartNeeded) {
-        applyUpdate();
+      if ($("updateDot").classList.contains("green") && state_default.updateReleaseUrl) {
+        window.open(state_default.updateReleaseUrl, "_blank", "noopener");
       }
     });
     $("restartBtn").addEventListener("click", async (e) => {

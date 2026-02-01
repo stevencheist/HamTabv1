@@ -93,8 +93,7 @@ const state = {
 
   // Update
   updateStatusPolling: null,
-  knownServerHash: null,
-  restartNeeded: false,
+  updateReleaseUrl: null,
 
   // Init flag
   appInitialized: false,

@@ -56,7 +56,9 @@ export function getDefaultLayout() {
     'widget-activations': { left: pad, top: pad, width: leftW, height: H - pad * 2 },
     'widget-map': { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
     'widget-solar': { left: rightX, top: pad, width: rightW, height: rightHalf },
-    'widget-lunar': { left: rightX, top: rightHalf + pad * 2, width: rightW, height: H - rightHalf - pad * 3 },
+    'widget-lunar': { left: rightX, top: rightHalf + pad * 2, width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) },
+    'widget-rst': { left: rightX, top: rightHalf + pad * 2 + Math.round((H - rightHalf - pad * 4) / 3) + pad, width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) },
+    'widget-spot-detail': { left: rightX, top: rightHalf + pad * 2 + 2 * (Math.round((H - rightHalf - pad * 4) / 3) + pad), width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) },
   };
 }
 

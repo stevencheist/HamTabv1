@@ -29,6 +29,7 @@ import { initPropListeners, updateGrayLine } from './solar.js';
 import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
 import { fetchISS, fetchISSOrbit } from './iss.js';
+import { initSpotDetail } from './spot-detail.js';
 
 // Initialize map
 initMap();
@@ -60,6 +61,7 @@ initUpdateListeners();
 initFullscreenListeners();
 initWeatherListeners();
 initPropListeners();
+initSpotDetail();
 
 // Wire initApp into splash dismissal
 function initApp() {

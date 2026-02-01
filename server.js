@@ -144,10 +144,15 @@ app.get('/api/callsign/:call', async (req, res) => {
   try {
     const call = encodeURIComponent(req.params.call.toUpperCase());
     const data = await fetchJSON(`https://callook.info/${call}/json`);
+    const addr = data.address || {};
+    const loc = data.location || {};
     res.json({
       status: data.status || 'INVALID',
       class: (data.current && data.current.operClass) || '',
       name: (data.name || ''),
+      addr1: addr.line1 || '',
+      addr2: addr.line2 || '',
+      grid: loc.gridsquare || '',
     });
   } catch (err) {
     console.error('Error fetching callsign data:', err.message);

@@ -1197,6 +1197,81 @@
     return `${spot.activator}-${spot.reference}-${spot.frequency}`;
   }
 
+  // --- Callsign info cache & tooltip ---
+
+  const callsignCache = {};
+
+  async function fetchCallsignInfo(call) {
+    if (!call) return null;
+    const key = call.toUpperCase();
+    if (callsignCache[key]) return callsignCache[key];
+    if (callsignCache[key] === null) return null; // previously failed
+    try {
+      const resp = await fetch(`/api/callsign/${encodeURIComponent(key)}`);
+      if (!resp.ok) { callsignCache[key] = null; return null; }
+      const data = await resp.json();
+      if (data.status !== 'VALID') { callsignCache[key] = null; return null; }
+      callsignCache[key] = data;
+      return data;
+    } catch {
+      callsignCache[key] = null;
+      return null;
+    }
+  }
+
+  // Shared tooltip element
+  const callTooltip = document.createElement('div');
+  callTooltip.className = 'call-tooltip';
+  document.body.appendChild(callTooltip);
+
+  let tooltipHideTimer = null;
+
+  function showCallTooltip(td, info) {
+    let html = `<div class="call-tooltip-name">${esc(info.name)}</div>`;
+    if (info.addr2) html += `<div class="call-tooltip-loc">${esc(info.addr2)}</div>`;
+    if (info.class) html += `<div class="call-tooltip-class">${esc(info.class)}</div>`;
+    if (info.grid) html += `<div class="call-tooltip-grid">${esc(info.grid)}</div>`;
+    callTooltip.innerHTML = html;
+    callTooltip.classList.add('visible');
+
+    const rect = td.getBoundingClientRect();
+    callTooltip.style.left = rect.left + 'px';
+    callTooltip.style.top = (rect.bottom + 4) + 'px';
+  }
+
+  function hideCallTooltip() {
+    callTooltip.classList.remove('visible');
+  }
+
+  function handleCallMouseEnter(e) {
+    clearTimeout(tooltipHideTimer);
+    const td = e.currentTarget;
+    const call = td.textContent.trim();
+    if (!call) return;
+
+    const cached = callsignCache[call.toUpperCase()];
+    if (cached) {
+      showCallTooltip(td, cached);
+    } else if (cached === undefined) {
+      callTooltip.innerHTML = '<div class="call-tooltip-loading">Loading...</div>';
+      callTooltip.classList.add('visible');
+      const rect = td.getBoundingClientRect();
+      callTooltip.style.left = rect.left + 'px';
+      callTooltip.style.top = (rect.bottom + 4) + 'px';
+      fetchCallsignInfo(call).then(info => {
+        if (info && callTooltip.classList.contains('visible')) {
+          showCallTooltip(td, info);
+        } else if (!info) {
+          hideCallTooltip();
+        }
+      });
+    }
+  }
+
+  function handleCallMouseLeave() {
+    tooltipHideTimer = setTimeout(hideCallTooltip, 150);
+  }
+
   // --- Render spots table ---
 
   function renderSpots() {
@@ -1225,6 +1300,10 @@
         <td title="${esc(spot.name || '')}">${esc(spot.name || '')}</td>
         <td>${timeStr}</td>
       `;
+
+      const callTd = tr.querySelector('.callsign');
+      callTd.addEventListener('mouseenter', handleCallMouseEnter);
+      callTd.addEventListener('mouseleave', handleCallMouseLeave);
 
       tr.addEventListener('click', () => flyToSpot(spot));
       spotsBody.appendChild(tr);

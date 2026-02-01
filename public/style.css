@@ -667,6 +667,56 @@ header {
   display: none;
 }
 
+/* ---- Callsign hover tooltip ---- */
+
+.call-tooltip {
+  position: fixed;
+  z-index: 20000;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 8px 12px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.12s;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  max-width: 260px;
+}
+
+.call-tooltip.visible {
+  opacity: 1;
+}
+
+.call-tooltip-name {
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.call-tooltip-loc {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+}
+
+.call-tooltip-class {
+  font-size: 0.75rem;
+  color: var(--yellow);
+  margin-top: 2px;
+}
+
+.call-tooltip-grid {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  font-family: monospace;
+}
+
+.call-tooltip-loading {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
 .table-wrap {
   flex: 1;
   overflow-y: auto;

@@ -1118,6 +1118,11 @@ header {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+  cursor: grab;
+}
+
+.prop-container:active {
+  cursor: grabbing;
 }
 
 .prop-container svg {

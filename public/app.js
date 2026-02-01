@@ -860,6 +860,101 @@
     }
   }
 
+  // Propagation SVG pan/zoom state
+  let propSvgViewBox = null; // original viewBox {x,y,w,h}
+  let propZoom = 1;
+  let propPanX = 0;
+  let propPanY = 0;
+  let propDragging = false;
+  let propDragStart = null;
+  let propPanStart = null;
+
+  function applyPropViewBox() {
+    const svg = propContainer.querySelector('svg');
+    if (!svg || !propSvgViewBox) return;
+    const vb = propSvgViewBox;
+    const w = vb.w / propZoom;
+    const h = vb.h / propZoom;
+    const cx = vb.x + vb.w / 2 + propPanX;
+    const cy = vb.y + vb.h / 2 + propPanY;
+    svg.setAttribute('viewBox', `${cx - w / 2} ${cy - h / 2} ${w} ${h}`);
+  }
+
+  function syncPropToMap() {
+    // Match propagation zoom roughly to Leaflet zoom level
+    // Leaflet zoom 1 = whole world, ~18 = street level
+    // Prop SVG shows full globe at propZoom=1
+    const leafletZoom = map.getZoom();
+    // Scale: at zoom 2 show full globe, at zoom 6+ zoom in proportionally
+    propZoom = Math.pow(2, Math.max(0, leafletZoom - 2)) * 0.5;
+    propZoom = Math.max(1, Math.min(propZoom, 16));
+
+    // Pan to match map center offset from user location
+    if (propSvgViewBox && myLat !== null && myLon !== null) {
+      const center = map.getCenter();
+      const dLon = center.lng - myLon;
+      const dLat = center.lat - myLat;
+      // Scale geographic offset to SVG viewBox units (approximate)
+      const lonScale = propSvgViewBox.w / 360;
+      const latScale = propSvgViewBox.h / 180;
+      propPanX = dLon * lonScale;
+      propPanY = -dLat * latScale;
+    }
+    applyPropViewBox();
+  }
+
+  map.on('moveend zoomend', syncPropToMap);
+
+  function initPropInteraction() {
+    const svg = propContainer.querySelector('svg');
+    if (!svg) return;
+
+    // Parse original viewBox
+    const vb = svg.getAttribute('viewBox');
+    if (vb) {
+      const parts = vb.split(/[\s,]+/).map(Number);
+      propSvgViewBox = { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
+    }
+
+    // Reset pan/zoom and sync to current map view
+    propPanX = 0;
+    propPanY = 0;
+    propZoom = 1;
+    syncPropToMap();
+
+    // Mouse wheel zoom
+    propContainer.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.deltaY > 0 ? 0.8 : 1.25;
+      propZoom = Math.max(1, Math.min(propZoom * delta, 16));
+      applyPropViewBox();
+    }, { passive: false });
+
+    // Mouse drag pan
+    propContainer.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      propDragging = true;
+      propDragStart = { x: e.clientX, y: e.clientY };
+      propPanStart = { x: propPanX, y: propPanY };
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!propDragging || !propSvgViewBox) return;
+      const containerW = propContainer.clientWidth;
+      const containerH = propContainer.clientHeight;
+      const scaleX = (propSvgViewBox.w / propZoom) / containerW;
+      const scaleY = (propSvgViewBox.h / propZoom) / containerH;
+      propPanX = propPanStart.x - (e.clientX - propDragStart.x) * scaleX;
+      propPanY = propPanStart.y - (e.clientY - propDragStart.y) * scaleY;
+      applyPropViewBox();
+    });
+
+    document.addEventListener('mouseup', () => {
+      propDragging = false;
+    });
+  }
+
   async function fetchPropagation() {
     if (myLat === null || myLon === null) return;
     try {
@@ -868,6 +963,7 @@
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const svg = await resp.text();
       propContainer.innerHTML = svg;
+      initPropInteraction();
     } catch (err) {
       console.error('Failed to fetch propagation:', err);
     }

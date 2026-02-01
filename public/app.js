@@ -295,6 +295,13 @@
   const clockStyleDigital = document.getElementById('clockStyleDigital');
   const clockStyleAnalog = document.getElementById('clockStyleAnalog');
   let clockStyle = localStorage.getItem('hamtab_clock_style') || 'digital';
+  const clockLocalDayNight = document.getElementById('clockLocalDayNight');
+  const clockUtcDayNight = document.getElementById('clockUtcDayNight');
+  const clockLocalWeather = document.getElementById('clockLocalWeather');
+  const splashWxStation = document.getElementById('splashWxStation');
+  const splashWxApiKey = document.getElementById('splashWxApiKey');
+  let wxStation = localStorage.getItem('hamtab_wx_station') || '';
+  let wxApiKey = localStorage.getItem('hamtab_wx_apikey') || '';
   const timeFmt12 = document.getElementById('timeFmt12');
   const timeFmt24 = document.getElementById('timeFmt24');
   const solarCfgBtn = document.getElementById('solarCfgBtn');
@@ -661,6 +668,10 @@
       widgetList.appendChild(label);
     });
 
+    // Set weather fields
+    splashWxStation.value = wxStation;
+    splashWxApiKey.value = wxApiKey;
+
     // Set update interval picker
     const intervalSelect = document.getElementById('splashUpdateInterval');
     const savedInterval = localStorage.getItem('hamtab_update_interval') || '60';
@@ -685,6 +696,13 @@
 
     use24h = timeFmt24.checked;
     localStorage.setItem('hamtab_time24', String(use24h));
+
+    // Save weather config
+    wxStation = (splashWxStation.value || '').trim().toUpperCase();
+    wxApiKey = (splashWxApiKey.value || '').trim();
+    localStorage.setItem('hamtab_wx_station', wxStation);
+    localStorage.setItem('hamtab_wx_apikey', wxApiKey);
+    fetchWeather();
 
     // Read widget visibility checkboxes
     const widgetList = document.getElementById('splashWidgetList');
@@ -2430,6 +2448,92 @@
     clockUtc.classList.toggle('analog', clockStyle === 'analog');
   }
 
+  // --- Sunrise/Sunset calculation (standard solar equation) ---
+
+  function getSunTimes(lat, lon, date) {
+    const rad = Math.PI / 180;
+    const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+    const zenith = 90.833;
+
+    // Longitude hour
+    const lngHour = lon / 15;
+
+    // Rising / setting
+    function calc(rising) {
+      const t = dayOfYear + ((rising ? 6 : 18) - lngHour) / 24;
+      const M = (0.9856 * t) - 3.289;
+      let L = M + (1.916 * Math.sin(M * rad)) + (0.020 * Math.sin(2 * M * rad)) + 282.634;
+      L = ((L % 360) + 360) % 360;
+      let RA = Math.atan2(Math.sin(L * rad), Math.cos(L * rad)) / rad;
+      RA = ((RA % 360) + 360) % 360;
+      const Lquadrant = Math.floor(L / 90) * 90;
+      const RAquadrant = Math.floor(RA / 90) * 90;
+      RA = RA + (Lquadrant - RAquadrant);
+      RA = RA / 15;
+      const sinDec = 0.39782 * Math.sin(L * rad);
+      const cosDec = Math.cos(Math.asin(sinDec));
+      const cosH = (Math.cos(zenith * rad) - (sinDec * Math.sin(lat * rad))) / (cosDec * Math.cos(lat * rad));
+      if (cosH > 1 || cosH < -1) return null; // no sunrise/sunset
+      let H = Math.acos(cosH) / rad / 15;
+      if (rising) H = 24 - H;
+      const T = H + RA - (0.06571 * t) - 6.622;
+      let UT = ((T - lngHour) % 24 + 24) % 24;
+      const hours = Math.floor(UT);
+      const minutes = Math.round((UT - hours) * 60);
+      const result = new Date(date);
+      result.setUTCHours(hours, minutes, 0, 0);
+      return result;
+    }
+    return { sunrise: calc(true), sunset: calc(false) };
+  }
+
+  function updateDayNight() {
+    if (myLat === null || myLon === null) {
+      clockLocalDayNight.textContent = '';
+      clockUtcDayNight.textContent = '';
+      return;
+    }
+    const now = new Date();
+    const { sunrise, sunset } = getSunTimes(myLat, myLon, now);
+    const isDay = sunrise && sunset && now >= sunrise && now < sunset;
+    const icon = isDay ? '\u2600' : '\u263E';
+    const cls = isDay ? 'day' : 'night';
+    clockLocalDayNight.textContent = icon;
+    clockLocalDayNight.className = 'clock-daynight ' + cls;
+    clockUtcDayNight.textContent = icon;
+    clockUtcDayNight.className = 'clock-daynight ' + cls;
+  }
+
+  // --- Weather fetch ---
+
+  let weatherTimer = null;
+
+  function fetchWeather() {
+    if (weatherTimer) clearInterval(weatherTimer);
+    doFetchWeather();
+    weatherTimer = setInterval(doFetchWeather, 5 * 60 * 1000);
+  }
+
+  function doFetchWeather() {
+    if (!wxStation || !wxApiKey) {
+      clockLocalWeather.textContent = '';
+      return;
+    }
+    const url = '/api/weather?station=' + encodeURIComponent(wxStation) + '&apikey=' + encodeURIComponent(wxApiKey);
+    fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+      const name = data.neighborhood || wxStation;
+      const tempStr = data.temp != null ? data.temp + '\u00B0F' : '';
+      const cond = data.condition || '';
+      const wind = (data.windDir || '') + ' ' + (data.windSpeed != null ? data.windSpeed + 'mph' : '');
+      const hum = data.humidity != null ? data.humidity + '%' : '';
+      let line1 = [name, tempStr, cond].filter(Boolean).join('  ');
+      let line2 = ['W: ' + wind.trim(), hum ? 'H: ' + hum : ''].filter(Boolean).join('  ');
+      clockLocalWeather.innerHTML = line1 + '<br>' + line2;
+    }).catch(() => {
+      clockLocalWeather.textContent = '';
+    });
+  }
+
   function updateClocks() {
     const now = new Date();
     const dateOpts = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
@@ -2444,6 +2548,7 @@
       drawAnalogClock(clockUtcCanvas, utcDate);
     }
     applyClockStyle();
+    updateDayNight();
   }
 
   updateClocks();
@@ -2542,7 +2647,7 @@
     const centerW = W - leftW - rightW - pad * 4;
     const rightHalf = Math.round((H - pad * 3) / 2);
 
-    const clockH = clockStyle === 'analog' ? 280 : 100;
+    const clockH = clockStyle === 'analog' ? 280 : 130;
     const clockW = Math.round((centerW - pad) / 2);
 
     const rightX = leftW + centerW + pad * 3;
@@ -2921,6 +3026,7 @@
     fetchLocation();
     startUpdateStatusPolling();
     sendUpdateInterval();
+    fetchWeather();
   }
 
   // Initialize widget positions before anything else

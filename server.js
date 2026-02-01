@@ -192,6 +192,60 @@ app.get('/api/lunar', (req, res) => {
   }
 });
 
+// Proxy Weather Underground API
+app.get('/api/weather', async (req, res) => {
+  const apiKey = req.query.apikey || process.env.WU_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'No weather API key configured' });
+  }
+  try {
+    const { station } = req.query;
+    if (!station) {
+      return res.status(400).json({ error: 'Provide a station ID' });
+    }
+
+    // Try current observations first
+    const currentUrl = `https://api.weather.com/v2/pws/observations/current?stationId=${encodeURIComponent(station)}&format=json&units=e&apiKey=${apiKey}`;
+    let raw = await fetchText(currentUrl);
+
+    // If 204 / empty, fall back to today's observations and use the latest
+    if (!raw || !raw.trim()) {
+      const dayUrl = `https://api.weather.com/v2/pws/observations/all/1day?stationId=${encodeURIComponent(station)}&format=json&units=e&apiKey=${apiKey}`;
+      raw = await fetchText(dayUrl);
+    }
+
+    if (!raw || !raw.trim()) {
+      return res.json({ temp: null, condition: 'No data', windSpeed: null, windDir: '', humidity: null });
+    }
+
+    const data = JSON.parse(raw);
+    const obsList = data.observations;
+    if (!obsList || !obsList.length) {
+      return res.json({ temp: null, condition: 'No data', windSpeed: null, windDir: '', humidity: null });
+    }
+
+    // Use the most recent observation
+    const obs = obsList[obsList.length - 1];
+    const imp = obs.imperial || {};
+    res.json({
+      temp: imp.temp ?? imp.tempAvg ?? null,
+      condition: null,
+      windSpeed: imp.windSpeed ?? imp.windspeedAvg ?? null,
+      windDir: obs.winddir != null ? degToCompass(obs.winddir) : (obs.winddirAvg != null ? degToCompass(obs.winddirAvg) : ''),
+      humidity: obs.humidity ?? obs.humidityAvg ?? null,
+      neighborhood: obs.neighborhood || null,
+    });
+  } catch (err) {
+    console.error('Error fetching weather:', err.message);
+    res.status(502).json({ error: 'Failed to fetch weather data' });
+  }
+});
+
+function degToCompass(deg) {
+  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+  return dirs[Math.round(deg / 22.5) % 16] || '';
+}
+
 // Proxy callook.info license lookup
 app.get('/api/callsign/:call', async (req, res) => {
   try {
@@ -561,7 +615,7 @@ function secureFetch(url, redirectCount = 0) {
           resp.resume();
           return secureFetch(resp.headers.location, redirectCount + 1).then(resolve).catch(reject);
         }
-        if (resp.statusCode !== 200) {
+        if (resp.statusCode < 200 || resp.statusCode >= 300) {
           resp.resume();
           return reject(new Error(`HTTP ${resp.statusCode}`));
         }

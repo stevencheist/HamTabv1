@@ -1238,6 +1238,41 @@ header {
   flex-shrink: 0;
 }
 
+/* ---- Day/Night indicator ---- */
+
+.clock-daynight {
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 1.2rem;
+  line-height: 1;
+  pointer-events: none;
+}
+
+.clock-daynight.day {
+  color: var(--yellow);
+}
+
+.clock-daynight.night {
+  color: var(--text-dim);
+}
+
+/* ---- Weather in local clock ---- */
+
+.clock-weather {
+  font-size: 0.85rem;
+  font-weight: 400;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.4;
+  letter-spacing: 0;
+  margin-top: 2px;
+}
+
+.clock-display {
+  position: relative;
+}
+
 /* ---- Propagation widget ---- */
 
 .prop-controls {

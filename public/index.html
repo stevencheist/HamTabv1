@@ -55,6 +55,16 @@
       </div>
 
       <div class="splash-divider"></div>
+      <div class="splash-wx-section">
+        <span class="splash-loc-title">Weather Station (optional)</span>
+        <input type="text" id="splashWxStation" placeholder="e.g. KCTBRIDG45" autocomplete="off" spellcheck="false" style="text-transform:uppercase;margin-top:6px;" />
+        <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;">Weather Underground station ID</div>
+        <label for="splashWxApiKey">WU API Key</label>
+        <input type="text" id="splashWxApiKey" placeholder="Weather Underground API key" autocomplete="off" spellcheck="false" style="text-transform:none;" />
+        <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;"><a href="https://www.wunderground.com/member/api-keys" target="_blank" style="color:var(--accent);">Get a free API key</a></div>
+      </div>
+
+      <div class="splash-divider"></div>
       <div class="splash-widgets-section">
         <span class="splash-loc-title">Widgets</span>
         <div class="splash-widget-list" id="splashWidgetList"></div>
@@ -160,9 +170,11 @@
       <div class="widget-header">Local Time <button class="widget-cfg-btn" id="clockLocalCfgBtn" title="Configure clock style">&#9881;</button></div>
       <div class="widget-body">
         <div class="clock-display" id="clockLocal">
+          <span class="clock-daynight" id="clockLocalDayNight"></span>
           <div class="clock-time" id="clockLocalTime"></div>
           <div class="clock-day-date" id="clockLocalDate"></div>
           <canvas class="clock-analog-canvas" id="clockLocalCanvas" width="200" height="200"></canvas>
+          <div class="clock-weather" id="clockLocalWeather"></div>
         </div>
       </div>
       <div class="widget-resize"></div>
@@ -173,6 +185,7 @@
       <div class="widget-header">UTC <button class="widget-cfg-btn" id="clockUtcCfgBtn" title="Configure clock style">&#9881;</button></div>
       <div class="widget-body">
         <div class="clock-display" id="clockUtc">
+          <span class="clock-daynight" id="clockUtcDayNight"></span>
           <div class="clock-time" id="clockUtcTime"></div>
           <div class="clock-day-date" id="clockUtcDate"></div>
           <canvas class="clock-analog-canvas" id="clockUtcCanvas" width="200" height="200"></canvas>

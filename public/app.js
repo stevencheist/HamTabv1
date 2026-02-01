@@ -1009,24 +1009,25 @@
   }
 
   function syncPropToMap() {
+    if (!propSvgViewBox) { applyPropViewBox(); return; }
+
     // Match propagation zoom roughly to Leaflet zoom level
-    // Leaflet zoom 1 = whole world, ~18 = street level
-    // Prop SVG shows full globe at propZoom=1
     const leafletZoom = map.getZoom();
-    // Scale: at zoom 2 show full globe, at zoom 6+ zoom in proportionally
     propZoom = Math.pow(2, Math.max(0, leafletZoom - 2)) * 0.5;
     propZoom = Math.max(1, Math.min(propZoom, 16));
 
-    // Pan to match map center offset from user location
-    if (propSvgViewBox && myLat !== null && myLon !== null) {
+    // Convert Leaflet map center to SVG coordinates using azimuthal projection
+    if (myLat !== null && myLon !== null) {
       const center = map.getCenter();
-      const dLon = center.lng - myLon;
-      const dLat = center.lat - myLat;
-      // Scale geographic offset to SVG viewBox units (approximate)
-      const lonScale = propSvgViewBox.w / 360;
-      const latScale = propSvgViewBox.h / 180;
-      propPanX = dLon * lonScale;
-      propPanY = -dLat * latScale;
+      const svgCenter = latLonToPropSvg(center.lat, center.lng);
+      if (svgCenter) {
+        // propPanX/Y are offsets from the SVG's natural center
+        const vb = propSvgViewBox;
+        const svgCx = vb.x + vb.w / 2;
+        const svgCy = vb.y + vb.h / 2;
+        propPanX = svgCenter.x - svgCx;
+        propPanY = svgCenter.y - svgCy;
+      }
     }
     applyPropViewBox();
   }

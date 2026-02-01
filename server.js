@@ -5,7 +5,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync, execFile } = require('child_process');
+const { execSync, execFile, spawn } = require('child_process');
 const { URL } = require('url');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -263,7 +263,7 @@ app.post('/api/update/apply', (req, res) => {
       if (serverChanged) {
         res.json({ updated: true, serverRestarting: true, message: 'Server files changed — restarting' });
         console.log('Server files changed. Exiting for restart...');
-        setTimeout(() => process.exit(0), 1500);
+        gracefulRestart(1500);
       } else {
         updateInProgress = false;
         updateAvailable = false;
@@ -273,11 +273,30 @@ app.post('/api/update/apply', (req, res) => {
   });
 });
 
-// Restart server (relies on process manager to bring it back)
+// Graceful restart — if running under start.sh wrapper, just exit and let it
+// respawn. Otherwise, spawn a replacement process before exiting.
+function gracefulRestart(delayMs) {
+  setTimeout(() => {
+    if (process.env.RESTART_WRAPPER) {
+      process.exit(0);
+    } else {
+      console.log('No restart wrapper detected — self-restarting...');
+      const child = spawn(process.execPath, [path.join(__dirname, 'server.js')], {
+        cwd: __dirname,
+        detached: true,
+        stdio: 'inherit',
+        env: { ...process.env },
+      });
+      child.unref();
+      process.exit(0);
+    }
+  }, delayMs);
+}
+
 app.post('/api/restart', (req, res) => {
   res.json({ restarting: true });
   console.log('Restart requested by client. Exiting...');
-  setTimeout(() => process.exit(0), 500);
+  gracefulRestart(500);
 });
 
 // Proxy prop.kc2g.com propagation SVG

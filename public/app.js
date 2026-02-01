@@ -2069,8 +2069,11 @@
   const updateIndicator = document.getElementById('updateIndicator');
   const updateDot = document.getElementById('updateDot');
   const updateLabel = document.getElementById('updateLabel');
+  const restartBtn = document.getElementById('restartBtn');
 
   let updateStatusPolling = null;
+  let knownServerHash = null;
+  let restartNeeded = false;
 
   function pollForServer(attempts) {
     if (attempts <= 0) {
@@ -2092,11 +2095,26 @@
     }, 1000);
   }
 
+  function showRestartNeeded() {
+    restartNeeded = true;
+    updateDot.className = 'update-dot yellow';
+    updateLabel.textContent = 'Restart needed';
+    restartBtn.classList.remove('hidden');
+  }
+
   async function checkUpdateStatus() {
     try {
       const resp = await fetch('/api/update/status');
       if (!resp.ok) return;
       const data = await resp.json();
+
+      // Track server hash; detect if HEAD has moved past the running server
+      if (data.serverHash) {
+        if (!knownServerHash) knownServerHash = data.serverHash;
+      }
+
+      if (restartNeeded) return; // don't overwrite restart indicator
+
       if (data.available) {
         updateDot.className = 'update-dot green';
         updateLabel.textContent = 'Update available';
@@ -2144,6 +2162,19 @@
         updateLabel.textContent = 'Restarting...';
         pollForServer(30);
       } else {
+        // Frontend-only update — check if server files also changed
+        // by comparing the server's startup hash to current HEAD
+        try {
+          const statusResp = await fetch('/api/update/status');
+          if (statusResp.ok) {
+            const statusData = await statusResp.json();
+            if (statusData.serverHash && knownServerHash && statusData.serverHash !== knownServerHash) {
+              // Server code changed but process didn't restart
+              showRestartNeeded();
+              return;
+            }
+          }
+        } catch { /* ignore */ }
         updateLabel.textContent = 'Reloading...';
         setTimeout(() => location.reload(), 500);
       }
@@ -2155,9 +2186,20 @@
   }
 
   updateIndicator.addEventListener('click', () => {
-    if (updateDot.classList.contains('green')) {
+    if (updateDot.classList.contains('green') && !restartNeeded) {
       applyUpdate();
     }
+  });
+
+  restartBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    restartBtn.classList.add('hidden');
+    updateDot.className = 'update-dot yellow';
+    updateLabel.textContent = 'Restarting...';
+    try {
+      await fetch('/api/restart', { method: 'POST' });
+    } catch { /* server is exiting */ }
+    pollForServer(30);
   });
 
   // Send saved update interval to server on load

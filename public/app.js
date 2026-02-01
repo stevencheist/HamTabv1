@@ -368,11 +368,12 @@
     SNAP_DIST: () => SNAP_DIST,
     SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
     SOURCE_DEFS: () => SOURCE_DEFS,
+    USER_LAYOUT_KEY: () => USER_LAYOUT_KEY,
     US_PRIVILEGES: () => US_PRIVILEGES,
     WIDGET_DEFS: () => WIDGET_DEFS,
     WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY
   });
-  var WIDGET_DEFS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_STORAGE_KEY, SNAP_DIST, HEADER_H;
+  var WIDGET_DEFS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -512,6 +513,7 @@
         ]
       };
       WIDGET_STORAGE_KEY = "hamtab_widgets";
+      USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
       HEADER_H = 30;
     }
@@ -2187,6 +2189,24 @@
     });
     localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(layout));
   }
+  function saveUserLayout() {
+    const layout = {};
+    document.querySelectorAll(".widget").forEach((w) => {
+      layout[w.id] = {
+        left: parseInt(w.style.left) || 0,
+        top: parseInt(w.style.top) || 0,
+        width: parseInt(w.style.width) || 200,
+        height: parseInt(w.style.height) || 150
+      };
+    });
+    localStorage.setItem(USER_LAYOUT_KEY, JSON.stringify(layout));
+  }
+  function clearUserLayout() {
+    localStorage.removeItem(USER_LAYOUT_KEY);
+  }
+  function hasUserLayout() {
+    return localStorage.getItem(USER_LAYOUT_KEY) !== null;
+  }
   function bringToFront(widget) {
     state_default.zCounter++;
     widget.style.zIndex = state_default.zCounter;
@@ -2270,7 +2290,16 @@
   }
   function resetLayout() {
     localStorage.removeItem(WIDGET_STORAGE_KEY);
-    applyLayout(getDefaultLayout());
+    const userSaved = localStorage.getItem(USER_LAYOUT_KEY);
+    if (userSaved) {
+      try {
+        applyLayout(JSON.parse(userSaved));
+      } catch (e) {
+        applyLayout(getDefaultLayout());
+      }
+    } else {
+      applyLayout(getDefaultLayout());
+    }
     saveWidgets();
     centerMapOnUser();
     updateUserMarker();
@@ -2970,6 +2999,9 @@
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
     $("splashVersion").textContent = "0.6.0";
+    const hasSaved = hasUserLayout();
+    $("splashClearLayout").disabled = !hasSaved;
+    $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
     $("splashCallsign").focus();
   }
   function dismissSplash() {
@@ -3157,6 +3189,16 @@
       } else {
         updateLocStatus("Geolocation unavailable", true);
       }
+    });
+    $("splashSaveLayout").addEventListener("click", () => {
+      saveUserLayout();
+      $("splashLayoutStatus").textContent = "Layout saved";
+      $("splashClearLayout").disabled = false;
+    });
+    $("splashClearLayout").addEventListener("click", () => {
+      clearUserLayout();
+      $("splashLayoutStatus").textContent = "App default restored";
+      $("splashClearLayout").disabled = true;
     });
     $("editCallBtn").addEventListener("click", () => {
       showSplash();

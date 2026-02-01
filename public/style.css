@@ -832,6 +832,11 @@ header {
   border-left: 3px solid var(--accent);
 }
 
+#spotsTable td a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 .callsign {
   font-weight: 600;
   color: #fff;

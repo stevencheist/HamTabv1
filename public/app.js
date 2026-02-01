@@ -40,7 +40,7 @@
         { key: 'callsign',  label: 'Callsign', class: 'callsign' },
         { key: 'frequency',  label: 'Freq',     class: 'freq' },
         { key: 'mode',       label: 'Mode',     class: 'mode' },
-        { key: 'reference',  label: 'Park',     class: '' },
+        { key: 'reference',  label: 'Park (link)', class: '' },
         { key: 'name',       label: 'Name',     class: '' },
         { key: 'spotTime',   label: 'Time',     class: '' },
         { key: 'age',        label: 'Age',      class: '' },
@@ -57,7 +57,7 @@
         { key: 'callsign',  label: 'Callsign', class: 'callsign' },
         { key: 'frequency',  label: 'Freq',     class: 'freq' },
         { key: 'mode',       label: 'Mode',     class: 'mode' },
-        { key: 'reference',  label: 'Summit',   class: '' },
+        { key: 'reference',  label: 'Summit (link)', class: '' },
         { key: 'name',       label: 'Details',  class: '' },
         { key: 'spotTime',   label: 'Time',     class: '' },
         { key: 'age',        label: 'Age',      class: '' },
@@ -1624,6 +1624,21 @@
           td.textContent = formatAge(spot.spotTime);
         } else if (col.key === 'callsign') {
           td.textContent = spot.activator || spot.callsign || '';
+        } else if (col.key === 'reference') {
+          const ref = spot[col.key] || '';
+          if (ref) {
+            const a = document.createElement('a');
+            a.textContent = ref;
+            a.target = '_blank';
+            a.rel = 'noopener';
+            if (currentSource === 'sota') {
+              a.href = `https://www.sota.org.uk/Summit/${ref}`;
+            } else {
+              a.href = `https://pota.app/#/park/${ref}`;
+            }
+            a.addEventListener('click', e => e.stopPropagation());
+            td.appendChild(a);
+          }
         } else if (col.key === 'name') {
           const val = spot[col.key] || '';
           td.textContent = val;

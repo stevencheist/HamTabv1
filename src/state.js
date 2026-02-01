@@ -130,4 +130,18 @@ if (savedLat !== null && savedLon !== null) {
   }
 }
 
+// Fall back to cached GPS location if no manual override
+if (!state.manualLoc) {
+  const gpsLat = localStorage.getItem('hamtab_gps_lat');
+  const gpsLon = localStorage.getItem('hamtab_gps_lon');
+  if (gpsLat !== null && gpsLon !== null) {
+    const lat = parseFloat(gpsLat);
+    const lon = parseFloat(gpsLon);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      state.myLat = lat;
+      state.myLon = lon;
+    }
+  }
+}
+
 export default state;

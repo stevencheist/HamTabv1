@@ -44,13 +44,17 @@ export function fetchLocation() {
   }
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      state.myLat = pos.coords.latitude;
-      state.myLon = pos.coords.longitude;
+      const newLat = pos.coords.latitude;
+      const newLon = pos.coords.longitude;
+      const changed = state.myLat !== newLat || state.myLon !== newLon;
+      state.myLat = newLat;
+      state.myLon = newLon;
+      localStorage.setItem('hamtab_gps_lat', String(newLat));
+      localStorage.setItem('hamtab_gps_lon', String(newLon));
       updateOperatorDisplay();
       centerMapOnUser();
       updateUserMarker();
-      // Re-trigger NWS polling now that we have coordinates
-      if (state.appInitialized) startNwsPolling();
+      if (changed && state.appInitialized) startNwsPolling();
     },
     () => {
       $('opLoc').textContent = 'Location denied';

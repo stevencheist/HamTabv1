@@ -134,6 +134,18 @@
           state.myLon = null;
         }
       }
+      if (!state.manualLoc) {
+        const gpsLat = localStorage.getItem("hamtab_gps_lat");
+        const gpsLon = localStorage.getItem("hamtab_gps_lon");
+        if (gpsLat !== null && gpsLon !== null) {
+          const lat = parseFloat(gpsLat);
+          const lon = parseFloat(gpsLon);
+          if (!isNaN(lat) && !isNaN(lon)) {
+            state.myLat = lat;
+            state.myLon = lon;
+          }
+        }
+      }
       state_default = state;
     }
   });
@@ -2543,12 +2555,17 @@
     }
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        state_default.myLat = pos.coords.latitude;
-        state_default.myLon = pos.coords.longitude;
+        const newLat = pos.coords.latitude;
+        const newLon = pos.coords.longitude;
+        const changed = state_default.myLat !== newLat || state_default.myLon !== newLon;
+        state_default.myLat = newLat;
+        state_default.myLon = newLon;
+        localStorage.setItem("hamtab_gps_lat", String(newLat));
+        localStorage.setItem("hamtab_gps_lon", String(newLon));
         updateOperatorDisplay2();
         centerMapOnUser();
         updateUserMarker();
-        if (state_default.appInitialized) startNwsPolling();
+        if (changed && state_default.appInitialized) startNwsPolling();
       },
       () => {
         $("opLoc").textContent = "Location denied";

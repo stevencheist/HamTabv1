@@ -630,6 +630,34 @@ header {
   overflow: hidden;
 }
 
+.source-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.source-tab {
+  flex: 1;
+  padding: 5px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: none;
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border-bottom: 2px solid transparent;
+}
+.source-tab:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+.source-tab.active {
+  background: var(--surface2);
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
 .widget-filters {
   display: flex;
   flex-wrap: wrap;

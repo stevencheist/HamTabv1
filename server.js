@@ -78,6 +78,30 @@ app.get('/api/spots', async (req, res) => {
   }
 });
 
+// Proxy SOTA spots API
+app.get('/api/spots/sota', async (req, res) => {
+  try {
+    const data = await fetchJSON('https://api2.sota.org.uk/api/spots/50/all');
+    const spots = (Array.isArray(data) ? data : []).map(s => ({
+      callsign:    s.activatorCallsign || '',
+      frequency:   s.frequency ? String(s.frequency) : '',
+      mode:        s.mode || '',
+      reference:   s.associationCode && s.summitCode
+                     ? s.associationCode + '/' + s.summitCode : (s.summitCode || ''),
+      name:        s.summitDetails || '',
+      spotTime:    s.timeStamp || '',
+      comments:    s.comments || '',
+      points:      s.points || 0,
+      latitude:    null,
+      longitude:   null,
+    }));
+    res.json(spots);
+  } catch (err) {
+    console.error('Error fetching SOTA spots:', err.message);
+    res.status(502).json({ error: 'Failed to fetch SOTA spots' });
+  }
+});
+
 // Fetch and parse solar XML data
 app.get('/api/solar', async (req, res) => {
   try {

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>POTA Activations</title>
+  <title>HamTab</title>
   <link rel="stylesheet" href="vendor/leaflet.css" />
   <link rel="stylesheet" href="vendor/MarkerCluster.css" />
   <link rel="stylesheet" href="vendor/MarkerCluster.Default.css" />
@@ -149,9 +149,13 @@
 
     <!-- Activations -->
     <div class="widget" id="widget-activations">
-      <div class="widget-header">POTA Activations <span id="spotCount" class="spot-count"></span></div>
+      <div class="widget-header">On the Air <span id="spotCount" class="spot-count"></span></div>
       <div class="widget-body">
-        <div class="widget-filters">
+        <div class="source-tabs" id="sourceTabs">
+          <button class="source-tab active" data-source="pota">POTA</button>
+          <button class="source-tab" data-source="sota">SOTA</button>
+        </div>
+        <div class="widget-filters" id="widgetFilters">
           <div class="band-filters" id="bandFilters"></div>
           <div class="mode-filters" id="modeFilters"></div>
           <select id="countryFilter"><option value="">All Countries</option></select>
@@ -162,12 +166,12 @@
         </div>
         <div class="table-wrap">
           <table id="spotsTable">
-            <thead>
+            <thead id="spotsHead">
               <tr>
                 <th>Callsign</th>
                 <th>Freq</th>
                 <th>Mode</th>
-                <th>Park</th>
+                <th>Ref</th>
                 <th>Name</th>
                 <th>Time</th>
               </tr>

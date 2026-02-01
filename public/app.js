@@ -237,10 +237,60 @@
       console.error("Failed to fetch lunar:", err);
     }
   }
+  function renderMoonPhase(illumination, phase) {
+    const canvas = $("moonCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const size = canvas.width;
+    const r = size / 2 - 2;
+    const cx = size / 2;
+    const cy = size / 2;
+    ctx.clearRect(0, 0, size, size);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#1a1a2e";
+    ctx.fill();
+    const illum = Math.max(0, Math.min(100, illumination)) / 100;
+    const waning = (phase || "").toLowerCase().includes("waning") || (phase || "").toLowerCase().includes("last");
+    if (illum >= 0.99) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#d4d4d4";
+      ctx.fill();
+    } else if (illum > 0.01) {
+      const terminatorX = Math.abs(1 - 2 * illum) * r;
+      const litOnRight = !waning;
+      ctx.beginPath();
+      if (litOnRight) {
+        ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
+        if (illum <= 0.5) {
+          ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
+        } else {
+          ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, true);
+        }
+      } else {
+        ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2, false);
+        if (illum <= 0.5) {
+          ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, false);
+        } else {
+          ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, true);
+        }
+      }
+      ctx.closePath();
+      ctx.fillStyle = "#d4d4d4";
+      ctx.fill();
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#445";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
   function renderLunar(data) {
     const { LUNAR_FIELD_DEFS: LUNAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
     const lunarCards = $("lunarCards");
     lunarCards.innerHTML = "";
+    renderMoonPhase(data.illumination, data.phase);
     LUNAR_FIELD_DEFS2.forEach((f) => {
       if (state_default.lunarFieldVisibility[f.key] === false) return;
       const rawVal = data[f.key];
@@ -1291,6 +1341,24 @@
   function saveSolarFieldVisibility() {
     localStorage.setItem(SOLAR_VIS_KEY, JSON.stringify(state_default.solarFieldVisibility));
   }
+  function initSolarImage() {
+    const select = $("solarImageType");
+    const img = $("solarImage");
+    if (!select || !img) return;
+    const saved = localStorage.getItem("hamtab_sdo_type");
+    if (saved) select.value = saved;
+    select.addEventListener("change", () => {
+      localStorage.setItem("hamtab_sdo_type", select.value);
+      loadSolarImage();
+    });
+    loadSolarImage();
+  }
+  function loadSolarImage() {
+    const select = $("solarImageType");
+    const img = $("solarImage");
+    if (!select || !img) return;
+    img.src = "/api/solar/image?type=" + encodeURIComponent(select.value) + "&t=" + Date.now();
+  }
   async function fetchSolar() {
     try {
       const resp = await fetch("/api/solar");
@@ -1298,6 +1366,7 @@
       const data = await resp.json();
       state_default.lastSolarData = data;
       renderSolar(data);
+      loadSolarImage();
     } catch (err) {
       console.error("Failed to fetch solar:", err);
     }
@@ -1901,7 +1970,7 @@
     const clockH = state_default.clockStyle === "analog" ? 280 : 130;
     const clockW = Math.round((centerW - pad) / 2);
     const rightX = leftW + centerW + pad * 3;
-    return {
+    const layout = {
       "widget-clock-local": { left: leftW + pad * 2, top: pad, width: clockW, height: clockH },
       "widget-clock-utc": { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
       "widget-activations": { left: pad, top: pad, width: leftW, height: H - pad * 2 },
@@ -1953,16 +2022,16 @@
     return { w, h };
   }
   function saveWidgets() {
-    const layout2 = {};
+    const layout = {};
     document.querySelectorAll(".widget").forEach((w) => {
-      layout2[w.id] = {
+      layout[w.id] = {
         left: parseInt(w.style.left) || 0,
         top: parseInt(w.style.top) || 0,
         width: parseInt(w.style.width) || 200,
         height: parseInt(w.style.height) || 150
       };
     });
-    localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(layout2));
+    localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(layout));
   }
   function bringToFront(widget) {
     state_default.zCounter++;
@@ -2032,9 +2101,9 @@
       document.addEventListener("mouseup", onUp);
     });
   }
-  function applyLayout(layout2) {
+  function applyLayout(layout) {
     document.querySelectorAll(".widget").forEach((widget) => {
-      const pos = layout2[widget.id];
+      const pos = layout[widget.id];
       if (pos) {
         widget.style.left = pos.left + "px";
         widget.style.top = pos.top + "px";
@@ -2052,29 +2121,65 @@
     centerMapOnUser();
     updateUserMarker();
   }
+  var prevAreaW = 0;
+  var prevAreaH = 0;
+  function reflowWidgets() {
+    const { width: aW, height: aH } = getWidgetArea();
+    if (prevAreaW === 0 || prevAreaH === 0) {
+      prevAreaW = aW;
+      prevAreaH = aH;
+      return;
+    }
+    const scaleX = aW / prevAreaW;
+    const scaleY = aH / prevAreaH;
+    document.querySelectorAll(".widget").forEach((widget) => {
+      if (widget.style.display === "none") return;
+      let left = Math.round((parseInt(widget.style.left) || 0) * scaleX);
+      let top = Math.round((parseInt(widget.style.top) || 0) * scaleY);
+      let w = Math.round((parseInt(widget.style.width) || 200) * scaleX);
+      let h = Math.round((parseInt(widget.style.height) || 150) * scaleY);
+      w = Math.max(150, w);
+      h = Math.max(80, h);
+      if (w > aW) w = aW;
+      if (h > aH) h = aH;
+      if (left + w > aW) left = Math.max(0, aW - w);
+      if (top + h > aH) top = Math.max(0, aH - h);
+      widget.style.left = left + "px";
+      widget.style.top = top + "px";
+      widget.style.width = w + "px";
+      widget.style.height = h + "px";
+    });
+    prevAreaW = aW;
+    prevAreaH = aH;
+    if (state_default.map) state_default.map.invalidateSize();
+    saveWidgets();
+  }
   function initWidgets() {
-    let layout2;
+    let layout;
     try {
       const saved = localStorage.getItem(WIDGET_STORAGE_KEY);
       if (saved) {
-        layout2 = JSON.parse(saved);
+        layout = JSON.parse(saved);
         const { width: aW, height: aH } = getWidgetArea();
-        for (const id of Object.keys(layout2)) {
-          const p = layout2[id];
+        for (const id of Object.keys(layout)) {
+          const p = layout[id];
           if (p.left > aW - 30 || p.top > aH - 30 || p.left + p.width < 30 || p.top + p.height < 10) {
-            layout2 = null;
+            layout = null;
             break;
           }
         }
       }
     } catch (e) {
-      layout2 = null;
+      layout = null;
     }
-    if (!layout2) {
-      layout2 = getDefaultLayout();
+    if (!layout) {
+      layout = getDefaultLayout();
     }
-    applyLayout(layout2);
+    applyLayout(layout);
     applyWidgetVisibility();
+    const area = getWidgetArea();
+    prevAreaW = area.width;
+    prevAreaH = area.height;
     document.querySelectorAll(".widget").forEach((widget) => {
       const header = widget.querySelector(".widget-header");
       const resizer = widget.querySelector(".widget-resize");
@@ -2087,6 +2192,13 @@
       new ResizeObserver(() => state_default.map.invalidateSize()).observe(mapWidget);
     }
     document.getElementById("resetLayoutBtn").addEventListener("click", resetLayout);
+    if (window.ResizeObserver) {
+      let reflowTimer;
+      new ResizeObserver(() => {
+        clearTimeout(reflowTimer);
+        reflowTimer = setTimeout(reflowWidgets, 150);
+      }).observe(document.getElementById("widgetArea"));
+    }
   }
 
   // src/source.js
@@ -2703,7 +2815,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.1.0";
+    $("splashVersion").textContent = "0.2.0";
     $("splashCallsign").focus();
   }
   function dismissSplash() {
@@ -3428,6 +3540,7 @@
   initFullscreenListeners();
   initWeatherListeners();
   initPropListeners();
+  initSolarImage();
   initSpotDetail();
   function initApp() {
     if (state_default.appInitialized) return;

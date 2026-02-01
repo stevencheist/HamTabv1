@@ -256,6 +256,15 @@
     <div class="widget" id="widget-solar">
       <div class="widget-header">Solar &amp; Propagation <button class="widget-cfg-btn" id="solarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
+        <div class="solar-image-container">
+          <select id="solarImageType">
+            <option value="0193">AIA 193 Å</option>
+            <option value="0171">AIA 171 Å</option>
+            <option value="0304">AIA 304 Å</option>
+            <option value="HMIIC">HMI Intensitygram</option>
+          </select>
+          <img id="solarImage" alt="SDO Solar Image" />
+        </div>
         <div class="solar-indices" id="solarIndices"></div>
       </div>
       <div class="widget-resize"></div>
@@ -265,6 +274,7 @@
     <div class="widget" id="widget-lunar">
       <div class="widget-header">Lunar / EME <button class="widget-cfg-btn" id="lunarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
+        <canvas id="moonCanvas" width="80" height="80"></canvas>
         <div class="lunar-cards" id="lunarCards"></div>
       </div>
       <div class="widget-resize"></div>

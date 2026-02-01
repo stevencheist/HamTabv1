@@ -47,10 +47,73 @@ export async function fetchLunar() {
   }
 }
 
+export function renderMoonPhase(illumination, phase) {
+  const canvas = $('moonCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const size = canvas.width;
+  const r = size / 2 - 2;
+  const cx = size / 2;
+  const cy = size / 2;
+
+  ctx.clearRect(0, 0, size, size);
+
+  // Draw dark disc
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fill();
+
+  // Illumination fraction 0–1
+  const illum = Math.max(0, Math.min(100, illumination)) / 100;
+  const waning = (phase || '').toLowerCase().includes('waning') || (phase || '').toLowerCase().includes('last');
+
+  // Full/new moon shortcut — avoid terminator math at extremes
+  if (illum >= 0.99) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#d4d4d4';
+    ctx.fill();
+  } else if (illum > 0.01) {
+    // Terminator x-radius: 0 at half, r at full/new
+    const terminatorX = Math.abs(1 - 2 * illum) * r;
+    const litOnRight = !waning;
+
+    ctx.beginPath();
+    if (litOnRight) {
+      ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
+      if (illum <= 0.5) {
+        ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
+      } else {
+        ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, true);
+      }
+    } else {
+      ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2, false);
+      if (illum <= 0.5) {
+        ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, false);
+      } else {
+        ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, true);
+      }
+    }
+    ctx.closePath();
+    ctx.fillStyle = '#d4d4d4';
+    ctx.fill();
+  }
+
+  // Subtle border
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.strokeStyle = '#445';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
 export function renderLunar(data) {
   const { LUNAR_FIELD_DEFS } = require('./constants.js');
   const lunarCards = $('lunarCards');
   lunarCards.innerHTML = '';
+
+  renderMoonPhase(data.illumination, data.phase);
 
   LUNAR_FIELD_DEFS.forEach(f => {
     if (state.lunarFieldVisibility[f.key] === false) return;

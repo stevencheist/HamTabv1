@@ -38,6 +38,7 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 - Server is stateless — no database, no sessions
 - Security: helmet CSP, CORS restricted to RFC 1918 IPs, rate limiting
 - Never commit `.env` or TLS certs
+- Widgets must remain accessible at any window size — responsive reflow on resize
 
 ## Commit & Branch Conventions
 

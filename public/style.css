@@ -549,6 +549,8 @@ header {
   flex: 1;
   position: relative;
   overflow: hidden;
+  min-width: 800px;
+  min-height: 400px;
   background: var(--bg);
 }
 
@@ -982,6 +984,38 @@ header {
 .leaflet-popup-content .popup-time {
   color: var(--text-dim);
   font-size: 0.78rem;
+}
+
+/* ---- SDO solar image ---- */
+
+.solar-image-container {
+  text-align: center;
+  padding: 8px 10px 0;
+}
+
+.solar-image-container img {
+  max-width: 200px;
+  border-radius: 6px;
+  display: block;
+  margin: 6px auto 0;
+  background: #000;
+}
+
+.solar-image-container select {
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* ---- Moon phase canvas ---- */
+
+#moonCanvas {
+  display: block;
+  margin: 10px auto 4px;
 }
 
 /* ---- Solar widget ---- */

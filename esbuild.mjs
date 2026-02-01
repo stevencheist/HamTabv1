@@ -1,5 +1,7 @@
 import * as esbuild from 'esbuild';
+import { readFileSync } from 'fs';
 
+const pkg = JSON.parse(readFileSync('package.json', 'utf8'));
 const watch = process.argv.includes('--watch');
 
 const options = {
@@ -8,6 +10,7 @@ const options = {
   format: 'iife',
   outfile: 'public/app.js',
   sourcemap: false,
+  define: { '__APP_VERSION__': JSON.stringify(pkg.version) },
 };
 
 if (watch) {

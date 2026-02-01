@@ -99,6 +99,13 @@ html, body {
   opacity: 0.9;
 }
 
+.splash-version {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 12px;
+}
+
 /* -- Location override section -- */
 
 .splash-divider {

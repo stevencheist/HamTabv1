@@ -53,6 +53,12 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 - Keep server.js endpoints consistent in error response format
 - Test changes by running `npm start` and verifying in browser
 
+## Versioning
+
+- Version lives in `package.json` and is injected at build time via esbuild `define`
+- Bump `version` in `package.json` on every push: patch for fixes, minor for features
+- Rebuild (`npm run build`) after bumping to update the client bundle
+
 ## API & Security Guidelines
 
 - All external API calls go through server.js proxy — never from client directly

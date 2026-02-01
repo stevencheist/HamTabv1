@@ -952,6 +952,7 @@
     }
   }
   let grayLinePolygon = null;
+  let dayPolygon = null;
 
   // User location marker
   let userMarker = null;
@@ -1899,6 +1900,33 @@
         weight: 1,
         fillColor: '#000',
         fillOpacity: 0.25,
+        interactive: false,
+      }).addTo(map);
+    }
+
+    // Day-side polygon — same terminator, closed through the opposite pole
+    const dayPoints = [];
+    for (let lon = -180; lon <= 180; lon += 2) {
+      const lat = Math.atan(-Math.cos((lon - sunLon) * rad) / tanDec) / rad;
+      dayPoints.push([lat, lon]);
+    }
+    if (dec >= 0) {
+      dayPoints.push([90, 180]);
+      dayPoints.push([90, -180]);
+    } else {
+      dayPoints.push([-90, 180]);
+      dayPoints.push([-90, -180]);
+    }
+
+    if (dayPolygon) {
+      dayPolygon.setLatLngs(dayPoints);
+    } else {
+      dayPolygon = L.polygon(dayPoints, {
+        pane: 'grayline',
+        color: 'transparent',
+        weight: 0,
+        fillColor: '#ffd54f',
+        fillOpacity: 0.06,
         interactive: false,
       }).addTo(map);
     }

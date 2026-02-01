@@ -406,9 +406,19 @@
   function updateOperatorDisplay() {
     if (myCallsign) {
       const qrz = `https://www.qrz.com/db/${encodeURIComponent(myCallsign)}`;
-      opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc(myCallsign)}</a>`;
+      let classLabel = licenseClass ? ` [${licenseClass}]` : '';
+      opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc(myCallsign)}</a><span class="op-class">${esc(classLabel)}</span>`;
+
+      // Show operator name from cache
+      const info = callsignCache[myCallsign.toUpperCase()];
+      const opName = document.getElementById('opName');
+      if (opName) {
+        opName.textContent = info ? info.name : '';
+      }
     } else {
       opCall.textContent = '';
+      const opName = document.getElementById('opName');
+      if (opName) opName.textContent = '';
     }
     if (myLat !== null && myLon !== null) {
       const grid = latLonToGrid(myLat, myLon);
@@ -944,15 +954,18 @@
       licenseClass = '';
       localStorage.removeItem('pota_license_class');
       updatePrivFilterVisibility();
+      updateOperatorDisplay();
       return;
     }
     try {
       const resp = await fetch(`/api/callsign/${encodeURIComponent(callsign)}`);
       if (!resp.ok) return;
       const data = await resp.json();
-      if (data.status === 'VALID' && data.class) {
-        licenseClass = data.class.toUpperCase();
-        localStorage.setItem('pota_license_class', licenseClass);
+      if (data.status === 'VALID') {
+        licenseClass = (data.class || '').toUpperCase();
+        if (licenseClass) localStorage.setItem('pota_license_class', licenseClass);
+        // Cache the info for header display and tooltip
+        callsignCache[callsign.toUpperCase()] = data;
       } else {
         licenseClass = '';
         localStorage.removeItem('pota_license_class');
@@ -961,6 +974,7 @@
       // keep existing value
     }
     updatePrivFilterVisibility();
+    updateOperatorDisplay();
   }
 
   function updatePrivFilterVisibility() {

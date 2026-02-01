@@ -1649,6 +1649,15 @@ header {
   text-align: center;
 }
 
+.rst-note a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.rst-note a:hover {
+  text-decoration: underline;
+}
+
 /* ---- Spot Detail Widget ---- */
 
 .spot-detail-empty {

@@ -202,9 +202,13 @@
     moonImageLoading = true;
     const img = new Image();
     img.onload = () => {
-      moonImage = img;
-      if (state_default.lastLunarData) {
-        renderMoonPhase(state_default.lastLunarData.illumination, state_default.lastLunarData.phase);
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        moonImage = img;
+        if (state_default.lastLunarData) {
+          renderMoonPhase(state_default.lastLunarData.illumination, state_default.lastLunarData.phase);
+        }
+      } else {
+        moonImageLoading = false;
       }
     };
     img.onerror = () => {
@@ -227,14 +231,13 @@
     return "var(--red)";
   }
   function loadLunarFieldVisibility() {
-    const { LUNAR_FIELD_DEFS: LUNAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
     try {
       const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
       if (saved && typeof saved === "object") return saved;
     } catch (e) {
     }
     const vis = {};
-    LUNAR_FIELD_DEFS2.forEach((f) => vis[f.key] = f.defaultVisible);
+    LUNAR_FIELD_DEFS.forEach((f) => vis[f.key] = f.defaultVisible);
     return vis;
   }
   function saveLunarFieldVisibility() {
@@ -314,11 +317,10 @@
     ctx.stroke();
   }
   function renderLunar(data) {
-    const { LUNAR_FIELD_DEFS: LUNAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
     const lunarCards = $("lunarCards");
     lunarCards.innerHTML = "";
     renderMoonPhase(data.illumination, data.phase);
-    LUNAR_FIELD_DEFS2.forEach((f) => {
+    LUNAR_FIELD_DEFS.forEach((f) => {
       if (state_default.lunarFieldVisibility[f.key] === false) return;
       const rawVal = data[f.key];
       let displayVal;
@@ -351,6 +353,7 @@
     "src/lunar.js"() {
       init_state();
       init_dom();
+      init_constants();
       moonImage = null;
       moonImageLoading = false;
       LUNAR_VIS_KEY = "hamtab_lunar_fields";

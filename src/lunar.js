@@ -1,5 +1,30 @@
 import state from './state.js';
 import { $ } from './dom.js';
+import { LUNAR_FIELD_DEFS } from './constants.js';
+
+// --- Moon image cache ---
+// NASA SVS provides pre-rendered LROC moon frames with accurate lighting per hour
+let moonImage = null;
+let moonImageLoading = false;
+
+function loadMoonImage() {
+  if (moonImage || moonImageLoading) return;
+  moonImageLoading = true;
+  const img = new Image();
+  img.onload = () => {
+    // Guard against decoded images with 0 dimensions (corrupt or unsupported)
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      moonImage = img;
+      if (state.lastLunarData) {
+        renderMoonPhase(state.lastLunarData.illumination, state.lastLunarData.phase);
+      }
+    } else {
+      moonImageLoading = false;
+    }
+  };
+  img.onerror = () => { moonImageLoading = false; };
+  img.src = '/api/lunar/image';
+}
 
 // Color functions (exported for constants.js)
 export function lunarDecColor(val) {
@@ -21,7 +46,6 @@ export function lunarPlColor(val) {
 const LUNAR_VIS_KEY = 'hamtab_lunar_fields';
 
 export function loadLunarFieldVisibility() {
-  const { LUNAR_FIELD_DEFS } = require('./constants.js');
   try {
     const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
     if (saved && typeof saved === 'object') return saved;
@@ -58,46 +82,64 @@ export function renderMoonPhase(illumination, phase) {
 
   ctx.clearRect(0, 0, size, size);
 
-  // Draw dark disc
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.fillStyle = '#1a1a2e';
-  ctx.fill();
+  // Start loading NASA moon image
+  loadMoonImage();
 
   // Illumination fraction 0–1
   const illum = Math.max(0, Math.min(100, illumination)) / 100;
   const waning = (phase || '').toLowerCase().includes('waning') || (phase || '').toLowerCase().includes('last');
 
-  // Full/new moon shortcut — avoid terminator math at extremes
-  if (illum >= 0.99) {
+  if (moonImage) {
+    // NASA SVS image already has correct lighting/shadows — just draw clipped to circle
+    ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = '#d4d4d4';
-    ctx.fill();
-  } else if (illum > 0.01) {
-    // Terminator x-radius: 0 at half, r at full/new
-    const terminatorX = Math.abs(1 - 2 * illum) * r;
-    const litOnRight = !waning;
+    ctx.clip();
 
+    // The source image is square with the moon centered; scale to fill the circle
+    // The moon in the 730x730 frame occupies roughly the center ~85% of the image
+    const scale = r * 2 / (moonImage.width * 0.82);
+    const drawSize = moonImage.width * scale;
+    const offset = (drawSize - r * 2) / 2;
+    ctx.drawImage(moonImage, cx - r - offset, cy - r - offset, drawSize, drawSize);
+
+    ctx.restore();
+  } else {
+    // Fallback: flat rendering while image loads
     ctx.beginPath();
-    if (litOnRight) {
-      ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
-      if (illum <= 0.5) {
-        ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
-      } else {
-        ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, true);
-      }
-    } else {
-      ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2, false);
-      if (illum <= 0.5) {
-        ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, false);
-      } else {
-        ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, true);
-      }
-    }
-    ctx.closePath();
-    ctx.fillStyle = '#d4d4d4';
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a1a2e';
     ctx.fill();
+
+    if (illum >= 0.99) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = '#d4d4d4';
+      ctx.fill();
+    } else if (illum > 0.01) {
+      const terminatorX = Math.abs(1 - 2 * illum) * r;
+      const litOnRight = !waning;
+
+      ctx.beginPath();
+      if (litOnRight) {
+        ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
+        if (illum <= 0.5) {
+          ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
+        } else {
+          ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, true);
+        }
+      } else {
+        ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2, false);
+        if (illum <= 0.5) {
+          ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, false);
+        } else {
+          ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, true);
+        }
+      }
+      ctx.closePath();
+      ctx.fillStyle = '#d4d4d4';
+      ctx.fill();
+    }
   }
 
   // Subtle border
@@ -109,7 +151,6 @@ export function renderMoonPhase(illumination, phase) {
 }
 
 export function renderLunar(data) {
-  const { LUNAR_FIELD_DEFS } = require('./constants.js');
   const lunarCards = $('lunarCards');
   lunarCards.innerHTML = '';
 

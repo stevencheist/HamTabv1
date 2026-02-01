@@ -14,7 +14,11 @@
   let use24h = localStorage.getItem('pota_time24') !== 'false';
   let privilegeFilterEnabled = localStorage.getItem('pota_privilege_filter') === 'true';
   let licenseClass = localStorage.getItem('pota_license_class') || '';
-  let propMetric = localStorage.getItem('pota_prop_metric') || 'mof_sp';
+  let propMetric = localStorage.getItem('pota_prop_metric') || 'mufd';
+  // Migrate old SVG metric values to new GeoJSON types
+  if (propMetric === 'mof_sp' || propMetric === 'lof_sp') { propMetric = 'mufd'; localStorage.setItem('pota_prop_metric', propMetric); }
+  let propLayer = null;
+  let propLabelLayer = null;
 
   // Widget registry (single source of truth)
   const WIDGET_DEFS = [
@@ -24,7 +28,6 @@
     { id: 'widget-map',         name: 'HamMap' },
     { id: 'widget-solar',       name: 'Solar & Propagation' },
     { id: 'widget-lunar',       name: 'Lunar / EME' },
-    { id: 'widget-propagation', name: 'Propagation' },
   ];
 
   // Source config for activations widget
@@ -267,6 +270,7 @@
   const lunarCfgSplash = document.getElementById('lunarCfgSplash');
   const lunarFieldList = document.getElementById('lunarFieldList');
   const lunarCfgOk = document.getElementById('lunarCfgOk');
+<<<<<<< HEAD
   const propContainer = document.getElementById('propContainer');
   const spotsHead = document.getElementById('spotsHead');
   const sourceTabs = document.getElementById('sourceTabs');
@@ -350,6 +354,8 @@
     btn.addEventListener('mousedown', (e) => e.stopPropagation());
     btn.addEventListener('click', () => switchSource(btn.dataset.source));
   });
+=======
+>>>>>>> e5aa8344211064a757a6c6d8c40e14ead57dad26
 
   // --- Operator callsign & location ---
 
@@ -929,6 +935,10 @@
       // Gray line (day/night terminator)
       map.createPane('grayline');
       map.getPane('grayline').style.zIndex = 250;
+
+      // Propagation contour overlay
+      map.createPane('propagation');
+      map.getPane('propagation').style.zIndex = 300;
     } catch (e) {
       console.error('Map initialization failed:', e);
       map = null;
@@ -994,19 +1004,53 @@
   }
 
   async function fetchPropagation() {
-    if (myLat === null || myLon === null) return;
+    if (!map) return;
+
+    // Remove old layers
+    if (propLayer) { map.removeLayer(propLayer); propLayer = null; }
+    if (propLabelLayer) { map.removeLayer(propLabelLayer); propLabelLayer = null; }
+
+    if (propMetric === 'off') return;
+
     try {
-      const grid = latLonToGrid(myLat, myLon).substring(0, 4).toUpperCase();
-      const resp = await fetch(`/api/propagation?grid=${encodeURIComponent(grid)}&metric=${encodeURIComponent(propMetric)}`);
+      const resp = await fetch(`/api/propagation?type=${encodeURIComponent(propMetric)}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const svg = await resp.text();
-      propContainer.innerHTML = svg;
+      const data = await resp.json();
+
+      // GeoJSON coordinates are [lon, lat] — Leaflet handles this via coordsToLatLng
+      propLayer = L.geoJSON(data, {
+        pane: 'propagation',
+        interactive: false,
+        style: (feature) => ({
+          color: feature.properties.stroke || '#00ff00',
+          weight: 2,
+          opacity: 0.7,
+          fill: false,
+        }),
+      }).addTo(map);
+
+      // Add MHz labels along contour lines
+      propLabelLayer = L.layerGroup({ pane: 'propagation' }).addTo(map);
+      data.features.forEach(feature => {
+        const coords = feature.geometry.coordinates;
+        if (!coords || coords.length < 2) return;
+        const label = feature.properties.title || String(feature.properties['level-value']);
+        const color = feature.properties.stroke || '#00ff00';
+        // Place label at midpoint of contour
+        const mid = coords[Math.floor(coords.length / 2)];
+        const icon = L.divIcon({
+          className: 'prop-label',
+          html: `<span style="color:${color}">${esc(label.trim())} MHz</span>`,
+          iconSize: null,
+        });
+        L.marker([mid[1], mid[0]], { icon, pane: 'propagation', interactive: false }).addTo(propLabelLayer);
+      });
     } catch (err) {
       console.error('Failed to fetch propagation:', err);
     }
   }
 
-  // Propagation MOF/LOF toggle
+  // Propagation overlay toggle
   document.querySelectorAll('.prop-metric-btn').forEach(btn => {
     btn.addEventListener('mousedown', (e) => e.stopPropagation());
     btn.addEventListener('click', () => {
@@ -1016,6 +1060,8 @@
       fetchPropagation();
     });
   });
+  // Sync button active state with saved preference
+  document.querySelectorAll('.prop-metric-btn').forEach(b => b.classList.toggle('active', b.dataset.metric === propMetric));
 
   function refreshAll() {
     fetchSourceData('pota');
@@ -2096,7 +2142,7 @@
     const leftW = Math.round(W * 0.30);
     const rightW = Math.round(W * 0.25);
     const centerW = W - leftW - rightW - pad * 4;
-    const rightThird = Math.round((H - pad * 4) / 3);
+    const rightHalf = Math.round((H - pad * 3) / 2);
 
     const clockH = 60;
     const clockW = Math.round((centerW - pad) / 2);
@@ -2108,9 +2154,8 @@
       'widget-clock-utc': { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
       'widget-activations': { left: pad, top: pad, width: leftW, height: H - pad * 2 },
       'widget-map': { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
-      'widget-solar': { left: rightX, top: pad, width: rightW, height: rightThird },
-      'widget-lunar': { left: rightX, top: rightThird + pad * 2, width: rightW, height: rightThird },
-      'widget-propagation': { left: rightX, top: rightThird * 2 + pad * 3, width: rightW, height: H - rightThird * 2 - pad * 4 },
+      'widget-solar': { left: rightX, top: pad, width: rightW, height: rightHalf },
+      'widget-lunar': { left: rightX, top: rightHalf + pad * 2, width: rightW, height: H - rightHalf - pad * 3 },
     };
   }
 

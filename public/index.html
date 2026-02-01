@@ -263,7 +263,10 @@
             <option value="0304">AIA 304 Å</option>
             <option value="HMIIC">HMI Intensitygram</option>
           </select>
-          <img id="solarImage" alt="SDO Solar Image" />
+          <div class="solar-canvas-wrap">
+            <canvas id="solarCanvas" width="200" height="200"></canvas>
+            <button class="solar-play-btn" id="solarPlayBtn" title="Play/Pause">&#9654;</button>
+          </div>
         </div>
         <div class="solar-indices" id="solarIndices"></div>
       </div>
@@ -274,7 +277,7 @@
     <div class="widget" id="widget-lunar">
       <div class="widget-header">Lunar / EME <button class="widget-cfg-btn" id="lunarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
-        <canvas id="moonCanvas" width="80" height="80"></canvas>
+        <canvas id="moonCanvas" width="160" height="160"></canvas>
         <div class="lunar-cards" id="lunarCards"></div>
       </div>
       <div class="widget-resize"></div>

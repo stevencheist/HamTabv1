@@ -198,6 +198,21 @@
   });
 
   // src/lunar.js
+  function loadMoonImage() {
+    if (moonImage || moonImageLoading) return;
+    moonImageLoading = true;
+    const img = new Image();
+    img.onload = () => {
+      moonImage = img;
+      if (state_default.lastLunarData) {
+        renderMoonPhase(state_default.lastLunarData.illumination, state_default.lastLunarData.phase);
+      }
+    };
+    img.onerror = () => {
+      moonImageLoading = false;
+    };
+    img.src = "/api/lunar/image";
+  }
   function lunarDecColor(val) {
     const n = Math.abs(parseFloat(val));
     if (isNaN(n)) return "";
@@ -246,39 +261,52 @@
     const cx = size / 2;
     const cy = size / 2;
     ctx.clearRect(0, 0, size, size);
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = "#1a1a2e";
-    ctx.fill();
+    loadMoonImage();
     const illum = Math.max(0, Math.min(100, illumination)) / 100;
     const waning = (phase || "").toLowerCase().includes("waning") || (phase || "").toLowerCase().includes("last");
-    if (illum >= 0.99) {
+    if (moonImage) {
+      ctx.save();
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = "#d4d4d4";
-      ctx.fill();
-    } else if (illum > 0.01) {
-      const terminatorX = Math.abs(1 - 2 * illum) * r;
-      const litOnRight = !waning;
+      ctx.clip();
+      const scale = r * 2 / (moonImage.width * 0.82);
+      const drawSize = moonImage.width * scale;
+      const offset = (drawSize - r * 2) / 2;
+      ctx.drawImage(moonImage, cx - r - offset, cy - r - offset, drawSize, drawSize);
+      ctx.restore();
+    } else {
       ctx.beginPath();
-      if (litOnRight) {
-        ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
-        if (illum <= 0.5) {
-          ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
-        } else {
-          ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, true);
-        }
-      } else {
-        ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2, false);
-        if (illum <= 0.5) {
-          ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, false);
-        } else {
-          ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, true);
-        }
-      }
-      ctx.closePath();
-      ctx.fillStyle = "#d4d4d4";
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#1a1a2e";
       ctx.fill();
+      if (illum >= 0.99) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = "#d4d4d4";
+        ctx.fill();
+      } else if (illum > 0.01) {
+        const terminatorX = Math.abs(1 - 2 * illum) * r;
+        const litOnRight = !waning;
+        ctx.beginPath();
+        if (litOnRight) {
+          ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
+          if (illum <= 0.5) {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
+          } else {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, true);
+          }
+        } else {
+          ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2, false);
+          if (illum <= 0.5) {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, false);
+          } else {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, true);
+          }
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#d4d4d4";
+        ctx.fill();
+      }
     }
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
@@ -319,11 +347,13 @@
       lunarCards.appendChild(div);
     });
   }
-  var LUNAR_VIS_KEY;
+  var moonImage, moonImageLoading, LUNAR_VIS_KEY;
   var init_lunar = __esm({
     "src/lunar.js"() {
       init_state();
       init_dom();
+      moonImage = null;
+      moonImageLoading = false;
       LUNAR_VIS_KEY = "hamtab_lunar_fields";
     }
   });
@@ -1343,21 +1373,104 @@
   }
   function initSolarImage() {
     const select = $("solarImageType");
-    const img = $("solarImage");
-    if (!select || !img) return;
+    const canvas = $("solarCanvas");
+    const playBtn = $("solarPlayBtn");
+    if (!select || !canvas) return;
     const saved = localStorage.getItem("hamtab_sdo_type");
     if (saved) select.value = saved;
     select.addEventListener("change", () => {
       localStorage.setItem("hamtab_sdo_type", select.value);
-      loadSolarImage();
+      loadSolarFrames();
     });
-    loadSolarImage();
+    if (playBtn) {
+      playBtn.addEventListener("click", () => {
+        solarPlaying = !solarPlaying;
+        playBtn.innerHTML = solarPlaying ? "&#9646;&#9646;" : "&#9654;";
+        if (solarPlaying) startSolarAnimation();
+        else stopSolarAnimation();
+      });
+    }
+    loadSolarFrames();
+  }
+  function startSolarAnimation() {
+    stopSolarAnimation();
+    if (solarFrames.length < 2) return;
+    solarIntervalId = setInterval(() => {
+      solarFrameIndex = (solarFrameIndex + 1) % solarFrames.length;
+      drawSolarFrame();
+    }, 200);
+  }
+  function stopSolarAnimation() {
+    if (solarIntervalId) {
+      clearInterval(solarIntervalId);
+      solarIntervalId = null;
+    }
+  }
+  function drawSolarFrame() {
+    const canvas = $("solarCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const img = solarFrames[solarFrameIndex];
+    if (!img || !img.complete || !img.naturalWidth) {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  }
+  async function loadSolarFrames() {
+    if (solarLoadingFrames) return;
+    solarLoadingFrames = true;
+    stopSolarAnimation();
+    const select = $("solarImageType");
+    const type = select ? select.value : "0193";
+    try {
+      const resp = await fetch("/api/solar/frames?type=" + encodeURIComponent(type));
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const filenames = await resp.json();
+      if (!filenames.length) {
+        loadSolarImageFallback(type);
+        return;
+      }
+      const loaded = await Promise.all(filenames.map((fn) => {
+        return new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = () => resolve(null);
+          img.src = "/api/solar/frame/" + encodeURIComponent(fn);
+        });
+      }));
+      solarFrames = loaded.filter(Boolean);
+      solarFrameIndex = 0;
+      if (solarFrames.length < 2) {
+        loadSolarImageFallback(type);
+        return;
+      }
+      drawSolarFrame();
+      const playBtn = $("solarPlayBtn");
+      if (playBtn) playBtn.innerHTML = "&#9646;&#9646;";
+      solarPlaying = true;
+      startSolarAnimation();
+    } catch (err) {
+      console.error("Failed to load SDO frames:", err);
+      loadSolarImageFallback(type);
+    } finally {
+      solarLoadingFrames = false;
+    }
+  }
+  function loadSolarImageFallback(type) {
+    const canvas = $("solarCanvas");
+    if (!canvas) return;
+    const img = new Image();
+    img.onload = () => {
+      solarFrames = [img];
+      solarFrameIndex = 0;
+      drawSolarFrame();
+    };
+    img.src = "/api/solar/image?type=" + encodeURIComponent(type) + "&t=" + Date.now();
   }
   function loadSolarImage() {
-    const select = $("solarImageType");
-    const img = $("solarImage");
-    if (!select || !img) return;
-    img.src = "/api/solar/image?type=" + encodeURIComponent(select.value) + "&t=" + Date.now();
+    loadSolarFrames();
   }
   async function fetchSolar() {
     try {
@@ -1571,13 +1684,18 @@
       }
     }
   }
-  var SOLAR_VIS_KEY;
+  var SOLAR_VIS_KEY, solarFrames, solarFrameIndex, solarPlaying, solarIntervalId, solarLoadingFrames;
   var init_solar = __esm({
     "src/solar.js"() {
       init_state();
       init_dom();
       init_utils();
       SOLAR_VIS_KEY = "hamtab_solar_fields";
+      solarFrames = [];
+      solarFrameIndex = 0;
+      solarPlaying = true;
+      solarIntervalId = null;
+      solarLoadingFrames = false;
     }
   });
 
@@ -2815,7 +2933,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.3.0";
+    $("splashVersion").textContent = "0.5.0";
     $("splashCallsign").focus();
   }
   function dismissSplash() {

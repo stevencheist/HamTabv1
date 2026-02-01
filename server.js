@@ -583,6 +583,92 @@ app.post('/api/config/env', (req, res) => {
 // Proxy NASA SDO solar images
 const SDO_TYPES = new Set(['0193', '0171', '0304', 'HMIIC']);
 
+// --- SDO browse frame list (animated time-lapse) ---
+const solarFramesCache = {}; // { 'YYYY/MM/DD:type': { frames: [], expires: timestamp } }
+
+app.get('/api/solar/frames', async (req, res) => {
+  try {
+    const type = SDO_TYPES.has(req.query.type) ? req.query.type : '0193';
+    const now = new Date();
+    const yyyy = now.getUTCFullYear();
+    const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
+    const dd = String(now.getUTCDate()).padStart(2, '0');
+    const dateKey = `${yyyy}/${mm}/${dd}`;
+    const cacheKey = `${dateKey}:${type}`;
+
+    // Return cached if fresh (10 minutes)
+    const cached = solarFramesCache[cacheKey];
+    if (cached && Date.now() < cached.expires) {
+      return res.json(cached.frames);
+    }
+
+    const listUrl = `https://sdo.gsfc.nasa.gov/assets/img/browse/${dateKey}/`;
+    const html = await fetchText(listUrl);
+
+    // Parse filenames matching _512_{type}.jpg from directory listing
+    const pattern = new RegExp(`\\d{8}_\\d{6}_512_${type}\\.jpg`, 'g');
+    const allFrames = [];
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      allFrames.push(match[0]);
+    }
+
+    // Return last 48 frames (~8 hours)
+    const frames = allFrames.slice(-48);
+    solarFramesCache[cacheKey] = { frames, expires: Date.now() + 10 * 60 * 1000 };
+    res.json(frames);
+  } catch (err) {
+    console.error('Error fetching SDO frame list:', err.message);
+    res.status(502).json({ error: 'Failed to fetch SDO frame list' });
+  }
+});
+
+// Proxy individual SDO browse frames
+const SDO_FRAME_RE = /^\d{8}_\d{6}_512_\w+\.jpg$/;
+
+app.get('/api/solar/frame/:filename', async (req, res) => {
+  try {
+    const filename = req.params.filename;
+    if (!SDO_FRAME_RE.test(filename)) {
+      return res.status(400).json({ error: 'Invalid filename' });
+    }
+
+    // Extract date from filename (YYYYMMDD_HHMMSS_512_type.jpg)
+    const yyyy = filename.substring(0, 4);
+    const mm = filename.substring(4, 6);
+    const dd = filename.substring(6, 8);
+    const url = `https://sdo.gsfc.nasa.gov/assets/img/browse/${yyyy}/${mm}/${dd}/${filename}`;
+    const parsed = new URL(url);
+    const resolvedIP = await resolveHost(parsed.hostname);
+    if (isPrivateIP(resolvedIP)) {
+      return res.status(403).json({ error: 'Blocked' });
+    }
+    const proxyReq = https.get({
+      hostname: resolvedIP,
+      path: parsed.pathname,
+      port: 443,
+      headers: { 'User-Agent': 'HamTab/1.0', 'Host': parsed.hostname },
+      servername: parsed.hostname,
+    }, (upstream) => {
+      if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
+        upstream.resume();
+        return res.status(502).json({ error: 'Failed to fetch SDO frame' });
+      }
+      res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=86400');
+      upstream.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('SDO frame proxy error:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch SDO frame' });
+    });
+    proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
+  } catch (err) {
+    console.error('Error fetching SDO frame:', err.message);
+    res.status(502).json({ error: 'Failed to fetch SDO frame' });
+  }
+});
+
 app.get('/api/solar/image', async (req, res) => {
   try {
     const type = SDO_TYPES.has(req.query.type) ? req.query.type : '0193';
@@ -615,6 +701,47 @@ app.get('/api/solar/image', async (req, res) => {
   } catch (err) {
     console.error('Error fetching SDO image:', err.message);
     res.status(502).json({ error: 'Failed to fetch SDO image' });
+  }
+});
+
+// Proxy NASA SVS moon phase image (pre-rendered LROC frames for current year)
+// Frame number = hour of year (1–8760), gives accurate texture + libration + lighting
+app.get('/api/lunar/image', async (req, res) => {
+  try {
+    const now = new Date();
+    const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
+    const hourOfYear = Math.floor((now - startOfYear) / 3600000) + 1;
+    const frame = String(Math.min(hourOfYear, 8760)).padStart(4, '0');
+    const url = `https://svs.gsfc.nasa.gov/vis/a000000/a005500/a005587/frames/730x730_1x1_30p/moon.${frame}.jpg`;
+    const parsed = new URL(url);
+    const resolvedIP = await resolveHost(parsed.hostname);
+    if (isPrivateIP(resolvedIP)) {
+      return res.status(403).json({ error: 'Blocked' });
+    }
+    const proxyReq = https.get({
+      hostname: resolvedIP,
+      path: parsed.pathname,
+      port: 443,
+      headers: { 'User-Agent': 'HamTab/1.0', 'Host': parsed.hostname },
+      servername: parsed.hostname,
+    }, (upstream) => {
+      if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
+        upstream.resume();
+        return res.status(502).json({ error: 'Failed to fetch moon image' });
+      }
+      res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
+      // Cache 1 hour — frame changes hourly
+      res.set('Cache-Control', 'public, max-age=3600');
+      upstream.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('Moon image proxy error:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch moon image' });
+    });
+    proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
+  } catch (err) {
+    console.error('Error fetching moon image:', err.message);
+    res.status(502).json({ error: 'Failed to fetch moon image' });
   }
 });
 

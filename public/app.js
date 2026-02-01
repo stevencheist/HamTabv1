@@ -2481,6 +2481,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
+    $("splashVersion").textContent = "0.1.0";
     $("splashCallsign").focus();
   }
   function dismissSplash() {

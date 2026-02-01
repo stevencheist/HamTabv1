@@ -206,6 +206,7 @@ export function showSplash() {
   $('splashGridDropdown').classList.remove('open');
   $('splashGridDropdown').innerHTML = '';
   state.gridHighlightIdx = -1;
+  $('splashVersion').textContent = __APP_VERSION__;
   $('splashCallsign').focus();
 }
 

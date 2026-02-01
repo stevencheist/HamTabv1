@@ -21,7 +21,7 @@
   const WIDGET_DEFS = [
     { id: 'widget-clock-local', name: 'Local Time' },
     { id: 'widget-clock-utc',   name: 'UTC' },
-    { id: 'widget-activations', name: 'Activations' },
+    { id: 'widget-activations', name: 'POTA Activations' },
     { id: 'widget-map',         name: 'HamMap' },
     { id: 'widget-solar',       name: 'Solar & Propagation' },
     { id: 'widget-lunar',       name: 'Lunar / EME' },

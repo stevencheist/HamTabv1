@@ -993,10 +993,23 @@ header {
   padding: 8px 10px 0;
 }
 
+.solar-image-container select {
+  display: block;
+  margin: 0 auto;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
 .solar-canvas-wrap {
   position: relative;
-  display: inline-block;
+  display: block;
   margin: 6px auto 0;
+  width: fit-content;
 }
 
 #solarCanvas {
@@ -1031,15 +1044,6 @@ header {
   opacity: 1;
 }
 
-.solar-image-container select {
-  padding: 3px 8px;
-  font-size: 0.75rem;
-  background: var(--bg);
-  color: var(--text);
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  cursor: pointer;
-}
 
 /* ---- Moon phase canvas ---- */
 

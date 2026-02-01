@@ -77,6 +77,29 @@ export function saveSolarFieldVisibility() {
   localStorage.setItem(SOLAR_VIS_KEY, JSON.stringify(state.solarFieldVisibility));
 }
 
+export function initSolarImage() {
+  const select = $('solarImageType');
+  const img = $('solarImage');
+  if (!select || !img) return;
+
+  const saved = localStorage.getItem('hamtab_sdo_type');
+  if (saved) select.value = saved;
+
+  select.addEventListener('change', () => {
+    localStorage.setItem('hamtab_sdo_type', select.value);
+    loadSolarImage();
+  });
+
+  loadSolarImage();
+}
+
+export function loadSolarImage() {
+  const select = $('solarImageType');
+  const img = $('solarImage');
+  if (!select || !img) return;
+  img.src = '/api/solar/image?type=' + encodeURIComponent(select.value) + '&t=' + Date.now();
+}
+
 export async function fetchSolar() {
   try {
     const resp = await fetch('/api/solar');
@@ -84,6 +107,7 @@ export async function fetchSolar() {
     const data = await resp.json();
     state.lastSolarData = data;
     renderSolar(data);
+    loadSolarImage();
   } catch (err) {
     console.error('Failed to fetch solar:', err);
   }

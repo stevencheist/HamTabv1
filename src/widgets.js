@@ -82,7 +82,7 @@ export function getDefaultLayout() {
 
   const rightX = leftW + centerW + pad * 3;
 
-  return {
+  const layout = {
     'widget-clock-local': { left: leftW + pad * 2, top: pad, width: clockW, height: clockH },
     'widget-clock-utc': { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
     'widget-activations': { left: pad, top: pad, width: leftW, height: H - pad * 2 },
@@ -259,6 +259,52 @@ function resetLayout() {
   updateUserMarker();
 }
 
+// --- Responsive reflow: proportionally scale widgets on resize ---
+let prevAreaW = 0;
+let prevAreaH = 0;
+
+function reflowWidgets() {
+  const { width: aW, height: aH } = getWidgetArea();
+  if (prevAreaW === 0 || prevAreaH === 0) {
+    prevAreaW = aW;
+    prevAreaH = aH;
+    return;
+  }
+
+  const scaleX = aW / prevAreaW;
+  const scaleY = aH / prevAreaH;
+
+  document.querySelectorAll('.widget').forEach(widget => {
+    if (widget.style.display === 'none') return;
+
+    let left = Math.round((parseInt(widget.style.left) || 0) * scaleX);
+    let top = Math.round((parseInt(widget.style.top) || 0) * scaleY);
+    let w = Math.round((parseInt(widget.style.width) || 200) * scaleX);
+    let h = Math.round((parseInt(widget.style.height) || 150) * scaleY);
+
+    // Enforce minimums
+    w = Math.max(150, w);
+    h = Math.max(80, h);
+
+    // Clamp to area bounds
+    if (w > aW) w = aW;
+    if (h > aH) h = aH;
+    if (left + w > aW) left = Math.max(0, aW - w);
+    if (top + h > aH) top = Math.max(0, aH - h);
+
+    widget.style.left = left + 'px';
+    widget.style.top = top + 'px';
+    widget.style.width = w + 'px';
+    widget.style.height = h + 'px';
+  });
+
+  prevAreaW = aW;
+  prevAreaH = aH;
+
+  if (state.map) state.map.invalidateSize();
+  saveWidgets();
+}
+
 export function initWidgets() {
   let layout;
   try {
@@ -285,6 +331,11 @@ export function initWidgets() {
   applyLayout(layout);
   applyWidgetVisibility();
 
+  // Seed previous dimensions for proportional resize scaling
+  const area = getWidgetArea();
+  prevAreaW = area.width;
+  prevAreaH = area.height;
+
   document.querySelectorAll('.widget').forEach(widget => {
     const header = widget.querySelector('.widget-header');
     const resizer = widget.querySelector('.widget-resize');
@@ -299,4 +350,13 @@ export function initWidgets() {
   }
 
   document.getElementById('resetLayoutBtn').addEventListener('click', resetLayout);
+
+  // --- Responsive reflow when widget area resizes ---
+  if (window.ResizeObserver) {
+    let reflowTimer;
+    new ResizeObserver(() => {
+      clearTimeout(reflowTimer);
+      reflowTimer = setTimeout(reflowWidgets, 150);
+    }).observe(document.getElementById('widgetArea'));
+  }
 }

@@ -540,6 +540,44 @@ app.post('/api/restart', (req, res) => {
   gracefulRestart(500);
 });
 
+// Proxy NASA SDO solar images
+const SDO_TYPES = new Set(['0193', '0171', '0304', 'HMIIC']);
+
+app.get('/api/solar/image', async (req, res) => {
+  try {
+    const type = SDO_TYPES.has(req.query.type) ? req.query.type : '0193';
+    const url = `https://sdo.gsfc.nasa.gov/assets/img/latest/latest_512_${type}.jpg`;
+    const parsed = new URL(url);
+    const resolvedIP = await resolveHost(parsed.hostname);
+    if (isPrivateIP(resolvedIP)) {
+      return res.status(403).json({ error: 'Blocked' });
+    }
+    const proxyReq = https.get({
+      hostname: resolvedIP,
+      path: parsed.pathname,
+      port: 443,
+      headers: { 'User-Agent': 'HamTab/1.0', 'Host': parsed.hostname },
+      servername: parsed.hostname,
+    }, (upstream) => {
+      if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
+        upstream.resume();
+        return res.status(502).json({ error: 'Failed to fetch SDO image' });
+      }
+      res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=300');
+      upstream.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('SDO image proxy error:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch SDO image' });
+    });
+    proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
+  } catch (err) {
+    console.error('Error fetching SDO image:', err.message);
+    res.status(502).json({ error: 'Failed to fetch SDO image' });
+  }
+});
+
 // Proxy prop.kc2g.com propagation GeoJSON contours
 app.get('/api/propagation', async (req, res) => {
   try {

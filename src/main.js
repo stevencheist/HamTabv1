@@ -25,7 +25,7 @@ import { initRefreshListeners, refreshAll, startAutoRefresh } from './refresh.js
 import { initUpdateListeners, startUpdateStatusPolling, sendUpdateInterval } from './update.js';
 import { initFullscreenListeners } from './fullscreen.js';
 import { initWeatherListeners, fetchWeather, startNwsPolling } from './weather.js';
-import { initPropListeners, updateGrayLine } from './solar.js';
+import { initPropListeners, updateGrayLine, initSolarImage } from './solar.js';
 import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
 import { fetchISS, fetchISSOrbit } from './iss.js';
@@ -61,6 +61,7 @@ initUpdateListeners();
 initFullscreenListeners();
 initWeatherListeners();
 initPropListeners();
+initSolarImage();
 initSpotDetail();
 
 // Wire initApp into splash dismissal

@@ -246,6 +246,111 @@ function degToCompass(deg) {
   return dirs[Math.round(deg / 22.5) % 16] || '';
 }
 
+// NWS weather conditions (background gradient for local clock)
+const nwsGridCache = {}; // { 'lat,lon': { forecastUrl, expires } }
+
+app.get('/api/weather/conditions', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: 'Provide lat and lon' });
+    }
+    const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
+    let grid = nwsGridCache[key];
+    if (!grid || Date.now() > grid.expires) {
+      const points = await nwsFetch(`https://api.weather.gov/points/${lat},${lon}`);
+      const data = JSON.parse(points);
+      grid = {
+        forecastUrl: data.properties.forecastHourly,
+        expires: Date.now() + 6 * 3600 * 1000,
+      };
+      nwsGridCache[key] = grid;
+    }
+    const forecast = JSON.parse(await nwsFetch(grid.forecastUrl));
+    const period = forecast.properties.periods[0];
+    res.json({
+      shortForecast: period.shortForecast,
+      temperature: period.temperature,
+      temperatureUnit: period.temperatureUnit,
+      isDaytime: period.isDaytime,
+      windSpeed: period.windSpeed,
+      windDirection: period.windDirection,
+      relativeHumidity: period.relativeHumidity ? period.relativeHumidity.value : null,
+    });
+  } catch (err) {
+    console.error('Error fetching NWS conditions:', err.message);
+    res.status(502).json({ error: 'Failed to fetch weather conditions' });
+  }
+});
+
+// NWS weather alerts
+app.get('/api/weather/alerts', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    if (isNaN(lat) || isNaN(lon)) {
+      return res.status(400).json({ error: 'Provide lat and lon' });
+    }
+    const raw = await nwsFetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`);
+    const data = JSON.parse(raw);
+    const alerts = (data.features || []).map(f => {
+      const p = f.properties;
+      return {
+        event: p.event,
+        severity: p.severity,
+        headline: p.headline,
+        description: p.description,
+        web: p.web,
+        urgency: p.urgency,
+        expires: p.expires,
+      };
+    });
+    res.json(alerts);
+  } catch (err) {
+    console.error('Error fetching NWS alerts:', err.message);
+    res.status(502).json({ error: 'Failed to fetch weather alerts' });
+  }
+});
+
+function nwsFetch(url) {
+  return new Promise((resolve, reject) => {
+    const parsed = new URL(url);
+    resolveHost(parsed.hostname).then((resolvedIP) => {
+      if (isPrivateIP(resolvedIP)) {
+        return reject(new Error('Requests to private addresses are blocked'));
+      }
+      const options = {
+        hostname: resolvedIP,
+        path: parsed.pathname + parsed.search,
+        port: 443,
+        headers: {
+          'User-Agent': 'HamTab/1.0 (ham radio dashboard)',
+          'Host': parsed.hostname,
+          'Accept': 'application/geo+json',
+        },
+        servername: parsed.hostname,
+      };
+      const req = https.get(options, (resp) => {
+        if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
+          resp.resume();
+          return nwsFetch(resp.headers.location).then(resolve).catch(reject);
+        }
+        if (resp.statusCode < 200 || resp.statusCode >= 300) {
+          resp.resume();
+          return reject(new Error(`HTTP ${resp.statusCode}`));
+        }
+        let data = '';
+        resp.on('data', chunk => { data += chunk; });
+        resp.on('end', () => resolve(data));
+        resp.on('error', reject);
+      });
+      req.on('error', reject);
+      req.setTimeout(REQUEST_TIMEOUT_MS, () => { req.destroy(); reject(new Error('Request timed out')); });
+    }).catch(reject);
+  });
+}
+
 // Proxy callook.info license lookup
 app.get('/api/callsign/:call', async (req, res) => {
   try {

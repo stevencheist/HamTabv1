@@ -7,6 +7,7 @@ export RESTART_WRAPPER=1
 
 while true; do
   echo "=== Starting server ==="
+  node esbuild.mjs
   node server.js
   EXIT_CODE=$?
   if [ "$EXIT_CODE" -eq 0 ]; then

@@ -15,6 +15,7 @@
   let privilegeFilterEnabled = localStorage.getItem('pota_privilege_filter') === 'true';
   let licenseClass = localStorage.getItem('pota_license_class') || '';
   let propMetric = localStorage.getItem('pota_prop_metric') || 'mufd';
+  let mapCenterMode = localStorage.getItem('pota_map_center') || 'qth';
   // Migrate old SVG metric values to new GeoJSON types
   if (propMetric === 'mof_sp' || propMetric === 'lof_sp') { propMetric = 'mufd'; localStorage.setItem('pota_prop_metric', propMetric); }
   let propLayer = null;
@@ -42,6 +43,7 @@
         { key: 'reference',  label: 'Park',     class: '' },
         { key: 'name',       label: 'Name',     class: '' },
         { key: 'spotTime',   label: 'Time',     class: '' },
+        { key: 'age',        label: 'Age',      class: '' },
       ],
       filters: ['band', 'mode', 'country', 'state', 'grid', 'privilege'],
       hasMap: true,
@@ -58,6 +60,7 @@
         { key: 'reference',  label: 'Summit',   class: '' },
         { key: 'name',       label: 'Details',  class: '' },
         { key: 'spotTime',   label: 'Time',     class: '' },
+        { key: 'age',        label: 'Age',      class: '' },
       ],
       filters: ['band', 'mode'],
       hasMap: true,
@@ -490,9 +493,15 @@
   }
 
   function centerMapOnUser() {
-    if (map && myLat !== null && myLon !== null) {
-      map.setView([myLat, myLon], map.getZoom());
+    if (!map) return;
+    if (mapCenterMode === 'pm') {
+      map.setView([0, 0], 2);
+    } else if (mapCenterMode === 'qth') {
+      if (myLat !== null && myLon !== null) {
+        map.setView([myLat, myLon], map.getZoom());
+      }
     }
+    // 'spot' mode: don't move the map on startup/config changes
   }
 
   function updateUserMarker() {
@@ -1060,6 +1069,38 @@
   // Sync button active state with saved preference
   document.querySelectorAll('.prop-metric-btn').forEach(b => b.classList.toggle('active', b.dataset.metric === propMetric));
 
+  // Map center mode
+  function centerMap() {
+    if (!map) return;
+    if (mapCenterMode === 'qth') {
+      if (myLat !== null && myLon !== null) map.flyTo([myLat, myLon], 6, { duration: 0.8 });
+    } else if (mapCenterMode === 'pm') {
+      map.flyTo([0, 0], 2, { duration: 0.8 });
+    } else if (mapCenterMode === 'spot') {
+      if (selectedSpotId) {
+        const allSpots = sourceFiltered[currentSource] || [];
+        const spot = allSpots.find(s => spotId(s) === selectedSpotId);
+        if (spot) {
+          const lat = parseFloat(spot.latitude);
+          const lon = parseFloat(spot.longitude);
+          if (!isNaN(lat) && !isNaN(lon)) map.flyTo([lat, lon], 5, { duration: 0.8 });
+        }
+      }
+    }
+  }
+
+  document.querySelectorAll('.map-center-btn').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => e.stopPropagation());
+    btn.addEventListener('click', () => {
+      mapCenterMode = btn.dataset.center;
+      localStorage.setItem('pota_map_center', mapCenterMode);
+      document.querySelectorAll('.map-center-btn').forEach(b => b.classList.toggle('active', b.dataset.center === mapCenterMode));
+      centerMap();
+    });
+  });
+  // Sync map-center button active state with saved preference
+  document.querySelectorAll('.map-center-btn').forEach(b => b.classList.toggle('active', b.dataset.center === mapCenterMode));
+
   function refreshAll() {
     fetchSourceData('pota');
     fetchSourceData('sota');
@@ -1539,6 +1580,20 @@
 
   // --- Render spots table ---
 
+  function formatAge(spotTime) {
+    if (!spotTime) return '';
+    const ts = spotTime.endsWith('Z') ? spotTime : spotTime + 'Z';
+    const diffMs = Date.now() - new Date(ts).getTime();
+    if (diffMs < 0) return '0s';
+    const totalSec = Math.floor(diffMs / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    const s = totalSec % 60;
+    if (h > 0) return m > 0 ? `${h}h${m}m` : `${h}h`;
+    if (m > 0) return s > 0 ? `${m}m${s}s` : `${m}m`;
+    return `${s}s`;
+  }
+
   function renderSpots() {
     const filtered = sourceFiltered[currentSource] || [];
     spotsBody.innerHTML = '';
@@ -1564,6 +1619,8 @@
         if (col.key === 'spotTime') {
           const time = spot.spotTime ? new Date(spot.spotTime) : null;
           td.textContent = time ? fmtTime(time, { hour: '2-digit', minute: '2-digit' }) : '';
+        } else if (col.key === 'age') {
+          td.textContent = formatAge(spot.spotTime);
         } else if (col.key === 'callsign') {
           td.textContent = spot.activator || spot.callsign || '';
         } else if (col.key === 'name') {
@@ -1682,7 +1739,9 @@
     const sid = spotId(spot);
     selectSpot(sid);
 
-    map.flyTo([lat, lon], 5, { duration: 0.8 });
+    if (mapCenterMode === 'spot') {
+      map.flyTo([lat, lon], 5, { duration: 0.8 });
+    }
 
     const marker = markers[sid];
     if (marker) {
@@ -2048,6 +2107,7 @@
 
   updateClocks();
   setInterval(updateClocks, 1000);
+  setInterval(renderSpots, 30000);
 
   // --- Auto-refresh ---
 

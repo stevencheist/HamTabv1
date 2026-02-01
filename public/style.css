@@ -594,6 +594,69 @@ header {
   overflow-y: auto;
 }
 
+/* ---- Band reference popup ---- */
+
+.band-ref-box {
+  max-width: 520px;
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.band-ref-filter {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--text);
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.band-ref-filter input[type="checkbox"] {
+  width: auto;
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.band-ref-box h3 {
+  font-size: 0.9rem;
+  color: var(--yellow);
+  margin: 10px 0 4px;
+}
+
+.band-ref-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  margin-bottom: 8px;
+}
+
+.band-ref-table th {
+  background: var(--surface2);
+  padding: 4px 6px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+}
+
+.band-ref-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.band-ref-table td:first-child {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.band-ref-table td:nth-child(2) {
+  font-family: monospace;
+  color: var(--yellow);
+}
+
 .widget-body {
   flex: 1;
   overflow: auto;

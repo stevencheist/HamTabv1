@@ -60,9 +60,16 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 - Bump `version` in `package.json` on every push: patch for fixes, minor for features
 - Rebuild (`npm run build`) after bumping to update the client bundle
 
-## API & Security Guidelines
+## Security (Priority)
 
-- All external API calls go through server.js proxy — never from client directly
-- No API keys in client code — use `.env` for secrets
-- Rate limiting on all `/api/` routes
-- CORS locked to private networks
+Security is a top priority. Flag any code that could introduce a vulnerability.
+
+- **SSRF prevention** — All outbound requests in server.js must resolve the hostname and reject RFC 1918 / loopback IPs before connecting. Whitelist URL path/query params where possible (e.g. SDO image type).
+- **No client-side external requests** — All external API calls go through server.js proxy, never from the browser directly.
+- **Secrets** — No API keys in client code. Use `.env` for secrets. Never commit `.env` or TLS certs.
+- **CSP** — Helmet CSP is enforced. When adding new external resources, proxy them through the server rather than loosening CSP.
+- **CORS** — Locked to RFC 1918 private networks only.
+- **Rate limiting** — All `/api/` routes are rate-limited.
+- **Input validation** — Sanitize and whitelist all user-supplied query params on server endpoints. Use `encodeURIComponent` on the client when building URLs.
+- **XSS** — Use `textContent` or DOM APIs to render user/API data. Never inject unsanitized strings via `innerHTML`. The `esc()` utility must be used if HTML insertion is unavoidable.
+- **Dependency hygiene** — Keep dependencies minimal. Audit before adding new packages.

@@ -2815,7 +2815,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.2.0";
+    $("splashVersion").textContent = "0.3.0";
     $("splashCallsign").focus();
   }
   function dismissSplash() {
@@ -2833,6 +2833,14 @@
     state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
     localStorage.setItem("hamtab_wx_station", state_default.wxStation);
     localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
+    if (state_default.wxApiKey) {
+      fetch("/api/config/env", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ WU_API_KEY: state_default.wxApiKey })
+      }).catch(() => {
+      });
+    }
     fetchWeather();
     const widgetList = document.getElementById("splashWidgetList");
     widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {

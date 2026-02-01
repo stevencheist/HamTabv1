@@ -3,6 +3,7 @@
 # Clean exit (code 0) restarts after 1s; crash restarts after 3s.
 
 cd "$(dirname "$0")"
+export RESTART_WRAPPER=1
 
 while true; do
   echo "=== Starting server ==="

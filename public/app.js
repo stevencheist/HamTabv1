@@ -14,6 +14,8 @@
   let countdownSeconds = 60;
   let countdownTimer = null;
   let use24h = localStorage.getItem('pota_time24') !== 'false';
+  let privilegeFilterEnabled = localStorage.getItem('pota_privilege_filter') === 'true';
+  let licenseClass = localStorage.getItem('pota_license_class') || '';
 
   // Widget registry (single source of truth)
   const WIDGET_DEFS = [
@@ -528,6 +530,7 @@
     updateClocks();
     renderSpots();
     initApp();
+    fetchLicenseClass(myCallsign);
   }
 
   splashOk.addEventListener('click', dismissSplash);
@@ -862,6 +865,116 @@
     return null;
   }
 
+  // US amateur band privileges by license class (freq in MHz)
+  // Each entry: [lowMHz, highMHz, modes] where modes = 'all' | 'cw' | 'phone' | 'cwdig'
+  const US_PRIVILEGES = {
+    EXTRA: [
+      // Full privileges on all HF + VHF/UHF
+      [1.8, 2.0, 'all'], [3.5, 4.0, 'all'], [5.3, 5.4, 'all'],
+      [7.0, 7.3, 'all'], [10.1, 10.15, 'all'], [14.0, 14.35, 'all'],
+      [18.068, 18.168, 'all'], [21.0, 21.45, 'all'], [24.89, 24.99, 'all'],
+      [28.0, 29.7, 'all'], [50.0, 54.0, 'all'], [144.0, 148.0, 'all'],
+      [420.0, 450.0, 'all'],
+    ],
+    GENERAL: [
+      [1.8, 2.0, 'all'],
+      [3.525, 3.6, 'cwdig'], [3.8, 4.0, 'phone'],
+      [5.3, 5.4, 'all'],
+      [7.025, 7.125, 'cwdig'], [7.175, 7.3, 'phone'],
+      [10.1, 10.15, 'cwdig'],
+      [14.025, 14.15, 'cwdig'], [14.225, 14.35, 'phone'],
+      [18.068, 18.11, 'cwdig'], [18.11, 18.168, 'phone'],
+      [21.025, 21.2, 'cwdig'], [21.275, 21.45, 'phone'],
+      [24.89, 24.93, 'cwdig'], [24.93, 24.99, 'phone'],
+      [28.0, 29.7, 'all'],
+      [50.0, 54.0, 'all'], [144.0, 148.0, 'all'], [420.0, 450.0, 'all'],
+    ],
+    TECHNICIAN: [
+      // Limited HF CW
+      [3.525, 3.6, 'cw'], [7.025, 7.125, 'cw'], [21.025, 21.2, 'cw'],
+      // 10m
+      [28.0, 28.3, 'cwdig'], [28.3, 28.5, 'phone'],
+      // VHF/UHF full
+      [50.0, 54.0, 'all'], [144.0, 148.0, 'all'], [420.0, 450.0, 'all'],
+    ],
+    NOVICE: [
+      [3.525, 3.6, 'cw'], [7.025, 7.125, 'cw'], [21.025, 21.2, 'cw'],
+      [28.0, 28.3, 'cwdig'], [28.3, 28.5, 'phone'],
+      [222.0, 225.0, 'all'], [420.0, 450.0, 'all'],
+    ],
+  };
+
+  function isUSCallsign(call) {
+    if (!call) return false;
+    return /^[AKNW][A-Z]?\d/.test(call.toUpperCase());
+  }
+
+  function normalizeMode(mode) {
+    if (!mode) return 'phone';
+    const m = mode.toUpperCase();
+    if (m === 'CW') return 'cw';
+    if (m === 'SSB' || m === 'FM' || m === 'AM' || m === 'LSB' || m === 'USB') return 'phone';
+    return 'digital';
+  }
+
+  function filterByPrivileges(spot) {
+    if (!licenseClass) return true;
+    const privs = US_PRIVILEGES[licenseClass.toUpperCase()];
+    if (!privs) return true; // unknown class, don't filter
+
+    let freq = parseFloat(spot.frequency);
+    if (isNaN(freq)) return true;
+    if (freq > 1000) freq = freq / 1000; // kHz to MHz
+
+    const spotMode = normalizeMode(spot.mode);
+
+    for (const [lo, hi, allowed] of privs) {
+      if (freq >= lo && freq <= hi) {
+        if (allowed === 'all') return true;
+        if (allowed === 'cw' && spotMode === 'cw') return true;
+        if (allowed === 'cwdig' && (spotMode === 'cw' || spotMode === 'digital')) return true;
+        if (allowed === 'phone' && spotMode === 'phone') return true;
+      }
+    }
+    return false;
+  }
+
+  async function fetchLicenseClass(callsign) {
+    if (!isUSCallsign(callsign)) {
+      licenseClass = '';
+      localStorage.removeItem('pota_license_class');
+      updatePrivFilterVisibility();
+      return;
+    }
+    try {
+      const resp = await fetch(`/api/callsign/${encodeURIComponent(callsign)}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.status === 'VALID' && data.class) {
+        licenseClass = data.class.toUpperCase();
+        localStorage.setItem('pota_license_class', licenseClass);
+      } else {
+        licenseClass = '';
+        localStorage.removeItem('pota_license_class');
+      }
+    } catch (e) {
+      // keep existing value
+    }
+    updatePrivFilterVisibility();
+  }
+
+  function updatePrivFilterVisibility() {
+    const label = document.querySelector('.priv-filter-label');
+    if (!label) return;
+    const show = isUSCallsign(myCallsign) && !!licenseClass;
+    label.classList.toggle('hidden', !show);
+    if (!show) {
+      privilegeFilterEnabled = false;
+      const cb = document.getElementById('privFilter');
+      if (cb) cb.checked = false;
+    }
+  }
+
   function getAvailableBands() {
     const bandSet = new Set();
     spots.forEach(s => {
@@ -910,6 +1023,7 @@
       if (activeCountry && getCountryPrefix(s.reference) !== activeCountry) return false;
       if (activeState && getUSState(s.locationDesc) !== activeState) return false;
       if (activeGrid && (s.grid4 || '') !== activeGrid) return false;
+      if (privilegeFilterEnabled && !filterByPrivileges(s)) return false;
       return true;
     });
   }
@@ -1057,6 +1171,25 @@
     renderSpots();
     renderMarkers();
   });
+
+  // --- Privilege filter checkbox ---
+
+  const privFilterCheckbox = document.getElementById('privFilter');
+  privFilterCheckbox.checked = privilegeFilterEnabled;
+  updatePrivFilterVisibility();
+
+  privFilterCheckbox.addEventListener('change', () => {
+    privilegeFilterEnabled = privFilterCheckbox.checked;
+    localStorage.setItem('pota_privilege_filter', String(privilegeFilterEnabled));
+    applyFilter();
+    renderSpots();
+    renderMarkers();
+  });
+
+  // Fetch license class on initial load if we have a callsign
+  if (myCallsign) {
+    fetchLicenseClass(myCallsign);
+  }
 
   // --- Spot ID helper ---
 

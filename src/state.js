@@ -1,0 +1,133 @@
+const state = {
+  // Markers & selection
+  markers: {},
+  selectedSpotId: null,
+
+  // Filters
+  activeBand: null,
+  activeMode: null,
+  activeCountry: null,
+  activeState: null,
+  activeGrid: null,
+
+  // Auto-refresh
+  autoRefreshEnabled: true,
+  refreshInterval: null,
+  countdownSeconds: 60,
+  countdownTimer: null,
+
+  // Preferences
+  use24h: localStorage.getItem('hamtab_time24') !== 'false',
+  privilegeFilterEnabled: localStorage.getItem('hamtab_privilege_filter') === 'true',
+  licenseClass: localStorage.getItem('hamtab_license_class') || '',
+  propMetric: localStorage.getItem('hamtab_prop_metric') || 'mufd',
+  mapCenterMode: localStorage.getItem('hamtab_map_center') || 'qth',
+  clockStyle: localStorage.getItem('hamtab_clock_style') || 'digital',
+
+  // Map layers
+  propLayer: null,
+  propLabelLayer: null,
+  latLonLayer: null,
+  maidenheadLayer: null,
+  timezoneLayer: null,
+  maidenheadDebounceTimer: null,
+
+  // Map overlay config
+  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false },
+
+  // Source
+  currentSource: localStorage.getItem('hamtab_spot_source') || 'pota',
+  sourceData: { pota: [], sota: [] },
+  sourceFiltered: { pota: [], sota: [] },
+
+  // Widget visibility
+  widgetVisibility: null, // loaded in widgets.js
+
+  // Solar/Lunar field visibility
+  solarFieldVisibility: null, // loaded in solar.js
+  lunarFieldVisibility: null, // loaded in lunar.js
+
+  // Cached data for re-render
+  lastSolarData: null,
+  lastLunarData: null,
+
+  // Operator
+  myCallsign: localStorage.getItem('hamtab_callsign') || '',
+  myLat: null,
+  myLon: null,
+  manualLoc: false,
+  syncingFields: false,
+  gridHighlightIdx: -1,
+
+  // Map
+  map: null,
+  clusterGroup: null,
+  grayLinePolygon: null,
+  dayPolygon: null,
+  userMarker: null,
+
+  // ISS
+  issMarker: null,
+  issCircle: null,
+  issTrail: [],
+  issTrailLine: null,
+  issOrbitLine: null,
+
+  // Weather
+  wxStation: localStorage.getItem('hamtab_wx_station') || '',
+  wxApiKey: localStorage.getItem('hamtab_wx_apikey') || '',
+  nwsAlerts: [],
+  weatherTimer: null,
+  nwsCondTimer: null,
+  nwsAlertTimer: null,
+
+  // Callsign cache
+  callsignCache: {},
+
+  // Tooltip
+  tooltipHideTimer: null,
+  currentHoverTd: null,
+
+  // Widgets
+  zCounter: 10,
+
+  // Update
+  updateStatusPolling: null,
+  knownServerHash: null,
+  restartNeeded: false,
+
+  // Init flag
+  appInitialized: false,
+
+  // Day/night
+  lastLocalDay: null,
+  lastUtcDay: null,
+};
+
+// Migrate old SVG metric values
+if (state.propMetric === 'mof_sp' || state.propMetric === 'lof_sp') {
+  state.propMetric = 'mufd';
+  localStorage.setItem('hamtab_prop_metric', state.propMetric);
+}
+
+// Load saved map overlays
+try {
+  const saved = JSON.parse(localStorage.getItem('hamtab_map_overlays'));
+  if (saved) Object.assign(state.mapOverlays, saved);
+} catch (e) {}
+
+// Load saved manual location
+const savedLat = localStorage.getItem('hamtab_lat');
+const savedLon = localStorage.getItem('hamtab_lon');
+if (savedLat !== null && savedLon !== null) {
+  state.myLat = parseFloat(savedLat);
+  state.myLon = parseFloat(savedLon);
+  if (!isNaN(state.myLat) && !isNaN(state.myLon)) {
+    state.manualLoc = true;
+  } else {
+    state.myLat = null;
+    state.myLon = null;
+  }
+}
+
+export default state;

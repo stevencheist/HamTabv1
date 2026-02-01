@@ -139,6 +139,22 @@ app.get('/api/lunar', (req, res) => {
   }
 });
 
+// Proxy callook.info license lookup
+app.get('/api/callsign/:call', async (req, res) => {
+  try {
+    const call = encodeURIComponent(req.params.call.toUpperCase());
+    const data = await fetchJSON(`https://callook.info/${call}/json`);
+    res.json({
+      status: data.status || 'INVALID',
+      class: (data.current && data.current.operClass) || '',
+      name: (data.name || ''),
+    });
+  } catch (err) {
+    console.error('Error fetching callsign data:', err.message);
+    res.status(502).json({ error: 'Failed to fetch callsign data' });
+  }
+});
+
 // --- Auto-update system ---
 
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';

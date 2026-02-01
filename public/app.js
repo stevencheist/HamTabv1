@@ -1,7 +1,5 @@
 (() => {
   // State
-  let spots = [];
-  let filteredSpots = [];
   let markers = {};
   let selectedSpotId = null;
   let activeBand = null;
@@ -22,12 +20,52 @@
   const WIDGET_DEFS = [
     { id: 'widget-clock-local', name: 'Local Time' },
     { id: 'widget-clock-utc',   name: 'UTC' },
-    { id: 'widget-activations', name: 'POTA Activations' },
+    { id: 'widget-activations', name: 'On the Air' },
     { id: 'widget-map',         name: 'HamMap' },
     { id: 'widget-solar',       name: 'Solar & Propagation' },
     { id: 'widget-lunar',       name: 'Lunar / EME' },
     { id: 'widget-propagation', name: 'Propagation' },
   ];
+
+  // Source config for activations widget
+  const SOURCE_DEFS = {
+    pota: {
+      label: 'POTA',
+      endpoint: '/api/spots',
+      columns: [
+        { key: 'callsign',  label: 'Callsign', class: 'callsign' },
+        { key: 'frequency',  label: 'Freq',     class: 'freq' },
+        { key: 'mode',       label: 'Mode',     class: 'mode' },
+        { key: 'reference',  label: 'Park',     class: '' },
+        { key: 'name',       label: 'Name',     class: '' },
+        { key: 'spotTime',   label: 'Time',     class: '' },
+      ],
+      filters: ['band', 'mode', 'country', 'state', 'grid', 'privilege'],
+      hasMap: true,
+      spotId: (s) => `${s.activator || s.callsign}-${s.reference}-${s.frequency}`,
+      sortKey: 'spotTime',
+    },
+    sota: {
+      label: 'SOTA',
+      endpoint: '/api/spots/sota',
+      columns: [
+        { key: 'callsign',  label: 'Callsign', class: 'callsign' },
+        { key: 'frequency',  label: 'Freq',     class: 'freq' },
+        { key: 'mode',       label: 'Mode',     class: 'mode' },
+        { key: 'reference',  label: 'Summit',   class: '' },
+        { key: 'name',       label: 'Details',  class: '' },
+        { key: 'spotTime',   label: 'Time',     class: '' },
+      ],
+      filters: ['band', 'mode'],
+      hasMap: false,
+      spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
+      sortKey: 'spotTime',
+    },
+  };
+
+  let currentSource = localStorage.getItem('pota_spot_source') || 'pota';
+  const sourceData = { pota: [], sota: [] };
+  const sourceFiltered = { pota: [], sota: [] };
 
   // Widget visibility state
   const WIDGET_VIS_KEY = 'pota_widget_vis';
@@ -230,6 +268,88 @@
   const lunarFieldList = document.getElementById('lunarFieldList');
   const lunarCfgOk = document.getElementById('lunarCfgOk');
   const propContainer = document.getElementById('propContainer');
+  const spotsHead = document.getElementById('spotsHead');
+  const sourceTabs = document.getElementById('sourceTabs');
+  const widgetFiltersEl = document.getElementById('widgetFilters');
+
+  // --- Source tab switching ---
+
+  function switchSource(source) {
+    if (!SOURCE_DEFS[source]) source = 'pota';
+    currentSource = source;
+    localStorage.setItem('pota_spot_source', source);
+
+    // Toggle active class on tab buttons
+    sourceTabs.querySelectorAll('.source-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.source === source);
+    });
+
+    // Update table columns
+    updateTableColumns();
+
+    // Update filter visibility
+    updateFilterVisibility();
+
+    // Reset all active filters
+    activeBand = null;
+    activeMode = null;
+    activeCountry = null;
+    activeState = null;
+    activeGrid = null;
+    if (privFilterCheckbox) {
+      privilegeFilterEnabled = false;
+      privFilterCheckbox.checked = false;
+    }
+    if (countryFilter) countryFilter.value = '';
+    if (stateFilter) stateFilter.value = '';
+    if (gridFilter) gridFilter.value = '';
+
+    // Re-apply and render
+    applyFilter();
+    renderSpots();
+    renderMarkers();
+    updateBandFilterButtons();
+    updateModeFilterButtons();
+    updateCountryFilter();
+    updateStateFilter();
+    updateGridFilter();
+  }
+
+  function updateTableColumns() {
+    const cols = SOURCE_DEFS[currentSource].columns;
+    spotsHead.innerHTML = '<tr>' + cols.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr>';
+  }
+
+  function updateFilterVisibility() {
+    const allowed = SOURCE_DEFS[currentSource].filters;
+
+    // Band filters
+    bandFilters.style.display = allowed.includes('band') ? '' : 'none';
+    // Mode filters
+    modeFilters.style.display = allowed.includes('mode') ? '' : 'none';
+    // Country filter
+    countryFilter.style.display = allowed.includes('country') ? '' : 'none';
+    // State filter
+    stateFilter.style.display = allowed.includes('state') ? '' : 'none';
+    // Grid filter
+    gridFilter.style.display = allowed.includes('grid') ? '' : 'none';
+    // Privilege filter
+    const privLabel = document.querySelector('.priv-filter-label');
+    if (privLabel) {
+      if (!allowed.includes('privilege')) {
+        privLabel.style.display = 'none';
+      } else {
+        privLabel.style.display = '';
+        updatePrivFilterVisibility();
+      }
+    }
+  }
+
+  // Tab click handlers
+  sourceTabs.querySelectorAll('.source-tab').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => e.stopPropagation());
+    btn.addEventListener('click', () => switchSource(btn.dataset.source));
+  });
 
   // --- Operator callsign & location ---
 
@@ -829,22 +949,35 @@
 
   // --- Data fetching ---
 
-  async function fetchSpots() {
+  async function fetchSourceData(source) {
+    const def = SOURCE_DEFS[source];
+    if (!def) return;
     try {
-      const resp = await fetch('/api/spots');
+      const resp = await fetch(def.endpoint);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      spots = await resp.json();
-      applyFilter();
-      renderSpots();
-      renderMarkers();
-      updateBandFilterButtons();
-      updateModeFilterButtons();
-      updateCountryFilter();
-      updateStateFilter();
-      updateGridFilter();
-      lastUpdated.textContent = 'Updated: ' + fmtTime(new Date());
+      let data = await resp.json();
+      // For POTA, alias callsign from activator field
+      if (source === 'pota') {
+        data = (Array.isArray(data) ? data : []).map(s => {
+          if (!s.callsign && s.activator) s.callsign = s.activator;
+          return s;
+        });
+      }
+      sourceData[source] = Array.isArray(data) ? data : [];
+      // Only update UI if this is the currently active source
+      if (source === currentSource) {
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+        updateBandFilterButtons();
+        updateModeFilterButtons();
+        updateCountryFilter();
+        updateStateFilter();
+        updateGridFilter();
+        lastUpdated.textContent = 'Updated: ' + fmtTime(new Date());
+      }
     } catch (err) {
-      console.error('Failed to fetch spots:', err);
+      console.error(`Failed to fetch ${source} spots:`, err);
     }
   }
 
@@ -885,7 +1018,8 @@
   });
 
   function refreshAll() {
-    fetchSpots();
+    fetchSourceData('pota');
+    fetchSourceData('sota');
     fetchSolar();
     fetchLunar();
     fetchPropagation();
@@ -1031,7 +1165,7 @@
 
   function getAvailableBands() {
     const bandSet = new Set();
-    spots.forEach(s => {
+    (sourceData[currentSource] || []).forEach(s => {
       const band = freqToBand(s.frequency);
       if (band) bandSet.add(band);
     });
@@ -1071,13 +1205,14 @@
   }
 
   function applyFilter() {
-    filteredSpots = spots.filter(s => {
-      if (activeBand && freqToBand(s.frequency) !== activeBand) return false;
-      if (activeMode && (s.mode || '').toUpperCase() !== activeMode) return false;
-      if (activeCountry && getCountryPrefix(s.reference) !== activeCountry) return false;
-      if (activeState && getUSState(s.locationDesc) !== activeState) return false;
-      if (activeGrid && (s.grid4 || '') !== activeGrid) return false;
-      if (privilegeFilterEnabled && !filterByPrivileges(s)) return false;
+    const allowed = SOURCE_DEFS[currentSource].filters;
+    sourceFiltered[currentSource] = (sourceData[currentSource] || []).filter(s => {
+      if (allowed.includes('band') && activeBand && freqToBand(s.frequency) !== activeBand) return false;
+      if (allowed.includes('mode') && activeMode && (s.mode || '').toUpperCase() !== activeMode) return false;
+      if (allowed.includes('country') && activeCountry && getCountryPrefix(s.reference) !== activeCountry) return false;
+      if (allowed.includes('state') && activeState && getUSState(s.locationDesc) !== activeState) return false;
+      if (allowed.includes('grid') && activeGrid && (s.grid4 || '') !== activeGrid) return false;
+      if (allowed.includes('privilege') && privilegeFilterEnabled && !filterByPrivileges(s)) return false;
       return true;
     });
   }
@@ -1086,7 +1221,7 @@
 
   function getAvailableModes() {
     const modeSet = new Set();
-    spots.forEach(s => {
+    (sourceData[currentSource] || []).forEach(s => {
       if (s.mode) modeSet.add(s.mode.toUpperCase());
     });
     return [...modeSet].sort();
@@ -1132,7 +1267,7 @@
 
   function getAvailableCountries() {
     const countrySet = new Set();
-    spots.forEach(s => {
+    (sourceData[currentSource] || []).forEach(s => {
       const prefix = getCountryPrefix(s.reference);
       if (prefix) countrySet.add(prefix);
     });
@@ -1169,7 +1304,7 @@
 
   function getAvailableStates() {
     const stateSet = new Set();
-    spots.forEach(s => {
+    (sourceData[currentSource] || []).forEach(s => {
       const st = getUSState(s.locationDesc);
       if (st) stateSet.add(st);
     });
@@ -1200,7 +1335,7 @@
 
   function getAvailableGrids() {
     const gridSet = new Set();
-    spots.forEach(s => {
+    (sourceData[currentSource] || []).forEach(s => {
       if (s.grid4) gridSet.add(s.grid4);
     });
     return [...gridSet].sort();
@@ -1248,7 +1383,7 @@
   // --- Spot ID helper ---
 
   function spotId(spot) {
-    return `${spot.activator}-${spot.reference}-${spot.frequency}`;
+    return SOURCE_DEFS[currentSource].spotId(spot);
   }
 
   // --- Callsign info cache & tooltip ---
@@ -1362,12 +1497,16 @@
   // --- Render spots table ---
 
   function renderSpots() {
+    const filtered = sourceFiltered[currentSource] || [];
     spotsBody.innerHTML = '';
-    spotCount.textContent = `(${filteredSpots.length})`;
+    spotCount.textContent = `(${filtered.length})`;
 
-    // Sort by spot time descending
-    const sorted = [...filteredSpots].sort((a, b) => {
-      return new Date(b.spotTime) - new Date(a.spotTime);
+    const cols = SOURCE_DEFS[currentSource].columns;
+    const sortKey = SOURCE_DEFS[currentSource].sortKey;
+
+    // Sort by sort key descending
+    const sorted = [...filtered].sort((a, b) => {
+      return new Date(b[sortKey]) - new Date(a[sortKey]);
     });
 
     sorted.forEach(spot => {
@@ -1376,17 +1515,23 @@
       tr.dataset.spotId = sid;
       if (sid === selectedSpotId) tr.classList.add('selected');
 
-      const time = spot.spotTime ? new Date(spot.spotTime) : null;
-      const timeStr = time ? fmtTime(time, { hour: '2-digit', minute: '2-digit' }) : '';
-
-      tr.innerHTML = `
-        <td class="callsign">${esc(spot.activator || '')}</td>
-        <td class="freq">${esc(spot.frequency || '')}</td>
-        <td class="mode">${esc(spot.mode || '')}</td>
-        <td>${esc(spot.reference || '')}</td>
-        <td title="${esc(spot.name || '')}">${esc(spot.name || '')}</td>
-        <td>${timeStr}</td>
-      `;
+      cols.forEach(col => {
+        const td = document.createElement('td');
+        if (col.class) td.className = col.class;
+        if (col.key === 'spotTime') {
+          const time = spot.spotTime ? new Date(spot.spotTime) : null;
+          td.textContent = time ? fmtTime(time, { hour: '2-digit', minute: '2-digit' }) : '';
+        } else if (col.key === 'callsign') {
+          td.textContent = spot.activator || spot.callsign || '';
+        } else if (col.key === 'name') {
+          const val = spot[col.key] || '';
+          td.textContent = val;
+          td.title = val;
+        } else {
+          td.textContent = spot[col.key] || '';
+        }
+        tr.appendChild(td);
+      });
 
       tr.addEventListener('click', () => flyToSpot(spot));
       spotsBody.appendChild(tr);
@@ -1439,7 +1584,12 @@
     clusterGroup.clearLayers();
     markers = {};
 
-    filteredSpots.forEach(spot => {
+    // Skip map markers for sources that don't support them
+    if (!SOURCE_DEFS[currentSource].hasMap) return;
+
+    const filtered = sourceFiltered[currentSource] || [];
+
+    filtered.forEach(spot => {
       const lat = parseFloat(spot.latitude);
       const lon = parseFloat(spot.longitude);
       if (isNaN(lat) || isNaN(lon)) return;
@@ -1447,8 +1597,9 @@
       const marker = L.marker([lat, lon]);
       const sid = spotId(spot);
 
-      const callsign = esc(spot.activator || '');
-      const qrzUrl = `https://www.qrz.com/db/${encodeURIComponent(spot.activator || '')}`;
+      const displayCall = spot.callsign || spot.activator || '';
+      const callsign = esc(displayCall);
+      const qrzUrl = `https://www.qrz.com/db/${encodeURIComponent(displayCall)}`;
       let dirLine = '';
       let distLine = '';
       if (myLat !== null && myLon !== null) {
@@ -2331,6 +2482,8 @@
 
   // Initialize widget positions before anything else
   initWidgets();
+  // Restore saved source tab
+  switchSource(currentSource);
   // Allow layout to settle, then fix map size
   if (map) setTimeout(() => map.invalidateSize(), 100);
 

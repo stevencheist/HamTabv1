@@ -57,7 +57,7 @@
         el.style.display = '';
       }
     });
-    setTimeout(() => map.invalidateSize(), 50);
+    if (map) setTimeout(() => map.invalidateSize(), 50);
   }
 
   // Solar field registry (single source of truth)
@@ -367,13 +367,13 @@
   }
 
   function centerMapOnUser() {
-    if (myLat !== null && myLon !== null) {
+    if (map && myLat !== null && myLon !== null) {
       map.setView([myLat, myLon], map.getZoom());
     }
   }
 
   function updateUserMarker() {
-    if (myLat === null || myLon === null) return;
+    if (!map || myLat === null || myLon === null) return;
     const call = myCallsign || 'ME';
     const grid = latLonToGrid(myLat, myLon).substring(0, 4).toUpperCase();
     const popupHtml =
@@ -786,23 +786,35 @@
     }
   });
 
-  // Map setup
-  const map = L.map('map').setView([39.8, -98.5], 4);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '&copy; OpenStreetMap &copy; CARTO',
-    maxZoom: 19,
-  }).addTo(map);
+  // Map setup — guard against Leaflet load failure
+  let map = null;
+  let clusterGroup = null;
+  const hasLeaflet = typeof L !== 'undefined' && L.map;
 
-  const clusterGroup = L.markerClusterGroup({
-    maxClusterRadius: 40,
-    spiderfyOnMaxZoom: true,
-    showCoverageOnHover: false,
-  });
-  map.addLayer(clusterGroup);
+  if (hasLeaflet) {
+    try {
+      map = L.map('map').setView([39.8, -98.5], 4);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        maxZoom: 19,
+      }).addTo(map);
 
-  // Gray line (day/night terminator)
-  map.createPane('grayline');
-  map.getPane('grayline').style.zIndex = 250;
+      clusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 40,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+      });
+      map.addLayer(clusterGroup);
+
+      // Gray line (day/night terminator)
+      map.createPane('grayline');
+      map.getPane('grayline').style.zIndex = 250;
+    } catch (e) {
+      console.error('Map initialization failed:', e);
+      map = null;
+      clusterGroup = null;
+    }
+  }
   let grayLinePolygon = null;
 
   // User location marker
@@ -1423,6 +1435,7 @@
   // --- Render map markers ---
 
   function renderMarkers() {
+    if (!map) return;
     clusterGroup.clearLayers();
     markers = {};
 
@@ -1467,6 +1480,7 @@
   // --- Interaction ---
 
   function flyToSpot(spot) {
+    if (!map) return;
     const lat = parseFloat(spot.latitude);
     const lon = parseFloat(spot.longitude);
     if (isNaN(lat) || isNaN(lon)) return;
@@ -1590,6 +1604,7 @@
   // --- Gray Line (Day/Night Terminator) ---
 
   function updateGrayLine() {
+    if (!map) return;
     const now = new Date();
     const start = new Date(now.getFullYear(), 0, 0);
     const dayOfYear = Math.floor((now - start) / 86400000);
@@ -1653,6 +1668,7 @@
   }
 
   function updateISS(data) {
+    if (!map) return;
     const lat = data.latitude;
     const lon = data.longitude;
     const footprintKm = data.footprint || 0;
@@ -1745,6 +1761,7 @@
   }
 
   function renderISSOrbit(positions) {
+    if (!map) return;
     if (issOrbitLine) map.removeLayer(issOrbitLine);
     if (!positions || positions.length < 2) return;
 
@@ -1906,7 +1923,7 @@
   document.addEventListener('fullscreenchange', () => {
     fullscreenBtn.textContent = document.fullscreenElement ? 'Exit Fullscreen' : 'Fullscreen';
     // Recalculate widget area after fullscreen transition
-    setTimeout(() => map.invalidateSize(), 100);
+    if (map) setTimeout(() => map.invalidateSize(), 100);
   });
 
   // --- Widget Management ---
@@ -2063,7 +2080,7 @@
         ({ w: newW, h: newH } = clampSize(origLeft, origTop, newW, newH));
         widget.style.width = newW + 'px';
         widget.style.height = newH + 'px';
-        if (widget.id === 'widget-map') {
+        if (map && widget.id === 'widget-map') {
           map.invalidateSize();
         }
       }
@@ -2072,7 +2089,7 @@
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
         saveWidgets();
-        if (widget.id === 'widget-map') {
+        if (map && widget.id === 'widget-map') {
           map.invalidateSize();
         }
       }
@@ -2093,7 +2110,7 @@
       }
       widget.style.zIndex = ++zCounter;
     });
-    map.invalidateSize();
+    if (map) map.invalidateSize();
   }
 
   function resetLayout() {
@@ -2141,7 +2158,7 @@
 
     // Keep map in sync with its container size
     const mapWidget = document.getElementById('widget-map');
-    if (mapWidget && window.ResizeObserver) {
+    if (map && mapWidget && window.ResizeObserver) {
       new ResizeObserver(() => map.invalidateSize()).observe(mapWidget);
     }
   }
@@ -2315,7 +2332,7 @@
   // Initialize widget positions before anything else
   initWidgets();
   // Allow layout to settle, then fix map size
-  setTimeout(() => map.invalidateSize(), 100);
+  if (map) setTimeout(() => map.invalidateSize(), 100);
 
   // Show splash if no saved callsign, otherwise start immediately
   if (myCallsign) {

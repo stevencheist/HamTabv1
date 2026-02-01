@@ -25,9 +25,9 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "https://cdnjs.cloudflare.com"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com", "https://cdnjs.cloudflare.com"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com"],
       connectSrc: ["'self'"],
       frameSrc: ["'none'"],
       upgradeInsecureRequests: null,

@@ -251,7 +251,6 @@ const nwsGridCache = {}; // { 'lat,lon': { forecastUrl, expires } }
 
 app.get('/api/weather/conditions', async (req, res) => {
   try {
-    console.log('NWS conditions request, raw query:', req.query);
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon)) {
@@ -261,7 +260,6 @@ app.get('/api/weather/conditions', async (req, res) => {
     let grid = nwsGridCache[key];
     if (!grid || Date.now() > grid.expires) {
       const pointsUrl = `https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`;
-      console.log('NWS points URL:', pointsUrl);
       const pointsRaw = await nwsFetch(pointsUrl);
       const data = JSON.parse(pointsRaw);
       const forecastUrl = data && data.properties && data.properties.forecastHourly;
@@ -320,7 +318,13 @@ app.get('/api/weather/alerts', async (req, res) => {
 
 function nwsFetchOnce(url) {
   return new Promise((resolve, reject) => {
-    const parsed = new URL(url);
+    if (!url || typeof url !== 'string') {
+      return reject(new Error(`nwsFetchOnce called with invalid url: ${JSON.stringify(url)}`));
+    }
+    let parsed;
+    try { parsed = new URL(url); } catch (e) {
+      return reject(new Error(`Invalid URL passed to nwsFetch: "${url}" — ${e.message}`));
+    }
     resolveHost(parsed.hostname).then((resolvedIP) => {
       if (isPrivateIP(resolvedIP)) {
         return reject(new Error('Requests to private addresses are blocked'));
@@ -339,7 +343,12 @@ function nwsFetchOnce(url) {
       const req = https.get(options, (resp) => {
         if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
           resp.resume();
-          return nwsFetchOnce(resp.headers.location).then(resolve).catch(reject);
+          // Handle relative redirects by resolving against the original URL
+          let redirectUrl;
+          try { redirectUrl = new URL(resp.headers.location, url).href; } catch (e) {
+            return reject(new Error(`Bad redirect Location: "${resp.headers.location}" from ${url}`));
+          }
+          return nwsFetchOnce(redirectUrl).then(resolve).catch(reject);
         }
         if (resp.statusCode < 200 || resp.statusCode >= 300) {
           resp.resume();

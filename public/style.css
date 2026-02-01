@@ -1725,12 +1725,12 @@ header {
   display: none;
 }
 
-.wx-storm { background: rgba(255, 23, 68, 0.15); }
-.wx-rain { background: rgba(41, 121, 255, 0.15); }
-.wx-snow { background: rgba(144, 202, 249, 0.15); }
-.wx-cloudy { background: rgba(136, 153, 170, 0.12); }
-.wx-fog { background: rgba(136, 153, 170, 0.08); }
-.wx-clear { background: rgba(0, 200, 83, 0.1); }
+.spot-detail-wx.wx-storm { background: rgba(255, 23, 68, 0.15); }
+.spot-detail-wx.wx-rain { background: rgba(41, 121, 255, 0.15); }
+.spot-detail-wx.wx-snow { background: rgba(144, 202, 249, 0.15); }
+.spot-detail-wx.wx-cloudy { background: rgba(136, 153, 170, 0.12); }
+.spot-detail-wx.wx-fog { background: rgba(136, 153, 170, 0.08); }
+.spot-detail-wx.wx-clear { background: rgba(0, 200, 83, 0.1); }
 
 #widget-spot-detail .widget-body {
   padding: 8px 10px;

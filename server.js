@@ -259,12 +259,15 @@ app.get('/api/weather/conditions', async (req, res) => {
     const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
     let grid = nwsGridCache[key];
     if (!grid || Date.now() > grid.expires) {
-      const points = await nwsFetch(`https://api.weather.gov/points/${lat},${lon}`);
-      const data = JSON.parse(points);
-      grid = {
-        forecastUrl: data.properties.forecastHourly,
-        expires: Date.now() + 6 * 3600 * 1000,
-      };
+      const pointsUrl = `https://api.weather.gov/points/${lat},${lon}`;
+      const pointsRaw = await nwsFetch(pointsUrl);
+      const data = JSON.parse(pointsRaw);
+      const forecastUrl = data && data.properties && data.properties.forecastHourly;
+      if (!forecastUrl) {
+        console.error('NWS points response missing forecastHourly:', JSON.stringify(data).substring(0, 500));
+        return res.status(502).json({ error: 'NWS returned no forecast URL for this location' });
+      }
+      grid = { forecastUrl, expires: Date.now() + 6 * 3600 * 1000 };
       nwsGridCache[key] = grid;
     }
     const forecast = JSON.parse(await nwsFetch(grid.forecastUrl));

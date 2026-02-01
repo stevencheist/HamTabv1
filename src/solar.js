@@ -77,27 +77,131 @@ export function saveSolarFieldVisibility() {
   localStorage.setItem(SOLAR_VIS_KEY, JSON.stringify(state.solarFieldVisibility));
 }
 
+// --- Animated SDO frame state ---
+let solarFrames = [];       // Array of preloaded Image objects
+let solarFrameIndex = 0;
+let solarPlaying = true;
+let solarIntervalId = null;
+let solarLoadingFrames = false;
+
 export function initSolarImage() {
   const select = $('solarImageType');
-  const img = $('solarImage');
-  if (!select || !img) return;
+  const canvas = $('solarCanvas');
+  const playBtn = $('solarPlayBtn');
+  if (!select || !canvas) return;
 
   const saved = localStorage.getItem('hamtab_sdo_type');
   if (saved) select.value = saved;
 
   select.addEventListener('change', () => {
     localStorage.setItem('hamtab_sdo_type', select.value);
-    loadSolarImage();
+    loadSolarFrames();
   });
 
-  loadSolarImage();
+  if (playBtn) {
+    playBtn.addEventListener('click', () => {
+      solarPlaying = !solarPlaying;
+      playBtn.innerHTML = solarPlaying ? '&#9646;&#9646;' : '&#9654;';
+      if (solarPlaying) startSolarAnimation();
+      else stopSolarAnimation();
+    });
+  }
+
+  loadSolarFrames();
+}
+
+function startSolarAnimation() {
+  stopSolarAnimation();
+  if (solarFrames.length < 2) return;
+  solarIntervalId = setInterval(() => {
+    solarFrameIndex = (solarFrameIndex + 1) % solarFrames.length;
+    drawSolarFrame();
+  }, 200);
+}
+
+function stopSolarAnimation() {
+  if (solarIntervalId) { clearInterval(solarIntervalId); solarIntervalId = null; }
+}
+
+function drawSolarFrame() {
+  const canvas = $('solarCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const img = solarFrames[solarFrameIndex];
+  if (!img || !img.complete || !img.naturalWidth) {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+}
+
+async function loadSolarFrames() {
+  if (solarLoadingFrames) return;
+  solarLoadingFrames = true;
+  stopSolarAnimation();
+
+  const select = $('solarImageType');
+  const type = select ? select.value : '0193';
+
+  try {
+    const resp = await fetch('/api/solar/frames?type=' + encodeURIComponent(type));
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const filenames = await resp.json();
+
+    if (!filenames.length) {
+      // Fall back to single latest image
+      loadSolarImageFallback(type);
+      return;
+    }
+
+    // Preload all frame images
+    const loaded = await Promise.all(filenames.map(fn => {
+      return new Promise(resolve => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = '/api/solar/frame/' + encodeURIComponent(fn);
+      });
+    }));
+
+    solarFrames = loaded.filter(Boolean);
+    solarFrameIndex = 0;
+
+    if (solarFrames.length < 2) {
+      loadSolarImageFallback(type);
+      return;
+    }
+
+    drawSolarFrame();
+    // Update play button to pause icon since we auto-play
+    const playBtn = $('solarPlayBtn');
+    if (playBtn) playBtn.innerHTML = '&#9646;&#9646;';
+    solarPlaying = true;
+    startSolarAnimation();
+  } catch (err) {
+    console.error('Failed to load SDO frames:', err);
+    loadSolarImageFallback(type);
+  } finally {
+    solarLoadingFrames = false;
+  }
+}
+
+// Fall back to single latest image if frames fail
+function loadSolarImageFallback(type) {
+  const canvas = $('solarCanvas');
+  if (!canvas) return;
+  const img = new Image();
+  img.onload = () => {
+    solarFrames = [img];
+    solarFrameIndex = 0;
+    drawSolarFrame();
+  };
+  img.src = '/api/solar/image?type=' + encodeURIComponent(type) + '&t=' + Date.now();
 }
 
 export function loadSolarImage() {
-  const select = $('solarImageType');
-  const img = $('solarImage');
-  if (!select || !img) return;
-  img.src = '/api/solar/image?type=' + encodeURIComponent(select.value) + '&t=' + Date.now();
+  loadSolarFrames();
 }
 
 export async function fetchSolar() {

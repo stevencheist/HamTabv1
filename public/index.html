@@ -171,7 +171,6 @@
       <div class="widget-body">
         <div class="wx-alert-badge hidden" id="wxAlertBadge">&#9888;</div>
         <div class="clock-display" id="clockLocal">
-          <span class="clock-daynight" id="clockLocalDayNight"></span>
           <div class="clock-time" id="clockLocalTime"></div>
           <div class="clock-day-date" id="clockLocalDate"></div>
           <canvas class="clock-analog-canvas" id="clockLocalCanvas" width="200" height="200"></canvas>
@@ -187,7 +186,6 @@
       <div class="widget-header">UTC <button class="widget-cfg-btn" id="clockUtcCfgBtn" title="Configure clock style">&#9881;</button></div>
       <div class="widget-body">
         <div class="clock-display" id="clockUtc">
-          <span class="clock-daynight" id="clockUtcDayNight"></span>
           <div class="clock-time" id="clockUtcTime"></div>
           <div class="clock-day-date" id="clockUtcDate"></div>
           <canvas class="clock-analog-canvas" id="clockUtcCanvas" width="200" height="200"></canvas>
@@ -235,6 +233,7 @@
     <!-- Map -->
     <div class="widget" id="widget-map">
       <div class="widget-header">HamMap
+        <button class="widget-cfg-btn" id="mapOverlayCfgBtn" title="Map overlays">&#9881;</button>
         <div class="prop-controls">
           <button class="prop-metric-btn" data-metric="off">Prop Off</button>
           <button class="prop-metric-btn active" data-metric="mufd">MUF</button>
@@ -268,6 +267,19 @@
         <div class="lunar-cards" id="lunarCards"></div>
       </div>
       <div class="widget-resize"></div>
+    </div>
+  </div>
+
+  <!-- Map overlay config overlay -->
+  <div class="splash-overlay hidden" id="mapOverlayCfgSplash">
+    <div class="splash-box map-overlay-cfg-box">
+      <h2>Map Overlays</h2>
+      <div class="splash-widget-list" id="mapOverlayFieldList">
+        <label><input type="checkbox" id="mapOvLatLon" /> Lat/Lon Grid</label>
+        <label><input type="checkbox" id="mapOvMaidenhead" /> Grid Squares (Maidenhead)</label>
+        <label><input type="checkbox" id="mapOvTimezone" /> Timezone Lines</label>
+      </div>
+      <button id="mapOverlayCfgOk">OK</button>
     </div>
   </div>
 

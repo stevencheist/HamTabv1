@@ -1205,6 +1205,7 @@ header {
   font-weight: 700;
   color: var(--text);
   letter-spacing: 1px;
+  position: relative;
 }
 
 .clock-time {
@@ -1238,22 +1239,12 @@ header {
   flex-shrink: 0;
 }
 
-/* ---- Day/Night indicator ---- */
+/* ---- Day/Night indicator (emoji prepended to clock time text) ---- */
 
-.clock-daynight {
-  position: absolute;
-  top: 4px;
-  right: 6px;
-  width: 24px;
-  height: 24px;
-  pointer-events: none;
-}
-
-.clock-daynight svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
+.daynight-emoji {
+  font-style: normal;
+  text-shadow: none;
+  font-family: 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', sans-serif;
 }
 
 /* ---- Weather in local clock ---- */
@@ -1266,10 +1257,6 @@ header {
   line-height: 1.4;
   letter-spacing: 0;
   margin-top: 2px;
-}
-
-.clock-display {
-  position: relative;
 }
 
 /* ---- Propagation widget ---- */
@@ -1553,6 +1540,58 @@ header {
 
 .wx-alert-link a:hover {
   text-decoration: underline;
+}
+
+/* ---- Map overlay grid labels ---- */
+
+.leaflet-mapOverlays-pane,
+.leaflet-mapOverlays-pane * {
+  pointer-events: none !important;
+}
+
+.grid-label {
+  background: none !important;
+  border: none !important;
+  pointer-events: none !important;
+  white-space: nowrap;
+  font-family: monospace;
+  font-weight: 600;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.9), -1px -1px 2px rgba(0,0,0,0.9);
+}
+
+.latlon-label {
+  color: #4a90e2;
+  font-size: 0.65rem;
+}
+
+.latlon-equator {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64b5f6;
+}
+
+.maidenhead-label {
+  color: #ff6b35;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.maidenhead-label-sm {
+  color: #ff6b35;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.maidenhead-label-xs {
+  color: #ff6b35;
+  font-size: 0.55rem;
+  font-weight: 600;
+}
+
+.timezone-label {
+  color: #9b59b6;
+  font-size: 0.7rem;
+  font-weight: 600;
 }
 
 /* ---- Scrollbar ---- */

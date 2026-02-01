@@ -313,7 +313,7 @@ app.get('/api/weather/alerts', async (req, res) => {
   }
 });
 
-function nwsFetch(url) {
+function nwsFetchOnce(url) {
   return new Promise((resolve, reject) => {
     const parsed = new URL(url);
     resolveHost(parsed.hostname).then((resolvedIP) => {
@@ -334,21 +334,36 @@ function nwsFetch(url) {
       const req = https.get(options, (resp) => {
         if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
           resp.resume();
-          return nwsFetch(resp.headers.location).then(resolve).catch(reject);
+          return nwsFetchOnce(resp.headers.location).then(resolve).catch(reject);
         }
         if (resp.statusCode < 200 || resp.statusCode >= 300) {
           resp.resume();
-          return reject(new Error(`HTTP ${resp.statusCode}`));
+          return reject(new Error(`HTTP ${resp.statusCode} from ${parsed.hostname}${parsed.pathname}`));
         }
         let data = '';
         resp.on('data', chunk => { data += chunk; });
         resp.on('end', () => resolve(data));
         resp.on('error', reject);
       });
-      req.on('error', reject);
-      req.setTimeout(REQUEST_TIMEOUT_MS, () => { req.destroy(); reject(new Error('Request timed out')); });
+      req.on('error', (err) => reject(new Error(`${err.message} (${parsed.hostname})`)));
+      req.setTimeout(15000, () => { req.destroy(); reject(new Error(`Request timed out (${parsed.hostname}${parsed.pathname})`)); });
     }).catch(reject);
   });
+}
+
+async function nwsFetch(url, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await nwsFetchOnce(url);
+    } catch (err) {
+      if (i < retries) {
+        console.log(`NWS fetch retry ${i + 1}/${retries}: ${err.message}`);
+        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
+      } else {
+        throw err;
+      }
+    }
+  }
 }
 
 // Proxy callook.info license lookup

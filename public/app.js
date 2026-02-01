@@ -60,7 +60,7 @@
         { key: 'spotTime',   label: 'Time',     class: '' },
       ],
       filters: ['band', 'mode'],
-      hasMap: false,
+      hasMap: true,
       spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
       sortKey: 'spotTime',
     },
@@ -270,7 +270,6 @@
   const lunarCfgSplash = document.getElementById('lunarCfgSplash');
   const lunarFieldList = document.getElementById('lunarFieldList');
   const lunarCfgOk = document.getElementById('lunarCfgOk');
-<<<<<<< HEAD
   const propContainer = document.getElementById('propContainer');
   const spotsHead = document.getElementById('spotsHead');
   const sourceTabs = document.getElementById('sourceTabs');
@@ -354,8 +353,6 @@
     btn.addEventListener('mousedown', (e) => e.stopPropagation());
     btn.addEventListener('click', () => switchSource(btn.dataset.source));
   });
-=======
->>>>>>> e5aa8344211064a757a6c6d8c40e14ead57dad26
 
   // --- Operator callsign & location ---
 

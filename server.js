@@ -94,8 +94,37 @@ app.get('/api/spots/sota', async (req, res) => {
       points:      s.points || 0,
       latitude:    null,
       longitude:   null,
+      _assoc:      s.associationCode || '',
+      _summit:     s.summitCode || '',
     }));
-    res.json(spots);
+
+    // Look up coordinates for each unique summit
+    const unique = new Map();
+    for (const s of spots) {
+      if (s._assoc && s._summit) {
+        const key = `${s._assoc}/${s._summit}`;
+        if (!unique.has(key)) unique.set(key, { assoc: s._assoc, summit: s._summit });
+      }
+    }
+    await Promise.allSettled(
+      [...unique.values()].map(u => fetchSummitCoords(u.assoc, u.summit))
+    );
+
+    // Merge coordinates and strip internal fields
+    const enriched = spots.map(s => {
+      if (s._assoc && s._summit) {
+        const coords = sotaSummitCache[`${s._assoc}/${s._summit}`];
+        if (coords) {
+          s.latitude = coords.lat;
+          s.longitude = coords.lon;
+        }
+      }
+      delete s._assoc;
+      delete s._summit;
+      return s;
+    });
+
+    res.json(enriched);
   } catch (err) {
     console.error('Error fetching SOTA spots:', err.message);
     res.status(502).json({ error: 'Failed to fetch SOTA spots' });
@@ -567,6 +596,29 @@ async function fetchJSON(url) {
 
 async function fetchText(url) {
   return secureFetch(url);
+}
+
+// --- SOTA summit coordinate cache ---
+
+const sotaSummitCache = {};  // { 'W7W/LC-001': { lat, lon }, ... }
+
+async function fetchSummitCoords(associationCode, summitCode) {
+  const key = `${associationCode}/${summitCode}`;
+  if (sotaSummitCache[key]) return sotaSummitCache[key];
+  try {
+    const data = await fetchJSON(
+      `https://api2.sota.org.uk/api/summits/${encodeURIComponent(associationCode)}/${encodeURIComponent(summitCode)}`
+    );
+    const coords = {
+      lat: data.latitude ?? null,
+      lon: data.longitude ?? null,
+    };
+    sotaSummitCache[key] = coords;
+    return coords;
+  } catch {
+    sotaSummitCache[key] = { lat: null, lon: null };
+    return sotaSummitCache[key];
+  }
 }
 
 function parseSolarXML(xml) {

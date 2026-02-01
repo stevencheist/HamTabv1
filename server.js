@@ -144,10 +144,15 @@ app.get('/api/callsign/:call', async (req, res) => {
   try {
     const call = encodeURIComponent(req.params.call.toUpperCase());
     const data = await fetchJSON(`https://callook.info/${call}/json`);
+    const addr = data.address || {};
+    const loc = data.location || {};
     res.json({
       status: data.status || 'INVALID',
       class: (data.current && data.current.operClass) || '',
       name: (data.name || ''),
+      addr1: addr.line1 || '',
+      addr2: addr.line2 || '',
+      grid: loc.gridsquare || '',
     });
   } catch (err) {
     console.error('Error fetching callsign data:', err.message);
@@ -159,6 +164,12 @@ app.get('/api/callsign/:call', async (req, res) => {
 
 const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const SERVER_FILES = ['server.js', 'package.json', 'package-lock.json'];
+
+// Capture git hash at startup so clients can detect stale server
+let startupHash = '';
+try {
+  startupHash = execSync('git rev-parse HEAD', { timeout: 5000, cwd: __dirname, encoding: 'utf-8' }).trim();
+} catch { /* ignore */ }
 
 let updateAvailable = false;
 let lastCheckTime = null;
@@ -202,7 +213,7 @@ startUpdateTimer();
 
 // Status endpoint
 app.get('/api/update/status', (req, res) => {
-  res.json({ available: updateAvailable, lastCheck: lastCheckTime, checking });
+  res.json({ available: updateAvailable, lastCheck: lastCheckTime, checking, serverHash: startupHash });
 });
 
 // Set check interval
@@ -260,6 +271,13 @@ app.post('/api/update/apply', (req, res) => {
       }
     });
   });
+});
+
+// Restart server (relies on process manager to bring it back)
+app.post('/api/restart', (req, res) => {
+  res.json({ restarting: true });
+  console.log('Restart requested by client. Exiting...');
+  setTimeout(() => process.exit(0), 500);
 });
 
 // --- Lunar math (simplified Meeus algorithms) ---

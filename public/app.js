@@ -1,3 +1,22 @@
+// Migrate localStorage keys from pota_ to hamtab_ (one-time)
+(() => {
+  if (localStorage.getItem('hamtab_migrated')) return;
+  const PREFIX_OLD = 'pota_';
+  const PREFIX_NEW = 'hamtab_';
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (key.startsWith(PREFIX_OLD)) {
+      const newKey = PREFIX_NEW + key.slice(PREFIX_OLD.length);
+      if (localStorage.getItem(newKey) === null) {
+        localStorage.setItem(newKey, localStorage.getItem(key));
+      }
+      localStorage.removeItem(key);
+      i--; // adjust index after removal
+    }
+  }
+  localStorage.setItem('hamtab_migrated', '1');
+})();
+
 (() => {
   // State
   let markers = {};
@@ -11,13 +30,13 @@
   let refreshInterval = null;
   let countdownSeconds = 60;
   let countdownTimer = null;
-  let use24h = localStorage.getItem('pota_time24') !== 'false';
-  let privilegeFilterEnabled = localStorage.getItem('pota_privilege_filter') === 'true';
-  let licenseClass = localStorage.getItem('pota_license_class') || '';
-  let propMetric = localStorage.getItem('pota_prop_metric') || 'mufd';
-  let mapCenterMode = localStorage.getItem('pota_map_center') || 'qth';
+  let use24h = localStorage.getItem('hamtab_time24') !== 'false';
+  let privilegeFilterEnabled = localStorage.getItem('hamtab_privilege_filter') === 'true';
+  let licenseClass = localStorage.getItem('hamtab_license_class') || '';
+  let propMetric = localStorage.getItem('hamtab_prop_metric') || 'mufd';
+  let mapCenterMode = localStorage.getItem('hamtab_map_center') || 'qth';
   // Migrate old SVG metric values to new GeoJSON types
-  if (propMetric === 'mof_sp' || propMetric === 'lof_sp') { propMetric = 'mufd'; localStorage.setItem('pota_prop_metric', propMetric); }
+  if (propMetric === 'mof_sp' || propMetric === 'lof_sp') { propMetric = 'mufd'; localStorage.setItem('hamtab_prop_metric', propMetric); }
   let propLayer = null;
   let propLabelLayer = null;
 
@@ -69,12 +88,12 @@
     },
   };
 
-  let currentSource = localStorage.getItem('pota_spot_source') || 'pota';
+  let currentSource = localStorage.getItem('hamtab_spot_source') || 'pota';
   const sourceData = { pota: [], sota: [] };
   const sourceFiltered = { pota: [], sota: [] };
 
   // Widget visibility state
-  const WIDGET_VIS_KEY = 'pota_widget_vis';
+  const WIDGET_VIS_KEY = 'hamtab_widget_vis';
   let widgetVisibility = loadWidgetVisibility();
 
   function loadWidgetVisibility() {
@@ -129,7 +148,7 @@
   ];
 
   // Solar field visibility state
-  const SOLAR_VIS_KEY = 'pota_solar_fields';
+  const SOLAR_VIS_KEY = 'hamtab_solar_fields';
   let solarFieldVisibility = loadSolarFieldVisibility();
 
   function loadSolarFieldVisibility() {
@@ -195,7 +214,7 @@
   ];
 
   // Lunar field visibility state
-  const LUNAR_VIS_KEY = 'pota_lunar_fields';
+  const LUNAR_VIS_KEY = 'hamtab_lunar_fields';
   let lunarFieldVisibility = loadLunarFieldVisibility();
 
   function loadLunarFieldVisibility() {
@@ -263,6 +282,19 @@
   const splashLocStatus = document.getElementById('splashLocStatus');
   const clockLocal = document.getElementById('clockLocal');
   const clockUtc = document.getElementById('clockUtc');
+  const clockLocalTime = document.getElementById('clockLocalTime');
+  const clockLocalDate = document.getElementById('clockLocalDate');
+  const clockLocalCanvas = document.getElementById('clockLocalCanvas');
+  const clockUtcTime = document.getElementById('clockUtcTime');
+  const clockUtcDate = document.getElementById('clockUtcDate');
+  const clockUtcCanvas = document.getElementById('clockUtcCanvas');
+  const clockLocalCfgBtn = document.getElementById('clockLocalCfgBtn');
+  const clockUtcCfgBtn = document.getElementById('clockUtcCfgBtn');
+  const clockCfgSplash = document.getElementById('clockCfgSplash');
+  const clockCfgOk = document.getElementById('clockCfgOk');
+  const clockStyleDigital = document.getElementById('clockStyleDigital');
+  const clockStyleAnalog = document.getElementById('clockStyleAnalog');
+  let clockStyle = localStorage.getItem('hamtab_clock_style') || 'digital';
   const timeFmt12 = document.getElementById('timeFmt12');
   const timeFmt24 = document.getElementById('timeFmt24');
   const solarCfgBtn = document.getElementById('solarCfgBtn');
@@ -288,7 +320,7 @@
   function switchSource(source) {
     if (!SOURCE_DEFS[source]) source = 'pota';
     currentSource = source;
-    localStorage.setItem('pota_spot_source', source);
+    localStorage.setItem('hamtab_spot_source', source);
 
     // Toggle active class on tab buttons
     sourceTabs.querySelectorAll('.source-tab').forEach(btn => {
@@ -364,7 +396,7 @@
 
   // --- Operator callsign & location ---
 
-  let myCallsign = localStorage.getItem('pota_callsign') || '';
+  let myCallsign = localStorage.getItem('hamtab_callsign') || '';
   let myLat = null;
   let myLon = null;
   let manualLoc = false;
@@ -372,8 +404,8 @@
   let gridHighlightIdx = -1;
 
   // Load manual location from localStorage if present
-  const savedLat = localStorage.getItem('pota_lat');
-  const savedLon = localStorage.getItem('pota_lon');
+  const savedLat = localStorage.getItem('hamtab_lat');
+  const savedLon = localStorage.getItem('hamtab_lon');
   if (savedLat !== null && savedLon !== null) {
     myLat = parseFloat(savedLat);
     myLon = parseFloat(savedLon);
@@ -631,7 +663,7 @@
 
     // Set update interval picker
     const intervalSelect = document.getElementById('splashUpdateInterval');
-    const savedInterval = localStorage.getItem('pota_update_interval') || '60';
+    const savedInterval = localStorage.getItem('hamtab_update_interval') || '60';
     intervalSelect.value = savedInterval;
 
     splashGridDropdown.classList.remove('open');
@@ -644,15 +676,15 @@
     const val = splashCallsign.value.trim().toUpperCase();
     if (!val) return;
     myCallsign = val;
-    localStorage.setItem('pota_callsign', myCallsign);
+    localStorage.setItem('hamtab_callsign', myCallsign);
 
     if (manualLoc && myLat !== null && myLon !== null) {
-      localStorage.setItem('pota_lat', String(myLat));
-      localStorage.setItem('pota_lon', String(myLon));
+      localStorage.setItem('hamtab_lat', String(myLat));
+      localStorage.setItem('hamtab_lon', String(myLon));
     }
 
     use24h = timeFmt24.checked;
-    localStorage.setItem('pota_time24', String(use24h));
+    localStorage.setItem('hamtab_time24', String(use24h));
 
     // Read widget visibility checkboxes
     const widgetList = document.getElementById('splashWidgetList');
@@ -665,7 +697,7 @@
     // Save and send update interval
     const intervalSelect = document.getElementById('splashUpdateInterval');
     const intervalVal = intervalSelect.value;
-    localStorage.setItem('pota_update_interval', intervalVal);
+    localStorage.setItem('hamtab_update_interval', intervalVal);
     fetch('/api/update/interval', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -760,6 +792,41 @@
   }
 
   lunarCfgOk.addEventListener('click', dismissLunarCfg);
+
+  // --- Clock config overlay ---
+
+  clockLocalCfgBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+  clockUtcCfgBtn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+
+  function showClockCfg() {
+    if (clockStyle === 'analog') clockStyleAnalog.checked = true;
+    else clockStyleDigital.checked = true;
+    clockCfgSplash.classList.remove('hidden');
+  }
+
+  function dismissClockCfg() {
+    clockStyle = document.querySelector('input[name="clockStyle"]:checked').value;
+    localStorage.setItem('hamtab_clock_style', clockStyle);
+    clockCfgSplash.classList.add('hidden');
+    applyClockStyle();
+    // Resize clock widgets and map to fit new style
+    const def = getDefaultLayout();
+    ['widget-clock-local', 'widget-clock-utc', 'widget-map'].forEach(id => {
+      const el = document.getElementById(id);
+      const pos = def[id];
+      if (el && pos) {
+        el.style.height = pos.height + 'px';
+        el.style.top = pos.top + 'px';
+      }
+    });
+    saveWidgets();
+    if (map) map.invalidateSize();
+    updateClocks();
+  }
+
+  clockLocalCfgBtn.addEventListener('click', showClockCfg);
+  clockUtcCfgBtn.addEventListener('click', showClockCfg);
+  clockCfgOk.addEventListener('click', dismissClockCfg);
 
   // --- Band reference popup ---
 
@@ -927,8 +994,8 @@
   // "Use GPS" button handler
   splashGpsBtn.addEventListener('click', () => {
     manualLoc = false;
-    localStorage.removeItem('pota_lat');
-    localStorage.removeItem('pota_lon');
+    localStorage.removeItem('hamtab_lat');
+    localStorage.removeItem('hamtab_lon');
     splashGpsBtn.classList.add('active');
     updateLocStatus('Using GPS');
 
@@ -1133,7 +1200,7 @@
     btn.addEventListener('mousedown', (e) => e.stopPropagation());
     btn.addEventListener('click', () => {
       propMetric = btn.dataset.metric;
-      localStorage.setItem('pota_prop_metric', propMetric);
+      localStorage.setItem('hamtab_prop_metric', propMetric);
       document.querySelectorAll('.prop-metric-btn').forEach(b => b.classList.toggle('active', b.dataset.metric === propMetric));
       fetchPropagation();
     });
@@ -1165,7 +1232,7 @@
     btn.addEventListener('mousedown', (e) => e.stopPropagation());
     btn.addEventListener('click', () => {
       mapCenterMode = btn.dataset.center;
-      localStorage.setItem('pota_map_center', mapCenterMode);
+      localStorage.setItem('hamtab_map_center', mapCenterMode);
       document.querySelectorAll('.map-center-btn').forEach(b => b.classList.toggle('active', b.dataset.center === mapCenterMode));
       centerMap();
     });
@@ -1282,7 +1349,7 @@
   async function fetchLicenseClass(callsign) {
     if (!isUSCallsign(callsign)) {
       licenseClass = '';
-      localStorage.removeItem('pota_license_class');
+      localStorage.removeItem('hamtab_license_class');
       updatePrivFilterVisibility();
       updateOperatorDisplay();
       return;
@@ -1293,12 +1360,12 @@
       const data = await resp.json();
       if (data.status === 'VALID') {
         licenseClass = (data.class || '').toUpperCase();
-        if (licenseClass) localStorage.setItem('pota_license_class', licenseClass);
+        if (licenseClass) localStorage.setItem('hamtab_license_class', licenseClass);
         // Cache the info for header display and tooltip
         callsignCache[callsign.toUpperCase()] = data;
       } else {
         licenseClass = '';
-        localStorage.removeItem('pota_license_class');
+        localStorage.removeItem('hamtab_license_class');
       }
     } catch (e) {
       // keep existing value
@@ -1525,7 +1592,7 @@
 
   privFilterCheckbox.addEventListener('change', () => {
     privilegeFilterEnabled = privFilterCheckbox.checked;
-    localStorage.setItem('pota_privilege_filter', String(privilegeFilterEnabled));
+    localStorage.setItem('hamtab_privilege_filter', String(privilegeFilterEnabled));
     applyFilter();
     renderSpots();
     renderMarkers();
@@ -2264,10 +2331,119 @@
     return date.toLocaleTimeString([], opts);
   }
 
+  function drawAnalogClock(canvas, date) {
+    const size = Math.min(canvas.parentElement.clientWidth, canvas.parentElement.clientHeight - 24) - 4;
+    if (size < 20) return;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const r = size / 2;
+    ctx.clearRect(0, 0, size, size);
+    ctx.save();
+    ctx.translate(r, r);
+
+    // Face
+    ctx.beginPath();
+    ctx.arc(0, 0, r - 2, 0, Math.PI * 2);
+    ctx.fillStyle = '#0f3460';
+    ctx.fill();
+    ctx.strokeStyle = '#2a3a5e';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Tick marks and numerals
+    for (let i = 1; i <= 12; i++) {
+      const angle = (i * Math.PI) / 6 - Math.PI / 2;
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      // Tick
+      ctx.beginPath();
+      ctx.moveTo(cos * (r - 12), sin * (r - 12));
+      ctx.lineTo(cos * (r - 5), sin * (r - 5));
+      ctx.strokeStyle = '#8899aa';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      // Numeral
+      ctx.fillStyle = '#e0e0e0';
+      ctx.font = `bold ${Math.round(r * 0.22)}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(i.toString(), cos * (r - 22), sin * (r - 22));
+    }
+    // Minute ticks
+    for (let i = 0; i < 60; i++) {
+      if (i % 5 === 0) continue;
+      const angle = (i * Math.PI) / 30 - Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(angle) * (r - 8), Math.sin(angle) * (r - 8));
+      ctx.lineTo(Math.cos(angle) * (r - 5), Math.sin(angle) * (r - 5));
+      ctx.strokeStyle = '#2a3a5e';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+    }
+
+    const h = date.getHours() % 12;
+    const m = date.getMinutes();
+    const s = date.getSeconds();
+
+    // Hour hand
+    const hAngle = ((h + m / 60) * Math.PI) / 6 - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(hAngle) * r * 0.5, Math.sin(hAngle) * r * 0.5);
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Minute hand
+    const mAngle = ((m + s / 60) * Math.PI) / 30 - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(mAngle) * r * 0.7, Math.sin(mAngle) * r * 0.7);
+    ctx.strokeStyle = '#e0e0e0';
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Second hand
+    const sAngle = (s * Math.PI) / 30 - Math.PI / 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(sAngle) * r * 0.75, Math.sin(sAngle) * r * 0.75);
+    ctx.strokeStyle = '#e94560';
+    ctx.lineWidth = 1;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(0, 0, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#e94560';
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function applyClockStyle() {
+    clockLocal.classList.toggle('analog', clockStyle === 'analog');
+    clockUtc.classList.toggle('analog', clockStyle === 'analog');
+  }
+
   function updateClocks() {
     const now = new Date();
-    clockLocal.textContent = fmtTime(now);
-    clockUtc.textContent = fmtTime(now, { timeZone: 'UTC' });
+    const dateOpts = { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' };
+    clockLocalTime.textContent = fmtTime(now);
+    clockLocalDate.textContent = now.toLocaleDateString(undefined, dateOpts);
+    clockUtcTime.textContent = fmtTime(now, { timeZone: 'UTC' });
+    clockUtcDate.textContent = now.toLocaleDateString(undefined, Object.assign({ timeZone: 'UTC' }, dateOpts));
+    if (clockStyle === 'analog') {
+      drawAnalogClock(clockLocalCanvas, now);
+      const utcDate = new Date(now);
+      utcDate.setMinutes(utcDate.getMinutes() + utcDate.getTimezoneOffset());
+      drawAnalogClock(clockUtcCanvas, utcDate);
+    }
+    applyClockStyle();
   }
 
   updateClocks();
@@ -2348,7 +2524,7 @@
   // --- Widget Management ---
 
   let zCounter = 10;
-  const WIDGET_STORAGE_KEY = 'pota_widgets';
+  const WIDGET_STORAGE_KEY = 'hamtab_widgets';
   const SNAP_DIST = 20;
   const HEADER_H = 30; // approximate widget header height
 
@@ -2366,7 +2542,7 @@
     const centerW = W - leftW - rightW - pad * 4;
     const rightHalf = Math.round((H - pad * 3) / 2);
 
-    const clockH = 60;
+    const clockH = clockStyle === 'analog' ? 280 : 100;
     const clockW = Math.round((centerW - pad) / 2);
 
     const rightX = leftW + centerW + pad * 3;
@@ -2723,7 +2899,7 @@
 
   // Send saved update interval to server on load
   function sendUpdateInterval() {
-    const saved = localStorage.getItem('pota_update_interval');
+    const saved = localStorage.getItem('hamtab_update_interval');
     if (saved) {
       fetch('/api/update/interval', {
         method: 'POST',

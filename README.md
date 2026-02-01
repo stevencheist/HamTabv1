@@ -1,16 +1,18 @@
 # HamTab
 
-A real-time amateur radio dashboard for [Parks on the Air (POTA)](https://pota.app) activations. Displays live spots on an interactive map with solar propagation data, HF band conditions, ISS tracking, and lunar/EME conditions — all in a customizable widget layout.
+A real-time amateur radio dashboard for [Parks on the Air (POTA)](https://pota.app) and [Summits on the Air (SOTA)](https://www.sota.org.uk/) activations. Displays live spots on an interactive map with solar propagation data, HF band conditions, ISS tracking, and lunar/EME conditions — all in a customizable widget layout.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green) ![Express](https://img.shields.io/badge/Express-4.x-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ## Features
 
-- **Live Activations Table** — Real-time POTA spots with filtering by band, mode, country, US state, and Maidenhead grid square
-- **Interactive Map** — Leaflet map with clustered markers, dark tiles, and clickable popups with QRZ callsign links
-- **Day/Night Terminator** — Gray line overlay showing the current solar terminator
+- **On the Air** — Real-time POTA and SOTA spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square, and a spot age column
+- **Interactive Map** — Leaflet map with clustered markers for both POTA and SOTA activations, dark tiles, and clickable popups with QRZ callsign links
+- **Map Center Controls** — Quick buttons to center on your QTH, prime meridian, or selected spot
+- **Day/Night Terminator** — Gray line overlay showing the solar terminator with a subtle daylight tint on the illuminated hemisphere
+- **Propagation Contours** — MUF and foF2 HF propagation overlays on the map from prop.kc2g.com
 - **ISS Tracking** — Real-time ISS position, orbital ground track, radio footprint circle, and ARISS amateur radio frequencies
-- **Solar & Propagation** — Solar flux, sunspot number, A/K indices, X-ray flux, and signal noise level
+- **Solar Indices** — Solar flux, sunspot number, A/K indices, X-ray flux, and signal noise level
 - **HF Band Conditions** — Day/night conditions for 80m through 10m
 - **Lunar / EME** — Moon phase, illumination, declination, distance, and relative path loss for EME operators
 - **Widget Layout** — All panels are draggable and resizable with snap-to-edge, persisted across sessions
@@ -74,18 +76,20 @@ Needed to clone the repository.
 | [Express](https://expressjs.com/) | ^4.21.0 | HTTP server and API proxy |
 | [helmet](https://helmetjs.github.io/) | ^8.x | Security headers and CSP |
 | [cors](https://github.com/expressjs/cors) | ^2.x | CORS origin filtering (LAN only) |
-| [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) | ^7.x | API rate limiting (60 req/min) |
+| [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) | ^8.x | API rate limiting (60 req/min) |
 | [dotenv](https://github.com/motdotla/dotenv) | ^16.x | Environment variable configuration |
 | [selfsigned](https://github.com/jfromaniello/selfsigned) | ^2.x | Auto-generated self-signed TLS certificates |
 
-All other functionality (Leaflet maps, marker clustering) is loaded from CDNs in the browser with SRI integrity hashes.
+Leaflet maps and marker clustering are bundled locally in the `public/vendor/` directory.
 
 ### External APIs Used
 
 | API | Purpose | Docs |
 |-----|---------|------|
 | [POTA API](https://api.pota.app/) | Live activator spots | [pota.app](https://pota.app) |
+| [SOTA API](https://api2.sota.org.uk/) | Summit spots and coordinates | [sota.org.uk](https://www.sota.org.uk/) |
 | [HamQSL Solar XML](https://www.hamqsl.com/solarxml.php) | Solar indices and band conditions | [hamqsl.com](https://www.hamqsl.com/) |
+| [Propagation Contours](https://prop.kc2g.com/) | MUF and foF2 HF propagation overlays | [prop.kc2g.com](https://prop.kc2g.com/) |
 | [Where the ISS at?](https://wheretheiss.at/w/developer) | ISS position and orbit data | [wheretheiss.at](https://wheretheiss.at/) |
 
 Lunar/EME data is computed server-side using Meeus astronomical algorithms — no external API needed.
@@ -147,7 +151,7 @@ On first launch you'll be prompted to enter your callsign. The app will request 
 
 ## Usage
 
-- **Filters** — Use the band, mode, country, state, and grid buttons/dropdowns in the Activations widget to narrow spots
+- **Filters** — Use the band, mode, country, state, and grid buttons/dropdowns in the On the Air widget to narrow spots
 - **Map interaction** — Click a spot in the table to fly to it on the map; click a map marker to see callsign (links to QRZ), frequency, and park info
 - **Widgets** — Drag any widget header to reposition, drag the bottom-right corner to resize; widgets snap to edges and center
 - **Reset Layout** — Click the "Reset Layout" button in the header to restore the default widget arrangement
@@ -297,6 +301,7 @@ HamTabv1/
     index.html        Main HTML page
     style.css         All styles (dark theme, widgets, map, tables)
     app.js            Client-side application logic
+    vendor/           Leaflet and marker clustering libraries (bundled locally)
 ```
 
 ## License

@@ -2548,6 +2548,7 @@
         updateOperatorDisplay2();
         centerMapOnUser();
         updateUserMarker();
+        if (state_default.appInitialized) startNwsPolling();
       },
       () => {
         $("opLoc").textContent = "Location denied";

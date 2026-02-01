@@ -6,7 +6,7 @@ import { latLonToGrid, gridToLatLon } from './geo.js';
 import { centerMapOnUser, updateUserMarker } from './map-init.js';
 import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
-import { fetchWeather } from './weather.js';
+import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
 import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility } from './widgets.js';
 
@@ -49,6 +49,8 @@ export function fetchLocation() {
       updateOperatorDisplay();
       centerMapOnUser();
       updateUserMarker();
+      // Re-trigger NWS polling now that we have coordinates
+      if (state.appInitialized) startNwsPolling();
     },
     () => {
       $('opLoc').textContent = 'Location denied';

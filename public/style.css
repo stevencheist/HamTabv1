@@ -1167,6 +1167,37 @@ header {
   color: var(--text);
 }
 
+/* ---- Map center toggle ---- */
+
+.map-center-controls {
+  float: right;
+  display: inline-flex;
+  gap: 3px;
+  margin-right: 6px;
+}
+
+.map-center-btn {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.map-center-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.map-center-btn:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
 /* ---- Propagation contour labels ---- */
 
 .prop-label {

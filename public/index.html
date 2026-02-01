@@ -169,6 +169,7 @@
     <div class="widget" id="widget-clock-local">
       <div class="widget-header">Local Time <button class="widget-cfg-btn" id="clockLocalCfgBtn" title="Configure clock style">&#9881;</button></div>
       <div class="widget-body">
+        <div class="wx-alert-badge hidden" id="wxAlertBadge">&#9888;</div>
         <div class="clock-display" id="clockLocal">
           <span class="clock-daynight" id="clockLocalDayNight"></span>
           <div class="clock-time" id="clockLocalTime"></div>
@@ -176,6 +177,7 @@
           <canvas class="clock-analog-canvas" id="clockLocalCanvas" width="200" height="200"></canvas>
           <div class="clock-weather" id="clockLocalWeather"></div>
         </div>
+        <div class="wx-source-logo hidden" id="wxSourceLogo" title="Weather data source"></div>
       </div>
       <div class="widget-resize"></div>
     </div>
@@ -266,6 +268,15 @@
         <div class="lunar-cards" id="lunarCards"></div>
       </div>
       <div class="widget-resize"></div>
+    </div>
+  </div>
+
+  <!-- Weather alert popup -->
+  <div class="splash-overlay hidden wx-alert-splash" id="wxAlertSplash">
+    <div class="splash-box">
+      <h2>Weather Alerts</h2>
+      <div class="wx-alert-list" id="wxAlertList"></div>
+      <button id="wxAlertClose">Close</button>
     </div>
   </div>
 

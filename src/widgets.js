@@ -28,7 +28,39 @@ export function applyWidgetVisibility() {
       el.style.display = '';
     }
   });
+  // Re-distribute right-column widgets to fill available space
+  redistributeRightColumn();
   if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+}
+
+function redistributeRightColumn() {
+  const { height: H } = getWidgetArea();
+  const pad = 6;
+  const solarEl = document.getElementById('widget-solar');
+  if (!solarEl || solarEl.style.display === 'none') return;
+  const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
+  const rightX = parseInt(solarEl.style.left) || 0;
+  const rightW = parseInt(solarEl.style.width) || 0;
+
+  const rightBottomIds = ['widget-lunar', 'widget-rst', 'widget-spot-detail'];
+  const vis = state.widgetVisibility || {};
+  const visible = rightBottomIds.filter(id => vis[id] !== false);
+  if (visible.length === 0) return;
+
+  const bottomSpace = H - solarBottom - pad;
+  const gaps = visible.length - 1;
+  const slotH = Math.round((bottomSpace - gaps * pad) / visible.length);
+  let curY = solarBottom + pad;
+  visible.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.style.left = rightX + 'px';
+    el.style.top = curY + 'px';
+    el.style.width = rightW + 'px';
+    el.style.height = slotH + 'px';
+    curY += slotH + pad;
+  });
+  saveWidgets();
 }
 
 function getWidgetArea() {
@@ -56,10 +88,26 @@ export function getDefaultLayout() {
     'widget-activations': { left: pad, top: pad, width: leftW, height: H - pad * 2 },
     'widget-map': { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
     'widget-solar': { left: rightX, top: pad, width: rightW, height: rightHalf },
-    'widget-lunar': { left: rightX, top: rightHalf + pad * 2, width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) },
-    'widget-rst': { left: rightX, top: rightHalf + pad * 2 + Math.round((H - rightHalf - pad * 4) / 3) + pad, width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) },
-    'widget-spot-detail': { left: rightX, top: rightHalf + pad * 2 + 2 * (Math.round((H - rightHalf - pad * 4) / 3) + pad), width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) },
   };
+
+  // Stack visible right-column widgets below solar
+  const rightBottomIds = ['widget-lunar', 'widget-rst', 'widget-spot-detail'];
+  const vis = state.widgetVisibility || {};
+  const visibleBottom = rightBottomIds.filter(id => vis[id] !== false);
+  const bottomSpace = H - rightHalf - pad * 2;
+  const gaps = visibleBottom.length > 0 ? visibleBottom.length - 1 : 0;
+  const slotH = visibleBottom.length > 0 ? Math.round((bottomSpace - gaps * pad) / visibleBottom.length) : 0;
+  let curY = rightHalf + pad * 2;
+  visibleBottom.forEach(id => {
+    layout[id] = { left: rightX, top: curY, width: rightW, height: slotH };
+    curY += slotH + pad;
+  });
+  // Include hidden ones off-screen so layout object is complete
+  rightBottomIds.filter(id => vis[id] === false).forEach(id => {
+    layout[id] = { left: rightX, top: rightHalf + pad * 2, width: rightW, height: 150 };
+  });
+
+  return layout;
 }
 
 function clampPosition(left, top, wW, wH) {

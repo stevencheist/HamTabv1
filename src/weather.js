@@ -63,7 +63,9 @@ export function fetchNwsConditions() {
       $('clockLocalWeather').innerHTML = line1 + (line2 ? '<br>' + line2 : '');
       setWxSource('nws');
     }
-  }).catch(() => {});
+  }).catch(err => {
+    console.warn('NWS conditions fetch failed:', err);
+  });
 }
 
 function applyWeatherBackground(forecast, isDaytime) {

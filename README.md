@@ -15,6 +15,10 @@ A real-time amateur radio dashboard for [Parks on the Air (POTA)](https://pota.a
 - **Solar Indices** — Solar flux, sunspot number, A/K indices, X-ray flux, and signal noise level
 - **HF Band Conditions** — Day/night conditions for 80m through 10m
 - **Lunar / EME** — Moon phase, illumination, declination, distance, and relative path loss for EME operators
+- **Weather Conditions** — Local weather display from Weather Underground (PWS key) or NWS as automatic fallback; source indicator badge shows which is active
+- **Weather Backgrounds** — Local clock widget background gradient changes to reflect current conditions (clear, cloudy, rain, snow, thunderstorm, fog) with day/night variants
+- **NWS Weather Alerts** — Severity-colored alert badge on local clock; click to view active alerts with headlines, descriptions, and NWS website links
+- **Day/Night Indicator** — SVG sun/moon graphic on clock widgets based on computed sunrise/sunset for your location
 - **Widget Layout** — All panels are draggable and resizable with snap-to-edge, persisted across sessions
 - **Operator Identity** — Callsign prompt at startup with geolocation and Maidenhead grid square display
 
@@ -91,6 +95,8 @@ Leaflet maps and marker clustering are bundled locally in the `public/vendor/` d
 | [HamQSL Solar XML](https://www.hamqsl.com/solarxml.php) | Solar indices and band conditions | [hamqsl.com](https://www.hamqsl.com/) |
 | [Propagation Contours](https://prop.kc2g.com/) | MUF and foF2 HF propagation overlays | [prop.kc2g.com](https://prop.kc2g.com/) |
 | [Where the ISS at?](https://wheretheiss.at/w/developer) | ISS position and orbit data | [wheretheiss.at](https://wheretheiss.at/) |
+| [NWS API](https://www.weather.gov/documentation/services-web-api) | Weather conditions, forecasts, and alerts (free, no key) | [weather.gov](https://www.weather.gov/) |
+| [Weather Underground](https://www.wunderground.com/member/api-keys) | Personal weather station observations (optional, requires free API key) | [wunderground.com](https://www.wunderground.com/) |
 
 Lunar/EME data is computed server-side using Meeus astronomical algorithms — no external API needed.
 

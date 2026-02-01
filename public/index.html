@@ -94,6 +94,18 @@
     </div>
   </div>
 
+  <!-- Clock style config overlay -->
+  <div class="splash-overlay hidden" id="clockCfgSplash">
+    <div class="splash-box clock-cfg-box">
+      <h2>Clock Style</h2>
+      <div class="splash-time-options" style="justify-content:center;margin-bottom:16px;">
+        <label><input type="radio" name="clockStyle" value="digital" id="clockStyleDigital"> Digital</label>
+        <label><input type="radio" name="clockStyle" value="analog" id="clockStyleAnalog"> Analog</label>
+      </div>
+      <button id="clockCfgOk">OK</button>
+    </div>
+  </div>
+
   <!-- Band privilege reference overlay -->
   <div class="splash-overlay hidden" id="bandRefSplash">
     <div class="splash-box band-ref-box">
@@ -145,18 +157,26 @@
   <div class="widget-area" id="widgetArea">
     <!-- Local Time Clock -->
     <div class="widget" id="widget-clock-local">
-      <div class="widget-header">Local Time</div>
+      <div class="widget-header">Local Time <button class="widget-cfg-btn" id="clockLocalCfgBtn" title="Configure clock style">&#9881;</button></div>
       <div class="widget-body">
-        <div class="clock-display" id="clockLocal"></div>
+        <div class="clock-display" id="clockLocal">
+          <div class="clock-time" id="clockLocalTime"></div>
+          <div class="clock-day-date" id="clockLocalDate"></div>
+          <canvas class="clock-analog-canvas" id="clockLocalCanvas" width="200" height="200"></canvas>
+        </div>
       </div>
       <div class="widget-resize"></div>
     </div>
 
     <!-- UTC Clock -->
     <div class="widget" id="widget-clock-utc">
-      <div class="widget-header">UTC</div>
+      <div class="widget-header">UTC <button class="widget-cfg-btn" id="clockUtcCfgBtn" title="Configure clock style">&#9881;</button></div>
       <div class="widget-body">
-        <div class="clock-display" id="clockUtc"></div>
+        <div class="clock-display" id="clockUtc">
+          <div class="clock-time" id="clockUtcTime"></div>
+          <div class="clock-day-date" id="clockUtcDate"></div>
+          <canvas class="clock-analog-canvas" id="clockUtcCanvas" width="200" height="200"></canvas>
+        </div>
       </div>
       <div class="widget-resize"></div>
     </div>

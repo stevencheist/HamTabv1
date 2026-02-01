@@ -251,6 +251,7 @@ const nwsGridCache = {}; // { 'lat,lon': { forecastUrl, expires } }
 
 app.get('/api/weather/conditions', async (req, res) => {
   try {
+    console.log('NWS conditions request, raw query:', req.query);
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon)) {
@@ -259,7 +260,8 @@ app.get('/api/weather/conditions', async (req, res) => {
     const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
     let grid = nwsGridCache[key];
     if (!grid || Date.now() > grid.expires) {
-      const pointsUrl = `https://api.weather.gov/points/${lat},${lon}`;
+      const pointsUrl = `https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`;
+      console.log('NWS points URL:', pointsUrl);
       const pointsRaw = await nwsFetch(pointsUrl);
       const data = JSON.parse(pointsRaw);
       const forecastUrl = data && data.properties && data.properties.forecastHourly;

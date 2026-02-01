@@ -1243,18 +1243,17 @@ header {
 .clock-daynight {
   position: absolute;
   top: 4px;
-  right: 8px;
-  font-size: 1.2rem;
-  line-height: 1;
+  right: 6px;
+  width: 24px;
+  height: 24px;
   pointer-events: none;
 }
 
-.clock-daynight.day {
-  color: var(--yellow);
-}
-
-.clock-daynight.night {
-  color: var(--text-dim);
+.clock-daynight svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.4));
 }
 
 /* ---- Weather in local clock ---- */
@@ -1345,6 +1344,215 @@ header {
   font-family: monospace;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8), -1px -1px 2px rgba(0, 0, 0, 0.8);
   pointer-events: none;
+}
+
+/* ---- Weather background classes ---- */
+
+#widget-clock-local .widget-body {
+  transition: background 1s ease;
+}
+
+#widget-clock-local .widget-body.wx-clear-day {
+  background: linear-gradient(180deg, #1e88e5 0%, #64b5f6 100%);
+}
+#widget-clock-local .widget-body.wx-clear-night {
+  background: linear-gradient(180deg, #0d1b2a 0%, #1b2838 100%);
+}
+#widget-clock-local .widget-body.wx-partly-cloudy-day {
+  background: linear-gradient(180deg, #4a7fac 0%, #8eafc4 100%);
+}
+#widget-clock-local .widget-body.wx-partly-cloudy-night {
+  background: linear-gradient(180deg, #1a2636 0%, #2a3a4e 100%);
+}
+#widget-clock-local .widget-body.wx-cloudy {
+  background: linear-gradient(180deg, #546e7a 0%, #78909c 100%);
+}
+#widget-clock-local .widget-body.wx-rain {
+  background: linear-gradient(180deg, #37474f 0%, #455a64 100%);
+}
+#widget-clock-local .widget-body.wx-thunderstorm {
+  background: linear-gradient(180deg, #2a1a3e 0%, #3e2756 100%);
+}
+#widget-clock-local .widget-body.wx-snow {
+  background: linear-gradient(180deg, #90a4ae 0%, #cfd8dc 100%);
+}
+#widget-clock-local .widget-body.wx-fog {
+  background: linear-gradient(180deg, #607d8b 0%, #90a4ae 100%);
+}
+
+/* Text colors per weather background — ensure contrast */
+#widget-clock-local .widget-body[class*="wx-"] .clock-time,
+#widget-clock-local .widget-body[class*="wx-"] .clock-day-date,
+#widget-clock-local .widget-body[class*="wx-"] .clock-weather {
+  text-shadow: 0 1px 3px rgba(0,0,0,0.5);
+}
+
+/* Dark backgrounds — light text (already default, just reinforce) */
+#widget-clock-local .widget-body.wx-clear-night .clock-time,
+#widget-clock-local .widget-body.wx-partly-cloudy-night .clock-time,
+#widget-clock-local .widget-body.wx-rain .clock-time,
+#widget-clock-local .widget-body.wx-thunderstorm .clock-time {
+  color: #fff;
+}
+
+/* Light/mid backgrounds — dark text */
+#widget-clock-local .widget-body.wx-snow .clock-time,
+#widget-clock-local .widget-body.wx-snow .clock-day-date,
+#widget-clock-local .widget-body.wx-snow .clock-weather {
+  color: #1a1a2e;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.3);
+}
+
+#widget-clock-local .widget-body.wx-fog .clock-time,
+#widget-clock-local .widget-body.wx-fog .clock-day-date,
+#widget-clock-local .widget-body.wx-fog .clock-weather {
+  color: #1a1a2e;
+  text-shadow: 0 1px 2px rgba(255,255,255,0.3);
+}
+
+#widget-clock-local .widget-body.wx-cloudy .clock-time,
+#widget-clock-local .widget-body.wx-cloudy .clock-day-date,
+#widget-clock-local .widget-body.wx-cloudy .clock-weather {
+  color: #fff;
+}
+
+#widget-clock-local .widget-body.wx-clear-day .clock-time,
+#widget-clock-local .widget-body.wx-clear-day .clock-day-date,
+#widget-clock-local .widget-body.wx-clear-day .clock-weather {
+  color: #fff;
+}
+
+#widget-clock-local .widget-body.wx-partly-cloudy-day .clock-time,
+#widget-clock-local .widget-body.wx-partly-cloudy-day .clock-day-date,
+#widget-clock-local .widget-body.wx-partly-cloudy-day .clock-weather {
+  color: #fff;
+}
+
+/* ---- Weather source logo ---- */
+
+.wx-source-logo {
+  position: absolute;
+  bottom: 4px;
+  right: 6px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 5px;
+  border-radius: 3px;
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.wx-source-logo.hidden {
+  display: none;
+}
+
+.wx-source-logo.wx-src-wu {
+  background: #1a8b1a;
+  color: #fff;
+}
+
+.wx-source-logo.wx-src-nws {
+  background: #003366;
+  color: #fff;
+}
+
+/* ---- Weather alert badge ---- */
+
+.wx-alert-badge {
+  position: absolute;
+  top: 6px;
+  left: 8px;
+  font-size: 1.1rem;
+  cursor: pointer;
+  z-index: 10;
+  line-height: 1;
+  text-shadow: 0 0 4px rgba(0,0,0,0.5);
+}
+
+.wx-alert-badge.hidden {
+  display: none;
+}
+
+.wx-alert-badge.wx-alert-extreme,
+.wx-alert-badge.wx-alert-severe {
+  color: var(--red);
+  animation: wx-pulse 1.2s ease-in-out infinite;
+}
+
+.wx-alert-badge.wx-alert-moderate {
+  color: var(--yellow);
+}
+
+.wx-alert-badge.wx-alert-minor {
+  color: var(--text-dim);
+}
+
+@keyframes wx-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ---- Weather alert popup ---- */
+
+.wx-alert-splash .splash-box {
+  max-width: 560px;
+  max-height: 80vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.wx-alert-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wx-alert-item {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  background: var(--bg);
+}
+
+.wx-alert-event {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.wx-alert-event.wx-sev-Extreme,
+.wx-alert-event.wx-sev-Severe { color: var(--red); }
+.wx-alert-event.wx-sev-Moderate { color: var(--yellow); }
+.wx-alert-event.wx-sev-Minor { color: var(--text-dim); }
+
+.wx-alert-headline {
+  font-size: 0.82rem;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.wx-alert-desc {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  max-height: 160px;
+  overflow-y: auto;
+  margin-bottom: 6px;
+}
+
+.wx-alert-link {
+  font-size: 0.78rem;
+}
+
+.wx-alert-link a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.wx-alert-link a:hover {
+  text-decoration: underline;
 }
 
 /* ---- Scrollbar ---- */

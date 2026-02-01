@@ -302,6 +302,12 @@
   const splashWxApiKey = document.getElementById('splashWxApiKey');
   let wxStation = localStorage.getItem('hamtab_wx_station') || '';
   let wxApiKey = localStorage.getItem('hamtab_wx_apikey') || '';
+  const wxAlertBadge = document.getElementById('wxAlertBadge');
+  const wxAlertSplash = document.getElementById('wxAlertSplash');
+  const wxAlertList = document.getElementById('wxAlertList');
+  const wxAlertClose = document.getElementById('wxAlertClose');
+  let nwsAlerts = [];
+  const wxSourceLogo = document.getElementById('wxSourceLogo');
   const timeFmt12 = document.getElementById('timeFmt12');
   const timeFmt24 = document.getElementById('timeFmt24');
   const solarCfgBtn = document.getElementById('solarCfgBtn');
@@ -2487,24 +2493,36 @@
     return { sunrise: calc(true), sunset: calc(false) };
   }
 
+  const SVG_SUN = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+    '<circle cx="32" cy="32" r="12" fill="#ffd600"/>' +
+    '<g stroke="#ffd600" stroke-width="3" stroke-linecap="round">' +
+    '<line x1="32" y1="4" x2="32" y2="14"/><line x1="32" y1="50" x2="32" y2="60"/>' +
+    '<line x1="4" y1="32" x2="14" y2="32"/><line x1="50" y1="32" x2="60" y2="32"/>' +
+    '<line x1="12.2" y1="12.2" x2="19.3" y2="19.3"/><line x1="44.7" y1="44.7" x2="51.8" y2="51.8"/>' +
+    '<line x1="12.2" y1="51.8" x2="19.3" y2="44.7"/><line x1="44.7" y1="19.3" x2="51.8" y2="12.2"/>' +
+    '</g></svg>';
+
+  const SVG_MOON = '<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">' +
+    '<path d="M36 8a24 24 0 1 0 0 48 20 20 0 0 1 0-48z" fill="#b0bec5"/>' +
+    '</svg>';
+
   function updateDayNight() {
     if (myLat === null || myLon === null) {
-      clockLocalDayNight.textContent = '';
-      clockUtcDayNight.textContent = '';
+      clockLocalDayNight.innerHTML = '';
+      clockUtcDayNight.innerHTML = '';
       return;
     }
     const now = new Date();
     const { sunrise, sunset } = getSunTimes(myLat, myLon, now);
     const isDay = sunrise && sunset && now >= sunrise && now < sunset;
-    const icon = isDay ? '\u2600' : '\u263E';
-    const cls = isDay ? 'day' : 'night';
-    clockLocalDayNight.textContent = icon;
-    clockLocalDayNight.className = 'clock-daynight ' + cls;
-    clockUtcDayNight.textContent = icon;
-    clockUtcDayNight.className = 'clock-daynight ' + cls;
+    const svg = isDay ? SVG_SUN : SVG_MOON;
+    clockLocalDayNight.innerHTML = svg;
+    clockLocalDayNight.className = 'clock-daynight';
+    clockUtcDayNight.innerHTML = svg;
+    clockUtcDayNight.className = 'clock-daynight';
   }
 
-  // --- Weather fetch ---
+  // --- Weather fetch (WU PWS) ---
 
   let weatherTimer = null;
 
@@ -2514,24 +2532,148 @@
     weatherTimer = setInterval(doFetchWeather, 5 * 60 * 1000);
   }
 
+  function useWU() { return wxStation && wxApiKey; }
+
+  function setWxSource(src) {
+    wxSourceLogo.classList.remove('hidden', 'wx-src-wu', 'wx-src-nws');
+    if (src === 'wu') {
+      wxSourceLogo.textContent = 'WU';
+      wxSourceLogo.title = 'Weather Underground';
+      wxSourceLogo.classList.add('wx-src-wu');
+    } else if (src === 'nws') {
+      wxSourceLogo.textContent = 'NWS';
+      wxSourceLogo.title = 'National Weather Service';
+      wxSourceLogo.classList.add('wx-src-nws');
+    } else {
+      wxSourceLogo.classList.add('hidden');
+    }
+  }
+
   function doFetchWeather() {
-    if (!wxStation || !wxApiKey) {
-      clockLocalWeather.textContent = '';
+    if (useWU()) {
+      const url = '/api/weather?station=' + encodeURIComponent(wxStation) + '&apikey=' + encodeURIComponent(wxApiKey);
+      fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+        const name = data.neighborhood || wxStation;
+        const tempStr = data.temp != null ? data.temp + '\u00B0F' : '';
+        const cond = data.condition || '';
+        const wind = (data.windDir || '') + ' ' + (data.windSpeed != null ? data.windSpeed + 'mph' : '');
+        const hum = data.humidity != null ? data.humidity + '%' : '';
+        let line1 = [name, tempStr, cond].filter(Boolean).join('  ');
+        let line2 = ['W: ' + wind.trim(), hum ? 'H: ' + hum : ''].filter(Boolean).join('  ');
+        clockLocalWeather.innerHTML = line1 + '<br>' + line2;
+        setWxSource('wu');
+      }).catch(() => {
+        clockLocalWeather.textContent = '';
+        setWxSource(null);
+      });
+    }
+    // If no WU, NWS conditions callback handles the weather text display
+  }
+
+  // --- NWS conditions (weather background) ---
+
+  let nwsCondTimer = null;
+  let nwsAlertTimer = null;
+  const wxBgClasses = ['wx-clear-day','wx-clear-night','wx-partly-cloudy-day','wx-partly-cloudy-night','wx-cloudy','wx-rain','wx-thunderstorm','wx-snow','wx-fog'];
+
+  function startNwsPolling() {
+    if (nwsCondTimer) clearInterval(nwsCondTimer);
+    if (nwsAlertTimer) clearInterval(nwsAlertTimer);
+    fetchNwsConditions();
+    fetchNwsAlerts();
+    nwsCondTimer = setInterval(fetchNwsConditions, 15 * 60 * 1000);
+    nwsAlertTimer = setInterval(fetchNwsAlerts, 5 * 60 * 1000);
+  }
+
+  function fetchNwsConditions() {
+    if (myLat === null || myLon === null) return;
+    const url = '/api/weather/conditions?lat=' + myLat + '&lon=' + myLon;
+    fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+      applyWeatherBackground(data.shortForecast, data.isDaytime);
+      // Use NWS as weather text source when WU is not configured
+      if (!useWU()) {
+        const tempStr = data.temperature != null ? data.temperature + '\u00B0' + (data.temperatureUnit || 'F') : '';
+        const cond = data.shortForecast || '';
+        const wind = data.windDirection && data.windSpeed ? data.windDirection + ' ' + data.windSpeed : '';
+        const hum = data.relativeHumidity != null ? data.relativeHumidity + '%' : '';
+        let line1 = [tempStr, cond].filter(Boolean).join('  ');
+        let line2 = [wind ? 'W: ' + wind : '', hum ? 'H: ' + hum : ''].filter(Boolean).join('  ');
+        clockLocalWeather.innerHTML = line1 + (line2 ? '<br>' + line2 : '');
+        setWxSource('nws');
+      }
+    }).catch(() => {});
+  }
+
+  function applyWeatherBackground(forecast, isDaytime) {
+    const body = document.querySelector('#widget-clock-local .widget-body');
+    wxBgClasses.forEach(c => body.classList.remove(c));
+    if (!forecast) return;
+    const fc = forecast.toLowerCase();
+    let cls = '';
+    if (/thunder|t-storm/.test(fc)) cls = 'wx-thunderstorm';
+    else if (/snow|flurr|blizzard|sleet|ice/.test(fc)) cls = 'wx-snow';
+    else if (/rain|drizzle|shower/.test(fc)) cls = 'wx-rain';
+    else if (/fog|haze|mist/.test(fc)) cls = 'wx-fog';
+    else if (/cloudy|overcast/.test(fc)) {
+      if (/partly|mostly sunny/.test(fc)) cls = isDaytime ? 'wx-partly-cloudy-day' : 'wx-partly-cloudy-night';
+      else cls = 'wx-cloudy';
+    }
+    else if (/sunny|clear/.test(fc)) cls = isDaytime ? 'wx-clear-day' : 'wx-clear-night';
+    if (cls) body.classList.add(cls);
+  }
+
+  // --- NWS alerts ---
+
+  function fetchNwsAlerts() {
+    if (myLat === null || myLon === null) return;
+    const url = '/api/weather/alerts?lat=' + myLat + '&lon=' + myLon;
+    fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(alerts => {
+      nwsAlerts = alerts;
+      updateAlertBadge();
+    }).catch(() => {
+      nwsAlerts = [];
+      updateAlertBadge();
+    });
+  }
+
+  function updateAlertBadge() {
+    if (!nwsAlerts.length) {
+      wxAlertBadge.classList.add('hidden');
       return;
     }
-    const url = '/api/weather?station=' + encodeURIComponent(wxStation) + '&apikey=' + encodeURIComponent(wxApiKey);
-    fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
-      const name = data.neighborhood || wxStation;
-      const tempStr = data.temp != null ? data.temp + '\u00B0F' : '';
-      const cond = data.condition || '';
-      const wind = (data.windDir || '') + ' ' + (data.windSpeed != null ? data.windSpeed + 'mph' : '');
-      const hum = data.humidity != null ? data.humidity + '%' : '';
-      let line1 = [name, tempStr, cond].filter(Boolean).join('  ');
-      let line2 = ['W: ' + wind.trim(), hum ? 'H: ' + hum : ''].filter(Boolean).join('  ');
-      clockLocalWeather.innerHTML = line1 + '<br>' + line2;
-    }).catch(() => {
-      clockLocalWeather.textContent = '';
-    });
+    wxAlertBadge.classList.remove('hidden');
+    // Use highest severity
+    const sevOrder = ['Extreme','Severe','Moderate','Minor','Unknown'];
+    let highest = 'Minor';
+    for (const a of nwsAlerts) {
+      if (sevOrder.indexOf(a.severity) < sevOrder.indexOf(highest)) highest = a.severity;
+    }
+    wxAlertBadge.className = 'wx-alert-badge wx-alert-' + highest.toLowerCase();
+  }
+
+  wxAlertBadge.addEventListener('click', () => {
+    wxAlertList.innerHTML = '';
+    for (const a of nwsAlerts) {
+      const div = document.createElement('div');
+      div.className = 'wx-alert-item';
+      div.innerHTML =
+        '<div class="wx-alert-event wx-sev-' + (a.severity || 'Unknown') + '">' + esc(a.event) + ' (' + esc(a.severity) + ')</div>' +
+        '<div class="wx-alert-headline">' + esc(a.headline || '') + '</div>' +
+        '<div class="wx-alert-desc">' + esc(a.description || '') + '</div>' +
+        (a.web ? '<div class="wx-alert-link"><a href="' + esc(a.web) + '" target="_blank" rel="noopener">View on NWS website</a></div>' : '');
+      wxAlertList.appendChild(div);
+    }
+    wxAlertSplash.classList.remove('hidden');
+  });
+
+  wxAlertClose.addEventListener('click', () => {
+    wxAlertSplash.classList.add('hidden');
+  });
+
+  function esc(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
   }
 
   function updateClocks() {
@@ -3027,6 +3169,7 @@
     startUpdateStatusPolling();
     sendUpdateInterval();
     fetchWeather();
+    startNwsPolling();
   }
 
   // Initialize widget positions before anything else

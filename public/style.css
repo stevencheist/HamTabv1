@@ -349,6 +349,24 @@ header {
   text-decoration: underline;
 }
 
+.op-class {
+  font-size: 0.75rem;
+  color: var(--yellow);
+  font-weight: 400;
+  margin-left: 4px;
+}
+
+.op-name {
+  font-size: 0.72rem;
+  color: var(--text);
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.op-name:empty {
+  display: none;
+}
+
 .op-loc {
   font-size: 0.72rem;
   color: var(--text-dim);

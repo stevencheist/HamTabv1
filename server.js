@@ -584,38 +584,49 @@ app.post('/api/config/env', (req, res) => {
 const SDO_TYPES = new Set(['0193', '0171', '0304', 'HMIIC']);
 
 // --- SDO browse frame list (animated time-lapse) ---
-const solarFramesCache = {}; // { 'YYYY/MM/DD:type': { frames: [], expires: timestamp } }
+// Cache per-day directory listings to avoid re-scraping
+const sdoDirCache = {}; // { 'YYYY/MM/DD:type': { frames: [], expires: timestamp } }
+
+// Scrape one day's directory listing for frame filenames
+async function scrapeSDODay(dateKey, type) {
+  const cacheKey = `${dateKey}:${type}`;
+  const cached = sdoDirCache[cacheKey];
+  if (cached && Date.now() < cached.expires) return cached.frames;
+
+  const html = await fetchText(`https://sdo.gsfc.nasa.gov/assets/img/browse/${dateKey}/`);
+  const pattern = new RegExp(`\\d{8}_\\d{6}_512_${type}\\.jpg`, 'g');
+  const frames = [];
+  let match;
+  while ((match = pattern.exec(html)) !== null) frames.push(match[0]);
+
+  // Yesterday's listing is immutable — cache for 6 hours; today's for 10 minutes
+  const now = new Date();
+  const todayKey = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${String(now.getUTCDate()).padStart(2, '0')}`;
+  const ttl = (dateKey === todayKey) ? 10 * 60 * 1000 : 6 * 3600 * 1000;
+  sdoDirCache[cacheKey] = { frames, expires: Date.now() + ttl };
+  return frames;
+}
 
 app.get('/api/solar/frames', async (req, res) => {
   try {
     const type = SDO_TYPES.has(req.query.type) ? req.query.type : '0193';
     const now = new Date();
-    const yyyy = now.getUTCFullYear();
-    const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
-    const dd = String(now.getUTCDate()).padStart(2, '0');
-    const dateKey = `${yyyy}/${mm}/${dd}`;
-    const cacheKey = `${dateKey}:${type}`;
+    const todayKey = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${String(now.getUTCDate()).padStart(2, '0')}`;
 
-    // Return cached if fresh (10 minutes)
-    const cached = solarFramesCache[cacheKey];
-    if (cached && Date.now() < cached.expires) {
-      return res.json(cached.frames);
-    }
+    // Yesterday's date
+    const yesterday = new Date(now);
+    yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+    const yesterdayKey = `${yesterday.getUTCFullYear()}/${String(yesterday.getUTCMonth() + 1).padStart(2, '0')}/${String(yesterday.getUTCDate()).padStart(2, '0')}`;
 
-    const listUrl = `https://sdo.gsfc.nasa.gov/assets/img/browse/${dateKey}/`;
-    const html = await fetchText(listUrl);
+    // Fetch both days in parallel
+    const [yesterdayFrames, todayFrames] = await Promise.all([
+      scrapeSDODay(yesterdayKey, type).catch(() => []),
+      scrapeSDODay(todayKey, type).catch(() => []),
+    ]);
 
-    // Parse filenames matching _512_{type}.jpg from directory listing
-    const pattern = new RegExp(`\\d{8}_\\d{6}_512_${type}\\.jpg`, 'g');
-    const allFrames = [];
-    let match;
-    while ((match = pattern.exec(html)) !== null) {
-      allFrames.push(match[0]);
-    }
-
-    // Return last 48 frames (~8 hours)
+    // Combine and return last 48 frames (~8 hours of coverage)
+    const allFrames = [...yesterdayFrames, ...todayFrames];
     const frames = allFrames.slice(-48);
-    solarFramesCache[cacheKey] = { frames, expires: Date.now() + 10 * 60 * 1000 };
     res.json(frames);
   } catch (err) {
     console.error('Error fetching SDO frame list:', err.message);

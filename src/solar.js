@@ -79,10 +79,12 @@ export function saveSolarFieldVisibility() {
 
 // --- Animated SDO frame state ---
 let solarFrames = [];       // Array of preloaded Image objects
+let solarFrameNames = [];   // Filenames of loaded frames (for incremental updates)
 let solarFrameIndex = 0;
 let solarPlaying = true;
 let solarIntervalId = null;
 let solarLoadingFrames = false;
+let solarCurrentType = '';   // Track which SDO type is loaded
 
 export function initSolarImage() {
   const select = $('solarImageType');
@@ -95,6 +97,10 @@ export function initSolarImage() {
 
   select.addEventListener('change', () => {
     localStorage.setItem('hamtab_sdo_type', select.value);
+    // Type changed — full reload
+    solarFrames = [];
+    solarFrameNames = [];
+    solarCurrentType = '';
     loadSolarFrames();
   });
 
@@ -136,13 +142,25 @@ function drawSolarFrame() {
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 }
 
+function preloadImage(filename) {
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = '/api/solar/frame/' + encodeURIComponent(filename);
+  });
+}
+
 async function loadSolarFrames() {
   if (solarLoadingFrames) return;
   solarLoadingFrames = true;
-  stopSolarAnimation();
 
   const select = $('solarImageType');
   const type = select ? select.value : '0193';
+  const isFullReload = (type !== solarCurrentType || solarFrames.length === 0);
+
+  // Only stop animation for full reloads
+  if (isFullReload) stopSolarAnimation();
 
   try {
     const resp = await fetch('/api/solar/frames?type=' + encodeURIComponent(type));
@@ -150,38 +168,55 @@ async function loadSolarFrames() {
     const filenames = await resp.json();
 
     if (!filenames.length) {
-      // Fall back to single latest image
       loadSolarImageFallback(type);
       return;
     }
 
-    // Preload all frame images
-    const loaded = await Promise.all(filenames.map(fn => {
-      return new Promise(resolve => {
-        const img = new Image();
-        img.onload = () => resolve(img);
-        img.onerror = () => resolve(null);
-        img.src = '/api/solar/frame/' + encodeURIComponent(fn);
-      });
-    }));
-
-    solarFrames = loaded.filter(Boolean);
-    solarFrameIndex = 0;
+    if (isFullReload) {
+      // Full load — preload all frames
+      const loaded = await Promise.all(filenames.map(preloadImage));
+      solarFrames = loaded.filter(Boolean);
+      solarFrameNames = filenames.filter((fn, i) => loaded[i] !== null);
+      solarFrameIndex = 0;
+      solarCurrentType = type;
+    } else {
+      // Incremental — find new frames not yet loaded and append them
+      const existingSet = new Set(solarFrameNames);
+      const newNames = filenames.filter(fn => !existingSet.has(fn));
+      if (newNames.length > 0) {
+        const newImgs = await Promise.all(newNames.map(preloadImage));
+        for (let i = 0; i < newNames.length; i++) {
+          if (newImgs[i]) {
+            solarFrames.push(newImgs[i]);
+            solarFrameNames.push(newNames[i]);
+          }
+        }
+        // Trim to last 48 frames if grown too large
+        if (solarFrames.length > 48) {
+          const excess = solarFrames.length - 48;
+          solarFrames.splice(0, excess);
+          solarFrameNames.splice(0, excess);
+          if (solarFrameIndex >= excess) solarFrameIndex -= excess;
+          else solarFrameIndex = 0;
+        }
+      }
+    }
 
     if (solarFrames.length < 2) {
       loadSolarImageFallback(type);
       return;
     }
 
-    drawSolarFrame();
-    // Update play button to pause icon since we auto-play
-    const playBtn = $('solarPlayBtn');
-    if (playBtn) playBtn.innerHTML = '&#9646;&#9646;';
-    solarPlaying = true;
-    startSolarAnimation();
+    if (isFullReload) {
+      drawSolarFrame();
+      const playBtn = $('solarPlayBtn');
+      if (playBtn) playBtn.innerHTML = '&#9646;&#9646;';
+      solarPlaying = true;
+      startSolarAnimation();
+    }
   } catch (err) {
     console.error('Failed to load SDO frames:', err);
-    loadSolarImageFallback(type);
+    if (solarFrames.length === 0) loadSolarImageFallback(type);
   } finally {
     solarLoadingFrames = false;
   }
@@ -189,17 +224,20 @@ async function loadSolarFrames() {
 
 // Fall back to single latest image if frames fail
 function loadSolarImageFallback(type) {
+  solarCurrentType = type;
   const canvas = $('solarCanvas');
   if (!canvas) return;
   const img = new Image();
   img.onload = () => {
     solarFrames = [img];
+    solarFrameNames = ['__fallback__'];
     solarFrameIndex = 0;
     drawSolarFrame();
   };
   img.src = '/api/solar/image?type=' + encodeURIComponent(type) + '&t=' + Date.now();
 }
 
+// Called by fetchSolar() on each refresh — do incremental update, not full reload
 export function loadSolarImage() {
   loadSolarFrames();
 }

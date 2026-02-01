@@ -16,7 +16,11 @@
   let use24h = localStorage.getItem('pota_time24') !== 'false';
   let privilegeFilterEnabled = localStorage.getItem('pota_privilege_filter') === 'true';
   let licenseClass = localStorage.getItem('pota_license_class') || '';
-  let propMetric = localStorage.getItem('pota_prop_metric') || 'mof_sp';
+  let propMetric = localStorage.getItem('pota_prop_metric') || 'mufd';
+  // Migrate old SVG metric values to new GeoJSON types
+  if (propMetric === 'mof_sp' || propMetric === 'lof_sp') { propMetric = 'mufd'; localStorage.setItem('pota_prop_metric', propMetric); }
+  let propLayer = null;
+  let propLabelLayer = null;
 
   // Widget registry (single source of truth)
   const WIDGET_DEFS = [
@@ -26,7 +30,6 @@
     { id: 'widget-map',         name: 'HamMap' },
     { id: 'widget-solar',       name: 'Solar & Propagation' },
     { id: 'widget-lunar',       name: 'Lunar / EME' },
-    { id: 'widget-propagation', name: 'Propagation' },
   ];
 
   // Widget visibility state
@@ -229,7 +232,6 @@
   const lunarCfgSplash = document.getElementById('lunarCfgSplash');
   const lunarFieldList = document.getElementById('lunarFieldList');
   const lunarCfgOk = document.getElementById('lunarCfgOk');
-  const propContainer = document.getElementById('propContainer');
 
   // --- Operator callsign & location ---
 
@@ -809,6 +811,10 @@
       // Gray line (day/night terminator)
       map.createPane('grayline');
       map.getPane('grayline').style.zIndex = 250;
+
+      // Propagation contour overlay
+      map.createPane('propagation');
+      map.getPane('propagation').style.zIndex = 300;
     } catch (e) {
       console.error('Map initialization failed:', e);
       map = null;
@@ -860,245 +866,54 @@
     }
   }
 
-  // Propagation SVG pan/zoom state
-  let propSvgViewBox = null; // original viewBox {x,y,w,h}
-  let propZoom = 1;
-  let propPanX = 0;
-  let propPanY = 0;
-  let propDragging = false;
-  let propDragStart = null;
-  let propPanStart = null;
-
-  let selectedSpotLatLon = null; // {lat, lon} of selected spot for prop overlay
-
-  // Convert lat/lon to azimuthal equidistant SVG coordinates
-  // centered on user's position
-  function latLonToPropSvg(lat, lon) {
-    if (!propSvgViewBox || myLat === null || myLon === null) return null;
-    const svg = propContainer.querySelector('svg');
-    if (!svg) return null;
-
-    // Find axes bounds from patch_2 or use viewBox approximation
-    // The matplotlib plot area has margins; detect from the SVG clip path or patch
-    const patch = svg.querySelector('#patch_2 path');
-    let axMinX, axMinY, axMaxX, axMaxY;
-    if (patch) {
-      const d = patch.getAttribute('d');
-      const nums = d.match(/[\d.]+/g).map(Number);
-      // patch_2 path: M x1 y1 L x1 y1 L x1 y2 L x2 y2 L x2 y1 z
-      axMinX = Math.min(nums[0], nums[6]);
-      axMaxX = Math.max(nums[0], nums[6]);
-      axMinY = Math.min(nums[1], nums[5]);
-      axMaxY = Math.max(nums[1], nums[5]);
-    } else {
-      // Fallback to viewBox with estimated margins
-      axMinX = propSvgViewBox.x + propSvgViewBox.w * 0.03;
-      axMaxX = propSvgViewBox.x + propSvgViewBox.w * 0.97;
-      axMinY = propSvgViewBox.y + propSvgViewBox.h * 0.035;
-      axMaxY = propSvgViewBox.y + propSvgViewBox.h * 0.84;
-    }
-
-    const axCx = (axMinX + axMaxX) / 2;
-    const axCy = (axMinY + axMaxY) / 2;
-    const axW = axMaxX - axMinX;
-    const axH = axMaxY - axMinY;
-    const axRadius = Math.min(axW, axH) / 2;
-
-    // Azimuthal equidistant projection
-    const rad = Math.PI / 180;
-    const lat1 = myLat * rad;
-    const lon1 = myLon * rad;
-    const lat2 = lat * rad;
-    const lon2 = lon * rad;
-
-    const dLon = lon2 - lon1;
-    const cosLat2 = Math.cos(lat2);
-    const sinLat2 = Math.sin(lat2);
-    const cosLat1 = Math.cos(lat1);
-    const sinLat1 = Math.sin(lat1);
-
-    const cosc = sinLat1 * sinLat2 + cosLat1 * cosLat2 * Math.cos(dLon);
-    const c = Math.acos(Math.max(-1, Math.min(1, cosc)));
-
-    if (c < 0.0001) {
-      return { x: axCx, y: axCy }; // Same location as user
-    }
-
-    const k = c / Math.sin(c);
-    const px = k * cosLat2 * Math.sin(dLon);
-    const py = k * (cosLat1 * sinLat2 - sinLat1 * cosLat2 * Math.cos(dLon));
-
-    // Normalize: c ranges 0..PI, so px,py range roughly -PI..PI
-    // Map to axes radius (PI = edge of globe)
-    const svgX = axCx + (px / Math.PI) * axRadius;
-    const svgY = axCy - (py / Math.PI) * axRadius;
-
-    return { x: svgX, y: svgY };
-  }
-
-  function updatePropMarker() {
-    // Remove old marker
-    const old = propContainer.querySelector('.prop-spot-marker');
-    if (old) old.remove();
-
-    if (!selectedSpotLatLon || !propSvgViewBox) return;
-
-    const pos = latLonToPropSvg(selectedSpotLatLon.lat, selectedSpotLatLon.lon);
-    if (!pos) return;
-
-    const svg = propContainer.querySelector('svg');
-    if (!svg) return;
-
-    const ns = 'http://www.w3.org/2000/svg';
-    const g = document.createElementNS(ns, 'g');
-    g.setAttribute('class', 'prop-spot-marker');
-
-    // Crosshair size scales with viewBox
-    const vb = svg.getAttribute('viewBox').split(/[\s,]+/).map(Number);
-    const size = vb[2] * 0.015;
-    const strokeW = vb[2] * 0.003;
-
-    // Crosshair lines
-    const line1 = document.createElementNS(ns, 'line');
-    line1.setAttribute('x1', pos.x - size); line1.setAttribute('y1', pos.y);
-    line1.setAttribute('x2', pos.x + size); line1.setAttribute('y2', pos.y);
-    line1.setAttribute('stroke', '#ff1744'); line1.setAttribute('stroke-width', strokeW);
-
-    const line2 = document.createElementNS(ns, 'line');
-    line2.setAttribute('x1', pos.x); line2.setAttribute('y1', pos.y - size);
-    line2.setAttribute('x2', pos.x); line2.setAttribute('y2', pos.y + size);
-    line2.setAttribute('stroke', '#ff1744'); line2.setAttribute('stroke-width', strokeW);
-
-    // Circle
-    const circle = document.createElementNS(ns, 'circle');
-    circle.setAttribute('cx', pos.x); circle.setAttribute('cy', pos.y);
-    circle.setAttribute('r', size * 0.6);
-    circle.setAttribute('fill', 'none');
-    circle.setAttribute('stroke', '#ff1744');
-    circle.setAttribute('stroke-width', strokeW);
-
-    // Label
-    if (selectedSpotLatLon.call) {
-      const text = document.createElementNS(ns, 'text');
-      text.setAttribute('x', pos.x + size * 1.3);
-      text.setAttribute('y', pos.y - size * 0.5);
-      text.setAttribute('fill', '#ff1744');
-      text.setAttribute('font-size', size * 1.2);
-      text.setAttribute('font-weight', 'bold');
-      text.setAttribute('font-family', 'monospace');
-      text.textContent = selectedSpotLatLon.call;
-      g.appendChild(text);
-    }
-
-    g.appendChild(line1);
-    g.appendChild(line2);
-    g.appendChild(circle);
-    svg.appendChild(g);
-  }
-
-  function applyPropViewBox() {
-    const svg = propContainer.querySelector('svg');
-    if (!svg || !propSvgViewBox) return;
-    const vb = propSvgViewBox;
-    const w = vb.w / propZoom;
-    const h = vb.h / propZoom;
-    const cx = vb.x + vb.w / 2 + propPanX;
-    const cy = vb.y + vb.h / 2 + propPanY;
-    svg.setAttribute('viewBox', `${cx - w / 2} ${cy - h / 2} ${w} ${h}`);
-    updatePropMarker();
-  }
-
-  function syncPropToMap() {
-    if (!propSvgViewBox) { applyPropViewBox(); return; }
-
-    // Match propagation zoom roughly to Leaflet zoom level
-    const leafletZoom = map.getZoom();
-    propZoom = Math.pow(2, Math.max(0, leafletZoom - 2)) * 0.5;
-    propZoom = Math.max(1, Math.min(propZoom, 16));
-
-    // Convert Leaflet map center to SVG coordinates using azimuthal projection
-    if (myLat !== null && myLon !== null) {
-      const center = map.getCenter();
-      const svgCenter = latLonToPropSvg(center.lat, center.lng);
-      if (svgCenter) {
-        // propPanX/Y are offsets from the SVG's natural center
-        const vb = propSvgViewBox;
-        const svgCx = vb.x + vb.w / 2;
-        const svgCy = vb.y + vb.h / 2;
-        propPanX = svgCenter.x - svgCx;
-        propPanY = svgCenter.y - svgCy;
-      }
-    }
-    applyPropViewBox();
-  }
-
-  map.on('moveend zoomend', syncPropToMap);
-
-  function initPropInteraction() {
-    const svg = propContainer.querySelector('svg');
-    if (!svg) return;
-
-    // Parse original viewBox
-    const vb = svg.getAttribute('viewBox');
-    if (vb) {
-      const parts = vb.split(/[\s,]+/).map(Number);
-      propSvgViewBox = { x: parts[0], y: parts[1], w: parts[2], h: parts[3] };
-    }
-
-    // Reset pan/zoom and sync to current map view
-    propPanX = 0;
-    propPanY = 0;
-    propZoom = 1;
-    syncPropToMap();
-
-    // Mouse wheel zoom
-    propContainer.addEventListener('wheel', (e) => {
-      e.preventDefault();
-      const delta = e.deltaY > 0 ? 0.8 : 1.25;
-      propZoom = Math.max(1, Math.min(propZoom * delta, 16));
-      applyPropViewBox();
-    }, { passive: false });
-
-    // Mouse drag pan
-    propContainer.addEventListener('mousedown', (e) => {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      propDragging = true;
-      propDragStart = { x: e.clientX, y: e.clientY };
-      propPanStart = { x: propPanX, y: propPanY };
-    });
-
-    document.addEventListener('mousemove', (e) => {
-      if (!propDragging || !propSvgViewBox) return;
-      const containerW = propContainer.clientWidth;
-      const containerH = propContainer.clientHeight;
-      const scaleX = (propSvgViewBox.w / propZoom) / containerW;
-      const scaleY = (propSvgViewBox.h / propZoom) / containerH;
-      propPanX = propPanStart.x - (e.clientX - propDragStart.x) * scaleX;
-      propPanY = propPanStart.y - (e.clientY - propDragStart.y) * scaleY;
-      applyPropViewBox();
-    });
-
-    document.addEventListener('mouseup', () => {
-      propDragging = false;
-    });
-  }
-
   async function fetchPropagation() {
-    if (myLat === null || myLon === null) return;
+    if (!map) return;
+
+    // Remove old layers
+    if (propLayer) { map.removeLayer(propLayer); propLayer = null; }
+    if (propLabelLayer) { map.removeLayer(propLabelLayer); propLabelLayer = null; }
+
+    if (propMetric === 'off') return;
+
     try {
-      const grid = latLonToGrid(myLat, myLon).substring(0, 4).toUpperCase();
-      const resp = await fetch(`/api/propagation?grid=${encodeURIComponent(grid)}&metric=${encodeURIComponent(propMetric)}`);
+      const resp = await fetch(`/api/propagation?type=${encodeURIComponent(propMetric)}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const svg = await resp.text();
-      propContainer.innerHTML = svg;
-      initPropInteraction();
+      const data = await resp.json();
+
+      // GeoJSON coordinates are [lon, lat] — Leaflet handles this via coordsToLatLng
+      propLayer = L.geoJSON(data, {
+        pane: 'propagation',
+        interactive: false,
+        style: (feature) => ({
+          color: feature.properties.stroke || '#00ff00',
+          weight: 2,
+          opacity: 0.7,
+          fill: false,
+        }),
+      }).addTo(map);
+
+      // Add MHz labels along contour lines
+      propLabelLayer = L.layerGroup({ pane: 'propagation' }).addTo(map);
+      data.features.forEach(feature => {
+        const coords = feature.geometry.coordinates;
+        if (!coords || coords.length < 2) return;
+        const label = feature.properties.title || String(feature.properties['level-value']);
+        const color = feature.properties.stroke || '#00ff00';
+        // Place label at midpoint of contour
+        const mid = coords[Math.floor(coords.length / 2)];
+        const icon = L.divIcon({
+          className: 'prop-label',
+          html: `<span style="color:${color}">${esc(label.trim())} MHz</span>`,
+          iconSize: null,
+        });
+        L.marker([mid[1], mid[0]], { icon, pane: 'propagation', interactive: false }).addTo(propLabelLayer);
+      });
     } catch (err) {
       console.error('Failed to fetch propagation:', err);
     }
   }
 
-  // Propagation MOF/LOF toggle
+  // Propagation overlay toggle
   document.querySelectorAll('.prop-metric-btn').forEach(btn => {
     btn.addEventListener('mousedown', (e) => e.stopPropagation());
     btn.addEventListener('click', () => {
@@ -1108,6 +923,8 @@
       fetchPropagation();
     });
   });
+  // Sync button active state with saved preference
+  document.querySelectorAll('.prop-metric-btn').forEach(b => b.classList.toggle('active', b.dataset.metric === propMetric));
 
   function refreshAll() {
     fetchSpots();
@@ -1713,10 +1530,6 @@
     const sid = spotId(spot);
     selectSpot(sid);
 
-    // Update propagation marker to show path to this activator
-    selectedSpotLatLon = { lat, lon, call: spot.activator || '' };
-    updatePropMarker();
-
     map.flyTo([lat, lon], 5, { duration: 0.8 });
 
     const marker = markers[sid];
@@ -2174,7 +1987,7 @@
     const leftW = Math.round(W * 0.30);
     const rightW = Math.round(W * 0.25);
     const centerW = W - leftW - rightW - pad * 4;
-    const rightThird = Math.round((H - pad * 4) / 3);
+    const rightHalf = Math.round((H - pad * 3) / 2);
 
     const clockH = 60;
     const clockW = Math.round((centerW - pad) / 2);
@@ -2186,9 +1999,8 @@
       'widget-clock-utc': { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
       'widget-activations': { left: pad, top: pad, width: leftW, height: H - pad * 2 },
       'widget-map': { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
-      'widget-solar': { left: rightX, top: pad, width: rightW, height: rightThird },
-      'widget-lunar': { left: rightX, top: rightThird + pad * 2, width: rightW, height: rightThird },
-      'widget-propagation': { left: rightX, top: rightThird * 2 + pad * 3, width: rightW, height: H - rightThird * 2 - pad * 4 },
+      'widget-solar': { left: rightX, top: pad, width: rightW, height: rightHalf },
+      'widget-lunar': { left: rightX, top: rightHalf + pad * 2, width: rightW, height: H - rightHalf - pad * 3 },
     };
   }
 

@@ -289,7 +289,9 @@
         { id: "widget-activations", name: "On the Air" },
         { id: "widget-map", name: "HamMap" },
         { id: "widget-solar", name: "Solar & Propagation" },
-        { id: "widget-lunar", name: "Lunar / EME" }
+        { id: "widget-lunar", name: "Lunar / EME" },
+        { id: "widget-rst", name: "RST Reference" },
+        { id: "widget-spot-detail", name: "DX Detail" }
       ];
       SOURCE_DEFS = {
         pota: {
@@ -528,6 +530,156 @@
     }
   });
 
+  // src/spot-detail.js
+  function weatherCacheKey(lat, lon) {
+    return `${lat.toFixed(1)},${lon.toFixed(1)}`;
+  }
+  async function fetchCallsignInfo(call) {
+    if (!call) return null;
+    const key = call.toUpperCase();
+    if (state_default.callsignCache[key]) return state_default.callsignCache[key];
+    if (state_default.callsignCache[key] === null) return null;
+    try {
+      const resp = await fetch(`/api/callsign/${encodeURIComponent(key)}`);
+      if (!resp.ok) {
+        state_default.callsignCache[key] = null;
+        return null;
+      }
+      const data = await resp.json();
+      if (data.status !== "VALID") {
+        state_default.callsignCache[key] = null;
+        return null;
+      }
+      state_default.callsignCache[key] = data;
+      return data;
+    } catch {
+      state_default.callsignCache[key] = null;
+      return null;
+    }
+  }
+  async function fetchSpotWeather(lat, lon) {
+    const key = weatherCacheKey(lat, lon);
+    if (spotDetailWeatherCache[key]) return spotDetailWeatherCache[key];
+    try {
+      const resp = await fetch(`/api/weather/conditions?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`);
+      if (!resp.ok) return null;
+      const data = await resp.json();
+      spotDetailWeatherCache[key] = data;
+      return data;
+    } catch {
+      return null;
+    }
+  }
+  function renderLocalTime(lon) {
+    const el = document.getElementById("spotDetailTime");
+    if (!el) return;
+    el.textContent = localTimeAtLon(lon, state_default.use24h);
+  }
+  function wxClass(shortForecast) {
+    if (!shortForecast) return "";
+    const f = shortForecast.toLowerCase();
+    if (f.includes("thunder") || f.includes("storm")) return "wx-storm";
+    if (f.includes("rain") || f.includes("shower") || f.includes("drizzle")) return "wx-rain";
+    if (f.includes("snow") || f.includes("sleet") || f.includes("ice") || f.includes("freezing")) return "wx-snow";
+    if (f.includes("cloud") || f.includes("overcast")) return "wx-cloudy";
+    if (f.includes("fog") || f.includes("haze") || f.includes("mist")) return "wx-fog";
+    if (f.includes("clear") || f.includes("sunny") || f.includes("fair")) return "wx-clear";
+    return "";
+  }
+  async function updateSpotDetail(spot) {
+    currentSpot = spot;
+    const body = $("spotDetailBody");
+    if (!body) return;
+    const displayCall = spot.callsign || spot.activator || "";
+    const qrzUrl = `https://www.qrz.com/db/${encodeURIComponent(displayCall)}`;
+    const freq = spot.frequency || "";
+    const mode = spot.mode || "";
+    const band = freqToBand(freq) || "";
+    const ref = spot.reference || "";
+    let refHtml = "";
+    if (ref) {
+      const refUrl = state_default.currentSource === "sota" ? `https://www.sota.org.uk/Summit/${encodeURIComponent(ref)}` : `https://pota.app/#/park/${encodeURIComponent(ref)}`;
+      refHtml = `<a href="${refUrl}" target="_blank" rel="noopener">${esc(ref)}</a>`;
+    }
+    let bearingHtml = "";
+    const lat = parseFloat(spot.latitude);
+    const lon = parseFloat(spot.longitude);
+    if (state_default.myLat !== null && state_default.myLon !== null && !isNaN(lat) && !isNaN(lon)) {
+      const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
+      const mi = Math.round(distanceMi(state_default.myLat, state_default.myLon, lat, lon));
+      bearingHtml = `
+      <div class="spot-detail-row"><span class="spot-detail-label">Bearing from DE:</span> ${Math.round(deg)}\xB0 ${bearingToCardinal(deg)}</div>
+      <div class="spot-detail-row"><span class="spot-detail-label">Distance from DE:</span> ${mi.toLocaleString()} mi</div>
+    `;
+    }
+    const localTime = !isNaN(lon) ? localTimeAtLon(lon, state_default.use24h) : "";
+    body.innerHTML = `
+    <div class="spot-detail-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${esc(displayCall)}</a></div>
+    <div class="spot-detail-name" id="spotDetailName"></div>
+    <div class="spot-detail-row"><span class="spot-detail-label">Freq:</span> ${esc(freq)} MHz</div>
+    <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode)}</div>
+    ${band ? `<div class="spot-detail-row"><span class="spot-detail-label">Band:</span> ${esc(band)}</div>` : ""}
+    ${refHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Ref:</span> ${refHtml}</div>` : ""}
+    ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">Name:</span> ${esc(spot.name)}</div>` : ""}
+    ${bearingHtml}
+    ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ""}
+    ${spot.comments ? `<div class="spot-detail-row spot-detail-comments">${esc(spot.comments)}</div>` : ""}
+    <div class="spot-detail-wx" id="spotDetailWx"></div>
+  `;
+    if (clockInterval) clearInterval(clockInterval);
+    if (!isNaN(lon)) {
+      clockInterval = setInterval(() => renderLocalTime(lon), 1e3);
+    }
+    const info = await fetchCallsignInfo(displayCall);
+    const nameEl = document.getElementById("spotDetailName");
+    if (info && nameEl && currentSpot === spot) {
+      const parts = [];
+      if (info.name) parts.push(info.name);
+      if (info.class) parts.push(`(${info.class})`);
+      if (info.grid) parts.push(`\xB7 ${info.grid}`);
+      if (info.addr2) parts.push(`\xB7 ${info.addr2}`);
+      nameEl.textContent = parts.join(" ");
+    }
+    if (!isNaN(lat) && !isNaN(lon)) {
+      const wxEl = document.getElementById("spotDetailWx");
+      const wx = await fetchSpotWeather(lat, lon);
+      if (wx && wxEl && currentSpot === spot) {
+        const cls = wxClass(wx.shortForecast);
+        wxEl.className = `spot-detail-wx ${cls}`;
+        wxEl.innerHTML = `
+        <span class="spot-detail-label">Weather:</span>
+        ${esc(wx.shortForecast || "")} ${wx.temperature != null ? `${wx.temperature}\xB0${wx.temperatureUnit || "F"}` : ""}
+        ${wx.windSpeed ? `\xB7 Wind ${esc(wx.windSpeed)} ${esc(wx.windDirection || "")}` : ""}
+      `;
+      }
+    }
+  }
+  function clearSpotDetail() {
+    currentSpot = null;
+    if (clockInterval) {
+      clearInterval(clockInterval);
+      clockInterval = null;
+    }
+    const body = $("spotDetailBody");
+    if (body) body.innerHTML = '<div class="spot-detail-empty">Select a DX</div>';
+  }
+  function initSpotDetail() {
+    clearSpotDetail();
+  }
+  var currentSpot, clockInterval, spotDetailWeatherCache;
+  var init_spot_detail = __esm({
+    "src/spot-detail.js"() {
+      init_state();
+      init_dom();
+      init_utils();
+      init_filters();
+      init_geo();
+      currentSpot = null;
+      clockInterval = null;
+      spotDetailWeatherCache = {};
+    }
+  });
+
   // src/markers.js
   function ensureIcons() {
     if (defaultIcon) return;
@@ -621,6 +773,14 @@
     if (selectedRow) {
       selectedRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
+    if (sid) {
+      const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
+      const spot = filtered.find((s) => spotId(s) === sid);
+      if (spot) updateSpotDetail(spot);
+      else clearSpotDetail();
+    } else {
+      clearSpotDetail();
+    }
   }
   function flyToSpot(spot) {
     if (!state_default.map) return;
@@ -645,6 +805,7 @@
       init_utils();
       init_geo();
       init_filters();
+      init_spot_detail();
       defaultIcon = null;
       selectedIcon = null;
     }
@@ -1706,7 +1867,9 @@
       "widget-activations": { left: pad, top: pad, width: leftW, height: H - pad * 2 },
       "widget-map": { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
       "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf },
-      "widget-lunar": { left: rightX, top: rightHalf + pad * 2, width: rightW, height: H - rightHalf - pad * 3 }
+      "widget-lunar": { left: rightX, top: rightHalf + pad * 2, width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) },
+      "widget-rst": { left: rightX, top: rightHalf + pad * 2 + Math.round((H - rightHalf - pad * 4) / 3) + pad, width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) },
+      "widget-spot-detail": { left: rightX, top: rightHalf + pad * 2 + 2 * (Math.round((H - rightHalf - pad * 4) / 3) + pad), width: rightW, height: Math.round((H - rightHalf - pad * 4) / 3) }
     };
   }
   function clampPosition(left, top, wW, wH) {
@@ -1954,7 +2117,7 @@
   var callTooltip = document.createElement("div");
   callTooltip.className = "call-tooltip";
   document.body.appendChild(callTooltip);
-  async function fetchCallsignInfo(call) {
+  async function fetchCallsignInfo2(call) {
     if (!call) return null;
     const key = call.toUpperCase();
     if (state_default.callsignCache[key]) return state_default.callsignCache[key];
@@ -2016,7 +2179,7 @@
       const rect = td.getBoundingClientRect();
       callTooltip.style.left = rect.left + "px";
       callTooltip.style.top = rect.bottom + 4 + "px";
-      fetchCallsignInfo(call).then((info) => {
+      fetchCallsignInfo2(call).then((info) => {
         if (callTooltip.classList.contains("visible")) {
           if (info) {
             showCallTooltip(td, info);
@@ -3180,6 +3343,7 @@
   }
 
   // src/main.js
+  init_spot_detail();
   migrate();
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
@@ -3205,6 +3369,7 @@
   initFullscreenListeners();
   initWeatherListeners();
   initPropListeners();
+  initSpotDetail();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

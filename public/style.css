@@ -1607,3 +1607,123 @@ header {
 ::-webkit-scrollbar-track { background: var(--bg); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--surface2); }
+
+/* ---- RST Reference Widget ---- */
+
+.rst-body {
+  padding: 6px 8px;
+  overflow-y: auto;
+}
+
+.rst-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.rst-table th {
+  text-align: left;
+  color: var(--text-dim);
+  font-weight: 600;
+  padding: 3px 4px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.rst-table td {
+  padding: 2px 4px;
+  border-bottom: 1px solid rgba(42, 58, 94, 0.4);
+}
+
+.rst-table td:first-child {
+  text-align: center;
+  font-weight: 700;
+  color: var(--accent);
+  width: 1.5em;
+}
+
+.rst-note {
+  margin-top: 6px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+/* ---- Spot Detail Widget ---- */
+
+.spot-detail-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 2em 0;
+  font-style: italic;
+}
+
+.spot-detail-call {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.spot-detail-call a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.spot-detail-call a:hover {
+  text-decoration: underline;
+}
+
+.spot-detail-name {
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  margin-bottom: 6px;
+  min-height: 1em;
+}
+
+.spot-detail-row {
+  font-size: 0.82rem;
+  padding: 1px 0;
+}
+
+.spot-detail-label {
+  color: var(--text-dim);
+  margin-right: 4px;
+}
+
+.spot-detail-row a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.spot-detail-row a:hover {
+  text-decoration: underline;
+}
+
+.spot-detail-comments {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  margin-top: 4px;
+}
+
+.spot-detail-wx {
+  margin-top: 6px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.spot-detail-wx:empty {
+  display: none;
+}
+
+.wx-storm { background: rgba(255, 23, 68, 0.15); }
+.wx-rain { background: rgba(41, 121, 255, 0.15); }
+.wx-snow { background: rgba(144, 202, 249, 0.15); }
+.wx-cloudy { background: rgba(136, 153, 170, 0.12); }
+.wx-fog { background: rgba(136, 153, 170, 0.08); }
+.wx-clear { background: rgba(0, 200, 83, 0.1); }
+
+#widget-spot-detail .widget-body {
+  padding: 8px 10px;
+  overflow-y: auto;
+}

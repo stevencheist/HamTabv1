@@ -3,6 +3,7 @@ import { SOURCE_DEFS } from './constants.js';
 import { esc } from './utils.js';
 import { bearingTo, bearingToCardinal, distanceMi, localTimeAtLon } from './geo.js';
 import { spotId } from './filters.js';
+import { updateSpotDetail, clearSpotDetail } from './spot-detail.js';
 
 let defaultIcon = null;
 let selectedIcon = null;
@@ -114,6 +115,16 @@ export function selectSpot(sid) {
   const selectedRow = document.querySelector(`#spotsBody tr[data-spot-id="${CSS.escape(sid)}"]`);
   if (selectedRow) {
     selectedRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Update spot detail widget
+  if (sid) {
+    const filtered = state.sourceFiltered[state.currentSource] || [];
+    const spot = filtered.find(s => spotId(s) === sid);
+    if (spot) updateSpotDetail(spot);
+    else clearSpotDetail();
+  } else {
+    clearSpotDetail();
   }
 }
 

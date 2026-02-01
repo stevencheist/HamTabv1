@@ -96,6 +96,40 @@ npm install
 npm start
 ```
 
+### Raspberry Pi
+
+The included install script handles everything: installs Node.js if needed, copies the app to `/opt/hamtab`, configures Weather Underground, and optionally sets up a systemd service for boot-start with automatic crash recovery.
+
+```bash
+git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+sudo bash install.sh
+```
+
+The installer will prompt you to:
+
+1. **Weather Underground** — Choose whether to use WU for weather data, and enter your API key (or add it later via the Config screen in the browser)
+2. **Start on boot** — If yes, installs a systemd service that starts HamTab automatically and restarts on failure
+
+After install, the app runs from `/opt/hamtab`. Manage it with:
+
+```bash
+sudo systemctl status hamtab      # check status
+sudo journalctl -u hamtab -f      # tail logs
+sudo systemctl restart hamtab     # restart
+sudo systemctl stop hamtab        # stop
+```
+
+To reinstall or update, pull the latest code and re-run the installer:
+
+```bash
+cd ~/HamTabv1
+git pull
+sudo bash install.sh
+```
+
+> **Note:** The WU API key can also be set from the Config splash screen in the browser — it saves directly to the server's `.env` file so all LAN clients share it.
+
 ### Windows
 
 **Prerequisites:**

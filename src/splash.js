@@ -234,6 +234,16 @@ function dismissSplash() {
   state.wxApiKey = ($('splashWxApiKey').value || '').trim();
   localStorage.setItem('hamtab_wx_station', state.wxStation);
   localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
+
+  // Persist WU API key to server .env so all clients share it
+  if (state.wxApiKey) {
+    fetch('/api/config/env', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ WU_API_KEY: state.wxApiKey }),
+    }).catch(() => {});
+  }
+
   fetchWeather();
 
   const widgetList = document.getElementById('splashWidgetList');

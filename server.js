@@ -299,18 +299,13 @@ app.post('/api/restart', (req, res) => {
   gracefulRestart(500);
 });
 
-// Proxy prop.kc2g.com propagation SVG
+// Proxy prop.kc2g.com propagation GeoJSON contours
 app.get('/api/propagation', async (req, res) => {
   try {
-    const grid = (req.query.grid || '').replace(/[^A-Za-z0-9]/g, '').substring(0, 8);
-    const metric = req.query.metric;
-    if (!grid) return res.status(400).json({ error: 'Missing grid parameter' });
-    if (metric !== 'mof_sp' && metric !== 'lof_sp') {
-      return res.status(400).json({ error: 'Invalid metric parameter' });
-    }
-    const svg = await secureFetch(`https://prop.kc2g.com/api/moflof.svg?grid=${encodeURIComponent(grid)}&metric=${encodeURIComponent(metric)}`);
-    res.set('Content-Type', 'image/svg+xml');
-    res.send(svg);
+    const validTypes = ['mufd', 'fof2'];
+    const type = validTypes.includes(req.query.type) ? req.query.type : 'mufd';
+    const data = await fetchJSON(`https://prop.kc2g.com/renders/current/${type}-normal-now.geojson`);
+    res.json(data);
   } catch (err) {
     console.error('Error fetching propagation data:', err.message);
     res.status(502).json({ error: 'Failed to fetch propagation data' });

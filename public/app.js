@@ -1197,6 +1197,81 @@
     return `${spot.activator}-${spot.reference}-${spot.frequency}`;
   }
 
+  // --- Callsign info cache & tooltip ---
+
+  const callsignCache = {};
+
+  async function fetchCallsignInfo(call) {
+    if (!call) return null;
+    const key = call.toUpperCase();
+    if (callsignCache[key]) return callsignCache[key];
+    if (callsignCache[key] === null) return null; // previously failed
+    try {
+      const resp = await fetch(`/api/callsign/${encodeURIComponent(key)}`);
+      if (!resp.ok) { callsignCache[key] = null; return null; }
+      const data = await resp.json();
+      if (data.status !== 'VALID') { callsignCache[key] = null; return null; }
+      callsignCache[key] = data;
+      return data;
+    } catch {
+      callsignCache[key] = null;
+      return null;
+    }
+  }
+
+  // Shared tooltip element
+  const callTooltip = document.createElement('div');
+  callTooltip.className = 'call-tooltip';
+  document.body.appendChild(callTooltip);
+
+  let tooltipHideTimer = null;
+
+  function showCallTooltip(td, info) {
+    let html = `<div class="call-tooltip-name">${esc(info.name)}</div>`;
+    if (info.addr2) html += `<div class="call-tooltip-loc">${esc(info.addr2)}</div>`;
+    if (info.class) html += `<div class="call-tooltip-class">${esc(info.class)}</div>`;
+    if (info.grid) html += `<div class="call-tooltip-grid">${esc(info.grid)}</div>`;
+    callTooltip.innerHTML = html;
+    callTooltip.classList.add('visible');
+
+    const rect = td.getBoundingClientRect();
+    callTooltip.style.left = rect.left + 'px';
+    callTooltip.style.top = (rect.bottom + 4) + 'px';
+  }
+
+  function hideCallTooltip() {
+    callTooltip.classList.remove('visible');
+  }
+
+  function handleCallMouseEnter(e) {
+    clearTimeout(tooltipHideTimer);
+    const td = e.currentTarget;
+    const call = td.textContent.trim();
+    if (!call) return;
+
+    const cached = callsignCache[call.toUpperCase()];
+    if (cached) {
+      showCallTooltip(td, cached);
+    } else if (cached === undefined) {
+      callTooltip.innerHTML = '<div class="call-tooltip-loading">Loading...</div>';
+      callTooltip.classList.add('visible');
+      const rect = td.getBoundingClientRect();
+      callTooltip.style.left = rect.left + 'px';
+      callTooltip.style.top = (rect.bottom + 4) + 'px';
+      fetchCallsignInfo(call).then(info => {
+        if (info && callTooltip.classList.contains('visible')) {
+          showCallTooltip(td, info);
+        } else if (!info) {
+          hideCallTooltip();
+        }
+      });
+    }
+  }
+
+  function handleCallMouseLeave() {
+    tooltipHideTimer = setTimeout(hideCallTooltip, 150);
+  }
+
   // --- Render spots table ---
 
   function renderSpots() {
@@ -1225,6 +1300,10 @@
         <td title="${esc(spot.name || '')}">${esc(spot.name || '')}</td>
         <td>${timeStr}</td>
       `;
+
+      const callTd = tr.querySelector('.callsign');
+      callTd.addEventListener('mouseenter', handleCallMouseEnter);
+      callTd.addEventListener('mouseleave', handleCallMouseLeave);
 
       tr.addEventListener('click', () => flyToSpot(spot));
       spotsBody.appendChild(tr);
@@ -1990,8 +2069,11 @@
   const updateIndicator = document.getElementById('updateIndicator');
   const updateDot = document.getElementById('updateDot');
   const updateLabel = document.getElementById('updateLabel');
+  const restartBtn = document.getElementById('restartBtn');
 
   let updateStatusPolling = null;
+  let knownServerHash = null;
+  let restartNeeded = false;
 
   function pollForServer(attempts) {
     if (attempts <= 0) {
@@ -2013,11 +2095,26 @@
     }, 1000);
   }
 
+  function showRestartNeeded() {
+    restartNeeded = true;
+    updateDot.className = 'update-dot yellow';
+    updateLabel.textContent = 'Restart needed';
+    restartBtn.classList.remove('hidden');
+  }
+
   async function checkUpdateStatus() {
     try {
       const resp = await fetch('/api/update/status');
       if (!resp.ok) return;
       const data = await resp.json();
+
+      // Track server hash; detect if HEAD has moved past the running server
+      if (data.serverHash) {
+        if (!knownServerHash) knownServerHash = data.serverHash;
+      }
+
+      if (restartNeeded) return; // don't overwrite restart indicator
+
       if (data.available) {
         updateDot.className = 'update-dot green';
         updateLabel.textContent = 'Update available';
@@ -2065,6 +2162,19 @@
         updateLabel.textContent = 'Restarting...';
         pollForServer(30);
       } else {
+        // Frontend-only update — check if server files also changed
+        // by comparing the server's startup hash to current HEAD
+        try {
+          const statusResp = await fetch('/api/update/status');
+          if (statusResp.ok) {
+            const statusData = await statusResp.json();
+            if (statusData.serverHash && knownServerHash && statusData.serverHash !== knownServerHash) {
+              // Server code changed but process didn't restart
+              showRestartNeeded();
+              return;
+            }
+          }
+        } catch { /* ignore */ }
         updateLabel.textContent = 'Reloading...';
         setTimeout(() => location.reload(), 500);
       }
@@ -2076,9 +2186,20 @@
   }
 
   updateIndicator.addEventListener('click', () => {
-    if (updateDot.classList.contains('green')) {
+    if (updateDot.classList.contains('green') && !restartNeeded) {
       applyUpdate();
     }
+  });
+
+  restartBtn.addEventListener('click', async (e) => {
+    e.stopPropagation();
+    restartBtn.classList.add('hidden');
+    updateDot.className = 'update-dot yellow';
+    updateLabel.textContent = 'Restarting...';
+    try {
+      await fetch('/api/restart', { method: 'POST' });
+    } catch { /* server is exiting */ }
+    pollForServer(30);
   });
 
   // Send saved update interval to server on load

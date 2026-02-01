@@ -16,6 +16,7 @@
   let use24h = localStorage.getItem('pota_time24') !== 'false';
   let privilegeFilterEnabled = localStorage.getItem('pota_privilege_filter') === 'true';
   let licenseClass = localStorage.getItem('pota_license_class') || '';
+  let propMetric = localStorage.getItem('pota_prop_metric') || 'mof_sp';
 
   // Widget registry (single source of truth)
   const WIDGET_DEFS = [
@@ -25,6 +26,7 @@
     { id: 'widget-map',         name: 'HamMap' },
     { id: 'widget-solar',       name: 'Solar & Propagation' },
     { id: 'widget-lunar',       name: 'Lunar / EME' },
+    { id: 'widget-propagation', name: 'Propagation' },
   ];
 
   // Widget visibility state
@@ -227,6 +229,7 @@
   const lunarCfgSplash = document.getElementById('lunarCfgSplash');
   const lunarFieldList = document.getElementById('lunarFieldList');
   const lunarCfgOk = document.getElementById('lunarCfgOk');
+  const propContainer = document.getElementById('propContainer');
 
   // --- Operator callsign & location ---
 
@@ -845,10 +848,35 @@
     }
   }
 
+  async function fetchPropagation() {
+    if (myLat === null || myLon === null) return;
+    try {
+      const grid = latLonToGrid(myLat, myLon).substring(0, 4).toUpperCase();
+      const resp = await fetch(`/api/propagation?grid=${encodeURIComponent(grid)}&metric=${encodeURIComponent(propMetric)}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const svg = await resp.text();
+      propContainer.innerHTML = svg;
+    } catch (err) {
+      console.error('Failed to fetch propagation:', err);
+    }
+  }
+
+  // Propagation MOF/LOF toggle
+  document.querySelectorAll('.prop-metric-btn').forEach(btn => {
+    btn.addEventListener('mousedown', (e) => e.stopPropagation());
+    btn.addEventListener('click', () => {
+      propMetric = btn.dataset.metric;
+      localStorage.setItem('pota_prop_metric', propMetric);
+      document.querySelectorAll('.prop-metric-btn').forEach(b => b.classList.toggle('active', b.dataset.metric === propMetric));
+      fetchPropagation();
+    });
+  });
+
   function refreshAll() {
     fetchSpots();
     fetchSolar();
     fetchLunar();
+    fetchPropagation();
     resetCountdown();
   }
 
@@ -1890,18 +1918,21 @@
     const leftW = Math.round(W * 0.30);
     const rightW = Math.round(W * 0.25);
     const centerW = W - leftW - rightW - pad * 4;
-    const rightHalf = Math.round((H - pad * 3) / 2);
+    const rightThird = Math.round((H - pad * 4) / 3);
 
     const clockH = 60;
     const clockW = Math.round((centerW - pad) / 2);
+
+    const rightX = leftW + centerW + pad * 3;
 
     return {
       'widget-clock-local': { left: leftW + pad * 2, top: pad, width: clockW, height: clockH },
       'widget-clock-utc': { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
       'widget-activations': { left: pad, top: pad, width: leftW, height: H - pad * 2 },
       'widget-map': { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
-      'widget-solar': { left: leftW + centerW + pad * 3, top: pad, width: rightW, height: rightHalf },
-      'widget-lunar': { left: leftW + centerW + pad * 3, top: rightHalf + pad * 2, width: rightW, height: H - rightHalf - pad * 3 },
+      'widget-solar': { left: rightX, top: pad, width: rightW, height: rightThird },
+      'widget-lunar': { left: rightX, top: rightThird + pad * 2, width: rightW, height: rightThird },
+      'widget-propagation': { left: rightX, top: rightThird * 2 + pad * 3, width: rightW, height: H - rightThird * 2 - pad * 4 },
     };
   }
 

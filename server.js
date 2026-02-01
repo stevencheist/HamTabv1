@@ -280,6 +280,24 @@ app.post('/api/restart', (req, res) => {
   setTimeout(() => process.exit(0), 500);
 });
 
+// Proxy prop.kc2g.com propagation SVG
+app.get('/api/propagation', async (req, res) => {
+  try {
+    const grid = (req.query.grid || '').replace(/[^A-Za-z0-9]/g, '').substring(0, 8);
+    const metric = req.query.metric;
+    if (!grid) return res.status(400).json({ error: 'Missing grid parameter' });
+    if (metric !== 'mof_sp' && metric !== 'lof_sp') {
+      return res.status(400).json({ error: 'Invalid metric parameter' });
+    }
+    const svg = await secureFetch(`https://prop.kc2g.com/api/moflof.svg?grid=${encodeURIComponent(grid)}&metric=${encodeURIComponent(metric)}`);
+    res.set('Content-Type', 'image/svg+xml');
+    res.send(svg);
+  } catch (err) {
+    console.error('Error fetching propagation data:', err.message);
+    res.status(502).json({ error: 'Failed to fetch propagation data' });
+  }
+});
+
 // --- Lunar math (simplified Meeus algorithms) ---
 
 function computeLunar() {

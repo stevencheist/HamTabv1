@@ -645,6 +645,28 @@ header {
   appearance: auto;
 }
 
+/* ---- Privilege filter checkbox ---- */
+
+.priv-filter-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.priv-filter-label input[type="checkbox"] {
+  width: auto;
+  margin: 0;
+  cursor: pointer;
+}
+
+.priv-filter-label.hidden {
+  display: none;
+}
+
 .table-wrap {
   flex: 1;
   overflow-y: auto;

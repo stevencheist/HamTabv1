@@ -1681,7 +1681,17 @@
     if (issTrail.length > 20) issTrail.shift();
     if (issTrailLine) map.removeLayer(issTrailLine);
     if (issTrail.length > 1) {
-      issTrailLine = L.polyline(issTrail, {
+      // Split into segments at antimeridian crossings
+      const segs = [[]];
+      for (let i = 0; i < issTrail.length; i++) {
+        segs[segs.length - 1].push(issTrail[i]);
+        if (i < issTrail.length - 1) {
+          if (Math.abs(issTrail[i + 1][1] - issTrail[i][1]) > 180) {
+            segs.push([]);
+          }
+        }
+      }
+      issTrailLine = L.polyline(segs, {
         color: '#00bcd4',
         weight: 2,
         opacity: 0.6,

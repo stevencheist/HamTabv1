@@ -1284,6 +1284,27 @@
     tooltipHideTimer = setTimeout(hideCallTooltip, 150);
   }
 
+  // Delegated hover events on tbody for callsign cells
+  let currentHoverTd = null;
+
+  spotsBody.addEventListener('mouseover', (e) => {
+    const td = e.target.closest('td.callsign');
+    if (!td || td === currentHoverTd) return;
+    currentHoverTd = td;
+    handleCallMouseEnter({ currentTarget: td });
+  });
+
+  spotsBody.addEventListener('mouseout', (e) => {
+    const td = e.target.closest('td.callsign');
+    if (td && td === currentHoverTd) {
+      const related = e.relatedTarget;
+      if (!td.contains(related)) {
+        currentHoverTd = null;
+        handleCallMouseLeave();
+      }
+    }
+  });
+
   // --- Render spots table ---
 
   function renderSpots() {
@@ -1312,10 +1333,6 @@
         <td title="${esc(spot.name || '')}">${esc(spot.name || '')}</td>
         <td>${timeStr}</td>
       `;
-
-      const callTd = tr.querySelector('.callsign');
-      callTd.addEventListener('mouseenter', handleCallMouseEnter);
-      callTd.addEventListener('mouseleave', handleCallMouseLeave);
 
       tr.addEventListener('click', () => flyToSpot(spot));
       spotsBody.appendChild(tr);

@@ -990,6 +990,22 @@
         maxClusterRadius: 40,
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
+        iconCreateFunction: function(cluster) {
+          const childCount = cluster.getChildCount();
+          const sizeClass = childCount < 10 ? 'small' : childCount < 100 ? 'medium' : 'large';
+          let extraClass = '';
+          if (selectedSpotId && markers[selectedSpotId]) {
+            const children = cluster.getAllChildMarkers();
+            if (children.indexOf(markers[selectedSpotId]) !== -1) {
+              extraClass = ' marker-cluster-selected';
+            }
+          }
+          return L.divIcon({
+            html: '<div><span>' + childCount + '</span></div>',
+            className: 'marker-cluster marker-cluster-' + sizeClass + extraClass,
+            iconSize: L.point(40, 40),
+          });
+        },
       });
       map.addLayer(clusterGroup);
 
@@ -1748,6 +1764,27 @@
     return local.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: !use24h });
   }
 
+  // --- Marker icons ---
+
+  const defaultIcon = L.icon({
+    iconUrl: 'vendor/images/marker-icon.png',
+    iconRetinaUrl: 'vendor/images/marker-icon-2x.png',
+    shadowUrl: 'vendor/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41],
+  });
+
+  const selectedIcon = L.icon({
+    iconUrl: 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41"><path d="M12.5 0C5.6 0 0 5.6 0 12.5C0 22 12.5 41 12.5 41S25 22 25 12.5C25 5.6 19.4 0 12.5 0z" fill="#ff9800"/><circle cx="12.5" cy="12.5" r="5" fill="#fff"/></svg>'),
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowUrl: 'vendor/images/marker-shadow.png',
+    shadowSize: [41, 41],
+  });
+
   // --- Render map markers ---
 
   function renderMarkers() {
@@ -1765,8 +1802,8 @@
       const lon = parseFloat(spot.longitude);
       if (isNaN(lat) || isNaN(lon)) return;
 
-      const marker = L.marker([lat, lon]);
       const sid = spotId(spot);
+      const marker = L.marker([lat, lon], { icon: sid === selectedSpotId ? selectedIcon : defaultIcon });
 
       const displayCall = spot.callsign || spot.activator || '';
       const callsign = esc(displayCall);
@@ -1821,7 +1858,37 @@
   }
 
   function selectSpot(sid) {
+    const oldSid = selectedSpotId;
+
+    // Reset previous marker icon
+    if (oldSid && markers[oldSid]) {
+      markers[oldSid].setIcon(defaultIcon);
+    }
+
     selectedSpotId = sid;
+
+    // Highlight new marker icon
+    if (sid && markers[sid]) {
+      markers[sid].setIcon(selectedIcon);
+    }
+
+    // Update cluster highlights
+    if (clusterGroup) {
+      // Remove highlight from old cluster
+      if (oldSid && markers[oldSid]) {
+        const oldParent = clusterGroup.getVisibleParent(markers[oldSid]);
+        if (oldParent && oldParent !== markers[oldSid] && oldParent._icon) {
+          oldParent._icon.classList.remove('marker-cluster-selected');
+        }
+      }
+      // Add highlight to new cluster
+      if (sid && markers[sid]) {
+        const newParent = clusterGroup.getVisibleParent(markers[sid]);
+        if (newParent && newParent !== markers[sid] && newParent._icon) {
+          newParent._icon.classList.add('marker-cluster-selected');
+        }
+      }
+    }
 
     // Highlight table row
     document.querySelectorAll('#spotsBody tr').forEach(tr => {

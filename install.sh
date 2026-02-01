@@ -1,5 +1,5 @@
 #!/bin/bash
-# HamTab — Raspberry Pi install script
+# HamTab — Linux install script
 # Usage: clone the repo anywhere, then run: bash install.sh
 
 set -e
@@ -16,7 +16,7 @@ if [ "$(id -u)" -ne 0 ]; then
 fi
 
 # --- Detect the calling user (not root) ---
-REAL_USER="${SUDO_USER:-pi}"
+REAL_USER="${SUDO_USER:-$(logname 2>/dev/null || echo $USER)}"
 REAL_HOME=$(eval echo "~$REAL_USER")
 
 echo "==================================="

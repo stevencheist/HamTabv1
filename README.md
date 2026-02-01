@@ -86,6 +86,8 @@ npm install
 npm start
 ```
 
+> For automatic startup as a service, see [Automated Install](#linux--raspberry-pi-automated-install) below.
+
 ### Linux (Fedora / RHEL)
 
 ```bash
@@ -96,9 +98,11 @@ npm install
 npm start
 ```
 
-### Raspberry Pi
+> For automatic startup as a service, see [Automated Install](#linux--raspberry-pi-automated-install) below.
 
-The included install script handles everything: installs Node.js if needed, copies the app to `/opt/hamtab`, configures Weather Underground, and optionally sets up a systemd service for boot-start with automatic crash recovery.
+### Linux / Raspberry Pi (Automated Install)
+
+The included install script handles everything: installs Node.js if needed, copies the app to `/opt/hamtab`, configures Weather Underground, and optionally sets up a systemd service for boot-start with automatic crash recovery. Works on any systemd-based Linux distribution including Raspberry Pi OS, Debian, Ubuntu, and Fedora.
 
 ```bash
 git clone https://github.com/stevencheist/HamTabv1.git
@@ -151,6 +155,37 @@ cd HamTabv1
 npm install
 npm start
 ```
+
+### Windows (Run as a Service)
+
+To run HamTab as a Windows service that starts automatically on boot, use the included PowerShell installer. It uses [NSSM](https://nssm.cc/) (downloaded automatically) to register HamTab as a service.
+
+**Prerequisites:** Node.js, Git, PowerShell (run as Administrator).
+
+```powershell
+git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+The installer will:
+1. Download NSSM if not already present (saved to `tools\nssm\`)
+2. Prompt for a Weather Underground API key (optional)
+3. Run `npm install` and `npm run build`
+4. Register and start the HamTab service
+
+**Management commands:**
+
+```powershell
+.\tools\nssm\nssm.exe status HamTab     # check status
+.\tools\nssm\nssm.exe restart HamTab    # restart
+.\tools\nssm\nssm.exe stop HamTab       # stop
+.\tools\nssm\nssm.exe start HamTab      # start
+```
+
+**Logs:** `logs\hamtab.log`
+
+**Uninstall:** `.\tools\nssm\nssm.exe remove HamTab confirm`
 
 ### Windows (WSL2)
 

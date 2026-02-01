@@ -105,8 +105,7 @@
         zCounter: 10,
         // Update
         updateStatusPolling: null,
-        knownServerHash: null,
-        restartNeeded: false,
+        updateReleaseUrl: null,
         // Init flag
         appInitialized: false,
         // Day/night
@@ -1380,6 +1379,9 @@
     if (saved) select.value = saved;
     select.addEventListener("change", () => {
       localStorage.setItem("hamtab_sdo_type", select.value);
+      solarFrames = [];
+      solarFrameNames = [];
+      solarCurrentType = "";
       loadSolarFrames();
     });
     if (playBtn) {
@@ -1418,12 +1420,21 @@
     }
     ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
   }
+  function preloadImage(filename) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = "/api/solar/frame/" + encodeURIComponent(filename);
+    });
+  }
   async function loadSolarFrames() {
     if (solarLoadingFrames) return;
     solarLoadingFrames = true;
-    stopSolarAnimation();
     const select = $("solarImageType");
     const type = select ? select.value : "0193";
+    const isFullReload = type !== solarCurrentType || solarFrames.length === 0;
+    if (isFullReload) stopSolarAnimation();
     try {
       const resp = await fetch("/api/solar/frames?type=" + encodeURIComponent(type));
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
@@ -1432,38 +1443,58 @@
         loadSolarImageFallback(type);
         return;
       }
-      const loaded = await Promise.all(filenames.map((fn) => {
-        return new Promise((resolve) => {
-          const img = new Image();
-          img.onload = () => resolve(img);
-          img.onerror = () => resolve(null);
-          img.src = "/api/solar/frame/" + encodeURIComponent(fn);
-        });
-      }));
-      solarFrames = loaded.filter(Boolean);
-      solarFrameIndex = 0;
+      if (isFullReload) {
+        const loaded = await Promise.all(filenames.map(preloadImage));
+        solarFrames = loaded.filter(Boolean);
+        solarFrameNames = filenames.filter((fn, i) => loaded[i] !== null);
+        solarFrameIndex = 0;
+        solarCurrentType = type;
+      } else {
+        const existingSet = new Set(solarFrameNames);
+        const newNames = filenames.filter((fn) => !existingSet.has(fn));
+        if (newNames.length > 0) {
+          const newImgs = await Promise.all(newNames.map(preloadImage));
+          for (let i = 0; i < newNames.length; i++) {
+            if (newImgs[i]) {
+              solarFrames.push(newImgs[i]);
+              solarFrameNames.push(newNames[i]);
+            }
+          }
+          if (solarFrames.length > 48) {
+            const excess = solarFrames.length - 48;
+            solarFrames.splice(0, excess);
+            solarFrameNames.splice(0, excess);
+            if (solarFrameIndex >= excess) solarFrameIndex -= excess;
+            else solarFrameIndex = 0;
+          }
+        }
+      }
       if (solarFrames.length < 2) {
         loadSolarImageFallback(type);
         return;
       }
-      drawSolarFrame();
-      const playBtn = $("solarPlayBtn");
-      if (playBtn) playBtn.innerHTML = "&#9646;&#9646;";
-      solarPlaying = true;
-      startSolarAnimation();
+      if (isFullReload) {
+        drawSolarFrame();
+        const playBtn = $("solarPlayBtn");
+        if (playBtn) playBtn.innerHTML = "&#9646;&#9646;";
+        solarPlaying = true;
+        startSolarAnimation();
+      }
     } catch (err) {
       console.error("Failed to load SDO frames:", err);
-      loadSolarImageFallback(type);
+      if (solarFrames.length === 0) loadSolarImageFallback(type);
     } finally {
       solarLoadingFrames = false;
     }
   }
   function loadSolarImageFallback(type) {
+    solarCurrentType = type;
     const canvas = $("solarCanvas");
     if (!canvas) return;
     const img = new Image();
     img.onload = () => {
       solarFrames = [img];
+      solarFrameNames = ["__fallback__"];
       solarFrameIndex = 0;
       drawSolarFrame();
     };
@@ -1684,7 +1715,7 @@
       }
     }
   }
-  var SOLAR_VIS_KEY, solarFrames, solarFrameIndex, solarPlaying, solarIntervalId, solarLoadingFrames;
+  var SOLAR_VIS_KEY, solarFrames, solarFrameNames, solarFrameIndex, solarPlaying, solarIntervalId, solarLoadingFrames, solarCurrentType;
   var init_solar = __esm({
     "src/solar.js"() {
       init_state();
@@ -1692,10 +1723,12 @@
       init_utils();
       SOLAR_VIS_KEY = "hamtab_solar_fields";
       solarFrames = [];
+      solarFrameNames = [];
       solarFrameIndex = 0;
       solarPlaying = true;
       solarIntervalId = null;
       solarLoadingFrames = false;
+      solarCurrentType = "";
     }
   });
 
@@ -2933,7 +2966,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.5.0";
+    $("splashVersion").textContent = "0.6.0";
     $("splashCallsign").focus();
   }
   function dismissSplash() {
@@ -3399,16 +3432,17 @@
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
       const data = await resp.json();
-      if (data.serverHash) {
-        if (!state_default.knownServerHash) state_default.knownServerHash = data.serverHash;
-      }
-      if (state_default.restartNeeded) return;
-      if (data.available) {
+      if (data.available && data.latestVersion) {
         $("updateDot").className = "update-dot green";
-        $("updateLabel").textContent = "Update available";
+        $("updateLabel").textContent = `v${data.latestVersion} available`;
+        state_default.updateReleaseUrl = data.releaseUrl || null;
       } else {
         $("updateDot").className = "update-dot gray";
         $("updateLabel").textContent = data.lastCheck ? "Checked " + fmtTime(new Date(data.lastCheck), { hour: "2-digit", minute: "2-digit" }) : "No updates";
+        state_default.updateReleaseUrl = null;
+      }
+      if (data.platform && data.currentVersion) {
+        $("platformLabel").textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
       }
     } catch (e) {
     }
@@ -3437,55 +3471,6 @@
       });
     }, 1e3);
   }
-  function showRestartNeeded() {
-    state_default.restartNeeded = true;
-    $("updateDot").className = "update-dot yellow";
-    $("updateLabel").textContent = "Restart needed";
-    $("restartBtn").classList.remove("hidden");
-  }
-  async function applyUpdate() {
-    $("updateDot").className = "update-dot yellow";
-    $("updateLabel").textContent = "Applying...";
-    $("updateIndicator").style.pointerEvents = "none";
-    try {
-      const resp = await fetch("/api/update/apply", { method: "POST" });
-      const data = await resp.json();
-      if (!resp.ok) {
-        $("updateDot").className = "update-dot red";
-        $("updateLabel").textContent = data.error || "Failed";
-        $("updateIndicator").style.pointerEvents = "";
-        return;
-      }
-      if (!data.updated) {
-        $("updateDot").className = "update-dot gray";
-        $("updateLabel").textContent = "Already up to date";
-        $("updateIndicator").style.pointerEvents = "";
-        return;
-      }
-      if (data.serverRestarting) {
-        $("updateLabel").textContent = "Restarting...";
-        pollForServer(30);
-      } else {
-        try {
-          const statusResp = await fetch("/api/update/status");
-          if (statusResp.ok) {
-            const statusData = await statusResp.json();
-            if (statusData.serverHash && state_default.knownServerHash && statusData.serverHash !== state_default.knownServerHash) {
-              showRestartNeeded();
-              return;
-            }
-          }
-        } catch {
-        }
-        $("updateLabel").textContent = "Reloading...";
-        setTimeout(() => location.reload(), 500);
-      }
-    } catch (err) {
-      $("updateDot").className = "update-dot red";
-      $("updateLabel").textContent = "Error";
-      $("updateIndicator").style.pointerEvents = "";
-    }
-  }
   function sendUpdateInterval() {
     const saved = localStorage.getItem("hamtab_update_interval");
     if (saved) {
@@ -3499,8 +3484,8 @@
   }
   function initUpdateListeners() {
     $("updateIndicator").addEventListener("click", () => {
-      if ($("updateDot").classList.contains("green") && !state_default.restartNeeded) {
-        applyUpdate();
+      if ($("updateDot").classList.contains("green") && state_default.updateReleaseUrl) {
+        window.open(state_default.updateReleaseUrl, "_blank", "noopener");
       }
     });
     $("restartBtn").addEventListener("click", async (e) => {

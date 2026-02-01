@@ -54,11 +54,15 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 - Keep server.js endpoints consistent in error response format
 - Test changes by running `npm start` and verifying in browser
 
-## Versioning
+## Versioning & Updates
 
 - Version lives in `package.json` and is injected at build time via esbuild `define`
 - Bump `version` in `package.json` on every push: patch for fixes, minor for features
 - Rebuild (`npm run build`) after bumping to update the client bundle
+- Update detection compares `package.json` version against the latest GitHub Release tag (via `api.github.com`)
+- No git dependency — works with zip downloads, scp deploys, etc.
+- GitHub releases must be tagged (e.g. `v0.6.0`) for detection to work
+- Client shows version info and links to release page; no auto-download of code
 
 ## Security (Priority)
 
@@ -73,3 +77,13 @@ Security is a top priority. Flag any code that could introduce a vulnerability.
 - **Input validation** — Sanitize and whitelist all user-supplied query params on server endpoints. Use `encodeURIComponent` on the client when building URLs.
 - **XSS** — Use `textContent` or DOM APIs to render user/API data. Never inject unsanitized strings via `innerHTML`. The `esc()` utility must be used if HTML insertion is unavoidable.
 - **Dependency hygiene** — Keep dependencies minimal. Audit before adding new packages.
+
+## GitHub Issue Communication
+
+When commenting on issues or asking questions of users:
+
+- **Assume non-technical users** — avoid jargon, explain terms if needed, and keep language approachable.
+- **Be friendly and appreciative** — thank contributors for suggestions and bug reports.
+- **Ask clear, specific questions** — use numbered lists so users can answer point by point.
+- **Offer concrete examples** — when asking about preferences, give options rather than open-ended questions.
+- **Follow up on implemented features** — when work is done, comment asking the requester to try it and give feedback.

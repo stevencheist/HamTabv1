@@ -8,20 +8,21 @@ export async function checkUpdateStatus() {
     if (!resp.ok) return;
     const data = await resp.json();
 
-    if (data.serverHash) {
-      if (!state.knownServerHash) state.knownServerHash = data.serverHash;
-    }
-
-    if (state.restartNeeded) return;
-
-    if (data.available) {
+    if (data.available && data.latestVersion) {
       $('updateDot').className = 'update-dot green';
-      $('updateLabel').textContent = 'Update available';
+      $('updateLabel').textContent = `v${data.latestVersion} available`;
+      state.updateReleaseUrl = data.releaseUrl || null;
     } else {
       $('updateDot').className = 'update-dot gray';
       $('updateLabel').textContent = data.lastCheck
         ? 'Checked ' + fmtTime(new Date(data.lastCheck), { hour: '2-digit', minute: '2-digit' })
         : 'No updates';
+      state.updateReleaseUrl = null;
+    }
+
+    // Show platform and version in header
+    if (data.platform && data.currentVersion) {
+      $('platformLabel').textContent = `v${data.currentVersion} · ${data.platform}`;
     }
   } catch (e) {
     // ignore
@@ -54,60 +55,6 @@ function pollForServer(attempts) {
   }, 1000);
 }
 
-function showRestartNeeded() {
-  state.restartNeeded = true;
-  $('updateDot').className = 'update-dot yellow';
-  $('updateLabel').textContent = 'Restart needed';
-  $('restartBtn').classList.remove('hidden');
-}
-
-async function applyUpdate() {
-  $('updateDot').className = 'update-dot yellow';
-  $('updateLabel').textContent = 'Applying...';
-  $('updateIndicator').style.pointerEvents = 'none';
-
-  try {
-    const resp = await fetch('/api/update/apply', { method: 'POST' });
-    const data = await resp.json();
-
-    if (!resp.ok) {
-      $('updateDot').className = 'update-dot red';
-      $('updateLabel').textContent = data.error || 'Failed';
-      $('updateIndicator').style.pointerEvents = '';
-      return;
-    }
-
-    if (!data.updated) {
-      $('updateDot').className = 'update-dot gray';
-      $('updateLabel').textContent = 'Already up to date';
-      $('updateIndicator').style.pointerEvents = '';
-      return;
-    }
-
-    if (data.serverRestarting) {
-      $('updateLabel').textContent = 'Restarting...';
-      pollForServer(30);
-    } else {
-      try {
-        const statusResp = await fetch('/api/update/status');
-        if (statusResp.ok) {
-          const statusData = await statusResp.json();
-          if (statusData.serverHash && state.knownServerHash && statusData.serverHash !== state.knownServerHash) {
-            showRestartNeeded();
-            return;
-          }
-        }
-      } catch { /* ignore */ }
-      $('updateLabel').textContent = 'Reloading...';
-      setTimeout(() => location.reload(), 500);
-    }
-  } catch (err) {
-    $('updateDot').className = 'update-dot red';
-    $('updateLabel').textContent = 'Error';
-    $('updateIndicator').style.pointerEvents = '';
-  }
-}
-
 export function sendUpdateInterval() {
   const saved = localStorage.getItem('hamtab_update_interval');
   if (saved) {
@@ -120,9 +67,10 @@ export function sendUpdateInterval() {
 }
 
 export function initUpdateListeners() {
+  // Green dot opens release page in new tab
   $('updateIndicator').addEventListener('click', () => {
-    if ($('updateDot').classList.contains('green') && !state.restartNeeded) {
-      applyUpdate();
+    if ($('updateDot').classList.contains('green') && state.updateReleaseUrl) {
+      window.open(state.updateReleaseUrl, '_blank', 'noopener');
     }
   });
 

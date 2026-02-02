@@ -1,6 +1,7 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS, US_PRIVILEGES } from './constants.js';
+import { cacheCallsign } from './utils.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 
@@ -260,7 +261,7 @@ export async function fetchLicenseClass(callsign) {
     if (data.status === 'VALID') {
       state.licenseClass = (data.class || '').toUpperCase();
       if (state.licenseClass) localStorage.setItem('hamtab_license_class', state.licenseClass);
-      state.callsignCache[callsign.toUpperCase()] = data;
+      cacheCallsign(callsign.toUpperCase(), data);
     } else {
       state.licenseClass = '';
       localStorage.removeItem('hamtab_license_class');

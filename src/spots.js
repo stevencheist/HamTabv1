@@ -5,13 +5,31 @@ import { esc, fmtTime, formatAge } from './utils.js';
 import { spotId } from './filters.js';
 import { flyToSpot } from './markers.js';
 
+const SPOT_COL_VIS_KEY = 'hamtab_spot_columns';
+
+export function loadSpotColumnVisibility() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
+    if (saved && typeof saved === 'object') return saved;
+  } catch (e) {}
+  // Default: all columns visible
+  const vis = {};
+  SOURCE_DEFS.pota.columns.forEach(c => vis[c.key] = true);
+  return vis;
+}
+
+export function saveSpotColumnVisibility() {
+  localStorage.setItem(SPOT_COL_VIS_KEY, JSON.stringify(state.spotColumnVisibility));
+}
+
 export function renderSpots() {
   const filtered = state.sourceFiltered[state.currentSource] || [];
   const spotsBody = $('spotsBody');
   spotsBody.innerHTML = '';
   $('spotCount').textContent = `(${filtered.length})`;
 
-  const cols = SOURCE_DEFS[state.currentSource].columns;
+  const cols = SOURCE_DEFS[state.currentSource].columns
+    .filter(c => state.spotColumnVisibility[c.key] !== false);
   const sortKey = SOURCE_DEFS[state.currentSource].sortKey;
 
   const sorted = [...filtered].sort((a, b) => {

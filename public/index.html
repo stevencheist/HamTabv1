@@ -127,6 +127,15 @@
     </div>
   </div>
 
+  <!-- Spot column config overlay -->
+  <div class="splash-overlay hidden" id="spotColCfgSplash">
+    <div class="splash-box spot-col-cfg-box">
+      <h2>Table Columns</h2>
+      <div class="splash-widget-list" id="spotColFieldList"></div>
+      <button id="spotColCfgOk">OK</button>
+    </div>
+  </div>
+
   <!-- Band privilege reference overlay -->
   <div class="splash-overlay hidden" id="bandRefSplash">
     <div class="splash-box band-ref-box">
@@ -208,7 +217,9 @@
 
     <!-- Activations -->
     <div class="widget" id="widget-activations">
-      <div class="widget-header">On the Air <span id="spotCount" class="spot-count"></span></div>
+      <div class="widget-header">On the Air <span id="spotCount" class="spot-count"></span>
+        <button class="widget-cfg-btn" id="spotColCfgBtn" title="Configure columns">&#9881;</button>
+      </div>
       <div class="widget-body">
         <div class="source-tabs" id="sourceTabs">
           <button class="source-tab active" data-source="pota">POTA</button>
@@ -254,7 +265,7 @@
         <div class="map-center-controls">
           <button class="map-center-btn active" data-center="qth">QTH</button>
           <button class="map-center-btn" data-center="pm">PM</button>
-          <button class="map-center-btn" data-center="spot">Spot</button>
+          <button class="map-center-btn" data-center="spot">DX</button>
         </div>
       </div>
       <div class="widget-body">

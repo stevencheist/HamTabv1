@@ -66,6 +66,9 @@
         // loaded in solar.js
         lunarFieldVisibility: null,
         // loaded in lunar.js
+        // Spot column visibility — which columns are shown in the On the Air table
+        spotColumnVisibility: null,
+        // loaded in spots.js
         // Cached data for re-render
         lastSolarData: null,
         lastLunarData: null,
@@ -921,12 +924,25 @@
   });
 
   // src/spots.js
+  function loadSpotColumnVisibility() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
+      if (saved && typeof saved === "object") return saved;
+    } catch (e) {
+    }
+    const vis = {};
+    SOURCE_DEFS.pota.columns.forEach((c) => vis[c.key] = true);
+    return vis;
+  }
+  function saveSpotColumnVisibility() {
+    localStorage.setItem(SPOT_COL_VIS_KEY, JSON.stringify(state_default.spotColumnVisibility));
+  }
   function renderSpots() {
     const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
     const spotsBody = $("spotsBody");
     spotsBody.innerHTML = "";
     $("spotCount").textContent = `(${filtered.length})`;
-    const cols = SOURCE_DEFS[state_default.currentSource].columns;
+    const cols = SOURCE_DEFS[state_default.currentSource].columns.filter((c) => state_default.spotColumnVisibility[c.key] !== false);
     const sortKey = SOURCE_DEFS[state_default.currentSource].sortKey;
     const sorted = [...filtered].sort((a, b) => {
       return new Date(b[sortKey]) - new Date(a[sortKey]);
@@ -974,6 +990,7 @@
       spotsBody.appendChild(tr);
     });
   }
+  var SPOT_COL_VIS_KEY;
   var init_spots = __esm({
     "src/spots.js"() {
       init_state();
@@ -982,6 +999,7 @@
       init_utils();
       init_filters();
       init_markers();
+      SPOT_COL_VIS_KEY = "hamtab_spot_columns";
     }
   });
 
@@ -2388,6 +2406,9 @@
     }
   }
 
+  // src/main.js
+  init_spots();
+
   // src/source.js
   init_state();
   init_dom();
@@ -2397,7 +2418,7 @@
   init_spots();
   init_markers();
   function updateTableColumns() {
-    const cols = SOURCE_DEFS[state_default.currentSource].columns;
+    const cols = SOURCE_DEFS[state_default.currentSource].columns.filter((c) => state_default.spotColumnVisibility[c.key] !== false);
     $("spotsHead").innerHTML = "<tr>" + cols.map((c) => `<th>${esc(c.label)}</th>`).join("") + "</tr>";
   }
   function updateFilterVisibility() {
@@ -3209,6 +3230,7 @@
   init_solar();
   init_lunar();
   init_map_overlays();
+  init_spots();
   function initConfigListeners() {
     $("solarCfgBtn").addEventListener("mousedown", (e) => {
       e.stopPropagation();
@@ -3318,6 +3340,33 @@
     $("clockLocalCfgBtn").addEventListener("click", showClockCfg);
     $("clockUtcCfgBtn").addEventListener("click", showClockCfg);
     $("clockCfgOk").addEventListener("click", dismissClockCfg);
+    $("spotColCfgBtn").addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+    });
+    $("spotColCfgBtn").addEventListener("click", () => {
+      const fieldList = $("spotColFieldList");
+      fieldList.innerHTML = "";
+      SOURCE_DEFS[state_default.currentSource].columns.forEach((col) => {
+        const label = document.createElement("label");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.fieldKey = col.key;
+        cb.checked = state_default.spotColumnVisibility[col.key] !== false;
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(col.label));
+        fieldList.appendChild(label);
+      });
+      $("spotColCfgSplash").classList.remove("hidden");
+    });
+    $("spotColCfgOk").addEventListener("click", () => {
+      $("spotColFieldList").querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        state_default.spotColumnVisibility[cb.dataset.fieldKey] = cb.checked;
+      });
+      saveSpotColumnVisibility();
+      $("spotColCfgSplash").classList.add("hidden");
+      updateTableColumns();
+      renderSpots();
+    });
   }
 
   // src/bandref.js
@@ -3664,6 +3713,7 @@
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
   state_default.widgetVisibility = loadWidgetVisibility();
+  state_default.spotColumnVisibility = loadSpotColumnVisibility();
   initMap();
   updateGrayLine();
   setInterval(updateGrayLine, 6e4);

@@ -75,6 +75,9 @@ const state = {
   issTrailLine: null,
   issOrbitLine: null,
 
+  // Geodesic
+  geodesicLine: null, // L.polyline for great circle path from QTH to selected spot
+
   // Weather
   wxStation: localStorage.getItem('hamtab_wx_station') || '',
   wxApiKey: localStorage.getItem('hamtab_wx_apikey') || '',

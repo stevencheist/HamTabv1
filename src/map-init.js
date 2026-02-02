@@ -21,7 +21,7 @@ export function initMap() {
     }).addTo(state.map);
 
     state.clusterGroup = L.markerClusterGroup({
-      maxClusterRadius: 40,
+      maxClusterRadius: 40, // px — merge markers within 40px; keeps clusters tight on a dark basemap
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
       iconCreateFunction: function(cluster) {
@@ -123,7 +123,7 @@ export function updateUserMarker() {
       iconSize: [0, 0],
       iconAnchor: [0, 0],
     });
-    state.userMarker = L.marker([state.myLat, state.myLon], { icon, zIndexOffset: 9000 }).addTo(state.map);
+    state.userMarker = L.marker([state.myLat, state.myLon], { icon, zIndexOffset: 9000 }).addTo(state.map); // high z-index keeps user marker above spot markers
     state.userMarker.bindPopup(popupHtml, { maxWidth: 200 });
   }
 }

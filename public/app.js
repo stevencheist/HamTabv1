@@ -75,7 +75,9 @@
         myLon: null,
         manualLoc: false,
         syncingFields: false,
+        // true while lat/lon ↔ grid sync is in progress (prevents re-entrant updates)
         gridHighlightIdx: -1,
+        // currently highlighted index in the grid-square autocomplete dropdown (-1 = none)
         // Map
         map: null,
         clusterGroup: null,
@@ -102,6 +104,7 @@
         currentHoverTd: null,
         // Widgets
         zCounter: 10,
+        // next z-index to assign when a widget is focused (increments on each click)
         // Update
         updateStatusPolling: null,
         updateReleaseUrl: null,
@@ -1965,6 +1968,7 @@
       }).addTo(state_default.map);
       state_default.clusterGroup = L.markerClusterGroup({
         maxClusterRadius: 40,
+        // px — merge markers within 40px; keeps clusters tight on a dark basemap
         spiderfyOnMaxZoom: true,
         showCoverageOnHover: false,
         iconCreateFunction: function(cluster) {

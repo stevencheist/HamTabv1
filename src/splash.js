@@ -364,7 +364,7 @@ export function initSplashListeners() {
   });
 
   $('splashGrid').addEventListener('blur', () => {
-    setTimeout(() => {
+    setTimeout(() => { // 150 ms delay lets a dropdown click register before the menu closes
       $('splashGridDropdown').classList.remove('open');
       $('splashGridDropdown').innerHTML = '';
       state.gridHighlightIdx = -1;

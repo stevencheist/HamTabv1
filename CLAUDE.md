@@ -29,6 +29,10 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 - Inline comments explain **why**, not what
 - No JSDoc — use simple inline comments
 - Include context for complex logic (API rate limits, math algorithms, etc.)
+- **Algorithm citations** — When implementing a published algorithm (e.g. Meeus, SGP4), cite the source and chapter/table in a block comment above the function
+- **Magic numbers** — Numeric literals that aren't self-evident must have an inline comment with units and meaning (e.g. `5000 // ms — ISS position refresh`)
+- **Non-obvious state** — State fields whose name alone doesn't convey purpose need an inline comment (e.g. `zCounter: 10, // next z-index for widget stacking`)
+- **Ambiguous names** — If a variable could be confused with another concept (e.g. `pi` meaning parallax, not π), rename it or add a clarifying comment
 
 ## Code Conventions
 
@@ -53,6 +57,7 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 - Error handling at API boundaries (try/catch with appropriate HTTP status)
 - Keep server.js endpoints consistent in error response format
 - Test changes by running `npm start` and verifying in browser
+- New functions, intervals, and state fields must include comments per the Commenting Style rules above (citations, magic numbers, purpose)
 
 ## Versioning & Updates
 

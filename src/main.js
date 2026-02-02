@@ -39,15 +39,15 @@ updateGrayLine();
 setInterval(updateGrayLine, 60000);
 
 // ISS tracking
-setInterval(fetchISS, 5000);
+setInterval(fetchISS, 5000); // 5 s — ISS position refresh (matches API update cadence)
 fetchISS();
 fetchISSOrbit();
-setInterval(fetchISSOrbit, 300000);
+setInterval(fetchISSOrbit, 300000); // 5 min — full orbit path refresh (TLE changes infrequently)
 
 // Clocks
 updateClocks();
 setInterval(updateClocks, 1000);
-setInterval(renderSpots, 30000);
+setInterval(renderSpots, 30000); // 30 s — re-render spot table to update age column
 
 // Set up all event listeners
 initSourceListeners();

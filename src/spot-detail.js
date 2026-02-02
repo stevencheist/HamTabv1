@@ -1,6 +1,6 @@
 import state from './state.js';
 import { $ } from './dom.js';
-import { esc } from './utils.js';
+import { esc, cacheCallsign } from './utils.js';
 import { freqToBand } from './filters.js';
 import { bearingTo, bearingToCardinal, distanceMi, localTimeAtLon } from './geo.js';
 
@@ -23,13 +23,13 @@ async function fetchCallsignInfo(call) {
   if (state.callsignCache[key] === null) return null;
   try {
     const resp = await fetch(`/api/callsign/${encodeURIComponent(key)}`);
-    if (!resp.ok) { state.callsignCache[key] = null; return null; }
+    if (!resp.ok) { cacheCallsign(key, null); return null; }
     const data = await resp.json();
-    if (data.status !== 'VALID') { state.callsignCache[key] = null; return null; }
-    state.callsignCache[key] = data;
+    if (data.status !== 'VALID') { cacheCallsign(key, null); return null; }
+    cacheCallsign(key, data);
     return data;
   } catch {
-    state.callsignCache[key] = null;
+    cacheCallsign(key, null);
     return null;
   }
 }

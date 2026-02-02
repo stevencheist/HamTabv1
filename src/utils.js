@@ -11,6 +11,18 @@ export function fmtTime(date, options) {
   return date.toLocaleTimeString([], opts);
 }
 
+const CALLSIGN_CACHE_MAX = 500;
+
+export function cacheCallsign(key, value) {
+  const keys = Object.keys(state.callsignCache);
+  if (keys.length >= CALLSIGN_CACHE_MAX) {
+    // Evict oldest half to avoid thrashing
+    const toRemove = keys.slice(0, Math.floor(keys.length / 2));
+    toRemove.forEach(k => delete state.callsignCache[k]);
+  }
+  state.callsignCache[key] = value;
+}
+
 export function formatAge(spotTime) {
   if (!spotTime) return '';
   const ts = spotTime.endsWith('Z') ? spotTime : spotTime + 'Z';

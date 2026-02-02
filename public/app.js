@@ -36,7 +36,6 @@
         activeGrid: null,
         // Auto-refresh
         autoRefreshEnabled: true,
-        refreshInterval: null,
         countdownSeconds: 60,
         countdownTimer: null,
         // Preferences
@@ -164,6 +163,7 @@
   // src/utils.js
   var utils_exports = {};
   __export(utils_exports, {
+    cacheCallsign: () => cacheCallsign,
     esc: () => esc,
     fmtTime: () => fmtTime,
     formatAge: () => formatAge
@@ -176,6 +176,14 @@
   function fmtTime(date, options) {
     const opts = Object.assign({ hour12: !state_default.use24h }, options || {});
     return date.toLocaleTimeString([], opts);
+  }
+  function cacheCallsign(key, value) {
+    const keys = Object.keys(state_default.callsignCache);
+    if (keys.length >= CALLSIGN_CACHE_MAX) {
+      const toRemove = keys.slice(0, Math.floor(keys.length / 2));
+      toRemove.forEach((k) => delete state_default.callsignCache[k]);
+    }
+    state_default.callsignCache[key] = value;
   }
   function formatAge(spotTime) {
     if (!spotTime) return "";
@@ -190,9 +198,11 @@
     if (m > 0) return s > 0 ? `${m}m${s}s` : `${m}m`;
     return `${s}s`;
   }
+  var CALLSIGN_CACHE_MAX;
   var init_utils = __esm({
     "src/utils.js"() {
       init_state();
+      CALLSIGN_CACHE_MAX = 500;
     }
   });
 
@@ -638,18 +648,18 @@
     try {
       const resp = await fetch(`/api/callsign/${encodeURIComponent(key)}`);
       if (!resp.ok) {
-        state_default.callsignCache[key] = null;
+        cacheCallsign(key, null);
         return null;
       }
       const data = await resp.json();
       if (data.status !== "VALID") {
-        state_default.callsignCache[key] = null;
+        cacheCallsign(key, null);
         return null;
       }
-      state_default.callsignCache[key] = data;
+      cacheCallsign(key, data);
       return data;
     } catch {
-      state_default.callsignCache[key] = null;
+      cacheCallsign(key, null);
       return null;
     }
   }
@@ -1226,7 +1236,7 @@
       if (data.status === "VALID") {
         state_default.licenseClass = (data.class || "").toUpperCase();
         if (state_default.licenseClass) localStorage.setItem("hamtab_license_class", state_default.licenseClass);
-        state_default.callsignCache[callsign.toUpperCase()] = data;
+        cacheCallsign(callsign.toUpperCase(), data);
       } else {
         state_default.licenseClass = "";
         localStorage.removeItem("hamtab_license_class");
@@ -1306,6 +1316,7 @@
       init_state();
       init_dom();
       init_constants();
+      init_utils();
       init_spots();
       init_markers();
     }
@@ -1603,8 +1614,12 @@
       }).addTo(state_default.map);
       state_default.propLabelLayer = L.layerGroup({ pane: "propagation" }).addTo(state_default.map);
       data.features.forEach((feature) => {
-        const coords = feature.geometry.coordinates;
-        if (!coords || coords.length < 2) return;
+        let coords = feature.geometry.coordinates;
+        if (!coords || coords.length === 0) return;
+        if (feature.geometry.type === "MultiLineString") {
+          coords = coords.reduce((a, b) => a.length >= b.length ? a : b, coords[0]);
+        }
+        if (coords.length < 2) return;
         const label = feature.properties.title || String(feature.properties["level-value"]);
         const color = feature.properties.stroke || "#00ff00";
         const mid = coords[Math.floor(coords.length / 2)];
@@ -1630,18 +1645,14 @@
     const rad = Math.PI / 180;
     const dec = Math.abs(sunDec) < 0.1 ? 0.1 : sunDec;
     const tanDec = Math.tan(dec * rad);
-    const points = [];
+    const terminator = [];
     for (let lon = -180; lon <= 180; lon += 2) {
       const lat = Math.atan(-Math.cos((lon - sunLon) * rad) / tanDec) / rad;
-      points.push([lat, lon]);
+      terminator.push([lat, lon]);
     }
-    if (dec >= 0) {
-      points.push([-90, 180]);
-      points.push([-90, -180]);
-    } else {
-      points.push([90, 180]);
-      points.push([90, -180]);
-    }
+    const nightPole = dec >= 0 ? -90 : 90;
+    const dayPole = -nightPole;
+    const points = [...terminator, [nightPole, 180], [nightPole, -180]];
     if (state_default.grayLinePolygon) {
       state_default.grayLinePolygon.setLatLngs(points);
     } else {
@@ -1654,18 +1665,7 @@
         interactive: false
       }).addTo(state_default.map);
     }
-    const dayPoints = [];
-    for (let lon = -180; lon <= 180; lon += 2) {
-      const lat = Math.atan(-Math.cos((lon - sunLon) * rad) / tanDec) / rad;
-      dayPoints.push([lat, lon]);
-    }
-    if (dec >= 0) {
-      dayPoints.push([90, 180]);
-      dayPoints.push([90, -180]);
-    } else {
-      dayPoints.push([-90, 180]);
-      dayPoints.push([-90, -180]);
-    }
+    const dayPoints = [...terminator, [dayPole, 180], [dayPole, -180]];
     if (state_default.dayPolygon) {
       state_default.dayPolygon.setLatLngs(dayPoints);
     } else {
@@ -2472,18 +2472,18 @@
     try {
       const resp = await fetch(`/api/callsign/${encodeURIComponent(key)}`);
       if (!resp.ok) {
-        state_default.callsignCache[key] = null;
+        cacheCallsign(key, null);
         return null;
       }
       const data = await resp.json();
       if (data.status !== "VALID") {
-        state_default.callsignCache[key] = null;
+        cacheCallsign(key, null);
         return null;
       }
-      state_default.callsignCache[key] = data;
+      cacheCallsign(key, data);
       return data;
     } catch {
-      state_default.callsignCache[key] = null;
+      cacheCallsign(key, null);
       return null;
     }
   }
@@ -3058,7 +3058,7 @@
     $("splashCallsign").addEventListener("keydown", (e) => {
       if (e.key === "Enter") dismissSplash();
     });
-    $("splashLat").addEventListener("input", () => {
+    function onLatLonInput() {
       if (state_default.syncingFields) return;
       state_default.manualLoc = true;
       $("splashGpsBtn").classList.remove("active");
@@ -3074,24 +3074,9 @@
       } else {
         updateLocStatus("");
       }
-    });
-    $("splashLon").addEventListener("input", () => {
-      if (state_default.syncingFields) return;
-      state_default.manualLoc = true;
-      $("splashGpsBtn").classList.remove("active");
-      const lat = parseFloat($("splashLat").value);
-      const lon = parseFloat($("splashLon").value);
-      if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
-        state_default.syncingFields = true;
-        $("splashGrid").value = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
-        state_default.myLat = lat;
-        state_default.myLon = lon;
-        state_default.syncingFields = false;
-        updateLocStatus("Manual location set");
-      } else {
-        updateLocStatus("");
-      }
-    });
+    }
+    $("splashLat").addEventListener("input", onLatLonInput);
+    $("splashLon").addEventListener("input", onLatLonInput);
     $("splashGrid").addEventListener("input", () => {
       if (state_default.syncingFields) return;
       state_default.manualLoc = true;

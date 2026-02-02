@@ -347,8 +347,13 @@ export async function fetchPropagation() {
 
     state.propLabelLayer = L.layerGroup({ pane: 'propagation' }).addTo(state.map);
     data.features.forEach(feature => {
-      const coords = feature.geometry.coordinates;
-      if (!coords || coords.length < 2) return;
+      // Flatten MultiLineString to a single coordinate array
+      let coords = feature.geometry.coordinates;
+      if (!coords || coords.length === 0) return;
+      if (feature.geometry.type === 'MultiLineString') {
+        coords = coords.reduce((a, b) => a.length >= b.length ? a : b, coords[0]);
+      }
+      if (coords.length < 2) return;
       const label = feature.properties.title || String(feature.properties['level-value']);
       const color = feature.properties.stroke || '#00ff00';
       const mid = coords[Math.floor(coords.length / 2)];
@@ -378,19 +383,17 @@ export function updateGrayLine() {
   const dec = Math.abs(sunDec) < 0.1 ? 0.1 : sunDec;
   const tanDec = Math.tan(dec * rad);
 
-  const points = [];
+  // Compute terminator once, reuse for night and day polygons
+  const terminator = [];
   for (let lon = -180; lon <= 180; lon += 2) {
     const lat = Math.atan(-Math.cos((lon - sunLon) * rad) / tanDec) / rad;
-    points.push([lat, lon]);
+    terminator.push([lat, lon]);
   }
 
-  if (dec >= 0) {
-    points.push([-90, 180]);
-    points.push([-90, -180]);
-  } else {
-    points.push([90, 180]);
-    points.push([90, -180]);
-  }
+  const nightPole = dec >= 0 ? -90 : 90;
+  const dayPole = -nightPole;
+
+  const points = [...terminator, [nightPole, 180], [nightPole, -180]];
 
   if (state.grayLinePolygon) {
     state.grayLinePolygon.setLatLngs(points);
@@ -405,18 +408,7 @@ export function updateGrayLine() {
     }).addTo(state.map);
   }
 
-  const dayPoints = [];
-  for (let lon = -180; lon <= 180; lon += 2) {
-    const lat = Math.atan(-Math.cos((lon - sunLon) * rad) / tanDec) / rad;
-    dayPoints.push([lat, lon]);
-  }
-  if (dec >= 0) {
-    dayPoints.push([90, 180]);
-    dayPoints.push([90, -180]);
-  } else {
-    dayPoints.push([-90, 180]);
-    dayPoints.push([-90, -180]);
-  }
+  const dayPoints = [...terminator, [dayPole, 180], [dayPole, -180]];
 
   if (state.dayPolygon) {
     state.dayPolygon.setLatLngs(dayPoints);

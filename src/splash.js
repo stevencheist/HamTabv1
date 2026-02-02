@@ -285,7 +285,7 @@ export function initSplashListeners() {
     if (e.key === 'Enter') dismissSplash();
   });
 
-  $('splashLat').addEventListener('input', () => {
+  function onLatLonInput() {
     if (state.syncingFields) return;
     state.manualLoc = true;
     $('splashGpsBtn').classList.remove('active');
@@ -301,25 +301,10 @@ export function initSplashListeners() {
     } else {
       updateLocStatus('');
     }
-  });
+  }
 
-  $('splashLon').addEventListener('input', () => {
-    if (state.syncingFields) return;
-    state.manualLoc = true;
-    $('splashGpsBtn').classList.remove('active');
-    const lat = parseFloat($('splashLat').value);
-    const lon = parseFloat($('splashLon').value);
-    if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
-      state.syncingFields = true;
-      $('splashGrid').value = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
-      state.myLat = lat;
-      state.myLon = lon;
-      state.syncingFields = false;
-      updateLocStatus('Manual location set');
-    } else {
-      updateLocStatus('');
-    }
-  });
+  $('splashLat').addEventListener('input', onLatLonInput);
+  $('splashLon').addEventListener('input', onLatLonInput);
 
   $('splashGrid').addEventListener('input', () => {
     if (state.syncingFields) return;

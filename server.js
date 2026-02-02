@@ -999,26 +999,31 @@ async function fetchText(url) {
   return secureFetch(url);
 }
 
-// --- SOTA summit coordinate cache ---
+// --- SOTA summit coordinate cache (TTL-based) ---
 
-const sotaSummitCache = {};  // { 'W7W/LC-001': { lat, lon }, ... }
+const sotaSummitCache = {};  // { 'W7W/LC-001': { lat, lon, expires }, ... }
+const SUMMIT_TTL_OK   = 24 * 60 * 60 * 1000; // 24 hours for successful lookups
+const SUMMIT_TTL_FAIL =      60 * 60 * 1000; // 1 hour for failed lookups
 
 async function fetchSummitCoords(associationCode, summitCode) {
   const key = `${associationCode}/${summitCode}`;
-  if (sotaSummitCache[key]) return sotaSummitCache[key];
+  const cached = sotaSummitCache[key];
+  if (cached && Date.now() < cached.expires) return cached;
   try {
     const data = await fetchJSON(
       `https://api2.sota.org.uk/api/summits/${encodeURIComponent(associationCode)}/${encodeURIComponent(summitCode)}`
     );
-    const coords = {
+    const entry = {
       lat: data.latitude ?? null,
       lon: data.longitude ?? null,
+      expires: Date.now() + SUMMIT_TTL_OK,
     };
-    sotaSummitCache[key] = coords;
-    return coords;
+    sotaSummitCache[key] = entry;
+    return entry;
   } catch {
-    sotaSummitCache[key] = { lat: null, lon: null };
-    return sotaSummitCache[key];
+    const entry = { lat: null, lon: null, expires: Date.now() + SUMMIT_TTL_FAIL };
+    sotaSummitCache[key] = entry;
+    return entry;
   }
 }
 

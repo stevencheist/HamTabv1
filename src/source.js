@@ -6,8 +6,9 @@ import { applyFilter, updateBandFilterButtons, updateModeFilterButtons, updateCo
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 
-function updateTableColumns() {
-  const cols = SOURCE_DEFS[state.currentSource].columns;
+export function updateTableColumns() {
+  const cols = SOURCE_DEFS[state.currentSource].columns
+    .filter(c => state.spotColumnVisibility[c.key] !== false);
   $('spotsHead').innerHTML = '<tr>' + cols.map(c => `<th>${esc(c.label)}</th>`).join('') + '</tr>';
 }
 

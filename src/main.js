@@ -7,11 +7,13 @@ import { $ } from './dom.js';
 import { loadSolarFieldVisibility } from './solar.js';
 import { loadLunarFieldVisibility } from './lunar.js';
 import { loadWidgetVisibility } from './widgets.js';
+import { loadSpotColumnVisibility } from './spots.js';
 
 // Initialize visibility state
 state.solarFieldVisibility = loadSolarFieldVisibility();
 state.lunarFieldVisibility = loadLunarFieldVisibility();
 state.widgetVisibility = loadWidgetVisibility();
+state.spotColumnVisibility = loadSpotColumnVisibility();
 
 import { initMap, centerMapOnUser, updateUserMarker } from './map-init.js';
 import { initWidgets } from './widgets.js';

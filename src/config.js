@@ -1,11 +1,13 @@
 import state from './state.js';
 import { $ } from './dom.js';
-import { SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS } from './constants.js';
+import { SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, SOURCE_DEFS } from './constants.js';
 import { renderSolar, saveSolarFieldVisibility } from './solar.js';
 import { renderLunar, saveLunarFieldVisibility } from './lunar.js';
 import { updateClocks, applyClockStyle, drawAnalogClock } from './clocks.js';
 import { renderAllMapOverlays, saveMapOverlays } from './map-overlays.js';
 import { getDefaultLayout, saveWidgets } from './widgets.js';
+import { renderSpots, saveSpotColumnVisibility } from './spots.js';
+import { updateTableColumns } from './source.js';
 
 export function initConfigListeners() {
   // Solar config
@@ -120,4 +122,32 @@ export function initConfigListeners() {
   $('clockLocalCfgBtn').addEventListener('click', showClockCfg);
   $('clockUtcCfgBtn').addEventListener('click', showClockCfg);
   $('clockCfgOk').addEventListener('click', dismissClockCfg);
+
+  // Spot column config
+  $('spotColCfgBtn').addEventListener('mousedown', (e) => { e.stopPropagation(); });
+  $('spotColCfgBtn').addEventListener('click', () => {
+    const fieldList = $('spotColFieldList');
+    fieldList.innerHTML = '';
+    SOURCE_DEFS[state.currentSource].columns.forEach(col => {
+      const label = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.dataset.fieldKey = col.key;
+      cb.checked = state.spotColumnVisibility[col.key] !== false;
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(col.label));
+      fieldList.appendChild(label);
+    });
+    $('spotColCfgSplash').classList.remove('hidden');
+  });
+
+  $('spotColCfgOk').addEventListener('click', () => {
+    $('spotColFieldList').querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      state.spotColumnVisibility[cb.dataset.fieldKey] = cb.checked;
+    });
+    saveSpotColumnVisibility();
+    $('spotColCfgSplash').classList.add('hidden');
+    updateTableColumns();
+    renderSpots();
+  });
 }

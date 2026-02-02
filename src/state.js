@@ -46,6 +46,9 @@ const state = {
   solarFieldVisibility: null, // loaded in solar.js
   lunarFieldVisibility: null, // loaded in lunar.js
 
+  // Spot column visibility — which columns are shown in the On the Air table
+  spotColumnVisibility: null, // loaded in spots.js
+
   // Cached data for re-render
   lastSolarData: null,
   lastLunarData: null,

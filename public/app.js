@@ -93,6 +93,9 @@
         issTrail: [],
         issTrailLine: null,
         issOrbitLine: null,
+        // Geodesic
+        geodesicLine: null,
+        // L.polyline for great circle path from QTH to selected spot
         // Weather
         wxStation: localStorage.getItem("hamtab_wx_station") || "",
         wxApiKey: localStorage.getItem("hamtab_wx_apikey") || "",
@@ -541,6 +544,7 @@
     bearingTo: () => bearingTo,
     bearingToCardinal: () => bearingToCardinal,
     distanceMi: () => distanceMi,
+    geodesicPoints: () => geodesicPoints,
     getSunTimes: () => getSunTimes,
     gridToLatLon: () => gridToLatLon,
     isDaytime: () => isDaytime,
@@ -584,6 +588,26 @@
     const dLon = (lon2 - lon1) * r;
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  function geodesicPoints(lat1, lon1, lat2, lon2, n) {
+    const r = Math.PI / 180;
+    const p1 = [lat1 * r, lon1 * r];
+    const p2 = [lat2 * r, lon2 * r];
+    const d = 2 * Math.asin(Math.sqrt(
+      Math.sin((p1[0] - p2[0]) / 2) ** 2 + Math.cos(p1[0]) * Math.cos(p2[0]) * Math.sin((p1[1] - p2[1]) / 2) ** 2
+    ));
+    if (d < 1e-10) return [[lat1, lon1], [lat2, lon2]];
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const f = i / n;
+      const a = Math.sin((1 - f) * d) / Math.sin(d);
+      const b = Math.sin(f * d) / Math.sin(d);
+      const x = a * Math.cos(p1[0]) * Math.cos(p1[1]) + b * Math.cos(p2[0]) * Math.cos(p2[1]);
+      const y = a * Math.cos(p1[0]) * Math.sin(p1[1]) + b * Math.cos(p2[0]) * Math.sin(p2[1]);
+      const z = a * Math.sin(p1[0]) + b * Math.sin(p2[0]);
+      pts.push([Math.atan2(z, Math.sqrt(x * x + y * y)) / r, Math.atan2(y, x) / r]);
+    }
+    return pts;
   }
   function getSunTimes(lat, lon, date) {
     const rad = Math.PI / 180;
@@ -718,10 +742,12 @@
     const lon = parseFloat(spot.longitude);
     if (state_default.myLat !== null && state_default.myLon !== null && !isNaN(lat) && !isNaN(lon)) {
       const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
+      const longPath = (Math.round(deg) + 180) % 360;
       const mi = Math.round(distanceMi(state_default.myLat, state_default.myLon, lat, lon));
       bearingHtml = `
-      <div class="spot-detail-row"><span class="spot-detail-label">Bearing from DE:</span> ${Math.round(deg)}\xB0 ${bearingToCardinal(deg)}</div>
-      <div class="spot-detail-row"><span class="spot-detail-label">Distance from DE:</span> ${mi.toLocaleString()} mi</div>
+      <div class="spot-detail-row"><span class="spot-detail-label">SP Bearing:</span> ${Math.round(deg)}\xB0 ${bearingToCardinal(deg)}</div>
+      <div class="spot-detail-row"><span class="spot-detail-label">LP Bearing:</span> ${longPath}\xB0 ${bearingToCardinal(longPath)}</div>
+      <div class="spot-detail-row"><span class="spot-detail-label">Distance:</span> ${mi.toLocaleString()} mi</div>
     `;
     }
     const localTime = !isNaN(lon) ? localTimeAtLon(lon, state_default.use24h) : "";
@@ -813,9 +839,52 @@
       shadowSize: [41, 41]
     });
   }
+  function clearGeodesicLine() {
+    if (state_default.geodesicLine) {
+      state_default.map.removeLayer(state_default.geodesicLine);
+      state_default.geodesicLine = null;
+    }
+  }
+  function drawGeodesicLine(spot) {
+    if (state_default.myLat == null || state_default.myLon == null || !state_default.map) return;
+    let spotLat, spotLon;
+    let fromGrid = false;
+    const lat = parseFloat(spot.latitude);
+    const lon = parseFloat(spot.longitude);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      spotLat = lat;
+      spotLon = lon;
+    } else if (spot.grid4) {
+      const center = gridToLatLon(spot.grid4);
+      if (!center) return;
+      spotLat = center.lat;
+      spotLon = center.lon;
+      fromGrid = true;
+    } else {
+      return;
+    }
+    const pts = geodesicPoints(state_default.myLat, state_default.myLon, spotLat, spotLon, 64);
+    const segments = [[]];
+    for (let i = 0; i < pts.length; i++) {
+      segments[segments.length - 1].push(pts[i]);
+      if (i < pts.length - 1) {
+        if (Math.abs(pts[i + 1][1] - pts[i][1]) > 180) {
+          segments.push([]);
+        }
+      }
+    }
+    state_default.geodesicLine = L.polyline(segments, {
+      color: "#ff9800",
+      weight: 2,
+      opacity: 0.7,
+      dashArray: "6 4"
+    });
+    state_default.geodesicLine.addTo(state_default.map);
+  }
   function renderMarkers() {
     if (!state_default.map) return;
     ensureIcons();
+    clearGeodesicLine();
     state_default.clusterGroup.clearLayers();
     state_default.markers = {};
     if (!SOURCE_DEFS[state_default.currentSource].hasMap) return;
@@ -833,8 +902,9 @@
       let distLine = "";
       if (state_default.myLat !== null && state_default.myLon !== null) {
         const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
+        const longPath = (Math.round(deg) + 180) % 360;
         const mi = Math.round(distanceMi(state_default.myLat, state_default.myLon, lat, lon));
-        dirLine = `<div class="popup-dir">Direction: ${bearingToCardinal(deg)}</div>`;
+        dirLine = `<div class="popup-dir">SP: ${Math.round(deg)}\xB0 ${bearingToCardinal(deg)} \xB7 LP: ${longPath}\xB0 ${bearingToCardinal(longPath)}</div>`;
         distLine = `<div class="popup-dist">Distance: ~${mi.toLocaleString()} mi</div>`;
       }
       const localTime = localTimeAtLon(lon, state_default.use24h);
@@ -856,6 +926,7 @@
   }
   function selectSpot(sid) {
     ensureIcons();
+    clearGeodesicLine();
     const oldSid = state_default.selectedSpotId;
     if (oldSid && state_default.markers[oldSid]) {
       state_default.markers[oldSid].setIcon(defaultIcon);
@@ -888,8 +959,12 @@
     if (sid) {
       const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
       const spot = filtered.find((s) => spotId(s) === sid);
-      if (spot) updateSpotDetail(spot);
-      else clearSpotDetail();
+      if (spot) {
+        updateSpotDetail(spot);
+        drawGeodesicLine(spot);
+      } else {
+        clearSpotDetail();
+      }
     } else {
       clearSpotDetail();
     }
@@ -2696,6 +2771,13 @@
     $("clockLocalTime").innerHTML = (localIcon ? '<span class="daynight-emoji">' + localIcon + "</span> " : "") + esc(localTime);
     $("clockUtcTime").innerHTML = (utcIcon ? '<span class="daynight-emoji">' + utcIcon + "</span> " : "") + esc(utcTime);
     $("clockUtcDate").textContent = now.toLocaleDateString(void 0, Object.assign({ timeZone: "UTC" }, dateOpts));
+    const localDateStr = now.toLocaleDateString(void 0, dateOpts);
+    const janOff = new Date(now.getFullYear(), 0, 1).getTimezoneOffset();
+    const julOff = new Date(now.getFullYear(), 6, 1).getTimezoneOffset();
+    const hasDST = janOff !== julOff;
+    const inDST = now.getTimezoneOffset() < Math.max(janOff, julOff);
+    const dstSuffix = hasDST ? inDST ? " (DST)" : " (ST)" : "";
+    $("clockLocalDate").textContent = localDateStr + dstSuffix;
     if (state_default.clockStyle === "analog") {
       drawAnalogClock($("clockLocalCanvas"), now);
       const utcDate = new Date(now);

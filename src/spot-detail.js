@@ -93,10 +93,12 @@ export async function updateSpotDetail(spot) {
   const lon = parseFloat(spot.longitude);
   if (state.myLat !== null && state.myLon !== null && !isNaN(lat) && !isNaN(lon)) {
     const deg = bearingTo(state.myLat, state.myLon, lat, lon);
+    const longPath = (Math.round(deg) + 180) % 360; // reverse azimuth
     const mi = Math.round(distanceMi(state.myLat, state.myLon, lat, lon));
     bearingHtml = `
-      <div class="spot-detail-row"><span class="spot-detail-label">Bearing from DE:</span> ${Math.round(deg)}° ${bearingToCardinal(deg)}</div>
-      <div class="spot-detail-row"><span class="spot-detail-label">Distance from DE:</span> ${mi.toLocaleString()} mi</div>
+      <div class="spot-detail-row"><span class="spot-detail-label">SP Bearing:</span> ${Math.round(deg)}° ${bearingToCardinal(deg)}</div>
+      <div class="spot-detail-row"><span class="spot-detail-label">LP Bearing:</span> ${longPath}° ${bearingToCardinal(longPath)}</div>
+      <div class="spot-detail-row"><span class="spot-detail-label">Distance:</span> ${mi.toLocaleString()} mi</div>
     `;
   }
 

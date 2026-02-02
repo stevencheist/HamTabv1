@@ -41,6 +41,29 @@ export function distanceMi(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// Spherical linear interpolation (Slerp) — returns n+1 [lat, lon] points along the great circle
+export function geodesicPoints(lat1, lon1, lat2, lon2, n) {
+  const r = Math.PI / 180;
+  const p1 = [lat1 * r, lon1 * r];
+  const p2 = [lat2 * r, lon2 * r];
+  const d = 2 * Math.asin(Math.sqrt(
+    Math.sin((p1[0] - p2[0]) / 2) ** 2 +
+    Math.cos(p1[0]) * Math.cos(p2[0]) * Math.sin((p1[1] - p2[1]) / 2) ** 2
+  ));
+  if (d < 1e-10) return [[lat1, lon1], [lat2, lon2]]; // coincident points
+  const pts = [];
+  for (let i = 0; i <= n; i++) {
+    const f = i / n;
+    const a = Math.sin((1 - f) * d) / Math.sin(d);
+    const b = Math.sin(f * d) / Math.sin(d);
+    const x = a * Math.cos(p1[0]) * Math.cos(p1[1]) + b * Math.cos(p2[0]) * Math.cos(p2[1]);
+    const y = a * Math.cos(p1[0]) * Math.sin(p1[1]) + b * Math.cos(p2[0]) * Math.sin(p2[1]);
+    const z = a * Math.sin(p1[0]) + b * Math.sin(p2[0]);
+    pts.push([Math.atan2(z, Math.sqrt(x * x + y * y)) / r, Math.atan2(y, x) / r]);
+  }
+  return pts;
+}
+
 export function getSunTimes(lat, lon, date) {
   const rad = Math.PI / 180;
   const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);

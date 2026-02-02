@@ -1,7 +1,7 @@
 import state from './state.js';
 import { SOURCE_DEFS } from './constants.js';
 import { esc } from './utils.js';
-import { bearingTo, bearingToCardinal, distanceMi, localTimeAtLon } from './geo.js';
+import { bearingTo, bearingToCardinal, distanceMi, localTimeAtLon, geodesicPoints, gridToLatLon } from './geo.js';
 import { spotId } from './filters.js';
 import { updateSpotDetail, clearSpotDetail } from './spot-detail.js';
 
@@ -30,9 +30,63 @@ function ensureIcons() {
   });
 }
 
+// --- Geodesic line helpers ---
+
+function clearGeodesicLine() {
+  if (state.geodesicLine) {
+    state.map.removeLayer(state.geodesicLine);
+    state.geodesicLine = null;
+  }
+}
+
+function drawGeodesicLine(spot) {
+  if (state.myLat == null || state.myLon == null || !state.map) return;
+
+  let spotLat, spotLon;
+  let fromGrid = false;
+
+  const lat = parseFloat(spot.latitude);
+  const lon = parseFloat(spot.longitude);
+  if (!isNaN(lat) && !isNaN(lon)) {
+    spotLat = lat;
+    spotLon = lon;
+  } else if (spot.grid4) {
+    const center = gridToLatLon(spot.grid4);
+    if (!center) return;
+    spotLat = center.lat;
+    spotLon = center.lon;
+    fromGrid = true;
+  } else {
+    return;
+  }
+
+  const pts = geodesicPoints(state.myLat, state.myLon, spotLat, spotLon, 64); // 64 intermediate points for smooth arc
+
+  // Split into segments at dateline crossings (same pattern as ISS trail in iss.js)
+  const segments = [[]];
+  for (let i = 0; i < pts.length; i++) {
+    segments[segments.length - 1].push(pts[i]);
+    if (i < pts.length - 1) {
+      if (Math.abs(pts[i + 1][1] - pts[i][1]) > 180) {
+        segments.push([]);
+      }
+    }
+  }
+
+  state.geodesicLine = L.polyline(segments, {
+    color: '#ff9800',
+    weight: 2,
+    opacity: 0.7,
+    dashArray: '6 4',
+  });
+
+  state.geodesicLine.addTo(state.map);
+}
+
 export function renderMarkers() {
   if (!state.map) return;
   ensureIcons();
+  clearGeodesicLine();
   state.clusterGroup.clearLayers();
   state.markers = {};
 
@@ -55,8 +109,9 @@ export function renderMarkers() {
     let distLine = '';
     if (state.myLat !== null && state.myLon !== null) {
       const deg = bearingTo(state.myLat, state.myLon, lat, lon);
+      const longPath = (Math.round(deg) + 180) % 360; // reverse azimuth
       const mi = Math.round(distanceMi(state.myLat, state.myLon, lat, lon));
-      dirLine = `<div class="popup-dir">Direction: ${bearingToCardinal(deg)}</div>`;
+      dirLine = `<div class="popup-dir">SP: ${Math.round(deg)}° ${bearingToCardinal(deg)} · LP: ${longPath}° ${bearingToCardinal(longPath)}</div>`;
       distLine = `<div class="popup-dist">Distance: ~${mi.toLocaleString()} mi</div>`;
     }
     const localTime = localTimeAtLon(lon, state.use24h);
@@ -81,6 +136,7 @@ export function renderMarkers() {
 
 export function selectSpot(sid) {
   ensureIcons();
+  clearGeodesicLine();
   const oldSid = state.selectedSpotId;
 
   if (oldSid && state.markers[oldSid]) {
@@ -121,8 +177,12 @@ export function selectSpot(sid) {
   if (sid) {
     const filtered = state.sourceFiltered[state.currentSource] || [];
     const spot = filtered.find(s => spotId(s) === sid);
-    if (spot) updateSpotDetail(spot);
-    else clearSpotDetail();
+    if (spot) {
+      updateSpotDetail(spot);
+      drawGeodesicLine(spot);
+    } else {
+      clearSpotDetail();
+    }
   } else {
     clearSpotDetail();
   }

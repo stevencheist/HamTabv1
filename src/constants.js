@@ -82,6 +82,8 @@ export const LUNAR_FIELD_DEFS = [
   { key: 'rightAscension', label: 'Right Ascension', unit: '\u00B0',colorFn: null,          defaultVisible: false },
 ];
 
+// US amateur band privileges per FCC Part 97.301–97.305.
+// Format: [lowMHz, highMHz, modeGroup] where modeGroup is 'all', 'cw', 'cwdig', or 'phone'.
 export const US_PRIVILEGES = {
   EXTRA: [
     [1.8, 2.0, 'all'], [3.5, 4.0, 'all'], [5.3, 5.4, 'all'],
@@ -117,5 +119,5 @@ export const US_PRIVILEGES = {
 
 export const WIDGET_STORAGE_KEY = 'hamtab_widgets';
 export const USER_LAYOUT_KEY = 'hamtab_widgets_user';
-export const SNAP_DIST = 20;
-export const HEADER_H = 30;
+export const SNAP_DIST = 20; // px — edge-snap threshold for widget dragging
+export const HEADER_H = 30; // px — widget header/title-bar height used in snap calculations

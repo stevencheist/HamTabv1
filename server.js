@@ -768,6 +768,9 @@ app.get('/api/propagation', async (req, res) => {
 
 // --- Lunar math (simplified Meeus algorithms) ---
 
+// Lunar position via Jean Meeus, "Astronomical Algorithms" 2nd ed.
+// Chapters 47 (position) & 48 (illumination). Coefficients are the
+// principal terms from Table 47.A; lower-order terms omitted for speed.
 function computeLunar() {
   const now = new Date();
   const JD = julianDate(now);
@@ -802,14 +805,14 @@ function computeLunar() {
     - 0.277 * Math.sin((Mp - F) * rad)
     - 0.173 * Math.sin((2 * D - F) * rad);
 
-  // Horizontal parallax (distance)
-  const pi = 0.9508
+  // Horizontal parallax (distance), in degrees
+  const horizParallax = 0.9508
     + 0.0518 * Math.cos(Mp * rad)
     + 0.0095 * Math.cos((2 * D - Mp) * rad)
     + 0.0078 * Math.cos(2 * D * rad)
     + 0.0028 * Math.cos(2 * Mp * rad);
 
-  const distance = 6378.14 / Math.sin(pi * rad); // km
+  const distance = 6378.14 / Math.sin(horizParallax * rad); // km
 
   // Ecliptic to equatorial conversion
   const epsilon = 23.4393 - 0.0130 * T; // obliquity of ecliptic
@@ -892,6 +895,8 @@ const MAX_REDIRECTS = 5;
 const MAX_RESPONSE_BYTES = 5 * 1024 * 1024; // 5 MB
 const REQUEST_TIMEOUT_MS = 10000; // 10 seconds
 
+// SSRF guard: rejects all non-routable IPs (loopback, link-local, IPv6 ULA, etc.).
+// Broader than isRFC1918() below, which only checks LAN-routable ranges for TLS cert SANs.
 function isPrivateIP(ip) {
   // IPv6 loopback and private
   if (ip === '::1') return true;
@@ -1037,7 +1042,7 @@ function parseSolarXML(xml) {
   const doc = parser.parse(xml);
   const sd = doc.solar.solardata;
 
-  const str = (v) => (v != null ? String(v).trim() : '');
+  const str = (v) => (v != null ? String(v).trim() : ''); // normalize XML text nodes to trimmed strings (or '' if missing)
 
   const indices = {
     sfi:           str(sd.solarflux),

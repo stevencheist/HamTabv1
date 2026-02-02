@@ -347,8 +347,13 @@ export async function fetchPropagation() {
 
     state.propLabelLayer = L.layerGroup({ pane: 'propagation' }).addTo(state.map);
     data.features.forEach(feature => {
-      const coords = feature.geometry.coordinates;
-      if (!coords || coords.length < 2) return;
+      // Flatten MultiLineString to a single coordinate array
+      let coords = feature.geometry.coordinates;
+      if (!coords || coords.length === 0) return;
+      if (feature.geometry.type === 'MultiLineString') {
+        coords = coords.reduce((a, b) => a.length >= b.length ? a : b, coords[0]);
+      }
+      if (coords.length < 2) return;
       const label = feature.properties.title || String(feature.properties['level-value']);
       const color = feature.properties.stroke || '#00ff00';
       const mid = coords[Math.floor(coords.length / 2)];

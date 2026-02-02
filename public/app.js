@@ -36,7 +36,6 @@
         activeGrid: null,
         // Auto-refresh
         autoRefreshEnabled: true,
-        refreshInterval: null,
         countdownSeconds: 60,
         countdownTimer: null,
         // Preferences
@@ -1603,8 +1602,12 @@
       }).addTo(state_default.map);
       state_default.propLabelLayer = L.layerGroup({ pane: "propagation" }).addTo(state_default.map);
       data.features.forEach((feature) => {
-        const coords = feature.geometry.coordinates;
-        if (!coords || coords.length < 2) return;
+        let coords = feature.geometry.coordinates;
+        if (!coords || coords.length === 0) return;
+        if (feature.geometry.type === "MultiLineString") {
+          coords = coords.reduce((a, b) => a.length >= b.length ? a : b, coords[0]);
+        }
+        if (coords.length < 2) return;
         const label = feature.properties.title || String(feature.properties["level-value"]);
         const color = feature.properties.stroke || "#00ff00";
         const mid = coords[Math.floor(coords.length / 2)];

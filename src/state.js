@@ -12,7 +12,6 @@ const state = {
 
   // Auto-refresh
   autoRefreshEnabled: true,
-  refreshInterval: null,
   countdownSeconds: 60,
   countdownTimer: null,
 

@@ -8,7 +8,7 @@ import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
-import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility } from './widgets.js';
+import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -213,6 +213,12 @@ export function showSplash() {
   $('splashGridDropdown').innerHTML = '';
   state.gridHighlightIdx = -1;
   $('splashVersion').textContent = __APP_VERSION__;
+
+  // --- Layout section state ---
+  const hasSaved = hasUserLayout();
+  $('splashClearLayout').disabled = !hasSaved;
+  $('splashLayoutStatus').textContent = hasSaved ? 'Custom layout saved' : '';
+
   $('splashCallsign').focus();
 }
 
@@ -419,6 +425,19 @@ export function initSplashListeners() {
     } else {
       updateLocStatus('Geolocation unavailable', true);
     }
+  });
+
+  // --- Layout save / clear buttons ---
+  $('splashSaveLayout').addEventListener('click', () => {
+    saveUserLayout();
+    $('splashLayoutStatus').textContent = 'Layout saved';
+    $('splashClearLayout').disabled = false;
+  });
+
+  $('splashClearLayout').addEventListener('click', () => {
+    clearUserLayout();
+    $('splashLayoutStatus').textContent = 'App default restored';
+    $('splashClearLayout').disabled = true;
   });
 
   $('editCallBtn').addEventListener('click', () => {

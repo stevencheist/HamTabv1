@@ -116,5 +116,6 @@ export const US_PRIVILEGES = {
 };
 
 export const WIDGET_STORAGE_KEY = 'hamtab_widgets';
+export const USER_LAYOUT_KEY = 'hamtab_widgets_user';
 export const SNAP_DIST = 20;
 export const HEADER_H = 30;

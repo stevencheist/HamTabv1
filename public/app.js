@@ -202,9 +202,13 @@
     moonImageLoading = true;
     const img = new Image();
     img.onload = () => {
-      moonImage = img;
-      if (state_default.lastLunarData) {
-        renderMoonPhase(state_default.lastLunarData.illumination, state_default.lastLunarData.phase);
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        moonImage = img;
+        if (state_default.lastLunarData) {
+          renderMoonPhase(state_default.lastLunarData.illumination, state_default.lastLunarData.phase);
+        }
+      } else {
+        moonImageLoading = false;
       }
     };
     img.onerror = () => {
@@ -227,14 +231,13 @@
     return "var(--red)";
   }
   function loadLunarFieldVisibility() {
-    const { LUNAR_FIELD_DEFS: LUNAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
     try {
       const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
       if (saved && typeof saved === "object") return saved;
     } catch (e) {
     }
     const vis = {};
-    LUNAR_FIELD_DEFS2.forEach((f) => vis[f.key] = f.defaultVisible);
+    LUNAR_FIELD_DEFS.forEach((f) => vis[f.key] = f.defaultVisible);
     return vis;
   }
   function saveLunarFieldVisibility() {
@@ -314,11 +317,10 @@
     ctx.stroke();
   }
   function renderLunar(data) {
-    const { LUNAR_FIELD_DEFS: LUNAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
     const lunarCards = $("lunarCards");
     lunarCards.innerHTML = "";
     renderMoonPhase(data.illumination, data.phase);
-    LUNAR_FIELD_DEFS2.forEach((f) => {
+    LUNAR_FIELD_DEFS.forEach((f) => {
       if (state_default.lunarFieldVisibility[f.key] === false) return;
       const rawVal = data[f.key];
       let displayVal;
@@ -351,6 +353,7 @@
     "src/lunar.js"() {
       init_state();
       init_dom();
+      init_constants();
       moonImage = null;
       moonImageLoading = false;
       LUNAR_VIS_KEY = "hamtab_lunar_fields";
@@ -365,11 +368,12 @@
     SNAP_DIST: () => SNAP_DIST,
     SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
     SOURCE_DEFS: () => SOURCE_DEFS,
+    USER_LAYOUT_KEY: () => USER_LAYOUT_KEY,
     US_PRIVILEGES: () => US_PRIVILEGES,
     WIDGET_DEFS: () => WIDGET_DEFS,
     WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY
   });
-  var WIDGET_DEFS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_STORAGE_KEY, SNAP_DIST, HEADER_H;
+  var WIDGET_DEFS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -509,6 +513,7 @@
         ]
       };
       WIDGET_STORAGE_KEY = "hamtab_widgets";
+      USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
       HEADER_H = 30;
     }
@@ -2184,6 +2189,24 @@
     });
     localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(layout));
   }
+  function saveUserLayout() {
+    const layout = {};
+    document.querySelectorAll(".widget").forEach((w) => {
+      layout[w.id] = {
+        left: parseInt(w.style.left) || 0,
+        top: parseInt(w.style.top) || 0,
+        width: parseInt(w.style.width) || 200,
+        height: parseInt(w.style.height) || 150
+      };
+    });
+    localStorage.setItem(USER_LAYOUT_KEY, JSON.stringify(layout));
+  }
+  function clearUserLayout() {
+    localStorage.removeItem(USER_LAYOUT_KEY);
+  }
+  function hasUserLayout() {
+    return localStorage.getItem(USER_LAYOUT_KEY) !== null;
+  }
   function bringToFront(widget) {
     state_default.zCounter++;
     widget.style.zIndex = state_default.zCounter;
@@ -2267,7 +2290,16 @@
   }
   function resetLayout() {
     localStorage.removeItem(WIDGET_STORAGE_KEY);
-    applyLayout(getDefaultLayout());
+    const userSaved = localStorage.getItem(USER_LAYOUT_KEY);
+    if (userSaved) {
+      try {
+        applyLayout(JSON.parse(userSaved));
+      } catch (e) {
+        applyLayout(getDefaultLayout());
+      }
+    } else {
+      applyLayout(getDefaultLayout());
+    }
     saveWidgets();
     centerMapOnUser();
     updateUserMarker();
@@ -2967,6 +2999,9 @@
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
     $("splashVersion").textContent = "0.6.0";
+    const hasSaved = hasUserLayout();
+    $("splashClearLayout").disabled = !hasSaved;
+    $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
     $("splashCallsign").focus();
   }
   function dismissSplash() {
@@ -3154,6 +3189,16 @@
       } else {
         updateLocStatus("Geolocation unavailable", true);
       }
+    });
+    $("splashSaveLayout").addEventListener("click", () => {
+      saveUserLayout();
+      $("splashLayoutStatus").textContent = "Layout saved";
+      $("splashClearLayout").disabled = false;
+    });
+    $("splashClearLayout").addEventListener("click", () => {
+      clearUserLayout();
+      $("splashLayoutStatus").textContent = "App default restored";
+      $("splashClearLayout").disabled = true;
     });
     $("editCallBtn").addEventListener("click", () => {
       showSplash();

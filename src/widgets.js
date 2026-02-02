@@ -1,5 +1,5 @@
 import state from './state.js';
-import { WIDGET_DEFS, WIDGET_STORAGE_KEY, SNAP_DIST, HEADER_H } from './constants.js';
+import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H } from './constants.js';
 import { centerMapOnUser, updateUserMarker } from './map-init.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
@@ -156,6 +156,27 @@ export function saveWidgets() {
   localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(layout));
 }
 
+export function saveUserLayout() {
+  const layout = {};
+  document.querySelectorAll('.widget').forEach(w => {
+    layout[w.id] = {
+      left: parseInt(w.style.left) || 0,
+      top: parseInt(w.style.top) || 0,
+      width: parseInt(w.style.width) || 200,
+      height: parseInt(w.style.height) || 150,
+    };
+  });
+  localStorage.setItem(USER_LAYOUT_KEY, JSON.stringify(layout));
+}
+
+export function clearUserLayout() {
+  localStorage.removeItem(USER_LAYOUT_KEY);
+}
+
+export function hasUserLayout() {
+  return localStorage.getItem(USER_LAYOUT_KEY) !== null;
+}
+
 function bringToFront(widget) {
   state.zCounter++;
   widget.style.zIndex = state.zCounter;
@@ -253,7 +274,16 @@ function applyLayout(layout) {
 
 function resetLayout() {
   localStorage.removeItem(WIDGET_STORAGE_KEY);
-  applyLayout(getDefaultLayout());
+  const userSaved = localStorage.getItem(USER_LAYOUT_KEY);
+  if (userSaved) {
+    try {
+      applyLayout(JSON.parse(userSaved));
+    } catch (e) {
+      applyLayout(getDefaultLayout());
+    }
+  } else {
+    applyLayout(getDefaultLayout());
+  }
   saveWidgets();
   centerMapOnUser();
   updateUserMarker();

@@ -549,6 +549,50 @@ header {
   cursor: pointer;
 }
 
+/* ---- Layout section in splash ---- */
+
+.splash-layout-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  text-align: left;
+}
+
+.splash-layout-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.splash-layout-btn {
+  padding: 4px 12px;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+
+.splash-layout-btn:hover:not(:disabled) {
+  background: var(--accent);
+  color: #fff;
+}
+
+.splash-layout-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.splash-layout-status {
+  font-size: 0.75rem;
+  color: var(--green);
+  min-height: 1.2em;
+}
+
 /* ---- Widget system ---- */
 
 .widget-area {

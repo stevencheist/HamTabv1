@@ -34,7 +34,7 @@
   "migrations": [
     {
       "tag": "v1",
-      "new_classes": ["HamTab"]
+      "new_sqlite_classes": ["HamTab"]
     }
   ]
 }

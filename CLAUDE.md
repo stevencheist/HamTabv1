@@ -4,14 +4,36 @@
 
 HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanilla JS frontend, Leaflet maps, esbuild bundling.
 
+## Project Goals
+
+- **Two deployment modes** with full feature parity:
+  - **Hostedmode** — Cloud-hosted at hamtab.net via Cloudflare Containers. Automated deployment via CI/CD on push.
+  - **Lanmode** — Self-hosted on Windows, Linux, or Raspberry Pi. Users download releases and run locally with self-signed TLS.
+- **Shared codebase** — All features that apply to both modes live on `main`. Deployment-specific code stays on its branch.
+- **Minimal divergence** — Hostedmode contains only what's necessary for Cloudflare (Worker, Dockerfile, KV sync, CI/CD). Lanmode contains only what's necessary for self-hosting (self-signed TLS, CORS restrictions, update checker).
+
 ## Architecture
 
 - **Server** (`server.js`) — Stateless API proxy. No database, no sessions. Proxies external amateur radio APIs and serves static files.
 - **Client** — IIFE bundle (`public/app.js`) built from ES modules in `src/`. All user state lives in localStorage with `hamtab_` prefix.
-- **Deployment (LAN)** — `lanmode` branch. Self-signed TLS, CORS restricted to RFC 1918, auto-update from GitHub Releases, local admin endpoints (`/api/restart`, `/api/config/env`).
-- **Deployment (Cloud)** — `hostedmode` branch. Cloudflare Containers + Access + Workers KV at hamtab.net. No CORS, no self-signed TLS, no update system. Auth via Cloudflare Access (Google, GitHub, email OTP). User settings synced to Workers KV.
+
+## Branch Strategy
+
+```
+main ──────────────────────── shared codebase, full feature set
+ ├── lanmode                  self-hosted variant (Windows/Linux/Raspberry Pi)
+ └── hostedmode               cloud variant (Cloudflare Containers)
+```
+
+- **`main`** — Shared codebase. All new features land here first. Both deployment branches merge from `main` to stay current.
+- **`lanmode`** — Adds self-hosted code: self-signed TLS, CORS restricted to RFC 1918, GitHub Releases update checker, local admin endpoints. Targets home servers and Raspberry Pi.
+- **`hostedmode`** — Adds cloud code: Cloudflare Worker + Container, Workers KV settings sync, Cloudflare Access auth, GitHub Actions CI/CD. Targets hamtab.net. Automated deployment on every push.
+
+**Merge direction:** `main` → `lanmode`, `main` → `hostedmode`. Never merge between deployment branches directly.
 
 ## Key Files
+
+**All branches:**
 
 | File | Purpose |
 |---|---|
@@ -22,11 +44,24 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 | `public/index.html` | Semantic HTML structure |
 | `public/style.css` | Dark theme, CSS custom properties |
 | `esbuild.mjs` | Build config (ES modules → IIFE bundle) |
-| `worker.js` | Cloudflare Worker entry point — routes `/api/settings` to KV, proxies everything else to container (hostedmode only) |
-| `wrangler.jsonc` | Cloudflare deployment config — container, KV namespace, compatibility date (hostedmode only) |
-| `Dockerfile` | Container image for Cloudflare Containers (hostedmode only) |
-| `src/settings-sync.js` | Client-side settings pull/push via Workers KV (hostedmode only) |
-| `.github/workflows/deploy.yml` | CI/CD — auto-deploy to Cloudflare on push to hostedmode |
+
+**Lanmode only:**
+
+| File | Purpose |
+|---|---|
+| `install.sh` | Linux/Raspberry Pi installer with optional systemd service |
+| `install.ps1` | Windows service installer |
+| `src/update.js` | GitHub Releases update checker |
+
+**Hostedmode only:**
+
+| File | Purpose |
+|---|---|
+| `worker.js` | Cloudflare Worker — routes `/api/settings` to KV, proxies to container |
+| `wrangler.jsonc` | Cloudflare deployment config — container, KV namespace, routes |
+| `Dockerfile` | Container image for Cloudflare Containers |
+| `src/settings-sync.js` | Client-side settings sync via Workers KV |
+| `.github/workflows/deploy.yml` | CI/CD — auto-deploy on push to hostedmode |
 
 ## Commenting Style
 
@@ -46,7 +81,7 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 - ES modules in `src/`, bundled to IIFE via esbuild
 - localStorage keys use `hamtab_` prefix
 - Server is stateless — no database, no sessions
-- Security: helmet CSP, rate limiting, SSRF prevention on all outbound requests
+- Security: helmet CSP, rate limiting, SSRF prevention
 - Never commit `.env`, TLS certs, or wrangler secrets
 - Widgets must remain accessible at any window size — responsive reflow on resize
 
@@ -54,24 +89,9 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 
 - Commit messages: imperative mood ("Add X", "Fix Y")
 - Match existing style from git log
-- PRs target `main` branch
-- Feature work on named branches
-
-## Branch Strategy
-
-Three branches, one shared base:
-
-```
-main ──────────────────────── shared codebase
- ├── lanmode                  LAN/self-hosted variant
- └── hostedmode               Cloudflare/cloud variant
-```
-
-- **`main`** — Shared codebase with full client feature parity. All new features that apply to both deployment modes land here first. Both `lanmode` and `hostedmode` merge from `main` to pick up shared work.
-- **`lanmode`** — Adds LAN-specific code on top of `main`: self-signed TLS, CORS restricted to RFC 1918, auto-update from GitHub Releases, local admin endpoints (`/api/restart`, `/api/config/env`). Targets Raspberry Pi / home server deployment.
-- **`hostedmode`** — Adds cloud-specific code on top of `main`: Cloudflare Worker + Container architecture, settings sync via Workers KV, Cloudflare Access auth, CI/CD workflow, Dockerfile. Targets hamtab.net deployment.
-
-**Merge direction:** `main` → `lanmode`, `main` → `hostedmode`. Never merge between `lanmode` and `hostedmode` directly. Branch-specific code stays on its branch.
+- **New features** — Develop on `main` or feature branches, then merge to `main`
+- **Deployment sync** — After merging to `main`, merge `main` into both `lanmode` and `hostedmode` to maintain feature parity
+- **Branch-specific code** — Deployment-specific changes go directly to `lanmode` or `hostedmode`, never to `main`
 
 ## Code Quality
 
@@ -86,27 +106,42 @@ main ──────────────────────── sh
 - Version lives in `package.json` and is injected at build time via esbuild `define`
 - Bump `version` in `package.json` on every push: patch for fixes, minor for features
 - Rebuild (`npm run build`) after bumping to update the client bundle
-- **Lanmode** — Update detection compares `package.json` version against the latest GitHub Release tag (via `api.github.com`). Client shows version info and links to release page; no auto-download of code. GitHub releases must be tagged (e.g. `v0.6.0`) for detection to work.
-- **Hostedmode** — No auto-update system. Version is displayed as a static label (`v` + `__APP_VERSION__`). Deployments are handled via CI/CD on push to `hostedmode`.
+
+**Lanmode updates:**
+- Update detection compares local version against the latest GitHub Release tag (via `api.github.com`)
+- No git dependency — works with zip downloads, scp deploys, etc.
+- GitHub releases must be tagged (e.g. `v0.6.0`) for detection to work
+- Client shows version info and links to release page; no auto-download of code
+
+**Hostedmode updates:**
+- No in-app update system — deployments are fully automated via GitHub Actions CI/CD
+- Every push to `hostedmode` triggers a build and deploy to Cloudflare
+- Version displayed as static label for reference only
 
 ## Security (Priority)
 
 Security is a top priority. Flag any code that could introduce a vulnerability.
 
+**All branches:**
 - **SSRF prevention** — All outbound requests in server.js must resolve the hostname and reject RFC 1918 / loopback IPs before connecting. Whitelist URL path/query params where possible (e.g. SDO image type).
 - **No client-side external requests** — All external API calls go through server.js proxy, never from the browser directly.
-- **Secrets** — No API keys in client code. Use `.env` for secrets. Never commit `.env` or TLS certs.
+- **Secrets** — No API keys in client code. Use `.env` for secrets. Never commit `.env`, TLS certs, or wrangler secrets.
 - **CSP** — Helmet CSP is enforced. When adding new external resources, proxy them through the server rather than loosening CSP.
-- **CORS (lanmode)** — Locked to RFC 1918 private networks only. Removed entirely on hostedmode (same-origin deployment).
 - **Rate limiting** — All `/api/` routes are rate-limited.
 - **Input validation** — Sanitize and whitelist all user-supplied query params on server endpoints. Use `encodeURIComponent` on the client when building URLs.
 - **XSS** — Use `textContent` or DOM APIs to render user/API data. Never inject unsanitized strings via `innerHTML`. The `esc()` utility must be used if HTML insertion is unavoidable.
 - **Dependency hygiene** — Keep dependencies minimal. Audit before adding new packages.
-- **Cloudflare Access (hostedmode)** — Auth is handled by Cloudflare Access before requests reach the Worker/Container. The Worker reads user identity from the `Cf-Access-Jwt-Assertion` header (already verified by Access). No application-level auth code.
-- **trust proxy (hostedmode)** — `app.set('trust proxy', 1)` is required behind Cloudflare so rate limiter sees real client IPs, not the proxy IP.
-- **HSTS (hostedmode)** — Enabled with 1-year max-age. Cloudflare handles TLS termination.
-- **No CORS (hostedmode)** — Same-origin deployment means CORS headers are unnecessary and removed to prevent other sites from using the API proxies.
-- **Wrangler secrets** — Use `wrangler secret put` for any server-side secrets. Never store secrets in `wrangler.jsonc` or commit them to git.
+
+**Lanmode-specific:**
+- **CORS** — Locked to RFC 1918 private networks only.
+- **Self-signed TLS** — Generated automatically for LAN HTTPS.
+
+**Hostedmode-specific:**
+- **Cloudflare Access** — Auth handled before requests reach Worker/Container. User identity read from `Cf-Access-Jwt-Assertion` header.
+- **No CORS** — Same-origin deployment; CORS headers removed.
+- **trust proxy** — `app.set('trust proxy', 1)` required so rate limiter sees real client IPs.
+- **HSTS** — Enabled with 1-year max-age. Cloudflare handles TLS termination.
+- **Wrangler secrets** — Use `wrangler secret put` for server-side secrets. Never store in `wrangler.jsonc`.
 
 ## GitHub Issue Communication
 

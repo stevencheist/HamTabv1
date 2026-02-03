@@ -46,8 +46,8 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 - ES modules in `src/`, bundled to IIFE via esbuild
 - localStorage keys use `hamtab_` prefix
 - Server is stateless — no database, no sessions
-- Security: helmet CSP, CORS restricted to RFC 1918 IPs, rate limiting
-- Never commit `.env` or TLS certs
+- Security: helmet CSP, rate limiting, SSRF prevention on all outbound requests
+- Never commit `.env`, TLS certs, or wrangler secrets
 - Widgets must remain accessible at any window size — responsive reflow on resize
 
 ## Commit & Branch Conventions
@@ -59,11 +59,19 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 
 ## Branch Strategy
 
-- **`main`** — Shared codebase with full client feature parity. Both `lanmode` and `hostedmode` merge from `main` for new shared features.
-- **`lanmode`** — LAN-specific additions: self-signed TLS, CORS for private networks, auto-update system, local admin endpoints. Targets Raspberry Pi / home server deployment.
-- **`hostedmode`** — Cloud-specific additions: Cloudflare Worker + Container architecture, settings sync via Workers KV, Cloudflare Access auth, CI/CD workflow. Targets hamtab.net deployment.
+Three branches, one shared base:
 
-New features that apply to both deployment modes go on `main`. Branch-specific code stays on its branch.
+```
+main ──────────────────────── shared codebase
+ ├── lanmode                  LAN/self-hosted variant
+ └── hostedmode               Cloudflare/cloud variant
+```
+
+- **`main`** — Shared codebase with full client feature parity. All new features that apply to both deployment modes land here first. Both `lanmode` and `hostedmode` merge from `main` to pick up shared work.
+- **`lanmode`** — Adds LAN-specific code on top of `main`: self-signed TLS, CORS restricted to RFC 1918, auto-update from GitHub Releases, local admin endpoints (`/api/restart`, `/api/config/env`). Targets Raspberry Pi / home server deployment.
+- **`hostedmode`** — Adds cloud-specific code on top of `main`: Cloudflare Worker + Container architecture, settings sync via Workers KV, Cloudflare Access auth, CI/CD workflow, Dockerfile. Targets hamtab.net deployment.
+
+**Merge direction:** `main` → `lanmode`, `main` → `hostedmode`. Never merge between `lanmode` and `hostedmode` directly. Branch-specific code stays on its branch.
 
 ## Code Quality
 
@@ -78,10 +86,7 @@ New features that apply to both deployment modes go on `main`. Branch-specific c
 - Version lives in `package.json` and is injected at build time via esbuild `define`
 - Bump `version` in `package.json` on every push: patch for fixes, minor for features
 - Rebuild (`npm run build`) after bumping to update the client bundle
-- Update detection compares `package.json` version against the latest GitHub Release tag (via `api.github.com`)
-- No git dependency — works with zip downloads, scp deploys, etc.
-- GitHub releases must be tagged (e.g. `v0.6.0`) for detection to work
-- Client shows version info and links to release page; no auto-download of code
+- **Lanmode** — Update detection compares `package.json` version against the latest GitHub Release tag (via `api.github.com`). Client shows version info and links to release page; no auto-download of code. GitHub releases must be tagged (e.g. `v0.6.0`) for detection to work.
 - **Hostedmode** — No auto-update system. Version is displayed as a static label (`v` + `__APP_VERSION__`). Deployments are handled via CI/CD on push to `hostedmode`.
 
 ## Security (Priority)
@@ -92,7 +97,7 @@ Security is a top priority. Flag any code that could introduce a vulnerability.
 - **No client-side external requests** — All external API calls go through server.js proxy, never from the browser directly.
 - **Secrets** — No API keys in client code. Use `.env` for secrets. Never commit `.env` or TLS certs.
 - **CSP** — Helmet CSP is enforced. When adding new external resources, proxy them through the server rather than loosening CSP.
-- **CORS** — Locked to RFC 1918 private networks only.
+- **CORS (lanmode)** — Locked to RFC 1918 private networks only. Removed entirely on hostedmode (same-origin deployment).
 - **Rate limiting** — All `/api/` routes are rate-limited.
 - **Input validation** — Sanitize and whitelist all user-supplied query params on server endpoints. Use `encodeURIComponent` on the client when building URLs.
 - **XSS** — Use `textContent` or DOM APIs to render user/API data. Never inject unsanitized strings via `innerHTML`. The `esc()` utility must be used if HTML insertion is unavoidable.

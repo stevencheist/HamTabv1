@@ -92,6 +92,7 @@ main ──────────────────────── sh
 - **New features** — Develop on `main` or feature branches, then merge to `main`
 - **Deployment sync** — After merging to `main`, merge `main` into both `lanmode` and `hostedmode` to maintain feature parity
 - **Branch-specific code** — Deployment-specific changes go directly to `lanmode` or `hostedmode`, never to `main`
+- **CLAUDE.md edits** — All CLAUDE.md changes go to `main` only, then merge out. Never edit CLAUDE.md directly on deployment branches.
 
 ## Code Quality
 

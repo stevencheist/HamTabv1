@@ -104,38 +104,133 @@ The build step bundles `src/*.js` into `public/app.js` via esbuild. The version 
 
 ## Deployment
 
-Deployment is automatic via GitHub Actions. Pushing to the `hostedmode` branch triggers the CI/CD workflow (`.github/workflows/deploy.yml`), which:
+### Prerequisites
+
+- **Cloudflare account** with Workers Paid plan (required for Containers)
+- **Domain** added to Cloudflare (e.g., hamtab.net)
+- **Wrangler CLI** installed: `npm install -g wrangler`
+- **GitHub repository** with Actions enabled
+
+### Step 1: Authenticate Wrangler
+
+```bash
+wrangler login
+```
+
+This opens a browser to authorize Wrangler with your Cloudflare account.
+
+### Step 2: Create KV Namespace
+
+```bash
+wrangler kv namespace create SETTINGS_KV
+```
+
+Copy the returned namespace ID and paste it into `wrangler.jsonc`:
+
+```jsonc
+"kv_namespaces": [
+  {
+    "binding": "SETTINGS_KV",
+    "id": "your-namespace-id-here"
+  }
+]
+```
+
+### Step 3: Configure wrangler.jsonc
+
+Update the routes to match your domain:
+
+```jsonc
+"routes": [
+  { "pattern": "yourdomain.com/*", "zone_name": "yourdomain.com" }
+]
+```
+
+### Step 4: Create Cloudflare API Token
+
+1. Go to https://dash.cloudflare.com/profile/api-tokens
+2. Click **Create Token**
+3. Use **Custom token** with these permissions:
+   - **Account** → Workers Scripts: Edit
+   - **Account** → Workers KV Storage: Edit
+   - **Account** → Workers Tail: Read (optional, for logs)
+   - **Zone** → Workers Routes: Edit
+   - **Zone** → Zone: Read
+4. Set **Zone Resources** to your domain
+5. Copy the token (you won't see it again)
+
+### Step 5: Add GitHub Secret
+
+1. Go to your repo → Settings → Secrets and variables → Actions
+2. Click **New repository secret**
+3. Name: `CLOUDFLARE_API_TOKEN`
+4. Value: paste the token from Step 4
+
+### Step 6: Configure Cloudflare Access (Authentication)
+
+1. Go to [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) dashboard
+2. Navigate to **Access** → **Applications**
+3. Click **Add an application** → **Self-hosted**
+4. Configure:
+   - **Application name:** HamTab
+   - **Session duration:** 24 hours (or your preference)
+   - **Application domain:** `yourdomain.com`
+5. Add a policy:
+   - **Policy name:** Allow authenticated users
+   - **Action:** Allow
+   - **Include:** Emails ending in `@gmail.com` (or configure as needed)
+6. Under **Authentication**, add identity providers:
+   - Google, GitHub, and/or One-time PIN (email)
+7. Save the application
+
+### Step 7: First Deploy
+
+Deploy manually to initialize the Durable Object migration:
+
+```bash
+npm install
+npm run build
+wrangler deploy
+```
+
+You should see output confirming the Worker and Container deployment.
+
+### Step 8: Verify DNS
+
+Ensure your domain points to Cloudflare:
+- If purchased through Cloudflare, this is automatic
+- Otherwise, update nameservers at your registrar to Cloudflare's
+
+### Automated Deployment (CI/CD)
+
+After initial setup, deployment is automatic. Pushing to the `hostedmode` branch triggers the GitHub Actions workflow (`.github/workflows/deploy.yml`):
 
 1. Checks out the code
-2. Installs dependencies and builds the client bundle
-3. Deploys to Cloudflare via `wrangler`
+2. Installs dependencies
+3. Builds the client bundle (`npm run build`)
+4. Deploys to Cloudflare via `wrangler deploy`
 
-### Initial Setup (one-time)
+No manual intervention needed — just push and it deploys.
 
-1. **Create KV namespace:**
-   ```bash
-   wrangler kv namespace create SETTINGS_KV
-   ```
-   Paste the returned ID into `wrangler.jsonc` under `kv_namespaces`.
+### Adding Secrets
 
-2. **Configure Cloudflare Access:**
-   In the Cloudflare Zero Trust dashboard, add an Access application for `hamtab.net` with your chosen identity providers (Google, GitHub, email OTP).
+For server-side secrets (e.g., Weather Underground API key):
 
-3. **Add GitHub secret:**
-   In the repo Settings → Secrets → Actions, add `CLOUDFLARE_API_TOKEN` — a Cloudflare API token with Workers Scripts Edit and Account Containers permissions.
+```bash
+wrangler secret put WU_API_KEY
+```
 
-4. **DNS:**
-   Point `hamtab.net` to Cloudflare (likely already configured if purchased through CF).
+Enter the value when prompted. Secrets are encrypted at rest and injected as environment variables at runtime. Never store secrets in `wrangler.jsonc` or commit them to git.
 
-5. **Deploy:**
-   ```bash
-   wrangler deploy
-   ```
-   Or just push to `hostedmode` and let CI/CD handle it.
+### Monitoring
 
-### Secrets
+View real-time logs:
 
-Use `wrangler secret put SECRET_NAME` for any server-side secrets (e.g. API keys). These are encrypted at rest and injected as environment variables at runtime. Never store secrets in `wrangler.jsonc` or commit them to git.
+```bash
+wrangler tail
+```
+
+View container logs in the Cloudflare dashboard under Workers & Pages → your worker → Logs.
 
 ---
 

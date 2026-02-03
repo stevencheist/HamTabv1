@@ -1,5 +1,5 @@
 {
-  "name": "hamtab",
+  "name": "hamtabv1",
   "main": "worker.js",
   "compatibility_date": "2026-01-16",
 
@@ -27,7 +27,7 @@
   "kv_namespaces": [
     {
       "binding": "SETTINGS_KV",
-      "id": "PASTE_KV_NAMESPACE_ID_HERE"
+      "id": "e342bbb2689f4c6bb568f5cc236b3122"
     }
   ],
 

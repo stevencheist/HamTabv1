@@ -111,9 +111,6 @@
         // Widgets
         zCounter: 10,
         // next z-index to assign when a widget is focused (increments on each click)
-        // Update
-        updateStatusPolling: null,
-        updateReleaseUrl: null,
         // Init flag
         appInitialized: false,
         // Day/night
@@ -2771,13 +2768,6 @@
     $("clockLocalTime").innerHTML = (localIcon ? '<span class="daynight-emoji">' + localIcon + "</span> " : "") + esc(localTime);
     $("clockUtcTime").innerHTML = (utcIcon ? '<span class="daynight-emoji">' + utcIcon + "</span> " : "") + esc(utcTime);
     $("clockUtcDate").textContent = now.toLocaleDateString(void 0, Object.assign({ timeZone: "UTC" }, dateOpts));
-    const localDateStr = now.toLocaleDateString(void 0, dateOpts);
-    const janOff = new Date(now.getFullYear(), 0, 1).getTimezoneOffset();
-    const julOff = new Date(now.getFullYear(), 6, 1).getTimezoneOffset();
-    const hasDST = janOff !== julOff;
-    const inDST = now.getTimezoneOffset() < Math.max(janOff, julOff);
-    const dstSuffix = hasDST ? inDST ? " (DST)" : " (ST)" : "";
-    $("clockLocalDate").textContent = localDateStr + dstSuffix;
     if (state_default.clockStyle === "analog") {
       drawAnalogClock($("clockLocalCanvas"), now);
       const utcDate = new Date(now);
@@ -2925,6 +2915,73 @@
 
   // src/splash.js
   init_filters();
+
+  // src/settings-sync.js
+  var SYNC_KEYS = [
+    "hamtab_callsign",
+    "hamtab_lat",
+    "hamtab_lon",
+    "hamtab_time24",
+    "hamtab_spot_source",
+    "hamtab_privilege_filter",
+    "hamtab_license_class",
+    "hamtab_prop_metric",
+    "hamtab_map_center",
+    "hamtab_clock_style",
+    "hamtab_wx_station",
+    "hamtab_wx_apikey",
+    "hamtab_map_overlays",
+    "hamtab_widgets_user",
+    "hamtab_widget_visibility",
+    "hamtab_solar_fields",
+    "hamtab_lunar_fields",
+    "hamtab_spot_columns",
+    "hamtab_sdo_type"
+  ];
+  async function pullSettings() {
+    try {
+      const resp = await fetch("/api/settings");
+      if (!resp.ok) return;
+      const remote = await resp.json();
+      if (!remote || typeof remote !== "object") return;
+      let changed = false;
+      for (const key of SYNC_KEYS) {
+        if (key in remote) {
+          const local = localStorage.getItem(key);
+          const remoteVal = remote[key] === null ? null : String(remote[key]);
+          if (local !== remoteVal) {
+            if (remoteVal === null) {
+              localStorage.removeItem(key);
+            } else {
+              localStorage.setItem(key, remoteVal);
+            }
+            changed = true;
+          }
+        }
+      }
+      if (changed) location.reload();
+    } catch {
+    }
+  }
+  var pushTimer = null;
+  function pushSettings() {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(() => {
+      const payload = {};
+      for (const key of SYNC_KEYS) {
+        const val = localStorage.getItem(key);
+        if (val !== null) payload[key] = val;
+      }
+      fetch("/api/settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }).catch(() => {
+      });
+    }, 2e3);
+  }
+
+  // src/splash.js
   function updateOperatorDisplay2() {
     const opCall = $("opCall");
     const opLoc = $("opLoc");
@@ -3099,9 +3156,6 @@
     });
     $("splashWxStation").value = state_default.wxStation;
     $("splashWxApiKey").value = state_default.wxApiKey;
-    const intervalSelect = $("splashUpdateInterval");
-    const savedInterval = localStorage.getItem("hamtab_update_interval") || "60";
-    intervalSelect.value = savedInterval;
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
@@ -3126,14 +3180,6 @@
     state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
     localStorage.setItem("hamtab_wx_station", state_default.wxStation);
     localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
-    if (state_default.wxApiKey) {
-      fetch("/api/config/env", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ WU_API_KEY: state_default.wxApiKey })
-      }).catch(() => {
-      });
-    }
     fetchWeather();
     const widgetList = document.getElementById("splashWidgetList");
     widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
@@ -3141,15 +3187,7 @@
     });
     saveWidgetVisibility();
     applyWidgetVisibility();
-    const intervalSelect = $("splashUpdateInterval");
-    const intervalVal = intervalSelect.value;
-    localStorage.setItem("hamtab_update_interval", intervalVal);
-    fetch("/api/update/interval", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
-    }).catch(() => {
-    });
+    pushSettings();
     $("splashGridDropdown").classList.remove("open");
     $("splash").classList.add("hidden");
     updateOperatorDisplay2();
@@ -3589,81 +3627,10 @@
   }
 
   // src/update.js
-  init_state();
   init_dom();
-  init_utils();
-  async function checkUpdateStatus() {
-    try {
-      const resp = await fetch("/api/update/status");
-      if (!resp.ok) return;
-      const data = await resp.json();
-      if (data.available && data.latestVersion) {
-        $("updateDot").className = "update-dot green";
-        $("updateLabel").textContent = `v${data.latestVersion} available`;
-        state_default.updateReleaseUrl = data.releaseUrl || null;
-      } else {
-        $("updateDot").className = "update-dot gray";
-        $("updateLabel").textContent = data.lastCheck ? "Checked " + fmtTime(new Date(data.lastCheck), { hour: "2-digit", minute: "2-digit" }) : "No updates";
-        state_default.updateReleaseUrl = null;
-      }
-      if (data.platform && data.currentVersion) {
-        $("platformLabel").textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
-      }
-    } catch (e) {
-    }
-  }
-  function startUpdateStatusPolling() {
-    if (state_default.updateStatusPolling) clearInterval(state_default.updateStatusPolling);
-    checkUpdateStatus();
-    state_default.updateStatusPolling = setInterval(checkUpdateStatus, 3e4);
-  }
-  function pollForServer(attempts) {
-    if (attempts <= 0) {
-      $("updateLabel").textContent = "Server did not come back";
-      $("updateDot").className = "update-dot red";
-      return;
-    }
-    setTimeout(() => {
-      fetch("/api/spots").then((resp) => {
-        if (resp.ok) {
-          $("updateLabel").textContent = "Reloading...";
-          location.reload();
-        } else {
-          pollForServer(attempts - 1);
-        }
-      }).catch(() => {
-        pollForServer(attempts - 1);
-      });
-    }, 1e3);
-  }
-  function sendUpdateInterval() {
-    const saved = localStorage.getItem("hamtab_update_interval");
-    if (saved) {
-      fetch("/api/update/interval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seconds: parseInt(saved, 10) })
-      }).catch(() => {
-      });
-    }
-  }
-  function initUpdateListeners() {
-    $("updateIndicator").addEventListener("click", () => {
-      if ($("updateDot").classList.contains("green") && state_default.updateReleaseUrl) {
-        window.open(state_default.updateReleaseUrl, "_blank", "noopener");
-      }
-    });
-    $("restartBtn").addEventListener("click", async (e) => {
-      e.stopPropagation();
-      $("restartBtn").classList.add("hidden");
-      $("updateDot").className = "update-dot yellow";
-      $("updateLabel").textContent = "Restarting...";
-      try {
-        await fetch("/api/restart", { method: "POST" });
-      } catch {
-      }
-      pollForServer(30);
-    });
+  function initUpdateDisplay() {
+    const el = $("platformLabel");
+    if (el) el.textContent = "v0.6.0";
   }
 
   // src/fullscreen.js
@@ -3797,6 +3764,7 @@
   state_default.widgetVisibility = loadWidgetVisibility();
   state_default.spotColumnVisibility = loadSpotColumnVisibility();
   initMap();
+  pullSettings();
   updateGrayLine();
   setInterval(updateGrayLine, 6e4);
   setInterval(fetchISS, 5e3);
@@ -3813,7 +3781,6 @@
   initConfigListeners();
   initBandRefListeners();
   initRefreshListeners();
-  initUpdateListeners();
   initFullscreenListeners();
   initWeatherListeners();
   initPropListeners();
@@ -3825,8 +3792,7 @@
     refreshAll();
     startAutoRefresh();
     fetchLocation();
-    startUpdateStatusPolling();
-    sendUpdateInterval();
+    initUpdateDisplay();
     fetchWeather();
     startNwsPolling();
   }

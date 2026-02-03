@@ -1,0 +1,40 @@
+{
+  "name": "hamtab",
+  "main": "worker.js",
+  "compatibility_date": "2026-01-16",
+
+  // Cloudflare Container — runs Node.js Express on port 8080
+  "containers": [
+    {
+      "class_name": "HamTab",
+      "image": "./Dockerfile",
+      "max_instances": 1
+    }
+  ],
+
+  // Durable Object binding for the container
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "HAMTAB",
+        "class_name": "HamTab"
+      }
+    ]
+  },
+
+  // Workers KV — settings sync per user
+  // Run `wrangler kv namespace create SETTINGS_KV` and paste the ID here
+  "kv_namespaces": [
+    {
+      "binding": "SETTINGS_KV",
+      "id": "PASTE_KV_NAMESPACE_ID_HERE"
+    }
+  ],
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_classes": ["HamTab"]
+    }
+  ]
+}

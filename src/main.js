@@ -24,7 +24,8 @@ import { initSplashListeners, showSplash, updateOperatorDisplay, fetchLocation, 
 import { initConfigListeners } from './config.js';
 import { initBandRefListeners } from './bandref.js';
 import { initRefreshListeners, refreshAll, startAutoRefresh } from './refresh.js';
-import { initUpdateListeners, startUpdateStatusPolling, sendUpdateInterval } from './update.js';
+import { initUpdateDisplay } from './update.js';
+import { pullSettings } from './settings-sync.js';
 import { initFullscreenListeners } from './fullscreen.js';
 import { initWeatherListeners, fetchWeather, startNwsPolling } from './weather.js';
 import { initPropListeners, updateGrayLine, initSolarImage } from './solar.js';
@@ -35,6 +36,9 @@ import { initSpotDetail } from './spot-detail.js';
 
 // Initialize map
 initMap();
+
+// Pull remote settings — reloads page if remote settings differ from local
+pullSettings();
 
 // Initialize gray line
 updateGrayLine();
@@ -59,7 +63,6 @@ initSplashListeners();
 initConfigListeners();
 initBandRefListeners();
 initRefreshListeners();
-initUpdateListeners();
 initFullscreenListeners();
 initWeatherListeners();
 initPropListeners();
@@ -73,8 +76,7 @@ function initApp() {
   refreshAll();
   startAutoRefresh();
   fetchLocation();
-  startUpdateStatusPolling();
-  sendUpdateInterval();
+  initUpdateDisplay();
   fetchWeather();
   startNwsPolling();
 }

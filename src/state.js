@@ -96,10 +96,6 @@ const state = {
   // Widgets
   zCounter: 10, // next z-index to assign when a widget is focused (increments on each click)
 
-  // Update
-  updateStatusPolling: null,
-  updateReleaseUrl: null,
-
   // Init flag
   appInitialized: false,
 

@@ -2,13 +2,14 @@
 
 ## Project Overview
 
-HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanilla JS frontend, Leaflet maps, esbuild bundling. Designed for LAN-only deployment with self-signed TLS.
+HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanilla JS frontend, Leaflet maps, esbuild bundling.
 
 ## Architecture
 
 - **Server** (`server.js`) — Stateless API proxy. No database, no sessions. Proxies external amateur radio APIs and serves static files.
 - **Client** — IIFE bundle (`public/app.js`) built from ES modules in `src/`. All user state lives in localStorage with `hamtab_` prefix.
-- **Deployment** — LAN-only with self-signed TLS certs.
+- **Deployment (LAN)** — `lanmode` branch. Self-signed TLS, CORS restricted to RFC 1918, auto-update from GitHub Releases, local admin endpoints (`/api/restart`, `/api/config/env`).
+- **Deployment (Cloud)** — `hostedmode` branch. Cloudflare Containers + Access + Workers KV at hamtab.net. No CORS, no self-signed TLS, no update system. Auth via Cloudflare Access (Google, GitHub, email OTP). User settings synced to Workers KV.
 
 ## Key Files
 
@@ -21,6 +22,11 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 | `public/index.html` | Semantic HTML structure |
 | `public/style.css` | Dark theme, CSS custom properties |
 | `esbuild.mjs` | Build config (ES modules → IIFE bundle) |
+| `worker.js` | Cloudflare Worker entry point — routes `/api/settings` to KV, proxies everything else to container (hostedmode only) |
+| `wrangler.jsonc` | Cloudflare deployment config — container, KV namespace, compatibility date (hostedmode only) |
+| `Dockerfile` | Container image for Cloudflare Containers (hostedmode only) |
+| `src/settings-sync.js` | Client-side settings pull/push via Workers KV (hostedmode only) |
+| `.github/workflows/deploy.yml` | CI/CD — auto-deploy to Cloudflare on push to hostedmode |
 
 ## Commenting Style
 
@@ -51,6 +57,14 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 - PRs target `main` branch
 - Feature work on named branches
 
+## Branch Strategy
+
+- **`main`** — Shared codebase with full client feature parity. Both `lanmode` and `hostedmode` merge from `main` for new shared features.
+- **`lanmode`** — LAN-specific additions: self-signed TLS, CORS for private networks, auto-update system, local admin endpoints. Targets Raspberry Pi / home server deployment.
+- **`hostedmode`** — Cloud-specific additions: Cloudflare Worker + Container architecture, settings sync via Workers KV, Cloudflare Access auth, CI/CD workflow. Targets hamtab.net deployment.
+
+New features that apply to both deployment modes go on `main`. Branch-specific code stays on its branch.
+
 ## Code Quality
 
 - No unused variables or dead code
@@ -68,6 +82,7 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 - No git dependency — works with zip downloads, scp deploys, etc.
 - GitHub releases must be tagged (e.g. `v0.6.0`) for detection to work
 - Client shows version info and links to release page; no auto-download of code
+- **Hostedmode** — No auto-update system. Version is displayed as a static label (`v` + `__APP_VERSION__`). Deployments are handled via CI/CD on push to `hostedmode`.
 
 ## Security (Priority)
 
@@ -82,6 +97,11 @@ Security is a top priority. Flag any code that could introduce a vulnerability.
 - **Input validation** — Sanitize and whitelist all user-supplied query params on server endpoints. Use `encodeURIComponent` on the client when building URLs.
 - **XSS** — Use `textContent` or DOM APIs to render user/API data. Never inject unsanitized strings via `innerHTML`. The `esc()` utility must be used if HTML insertion is unavoidable.
 - **Dependency hygiene** — Keep dependencies minimal. Audit before adding new packages.
+- **Cloudflare Access (hostedmode)** — Auth is handled by Cloudflare Access before requests reach the Worker/Container. The Worker reads user identity from the `Cf-Access-Jwt-Assertion` header (already verified by Access). No application-level auth code.
+- **trust proxy (hostedmode)** — `app.set('trust proxy', 1)` is required behind Cloudflare so rate limiter sees real client IPs, not the proxy IP.
+- **HSTS (hostedmode)** — Enabled with 1-year max-age. Cloudflare handles TLS termination.
+- **No CORS (hostedmode)** — Same-origin deployment means CORS headers are unnecessary and removed to prevent other sites from using the API proxies.
+- **Wrangler secrets** — Use `wrangler secret put` for any server-side secrets. Never store secrets in `wrangler.jsonc` or commit them to git.
 
 ## GitHub Issue Communication
 

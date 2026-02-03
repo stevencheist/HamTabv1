@@ -9,6 +9,7 @@ import { renderSpots } from './spots.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
 import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
+import { pushSettings } from './settings-sync.js';
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -205,10 +206,6 @@ export function showSplash() {
   $('splashWxStation').value = state.wxStation;
   $('splashWxApiKey').value = state.wxApiKey;
 
-  const intervalSelect = $('splashUpdateInterval');
-  const savedInterval = localStorage.getItem('hamtab_update_interval') || '60';
-  intervalSelect.value = savedInterval;
-
   $('splashGridDropdown').classList.remove('open');
   $('splashGridDropdown').innerHTML = '';
   state.gridHighlightIdx = -1;
@@ -241,15 +238,6 @@ function dismissSplash() {
   localStorage.setItem('hamtab_wx_station', state.wxStation);
   localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
 
-  // Persist WU API key to server .env so all clients share it
-  if (state.wxApiKey) {
-    fetch('/api/config/env', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ WU_API_KEY: state.wxApiKey }),
-    }).catch(() => {});
-  }
-
   fetchWeather();
 
   const widgetList = document.getElementById('splashWidgetList');
@@ -259,14 +247,7 @@ function dismissSplash() {
   saveWidgetVisibility();
   applyWidgetVisibility();
 
-  const intervalSelect = $('splashUpdateInterval');
-  const intervalVal = intervalSelect.value;
-  localStorage.setItem('hamtab_update_interval', intervalVal);
-  fetch('/api/update/interval', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
-  }).catch(() => {});
+  pushSettings();
 
   $('splashGridDropdown').classList.remove('open');
   $('splash').classList.add('hidden');

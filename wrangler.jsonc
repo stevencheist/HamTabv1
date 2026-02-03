@@ -3,6 +3,11 @@
   "main": "worker.js",
   "compatibility_date": "2026-01-16",
 
+  // Route requests from hamtab.net to this Worker
+  "routes": [
+    { "pattern": "hamtab.net/*", "zone_name": "hamtab.net" }
+  ],
+
   // Cloudflare Container — runs Node.js Express on port 8080
   "containers": [
     {

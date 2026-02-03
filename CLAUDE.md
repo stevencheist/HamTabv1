@@ -142,6 +142,27 @@ Security is a top priority. Flag any code that could introduce a vulnerability.
 - **No CORS** — Same-origin deployment; CORS headers removed.
 - **Wrangler secrets** — Use `wrangler secret put` for server-side secrets. Never store in `wrangler.jsonc`.
 
+## Working with Claude
+
+Stay on `main` for most work. Use simple commands to manage branches:
+
+| Command | Action |
+|---------|--------|
+| "status" | Show current branch, sync state, pending changes |
+| "pull" | Pull latest changes on current branch |
+| "sync branches" | Merge `main` → `lanmode` and `main` → `hostedmode`, push all |
+| "switch to [branch]" | Checkout the specified branch |
+
+**Workflow:**
+1. Develop features on `main` (90% of work happens here)
+2. Say "sync branches" to propagate changes to deployment branches
+3. Switch to `lanmode` or `hostedmode` only for branch-specific fixes
+4. Start sessions with "status" or "pull and status" to see current state
+
+**When to switch branches:**
+- **hostedmode** — Cloudflare-specific fixes (wrangler.jsonc, worker.js, Dockerfile, CI/CD)
+- **lanmode** — Self-hosted fixes (install scripts, update checker, CORS config)
+
 ## GitHub Issue Communication
 
 When commenting on issues or asking questions of users:

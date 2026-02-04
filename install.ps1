@@ -61,24 +61,62 @@ if (-not (Test-Path $NssmExe)) {
 }
 Write-Host ""
 
+# --- Port validation helper ---
+function Validate-Port {
+    param([string]$Value, [int]$Default)
+    if ($Value -eq '') { return $Default }
+    $n = 0
+    if (-not [int]::TryParse($Value, [ref]$n) -or $n -lt 1 -or $n -gt 65535) {
+        Write-Host "Invalid port: $Value (must be 1-65535). Using default $Default." -ForegroundColor Yellow
+        return $Default
+    }
+    if ($n -lt 1024) {
+        Write-Host "  Warning: port $n < 1024 may require elevated privileges." -ForegroundColor Yellow
+    }
+    return $n
+}
+
 # --- .env setup ---
 $EnvFile = Join-Path $RepoRoot ".env"
 if (-not (Test-Path $EnvFile)) {
+    Write-Host "--- Port Configuration ---"
+    $HttpPortInput = Read-Host "HTTP port [3000]"
+    $HttpPort = Validate-Port $HttpPortInput 3000
+
+    $TlsPortInput = Read-Host "HTTPS port [3443]"
+    $TlsPort = Validate-Port $TlsPortInput 3443
+
+    Write-Host ""
     $WuChoice = Read-Host "Use Weather Underground for weather data? [y/N]"
+    $WuKey = ''
     if ($WuChoice -match '^[Yy]') {
         $WuKey = Read-Host "Enter your WU API key (or press Enter to add later)"
-        "WU_API_KEY=$WuKey" | Set-Content $EnvFile -Encoding UTF8
-        if ($WuKey) {
-            Write-Host ".env created with API key."
-        } else {
-            Write-Host ".env created. Add your key later in $EnvFile"
-        }
+    }
+
+    # Write .env with port and API key settings
+    @(
+        "PORT=$HttpPort"
+        "HTTPS_PORT=$TlsPort"
+        "WU_API_KEY=$WuKey"
+    ) | Set-Content $EnvFile -Encoding UTF8
+
+    if ($WuKey) {
+        Write-Host ".env created with API key."
     } else {
-        "WU_API_KEY=" | Set-Content $EnvFile -Encoding UTF8
-        Write-Host ".env created (WU disabled)."
+        Write-Host ".env created."
     }
 } else {
     Write-Host "Existing .env found, keeping it."
+    # Read existing port values for display
+    $HttpPort = 3000
+    $TlsPort = 3443
+    $EnvContent = Get-Content $EnvFile -ErrorAction SilentlyContinue
+    foreach ($line in $EnvContent) {
+        if ($line -match '^PORT=(\d+)') { $HttpPort = [int]$Matches[1] }
+        if ($line -match '^HTTPS_PORT=(\d+)') { $TlsPort = [int]$Matches[1] }
+    }
+    Write-Host "  HTTP port:  $HttpPort"
+    Write-Host "  HTTPS port: $TlsPort"
 }
 Write-Host ""
 
@@ -131,8 +169,9 @@ Write-Host "==================================="
 Write-Host "  Install complete!"
 Write-Host "==================================="
 Write-Host ""
-Write-Host "  HamTab is running at http://localhost:3000"
-Write-Host "  Logs: $LogFile"
+Write-Host "  HTTP:   http://localhost:$HttpPort"
+Write-Host "  HTTPS:  https://localhost:$TlsPort"
+Write-Host "  Logs:   $LogFile"
 Write-Host ""
 Write-Host "  Management commands:"
 Write-Host "    .\tools\nssm\nssm.exe stop $ServiceName"
@@ -141,5 +180,5 @@ Write-Host "    .\tools\nssm\nssm.exe restart $ServiceName"
 Write-Host "    .\tools\nssm\nssm.exe status $ServiceName"
 Write-Host ""
 Write-Host "  Uninstall:"
-Write-Host "    .\tools\nssm\nssm.exe remove $ServiceName confirm"
+Write-Host "    powershell -ExecutionPolicy Bypass -File uninstall.ps1"
 Write-Host ""

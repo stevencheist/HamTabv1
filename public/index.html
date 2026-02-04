@@ -288,6 +288,7 @@
       <button id="refreshBtn">Refresh</button>
       <button id="resetLayoutBtn" title="Reset widget layout">Reset Layout</button>
       <button id="fullscreenBtn" title="Toggle fullscreen">Fullscreen</button>
+      <button id="feedbackBtn" class="feedback-btn" title="Send feedback to developers">💬 Feedback</button>
       <a href="https://buymeacoffee.com/stevencheist" target="_blank" rel="noopener" class="coffee-btn" title="Support HamTab development">☕ Buy Me a Coffee</a>
       <div class="update-indicator" id="updateIndicator" title="Update status">
         <span class="update-dot gray" id="updateDot"></span>
@@ -541,6 +542,36 @@
       <h2 id="helpTitle"></h2>
       <div id="helpContent"></div>
       <button id="helpOk">Close</button>
+    </div>
+  </div>
+
+  <!-- Feedback modal -->
+  <div class="splash-overlay hidden" id="feedbackSplash">
+    <div class="splash-box feedback-box">
+      <h2>Send Feedback</h2>
+      <p class="feedback-description">Help us improve HamTab! Your feedback is valuable to us.</p>
+      <form id="feedbackForm">
+        <div class="feedback-field">
+          <label for="feedbackName">Name (optional)</label>
+          <input type="text" id="feedbackName" name="name" placeholder="Your name or callsign" autocomplete="name" spellcheck="false" />
+        </div>
+        <div class="feedback-field">
+          <label for="feedbackEmail">Email (optional)</label>
+          <input type="email" id="feedbackEmail" name="email" placeholder="your@email.com (for follow-up)" autocomplete="email" spellcheck="false" />
+        </div>
+        <!-- Honeypot field (hidden from users, catches bots) -->
+        <input type="text" name="website" id="feedbackWebsite" style="position:absolute;left:-9999px;width:1px;height:1px;" tabindex="-1" autocomplete="off" />
+        <div class="feedback-field">
+          <label for="feedbackMessage">Feedback <span class="required">*</span></label>
+          <textarea id="feedbackMessage" name="feedback" required minlength="10" maxlength="5000" rows="6" placeholder="Share your thoughts, report bugs, or suggest features..." spellcheck="true"></textarea>
+          <div class="feedback-char-count"><span id="feedbackCharCount">0</span> / 5000</div>
+        </div>
+        <div class="feedback-status hidden" id="feedbackStatus"></div>
+        <div class="feedback-buttons">
+          <button type="button" id="feedbackCancel">Cancel</button>
+          <button type="submit" id="feedbackSubmit">Send Feedback</button>
+        </div>
+      </form>
     </div>
   </div>
 

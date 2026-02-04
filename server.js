@@ -64,6 +64,15 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
+// Stricter rate limit for feedback endpoint (3 submissions per day per IP)
+const feedbackLimiter = rateLimit({
+  windowMs: 24 * 60 * 60 * 1000, // 24 hours
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many feedback submissions. Please try again tomorrow.' },
+});
+
 app.use(express.json());
 app.use(express.static('public'));
 
@@ -993,6 +1002,107 @@ app.post('/api/config/env', (req, res) => {
   } catch (err) {
     console.error('Failed to update .env:', err.message);
     res.status(500).json({ error: 'Failed to save config' });
+  }
+});
+
+// --- Feedback endpoint (creates GitHub issue) ---
+app.post('/api/feedback', feedbackLimiter, async (req, res) => {
+  try {
+    const { name, email, feedback, website } = req.body;
+
+    // 1. Honeypot check (bots fill hidden "website" field)
+    if (website) {
+      console.log('Feedback spam blocked (honeypot)');
+      return res.status(400).json({ error: 'Invalid submission' });
+    }
+
+    // 2. Validate feedback content
+    if (!feedback || typeof feedback !== 'string') {
+      return res.status(400).json({ error: 'Feedback is required' });
+    }
+
+    const feedbackTrimmed = feedback.trim();
+    if (feedbackTrimmed.length < 10) {
+      return res.status(400).json({ error: 'Feedback must be at least 10 characters' });
+    }
+
+    if (feedbackTrimmed.length > 5000) {
+      return res.status(400).json({ error: 'Feedback must be less than 5000 characters' });
+    }
+
+    // 3. Simple spam keyword filter
+    const spamKeywords = ['viagra', 'casino', 'lottery', 'crypto wallet', 'buy bitcoin'];
+    const lowerFeedback = feedbackTrimmed.toLowerCase();
+    if (spamKeywords.some(kw => lowerFeedback.includes(kw))) {
+      console.log('Feedback spam blocked (keywords)');
+      return res.status(400).json({ error: 'Invalid content' });
+    }
+
+    // 4. Validate optional fields
+    const nameSafe = (name || '').trim().substring(0, 100);
+    const emailSafe = (email || '').trim().substring(0, 100);
+
+    // 5. Check for GitHub token
+    const githubToken = process.env.GITHUB_FEEDBACK_TOKEN;
+    if (!githubToken) {
+      console.error('GITHUB_FEEDBACK_TOKEN not configured');
+      return res.status(500).json({ error: 'Feedback system not configured. Please contact the developer.' });
+    }
+
+    // 6. Build GitHub issue body
+    let issueBody = feedbackTrimmed;
+    if (nameSafe || emailSafe) {
+      issueBody += '\n\n---\n\n**Submitted by:**';
+      if (nameSafe) issueBody += `\nName: ${nameSafe}`;
+      if (emailSafe) issueBody += `\nEmail: ${emailSafe}`;
+    }
+
+    // 7. Create GitHub issue
+    const issueData = JSON.stringify({
+      title: `[Feedback] ${feedbackTrimmed.substring(0, 50)}${feedbackTrimmed.length > 50 ? '...' : ''}`,
+      body: issueBody,
+      labels: ['feedback']
+    });
+
+    const options = {
+      hostname: 'api.github.com',
+      path: '/repos/stevencheist/HamTabv1/issues',
+      method: 'POST',
+      headers: {
+        'User-Agent': 'HamTab-Feedback',
+        'Authorization': `Bearer ${githubToken}`,
+        'Accept': 'application/vnd.github+json',
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(issueData)
+      }
+    };
+
+    // Make GitHub API request
+    const githubReq = https.request(options, (githubRes) => {
+      let data = '';
+      githubRes.on('data', chunk => data += chunk);
+      githubRes.on('end', () => {
+        if (githubRes.statusCode === 201) {
+          console.log('Feedback submitted successfully');
+          res.json({ success: true, message: 'Feedback submitted successfully' });
+        } else {
+          console.error('GitHub API error:', githubRes.statusCode, data);
+          res.status(500).json({ error: 'Failed to submit feedback. Please try again later.' });
+        }
+      });
+    });
+
+    githubReq.on('error', (err) => {
+      console.error('GitHub API request error:', err.message);
+      res.status(500).json({ error: 'Failed to submit feedback. Please try again later.' });
+    });
+
+    githubReq.write(issueData);
+    githubReq.end();
+
+  } catch (err) {
+    console.error('Feedback endpoint error:', err.message);
+    res.status(500).json({ error: 'Failed to submit feedback. Please try again later.' });
   }
 });
 

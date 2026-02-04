@@ -220,64 +220,79 @@ export function showSplash() {
 }
 
 function dismissSplash() {
-  const val = $('splashCallsign').value.trim().toUpperCase();
+  // Get callsign - required to proceed
+  const callsignEl = $('splashCallsign');
+  const val = callsignEl ? callsignEl.value.trim().toUpperCase() : '';
   if (!val) return;
 
-  // Hide modal first to ensure UI responds immediately
+  // Hide modal FIRST - before anything that could fail
   const splashEl = $('splash');
   const gridDropdown = $('splashGridDropdown');
   if (gridDropdown) gridDropdown.classList.remove('open');
   if (splashEl) splashEl.classList.add('hidden');
 
-  // Save settings
-  state.myCallsign = val;
-  localStorage.setItem('hamtab_callsign', state.myCallsign);
+  // Everything else in try-catch so modal stays hidden even if storage fails
+  try {
+    state.myCallsign = val;
+    localStorage.setItem('hamtab_callsign', state.myCallsign);
 
-  if (state.manualLoc && state.myLat !== null && state.myLon !== null) {
-    localStorage.setItem('hamtab_lat', String(state.myLat));
-    localStorage.setItem('hamtab_lon', String(state.myLon));
+    if (state.manualLoc && state.myLat !== null && state.myLon !== null) {
+      localStorage.setItem('hamtab_lat', String(state.myLat));
+      localStorage.setItem('hamtab_lon', String(state.myLon));
+    }
+
+    const timeFmt24 = $('timeFmt24');
+    state.use24h = timeFmt24 ? timeFmt24.checked : state.use24h;
+    localStorage.setItem('hamtab_time24', String(state.use24h));
+
+    const wxStationEl = $('splashWxStation');
+    const wxApiKeyEl = $('splashWxApiKey');
+    const n2yoApiKeyEl = $('splashN2yoApiKey');
+    state.wxStation = wxStationEl ? wxStationEl.value.trim().toUpperCase() : state.wxStation;
+    state.wxApiKey = wxApiKeyEl ? wxApiKeyEl.value.trim() : state.wxApiKey;
+    state.n2yoApiKey = n2yoApiKeyEl ? n2yoApiKeyEl.value.trim() : state.n2yoApiKey;
+    localStorage.setItem('hamtab_wx_station', state.wxStation);
+    localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
+    localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
+
+    fetchWeather();
+
+    const widgetList = document.getElementById('splashWidgetList');
+    if (widgetList) {
+      widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        state.widgetVisibility[cb.dataset.widgetId] = cb.checked;
+      });
+    }
+    saveWidgetVisibility();
+    applyWidgetVisibility();
+
+    // Update interval setting (lanmode only - element may not exist on hostedmode)
+    const intervalSelect = $('splashUpdateInterval');
+    if (intervalSelect) {
+      const intervalVal = intervalSelect.value;
+      localStorage.setItem('hamtab_update_interval', intervalVal);
+      fetch('/api/update/interval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('Error saving settings:', e);
   }
 
-  state.use24h = $('timeFmt24').checked;
-  localStorage.setItem('hamtab_time24', String(state.use24h));
-
-  state.wxStation = ($('splashWxStation').value || '').trim().toUpperCase();
-  state.wxApiKey = ($('splashWxApiKey').value || '').trim();
-  state.n2yoApiKey = ($('splashN2yoApiKey').value || '').trim();
-  localStorage.setItem('hamtab_wx_station', state.wxStation);
-  localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
-  localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
-
-  fetchWeather();
-
-  const widgetList = document.getElementById('splashWidgetList');
-  if (widgetList) {
-    widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-      state.widgetVisibility[cb.dataset.widgetId] = cb.checked;
-    });
+  // Post-dismiss updates - also wrapped so UI doesn't break
+  try {
+    updateOperatorDisplay();
+    centerMapOnUser();
+    updateUserMarker();
+    updateClocks();
+    renderSpots();
+    if (_initApp) _initApp();
+    fetchLicenseClass(state.myCallsign);
+  } catch (e) {
+    console.warn('Error updating display after dismiss:', e);
   }
-  saveWidgetVisibility();
-  applyWidgetVisibility();
-
-  // Update interval setting (lanmode only - element may not exist on hostedmode)
-  const intervalSelect = $('splashUpdateInterval');
-  if (intervalSelect) {
-    const intervalVal = intervalSelect.value;
-    localStorage.setItem('hamtab_update_interval', intervalVal);
-    fetch('/api/update/interval', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
-    }).catch(() => {});
-  }
-
-  updateOperatorDisplay();
-  centerMapOnUser();
-  updateUserMarker();
-  updateClocks();
-  renderSpots();
-  if (_initApp) _initApp();
-  fetchLicenseClass(state.myCallsign);
 }
 
 export function initSplashListeners() {

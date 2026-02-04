@@ -3337,7 +3337,7 @@
     const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
     const rightX = parseInt(solarEl.style.left) || 0;
     const rightW = parseInt(solarEl.style.width) || 0;
-    const rightBottomIds = ["widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail"];
+    const rightBottomIds = ["widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail"];
     const vis = state_default.widgetVisibility || {};
     const visible = rightBottomIds.filter((id) => vis[id] !== false);
     if (visible.length === 0) return;
@@ -3376,7 +3376,7 @@
       "widget-map": { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
       "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
     };
-    const rightBottomIds = ["widget-propagation", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail"];
+    const rightBottomIds = ["widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail"];
     const vis = state_default.widgetVisibility || {};
     const visibleBottom = rightBottomIds.filter((id) => vis[id] !== false);
     const bottomSpace = H - rightHalf - pad * 2;
@@ -3519,8 +3519,9 @@
     });
   }
   function applyLayout(layout) {
+    const defaults = getDefaultLayout();
     document.querySelectorAll(".widget").forEach((widget) => {
-      const pos = layout[widget.id];
+      const pos = layout[widget.id] || defaults[widget.id];
       if (pos) {
         widget.style.left = pos.left + "px";
         widget.style.top = pos.top + "px";

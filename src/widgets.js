@@ -42,7 +42,7 @@ function redistributeRightColumn() {
   const rightX = parseInt(solarEl.style.left) || 0;
   const rightW = parseInt(solarEl.style.width) || 0;
 
-  const rightBottomIds = ['widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail'];
+  const rightBottomIds = ['widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail'];
   const vis = state.widgetVisibility || {};
   const visible = rightBottomIds.filter(id => vis[id] !== false);
   if (visible.length === 0) return;
@@ -91,7 +91,7 @@ export function getDefaultLayout() {
   };
 
   // Stack visible right-column widgets below solar
-  const rightBottomIds = ['widget-propagation', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail'];
+  const rightBottomIds = ['widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail'];
   const vis = state.widgetVisibility || {};
   const visibleBottom = rightBottomIds.filter(id => vis[id] !== false);
   const bottomSpace = H - rightHalf - pad * 2;
@@ -259,8 +259,10 @@ function setupResize(widget, handle) {
 }
 
 function applyLayout(layout) {
+  // Build fallback positions for widgets missing from saved layout
+  const defaults = getDefaultLayout();
   document.querySelectorAll('.widget').forEach(widget => {
-    const pos = layout[widget.id];
+    const pos = layout[widget.id] || defaults[widget.id];
     if (pos) {
       widget.style.left = pos.left + 'px';
       widget.style.top = pos.top + 'px';

@@ -3865,6 +3865,10 @@
   function dismissSplash() {
     const val = $("splashCallsign").value.trim().toUpperCase();
     if (!val) return;
+    const splashEl = $("splash");
+    const gridDropdown = $("splashGridDropdown");
+    if (gridDropdown) gridDropdown.classList.remove("open");
+    if (splashEl) splashEl.classList.add("hidden");
     state_default.myCallsign = val;
     localStorage.setItem("hamtab_callsign", state_default.myCallsign);
     if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
@@ -3881,9 +3885,11 @@
     localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
     fetchWeather();
     const widgetList = document.getElementById("splashWidgetList");
-    widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
-    });
+    if (widgetList) {
+      widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
+      });
+    }
     saveWidgetVisibility();
     applyWidgetVisibility();
     const intervalSelect = $("splashUpdateInterval");
@@ -3897,8 +3903,6 @@
       }).catch(() => {
       });
     }
-    $("splashGridDropdown").classList.remove("open");
-    $("splash").classList.add("hidden");
     updateOperatorDisplay2();
     centerMapOnUser();
     updateUserMarker();

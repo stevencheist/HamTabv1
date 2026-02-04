@@ -33,6 +33,8 @@ import { renderSpots } from './spots.js';
 import { initSatellites, fetchSatellitePositions } from './satellites.js';
 import { initSpotDetail } from './spot-detail.js';
 import { initDayNightToggle } from './band-conditions.js';
+import { initHelpListeners } from './help.js';
+import { initReferenceListeners } from './reference.js';
 
 // Initialize map
 initMap();
@@ -65,6 +67,8 @@ initPropListeners();
 initSolarImage();
 initDayNightToggle();
 initSpotDetail();
+initHelpListeners();
+initReferenceListeners();
 
 // Wire initApp into splash dismissal
 function initApp() {

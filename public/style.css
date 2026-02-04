@@ -647,6 +647,26 @@ header {
   color: var(--text);
 }
 
+.widget-help-btn {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: opacity 0.15s, color 0.15s;
+  margin-left: 4px;
+}
+
+.widget-help-btn:hover {
+  opacity: 1;
+  color: var(--accent);
+}
+
 .solar-cfg-box .splash-widget-list,
 .lunar-cfg-box .splash-widget-list {
   max-height: 400px;
@@ -1393,7 +1413,7 @@ header {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 24px;
+  gap: 40px;
   flex-shrink: 1;
   min-width: 0;
 }
@@ -1409,72 +1429,149 @@ header {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  background: rgba(15, 52, 96, 0.3);
-  transition: background 0.3s ease;
+  gap: 4px;
+  padding: 14px 36px;
+  border-radius: 10px;
+  background: rgba(15, 52, 96, 0.4);
+  transition: all 0.4s ease;
   position: relative;
+  min-width: 200px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .header-clock-label {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
+  font-size: 0.75rem;
+  color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
+  font-weight: 600;
 }
 
 .header-clock-time {
-  font-size: 1.1rem;
-  font-weight: 600;
+  font-size: 2rem;
+  font-weight: 700;
   color: var(--text);
   font-family: 'Courier New', monospace;
+  letter-spacing: 3px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  white-space: nowrap;
 }
 
 .header-clock-weather {
-  font-size: 0.7rem;
-  color: var(--text-secondary);
+  font-size: 0.78rem;
+  color: var(--text);
   text-align: center;
-  max-width: 200px;
-  line-height: 1.2;
-  margin-top: 2px;
+  max-width: 280px;
+  line-height: 1.3;
+  margin-top: 4px;
+  white-space: nowrap;
 }
 
-/* Weather backgrounds for header clock */
+/* Weather icon display */
+.header-clock-wx-icon {
+  font-size: 1.8rem;
+  line-height: 1;
+  margin-bottom: 2px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+/* Weather backgrounds for header clock - Day conditions */
 #headerClockLocal.wx-clear-day {
-  background: linear-gradient(135deg, rgba(135,206,250,0.2) 0%, rgba(255,215,0,0.15) 100%);
-}
-
-#headerClockLocal.wx-clear-night {
-  background: linear-gradient(135deg, rgba(25,25,112,0.3) 0%, rgba(72,61,139,0.2) 100%);
+  background: linear-gradient(180deg, #4a90d9 0%, #87ceeb 50%, #ffd700 100%);
+  border-color: rgba(255, 215, 0, 0.4);
+  box-shadow: 0 0 20px rgba(255, 215, 0, 0.3), inset 0 0 30px rgba(255, 255, 255, 0.1);
 }
 
 #headerClockLocal.wx-partly-cloudy-day {
-  background: linear-gradient(135deg, rgba(176,196,222,0.25) 0%, rgba(255,228,181,0.15) 100%);
+  background: linear-gradient(180deg, #5a9fd4 0%, #87ceeb 40%, #b8c6d6 70%, #ffecd2 100%);
+  border-color: rgba(176, 196, 222, 0.4);
+  box-shadow: 0 0 15px rgba(135, 206, 235, 0.3);
+}
+
+/* Weather backgrounds for header clock - Night conditions */
+#headerClockLocal.wx-clear-night {
+  background: linear-gradient(180deg, #0a0a20 0%, #1a1a3e 40%, #2d2d5a 70%, #3a3a6a 100%);
+  border-color: rgba(100, 100, 180, 0.4);
+  box-shadow: 0 0 20px rgba(100, 100, 180, 0.3), inset 0 0 30px rgba(255, 255, 255, 0.05);
 }
 
 #headerClockLocal.wx-partly-cloudy-night {
-  background: linear-gradient(135deg, rgba(70,80,100,0.3) 0%, rgba(100,100,130,0.2) 100%);
+  background: linear-gradient(180deg, #151530 0%, #252545 40%, #3a3a5a 70%, #4a4a6a 100%);
+  border-color: rgba(80, 80, 120, 0.4);
+  box-shadow: 0 0 15px rgba(80, 80, 120, 0.3);
 }
 
+/* Weather backgrounds - All conditions */
 #headerClockLocal.wx-cloudy {
-  background: linear-gradient(135deg, rgba(119,136,153,0.25) 0%, rgba(160,160,180,0.2) 100%);
+  background: linear-gradient(180deg, #4a5568 0%, #6b7280 40%, #9ca3af 70%, #d1d5db 100%);
+  border-color: rgba(156, 163, 175, 0.4);
+  box-shadow: 0 0 15px rgba(107, 114, 128, 0.3);
 }
 
 #headerClockLocal.wx-rain {
-  background: linear-gradient(135deg, rgba(70,130,180,0.3) 0%, rgba(100,149,237,0.2) 100%);
+  background: linear-gradient(180deg, #1e3a5f 0%, #2c5282 40%, #3182ce 70%, #63b3ed 100%);
+  border-color: rgba(49, 130, 206, 0.5);
+  box-shadow: 0 0 20px rgba(49, 130, 206, 0.4);
 }
 
 #headerClockLocal.wx-thunderstorm {
-  background: linear-gradient(135deg, rgba(75,0,130,0.3) 0%, rgba(138,43,226,0.2) 100%);
+  background: linear-gradient(180deg, #1a1a2e 0%, #2d1f47 30%, #4a2c6a 60%, #6b3fa0 100%);
+  border-color: rgba(138, 43, 226, 0.5);
+  box-shadow: 0 0 25px rgba(138, 43, 226, 0.4), inset 0 0 20px rgba(255, 255, 0, 0.05);
 }
 
 #headerClockLocal.wx-snow {
-  background: linear-gradient(135deg, rgba(240,248,255,0.25) 0%, rgba(176,224,230,0.2) 100%);
+  background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 40%, #94a3b8 70%, #64748b 100%);
+  border-color: rgba(203, 213, 225, 0.5);
+  box-shadow: 0 0 20px rgba(226, 232, 240, 0.4);
 }
 
 #headerClockLocal.wx-fog {
-  background: linear-gradient(135deg, rgba(190,190,190,0.25) 0%, rgba(211,211,211,0.2) 100%);
+  background: linear-gradient(180deg, #6b7280 0%, #9ca3af 40%, #d1d5db 70%, #e5e7eb 100%);
+  border-color: rgba(156, 163, 175, 0.4);
+  box-shadow: 0 0 15px rgba(156, 163, 175, 0.3);
+}
+
+/* Weather text colors for contrast */
+#headerClockLocal.wx-clear-day .header-clock-time,
+#headerClockLocal.wx-partly-cloudy-day .header-clock-time,
+#headerClockLocal.wx-rain .header-clock-time,
+#headerClockLocal.wx-thunderstorm .header-clock-time,
+#headerClockLocal.wx-clear-night .header-clock-time,
+#headerClockLocal.wx-partly-cloudy-night .header-clock-time {
+  color: #fff;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+#headerClockLocal.wx-cloudy .header-clock-time {
+  color: #1f2937;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+}
+
+#headerClockLocal.wx-snow .header-clock-time,
+#headerClockLocal.wx-fog .header-clock-time {
+  color: #1f2937;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
+}
+
+#headerClockLocal[class*="wx-"] .header-clock-label {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+#headerClockLocal.wx-cloudy .header-clock-label,
+#headerClockLocal.wx-snow .header-clock-label,
+#headerClockLocal.wx-fog .header-clock-label {
+  color: rgba(31, 41, 55, 0.8);
+}
+
+#headerClockLocal[class*="wx-"] .header-clock-weather {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+#headerClockLocal.wx-cloudy .header-clock-weather,
+#headerClockLocal.wx-snow .header-clock-weather,
+#headerClockLocal.wx-fog .header-clock-weather {
+  color: rgba(31, 41, 55, 0.9);
 }
 
 .wx-source-logo {
@@ -2040,20 +2137,65 @@ header {
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--surface2); }
 
-/* ---- RST Reference Widget ---- */
+/* ---- Reference Widget ---- */
 
 .rst-body {
-  padding: 6px 8px;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow: hidden;
 }
 
-.rst-table {
+.reference-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.reference-tab {
+  padding: 4px 12px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  color: var(--text-dim);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.reference-tab:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.reference-tab.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+#referenceContent {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.ref-description {
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+
+.ref-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.78rem;
 }
 
-.rst-table th {
+.ref-table th {
   text-align: left;
   color: var(--text-dim);
   font-weight: 600;
@@ -2062,31 +2204,94 @@ header {
   white-space: nowrap;
 }
 
-.rst-table td {
+.ref-table td {
   padding: 2px 4px;
   border-bottom: 1px solid rgba(42, 58, 94, 0.4);
 }
 
-.rst-table td:first-child {
+.ref-table td:first-child {
   text-align: center;
   font-weight: 700;
   color: var(--accent);
   width: 1.5em;
 }
 
-.rst-note {
-  margin-top: 6px;
+.ref-note {
+  margin-top: 8px;
   font-size: 0.72rem;
   color: var(--text-dim);
   text-align: center;
 }
 
-.rst-note a {
+.ref-note a {
   color: var(--accent);
   text-decoration: none;
 }
 
-.rst-note a:hover {
+.ref-note a:hover {
+  text-decoration: underline;
+}
+
+/* ---- Help Modal ---- */
+
+.help-box {
+  max-width: 600px;
+  max-height: 80vh;
+}
+
+#helpContent {
+  max-height: 60vh;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.help-description {
+  font-size: 0.9rem;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.help-section {
+  margin-bottom: 10px;
+}
+
+.help-section h3 {
+  font-size: 0.85rem;
+  color: var(--accent);
+  margin: 0 0 4px 0;
+  font-weight: 600;
+}
+
+.help-section p {
+  font-size: 0.8rem;
+  color: var(--text);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.help-links {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.help-links h3 {
+  font-size: 0.85rem;
+  color: var(--text-dim);
+  margin: 0 0 6px 0;
+  font-weight: 600;
+}
+
+.help-links a {
+  display: block;
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 0.8rem;
+  margin-bottom: 4px;
+}
+
+.help-links a:hover {
   text-decoration: underline;
 }
 

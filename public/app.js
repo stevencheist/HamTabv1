@@ -132,6 +132,9 @@
         // Widgets
         zCounter: 10,
         // next z-index to assign when a widget is focused (increments on each click)
+        // Reference widget
+        currentReferenceTab: "rst",
+        // active reference tab (rst, phonetic, etc.)
         // Update
         updateStatusPolling: null,
         updateReleaseUrl: null,
@@ -420,9 +423,11 @@
   // src/constants.js
   var constants_exports = {};
   __export(constants_exports, {
+    DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
     DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
     HEADER_H: () => HEADER_H,
     LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
+    REFERENCE_TABS: () => REFERENCE_TABS,
     SAT_FREQUENCIES: () => SAT_FREQUENCIES,
     SNAP_DIST: () => SNAP_DIST,
     SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
@@ -430,9 +435,10 @@
     USER_LAYOUT_KEY: () => USER_LAYOUT_KEY,
     US_PRIVILEGES: () => US_PRIVILEGES,
     WIDGET_DEFS: () => WIDGET_DEFS,
+    WIDGET_HELP: () => WIDGET_HELP,
     WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY
   });
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -445,7 +451,7 @@
         { id: "widget-propagation", name: "Band Conditions" },
         { id: "widget-lunar", name: "Lunar / EME" },
         { id: "widget-satellites", name: "Satellites" },
-        { id: "widget-rst", name: "RST Reference" },
+        { id: "widget-rst", name: "Reference" },
         { id: "widget-spot-detail", name: "DX Detail" }
       ];
       SAT_FREQUENCIES = {
@@ -695,6 +701,161 @@
           [420, 450, "all"]
         ]
       };
+      WIDGET_HELP = {
+        "widget-filters": {
+          title: "Filters",
+          description: "Filter spots by band, mode, distance, age, and location.",
+          sections: [
+            { heading: "Multi-Select Filters", content: "Click multiple bands or modes to filter. Click again to deselect." },
+            { heading: "Distance Filter", content: "Filters spots within N miles/km of your QTH. Requires location to be set." },
+            { heading: "Age Filter", content: "Filters spots posted within the last N minutes." },
+            { heading: "Presets", content: "Save and load filter combinations for quick switching between common setups." }
+          ]
+        },
+        "widget-activations": {
+          title: "On the Air",
+          description: "Live spots from POTA, SOTA, DX Cluster, and PSKReporter.",
+          sections: [
+            { heading: "POTA Columns", content: "Callsign, Frequency, Mode, Park Reference (clickable link), Park Name, Spot Time, Age" },
+            { heading: "SOTA Columns", content: "Callsign, Frequency, Mode, Summit Reference (clickable link), Summit Details, Spot Time, Age" },
+            { heading: "DXC Columns", content: "DX Station, Frequency, Mode, Spotter, Country, Continent, Spot Time, Age" },
+            { heading: "PSK Columns", content: "TX Callsign, Frequency, Mode, RX Callsign, SNR, TX Grid, RX Grid, Spot Time, Age" },
+            { heading: "Click Row", content: "Click a row to select and view details, show on map, and draw geodesic path." }
+          ]
+        },
+        "widget-map": {
+          title: "HamMap",
+          description: "Interactive map showing spots, your QTH, satellites, and propagation overlays.",
+          sections: [
+            { heading: "Markers", content: "Click markers to select spots. Selected spot shows in DX Detail widget." },
+            { heading: "Overlays", content: "Toggle lat/lon grid, Maidenhead grid, timezones, and propagation layers via gear icon." },
+            { heading: "Center Mode", content: "Choose QTH (your location) or Spot (selected spot) centering in Config." },
+            { heading: "Geodesic Line", content: "Shows great-circle path from your QTH to selected spot." }
+          ]
+        },
+        "widget-solar": {
+          title: "Solar",
+          description: "Real-time solar conditions and space weather data from HamQSL.",
+          sections: [
+            { heading: "Key Metrics", content: "Solar Flux (SFI), Sunspots, A-Index, K-Index, X-Ray flux, and more." },
+            { heading: "Color Coding", content: "A-Index, K-Index, Solar Wind, Bz, Aurora, and Geomag Field are color-coded (green = good, yellow = fair, red = poor)." },
+            { heading: "Custom Fields", content: "Click gear icon to show/hide fields. Default shows SFI, Sunspots, A/K-Index, X-Ray, Signal Noise." }
+          ],
+          links: [
+            { label: "HamQSL Space Weather", url: "https://www.hamqsl.com/solar.html" }
+          ]
+        },
+        "widget-propagation": {
+          title: "Band Conditions",
+          description: "Global propagation forecast showing MUF, Signal Strength, and SNR by band.",
+          sections: [
+            { heading: "Metrics", content: "Choose between MUFD (Maximum Usable Frequency Day), SS (Signal Strength), or SNR." },
+            { heading: "Day/Night Toggle", content: "View current conditions or 12-hour forecast (day \u2194 night)." },
+            { heading: "Color Scale", content: "Green/yellow/red gradient shows propagation quality. Hover for values." }
+          ],
+          links: [
+            { label: "NOAA SWPC", url: "https://www.swpc.noaa.gov/" }
+          ]
+        },
+        "widget-lunar": {
+          title: "Lunar / EME",
+          description: "Moon phase, position, and EME path loss calculations.",
+          sections: [
+            { heading: "EME Path Loss", content: "Calculated at 144 MHz. Varies with moon distance (perigee ~367 dB, apogee ~370 dB)." },
+            { heading: "Declination", content: "Moon's position relative to celestial equator. Affects EME window duration and elevation." },
+            { heading: "Custom Fields", content: "Click gear icon to show elongation, ecliptic coordinates, and right ascension." }
+          ],
+          links: [
+            { label: "ARRL EME Guide", url: "https://www.arrl.org/eme" }
+          ]
+        },
+        "widget-satellites": {
+          title: "Satellites",
+          description: "Live tracking and pass predictions for amateur radio satellites via N2YO.",
+          sections: [
+            { heading: "Track Satellites", content: "Click gear icon to add/remove satellites. ISS is tracked by default." },
+            { heading: "Live Position", content: "Shows real-time lat/lon, altitude, azimuth, elevation, and footprint on map." },
+            { heading: "Pass Predictions", content: "Click a satellite to view upcoming passes with AOS/LOS times and max elevation." },
+            { heading: "API Key Required", content: "Get a free N2YO API key and enter it in Config to enable satellite tracking." }
+          ],
+          links: [
+            { label: "N2YO API", url: "https://www.n2yo.com/api/" },
+            { label: "AMSAT", url: "https://www.amsat.org/" }
+          ]
+        },
+        "widget-rst": {
+          title: "RST Reference",
+          description: "Quick reference for RST signal reporting codes.",
+          sections: [
+            { heading: "Readability (R)", content: "1 = Unreadable, 5 = Perfectly readable" },
+            { heading: "Signal Strength (S)", content: "1 = Faint, 9 = Very strong" },
+            { heading: "Tone (T, CW only)", content: "1 = Harsh/hum, 9 = Perfect tone" },
+            { heading: "Usage", content: "Phone: RS only (e.g. 59). CW: RST (e.g. 599)." }
+          ],
+          links: [
+            { label: "Ham Radio School \u2014 Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
+          ]
+        },
+        "widget-spot-detail": {
+          title: "DX Detail",
+          description: "Detailed information about the selected spot.",
+          sections: [
+            { heading: "Callsign Lookup", content: "Shows name, address, license class, and grid square from QRZ.com (if available)." },
+            { heading: "Distance & Bearing", content: "Great-circle distance and heading from your QTH to the spot." },
+            { heading: "Frequency & Mode", content: "Operating frequency and mode from the spot data." },
+            { heading: "Selection", content: "Click a row in On the Air or a map marker to populate this widget." }
+          ]
+        }
+      };
+      REFERENCE_TABS = {
+        rst: {
+          label: "RST",
+          content: {
+            description: "Signal reporting system for readability, strength, and tone.",
+            table: {
+              headers: ["", "Readability", "Strength", "Tone (CW)"],
+              rows: [
+                ["1", "Unreadable", "Faint", "Harsh, hum"],
+                ["2", "Barely readable", "Very weak", "Harsh, modulation"],
+                ["3", "Readable with difficulty", "Weak", "Rough, hum"],
+                ["4", "Almost perfectly readable", "Fair", "Rough, modulation"],
+                ["5", "Perfectly readable", "Fairly good", "Wavering, strong hum"],
+                ["6", "\u2014", "Good", "Wavering, strong mod"],
+                ["7", "\u2014", "Moderately strong", "Good, slight hum"],
+                ["8", "\u2014", "Strong", "Good, slight mod"],
+                ["9", "\u2014", "Very strong", "Perfect tone"]
+              ]
+            },
+            note: "Phone: RS only (e.g. 59) \xB7 CW: RST (e.g. 599)",
+            link: { text: "Ham Radio School \u2014 Practical Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
+          }
+        },
+        phonetic: {
+          label: "Phonetic",
+          content: {
+            description: "NATO phonetic alphabet for clear letter pronunciation.",
+            table: {
+              headers: ["Letter", "Phonetic", "Letter", "Phonetic"],
+              rows: [
+                ["A", "Alpha", "N", "November"],
+                ["B", "Bravo", "O", "Oscar"],
+                ["C", "Charlie", "P", "Papa"],
+                ["D", "Delta", "Q", "Quebec"],
+                ["E", "Echo", "R", "Romeo"],
+                ["F", "Foxtrot", "S", "Sierra"],
+                ["G", "Golf", "T", "Tango"],
+                ["H", "Hotel", "U", "Uniform"],
+                ["I", "India", "V", "Victor"],
+                ["J", "Juliet", "W", "Whiskey"],
+                ["K", "Kilo", "X", "X-ray"],
+                ["L", "Lima", "Y", "Yankee"],
+                ["M", "Mike", "Z", "Zulu"]
+              ]
+            }
+          }
+        }
+      };
+      DEFAULT_REFERENCE_TAB = "rst";
       WIDGET_STORAGE_KEY = "hamtab_widgets";
       USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
@@ -3433,11 +3594,26 @@
       console.warn("NWS conditions fetch failed:", err);
     });
   }
+  var wxIcons = {
+    "wx-clear-day": "\u2600\uFE0F",
+    "wx-clear-night": "\u{1F319}",
+    "wx-partly-cloudy-day": "\u26C5",
+    "wx-partly-cloudy-night": "\u2601\uFE0F",
+    "wx-cloudy": "\u2601\uFE0F",
+    "wx-rain": "\u{1F327}\uFE0F",
+    "wx-thunderstorm": "\u26C8\uFE0F",
+    "wx-snow": "\u2744\uFE0F",
+    "wx-fog": "\u{1F32B}\uFE0F"
+  };
   function applyWeatherBackground(forecast, isDaytime2) {
     const headerClock = $("headerClockLocal");
+    const wxIcon = $("clockWxIcon");
     if (!headerClock) return;
     wxBgClasses.forEach((c) => headerClock.classList.remove(c));
-    if (!forecast) return;
+    if (!forecast) {
+      if (wxIcon) wxIcon.textContent = "";
+      return;
+    }
     const fc = forecast.toLowerCase();
     let cls = "";
     if (/thunder|t-storm/.test(fc)) cls = "wx-thunderstorm";
@@ -3448,7 +3624,10 @@
       if (/partly|mostly sunny/.test(fc)) cls = isDaytime2 ? "wx-partly-cloudy-day" : "wx-partly-cloudy-night";
       else cls = "wx-cloudy";
     } else if (/sunny|clear/.test(fc)) cls = isDaytime2 ? "wx-clear-day" : "wx-clear-night";
-    if (cls) headerClock.classList.add(cls);
+    if (cls) {
+      headerClock.classList.add(cls);
+      if (wxIcon) wxIcon.textContent = wxIcons[cls] || "";
+    }
   }
   function fetchNwsAlerts() {
     if (state_default.myLat === null || state_default.myLon === null) return;
@@ -4623,6 +4802,120 @@
   // src/main.js
   init_spot_detail();
   init_band_conditions();
+
+  // src/help.js
+  init_dom();
+  init_constants();
+  init_utils();
+  function renderHelp(widgetId) {
+    const help = WIDGET_HELP[widgetId];
+    if (!help) return;
+    $("#helpTitle").textContent = help.title;
+    let html = "";
+    if (help.description) {
+      html += `<div class="help-description">${esc(help.description)}</div>`;
+    }
+    if (help.sections && help.sections.length > 0) {
+      help.sections.forEach((section) => {
+        html += `<div class="help-section">`;
+        html += `<h3>${esc(section.heading)}</h3>`;
+        html += `<p>${esc(section.content)}</p>`;
+        html += `</div>`;
+      });
+    }
+    if (help.links && help.links.length > 0) {
+      html += `<div class="help-links">`;
+      html += `<h3>Learn More</h3>`;
+      help.links.forEach((link) => {
+        html += `<a href="${esc(link.url)}" target="_blank" rel="noopener">${esc(link.label)}</a>`;
+      });
+      html += `</div>`;
+    }
+    $("#helpContent").innerHTML = html;
+    $("#helpSplash").classList.remove("hidden");
+  }
+  function initHelpListeners() {
+    document.querySelectorAll(".widget-help-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const widgetId = btn.dataset.widget;
+        renderHelp(widgetId);
+      });
+    });
+    $("#helpOk").addEventListener("click", () => {
+      $("#helpSplash").classList.add("hidden");
+    });
+    $("#helpSplash").addEventListener("click", (e) => {
+      if (e.target.id === "helpSplash") {
+        $("#helpSplash").classList.add("hidden");
+      }
+    });
+  }
+
+  // src/reference.js
+  init_dom();
+  init_constants();
+  init_utils();
+  init_state();
+  function switchReferenceTab(tab) {
+    if (!REFERENCE_TABS[tab]) return;
+    state_default.currentReferenceTab = tab;
+    localStorage.setItem("hamtab_reference_tab", tab);
+    document.querySelectorAll(".reference-tab").forEach((btn) => {
+      if (btn.dataset.refTab === tab) {
+        btn.classList.add("active");
+      } else {
+        btn.classList.remove("active");
+      }
+    });
+    renderReferenceContent(tab);
+  }
+  function renderReferenceContent(tab) {
+    const refData = REFERENCE_TABS[tab];
+    if (!refData) return;
+    const content = refData.content;
+    let html = "";
+    if (content.description) {
+      html += `<div class="ref-description">${esc(content.description)}</div>`;
+    }
+    if (content.table) {
+      html += `<table class="ref-table">`;
+      html += `<thead><tr>`;
+      content.table.headers.forEach((header) => {
+        html += `<th>${esc(header)}</th>`;
+      });
+      html += `</tr></thead>`;
+      html += `<tbody>`;
+      content.table.rows.forEach((row) => {
+        html += `<tr>`;
+        row.forEach((cell) => {
+          html += `<td>${esc(cell)}</td>`;
+        });
+        html += `</tr>`;
+      });
+      html += `</tbody>`;
+      html += `</table>`;
+    }
+    if (content.note) {
+      html += `<div class="ref-note">${esc(content.note)}</div>`;
+    }
+    if (content.link) {
+      html += `<div class="ref-note"><a href="${esc(content.link.url)}" target="_blank" rel="noopener">${esc(content.link.text)}</a></div>`;
+    }
+    $("#referenceContent").innerHTML = html;
+  }
+  function initReferenceListeners() {
+    const savedTab = localStorage.getItem("hamtab_reference_tab") || DEFAULT_REFERENCE_TAB;
+    state_default.currentReferenceTab = savedTab;
+    document.querySelectorAll(".reference-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        switchReferenceTab(btn.dataset.refTab);
+      });
+    });
+    switchReferenceTab(savedTab);
+  }
+
+  // src/main.js
   migrate();
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
@@ -4650,6 +4943,8 @@
   initSolarImage();
   initDayNightToggle();
   initSpotDetail();
+  initHelpListeners();
+  initReferenceListeners();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

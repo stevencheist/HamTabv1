@@ -11,9 +11,14 @@ export class HamTab extends DurableObject {
     try {
       const url = new URL(request.url);
       const containerUrl = `http://127.0.0.1:${this.defaultPort}${url.pathname}${url.search}`;
+
+      // Clone headers and set Host
+      const headers = new Headers(request.headers);
+      headers.set('Host', `127.0.0.1:${this.defaultPort}`);
+
       const resp = await fetch(containerUrl, {
         method: request.method,
-        headers: request.headers,
+        headers: headers,
         body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
       });
       return resp;

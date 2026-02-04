@@ -254,6 +254,132 @@
     }
   });
 
+  // src/band-conditions.js
+  function calculateMUF(sfi, isDay) {
+    const foF2Factor = isDay ? 0.9 : 0.6;
+    const foF2 = foF2Factor * Math.sqrt(Math.max(sfi, 50));
+    const obliquityFactor = 3.5;
+    return foF2 * obliquityFactor;
+  }
+  function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay) {
+    const mufLower = muf * 0.5;
+    const mufOptimal = muf * 0.85;
+    let baseReliability = 0;
+    if (bandFreqMHz < mufLower) {
+      if (isDay) {
+        baseReliability = Math.max(0, 20 - (mufLower - bandFreqMHz) * 2);
+      } else {
+        baseReliability = Math.min(85, 60 + (mufLower - bandFreqMHz) * 1.5);
+      }
+    } else if (bandFreqMHz <= mufOptimal) {
+      const position = (bandFreqMHz - mufLower) / (mufOptimal - mufLower);
+      baseReliability = 70 + 30 * Math.sin(position * Math.PI);
+    } else if (bandFreqMHz <= muf) {
+      const position = (bandFreqMHz - mufOptimal) / (muf - mufOptimal);
+      baseReliability = 90 - position * 40;
+    } else {
+      const excess = bandFreqMHz - muf;
+      baseReliability = Math.max(0, 40 - excess * 3);
+    }
+    let geomagPenalty = 0;
+    if (kIndex >= 6) {
+      geomagPenalty = (kIndex - 5) * 12;
+    } else if (kIndex >= 3) {
+      geomagPenalty = (kIndex - 2) * 5;
+    }
+    let aIndexPenalty = 0;
+    if (aIndex > 30) {
+      aIndexPenalty = Math.min(20, (aIndex - 30) / 2);
+    } else if (aIndex > 10) {
+      aIndexPenalty = (aIndex - 10) / 4;
+    }
+    const finalReliability = Math.max(0, Math.min(
+      100,
+      baseReliability - geomagPenalty - aIndexPenalty
+    ));
+    return Math.round(finalReliability);
+  }
+  function classifyCondition(reliability) {
+    if (reliability >= 80) return "excellent";
+    if (reliability >= 60) return "good";
+    if (reliability >= 40) return "fair";
+    if (reliability >= 20) return "poor";
+    return "closed";
+  }
+  function calculateBandConditions() {
+    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
+      return HF_BANDS.map((band) => ({
+        ...band,
+        reliability: 0,
+        condition: "unknown",
+        muf: 0
+      }));
+    }
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const isDay = utcHour >= 6 && utcHour < 18;
+    const muf = calculateMUF(sfi, isDay);
+    return HF_BANDS.map((band) => {
+      const reliability = calculateBandReliability(
+        band.freqMHz,
+        muf,
+        kIndex,
+        aIndex,
+        isDay
+      );
+      return {
+        ...band,
+        reliability,
+        condition: classifyCondition(reliability),
+        muf: Math.round(muf * 10) / 10
+        // Round to 1 decimal
+      };
+    });
+  }
+  function conditionColorClass(condition) {
+    const map = {
+      "excellent": "band-excellent",
+      "good": "band-good",
+      "fair": "band-fair",
+      "poor": "band-poor",
+      "closed": "band-closed",
+      "unknown": "band-unknown"
+    };
+    return map[condition] || "band-unknown";
+  }
+  function conditionLabel(condition) {
+    const map = {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor",
+      "closed": "Closed",
+      "unknown": "Unknown"
+    };
+    return map[condition] || "Unknown";
+  }
+  var HF_BANDS;
+  var init_band_conditions = __esm({
+    "src/band-conditions.js"() {
+      init_state();
+      HF_BANDS = [
+        { name: "160m", freqMHz: 1.9, label: "160m" },
+        { name: "80m", freqMHz: 3.7, label: "80m" },
+        { name: "60m", freqMHz: 5.35, label: "60m" },
+        { name: "40m", freqMHz: 7.15, label: "40m" },
+        { name: "30m", freqMHz: 10.12, label: "30m" },
+        { name: "20m", freqMHz: 14.15, label: "20m" },
+        { name: "17m", freqMHz: 18.1, label: "17m" },
+        { name: "15m", freqMHz: 21.2, label: "15m" },
+        { name: "12m", freqMHz: 24.93, label: "12m" },
+        { name: "10m", freqMHz: 28.5, label: "10m" }
+      ];
+    }
+  });
+
   // src/lunar.js
   function loadMoonImage() {
     if (moonImage || moonImageLoading) return;
@@ -2152,6 +2278,33 @@
       item.appendChild(nightSpan);
       headerBandsRow.appendChild(item);
     });
+    renderBandConditions();
+  }
+  function renderBandConditions() {
+    const grid = $("bandConditionsGrid");
+    const mufLabel = $("bandMufLabel");
+    if (!grid || !mufLabel) return;
+    const conditions = calculateBandConditions();
+    const muf = conditions[0]?.muf || 0;
+    mufLabel.textContent = muf > 0 ? `MUF: ${muf} MHz` : "";
+    grid.innerHTML = "";
+    conditions.forEach((band) => {
+      const card = document.createElement("div");
+      card.className = `band-card ${conditionColorClass(band.condition)}`;
+      const name = document.createElement("span");
+      name.className = "band-name";
+      name.textContent = band.label;
+      const reliability = document.createElement("span");
+      reliability.className = "band-reliability";
+      reliability.textContent = `${band.reliability}%`;
+      const condLabel = document.createElement("span");
+      condLabel.className = "band-condition-label";
+      condLabel.textContent = conditionLabel(band.condition);
+      card.appendChild(name);
+      card.appendChild(reliability);
+      card.appendChild(condLabel);
+      grid.appendChild(card);
+    });
   }
   async function fetchPropagation() {
     if (!state_default.map) return;
@@ -2292,6 +2445,7 @@
       init_state();
       init_dom();
       init_utils();
+      init_band_conditions();
       SOLAR_VIS_KEY = "hamtab_solar_fields";
       solarFrames = [];
       solarFrameNames = [];
@@ -3568,7 +3722,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.9.0";
+    $("splashVersion").textContent = "0.10.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

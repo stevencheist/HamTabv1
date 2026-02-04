@@ -1222,6 +1222,125 @@ header {
   margin-top: 2px;
 }
 
+/* ---- Per-Band Conditions ---- */
+
+.band-conditions-section {
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.band-conditions-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.band-conditions-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+}
+
+.band-conditions-muf {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.band-conditions-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+
+.band-card {
+  background: var(--surface2);
+  border-radius: 4px;
+  padding: 6px 4px;
+  text-align: center;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.band-card:hover {
+  background: var(--surface3);
+}
+
+.band-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text);
+  display: block;
+  margin-bottom: 3px;
+}
+
+.band-reliability {
+  font-size: 1rem;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.band-condition-label {
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  opacity: 0.8;
+  display: block;
+}
+
+/* Band condition colors */
+.band-excellent {
+  border-color: var(--green);
+}
+
+.band-excellent .band-reliability {
+  color: var(--green);
+}
+
+.band-good {
+  border-color: #4caf50;
+}
+
+.band-good .band-reliability {
+  color: #4caf50;
+}
+
+.band-fair {
+  border-color: var(--yellow);
+}
+
+.band-fair .band-reliability {
+  color: var(--yellow);
+}
+
+.band-poor {
+  border-color: var(--orange);
+}
+
+.band-poor .band-reliability {
+  color: var(--orange);
+}
+
+.band-closed {
+  border-color: var(--red);
+}
+
+.band-closed .band-reliability {
+  color: var(--red);
+}
+
+.band-unknown {
+  opacity: 0.5;
+}
+
+.band-unknown .band-reliability {
+  color: var(--text-dim);
+}
+
 /* ---- Header band conditions strip ---- */
 
 .header-center {

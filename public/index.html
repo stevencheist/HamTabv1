@@ -436,6 +436,33 @@
       <div class="widget-resize"></div>
     </div>
 
+    <!-- HF Propagation (24-hour matrix) -->
+    <div class="widget" id="widget-voacap">
+      <div class="widget-header">HF Propagation
+        <button class="widget-help-btn" data-widget="widget-voacap" title="Help">?</button>
+      </div>
+      <div class="widget-body">
+        <div class="voacap-matrix" id="voacapMatrix">
+          <div class="voacap-no-data">Waiting for solar data...</div>
+        </div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Live Spots -->
+    <div class="widget" id="widget-live-spots">
+      <div class="widget-header">Live Spots
+        <span id="liveSpotsCount" class="spot-count"></span>
+        <button class="widget-help-btn" data-widget="widget-live-spots" title="Help">?</button>
+        <button class="widget-cfg-btn" id="liveSpotsCfgBtn" title="Configure display">&#9881;</button>
+      </div>
+      <div class="widget-body">
+        <div class="live-spots-status" id="liveSpotsStatus"></div>
+        <div class="live-spots-summary" id="liveSpotsSummary"></div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
     <!-- Lunar / EME -->
     <div class="widget" id="widget-lunar">
       <div class="widget-header">Lunar / EME <button class="widget-help-btn" data-widget="widget-lunar" title="Help">?</button><button class="widget-cfg-btn" id="lunarCfgBtn" title="Configure fields">&#9881;</button></div>
@@ -492,6 +519,22 @@
         <label><input type="checkbox" id="mapOvTimezone" /> Timezone Lines</label>
       </div>
       <button id="mapOverlayCfgOk">OK</button>
+    </div>
+  </div>
+
+  <!-- Live Spots config overlay -->
+  <div class="splash-overlay hidden" id="liveSpotsCfgSplash">
+    <div class="splash-box live-spots-cfg-box">
+      <h2>Live Spots Settings</h2>
+      <div class="live-spots-cfg-field">
+        <label for="liveSpotsModeSelect">Display Mode</label>
+        <select id="liveSpotsModeSelect">
+          <option value="count">Spot Count</option>
+          <option value="distance">Farthest Distance</option>
+        </select>
+      </div>
+      <p class="live-spots-cfg-note">Requires your callsign to be set in Config. Shows where your signal was received in the last hour via PSKReporter.</p>
+      <button id="liveSpotsCfgOk">OK</button>
     </div>
   </div>
 

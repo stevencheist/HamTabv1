@@ -135,6 +135,22 @@
         // Reference widget
         currentReferenceTab: "rst",
         // active reference tab (rst, phonetic, etc.)
+        // Live Spots (PSKReporter "heard" data)
+        liveSpots: {
+          data: [],
+          summary: {},
+          lastFetch: null,
+          displayMode: localStorage.getItem("hamtab_livespots_mode") || "count",
+          // 'count' or 'distance'
+          maxAge: parseInt(localStorage.getItem("hamtab_livespots_maxage"), 10) || 60,
+          // minutes
+          visibleBands: /* @__PURE__ */ new Set()
+        },
+        liveSpotsMarkers: {},
+        liveSpotsLines: null,
+        // HF Propagation (24-hour matrix)
+        hfPropOverlayBand: null,
+        // currently displayed band overlay on map
         // Init flag
         appInitialized: false,
         // Day/night
@@ -446,6 +462,8 @@
         { id: "widget-map", name: "HamMap" },
         { id: "widget-solar", name: "Solar" },
         { id: "widget-propagation", name: "Band Conditions" },
+        { id: "widget-voacap", name: "HF Propagation" },
+        { id: "widget-live-spots", name: "Live Spots" },
         { id: "widget-lunar", name: "Lunar / EME" },
         { id: "widget-satellites", name: "Satellites" },
         { id: "widget-rst", name: "Reference" },
@@ -802,6 +820,32 @@
             { heading: "Frequency & Mode", content: "Operating frequency and mode from the spot data." },
             { heading: "Selection", content: "Click a row in On the Air or a map marker to populate this widget." }
           ]
+        },
+        "widget-live-spots": {
+          title: "Live Spots",
+          description: "Shows where YOUR signal is being received via PSKReporter.",
+          sections: [
+            { heading: "Requirements", content: "Enter your callsign in Config. Works best when you're actively transmitting on digital modes (FT8, FT4, etc.)." },
+            { heading: "Band Cards", content: "Click a band card to toggle display of RX stations on the map. Shows count or farthest distance." },
+            { heading: "Display Mode", content: "Click gear icon to switch between count and distance display. Distance shows your farthest reach per band." },
+            { heading: "Map Overlay", content: "Active bands show geodesic paths from your QTH to each receiving station." }
+          ],
+          links: [
+            { label: "PSKReporter", url: "https://pskreporter.info/" }
+          ]
+        },
+        "widget-voacap": {
+          title: "HF Propagation",
+          description: "24-hour propagation prediction matrix showing band reliability by hour.",
+          sections: [
+            { heading: "Matrix", content: "Rows are HF bands, columns are hours (UTC). Color intensity shows predicted reliability." },
+            { heading: "Current Hour", content: "The current UTC hour is highlighted with a border." },
+            { heading: "Color Scale", content: "Black = closed, Red = poor, Yellow = fair, Green = good. Based on MUF and solar conditions." },
+            { heading: "Map Overlay", content: "Click a band row to show/hide propagation circles on the map." }
+          ],
+          links: [
+            { label: "NOAA SWPC Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
+          ]
         }
       };
       REFERENCE_TABS = {
@@ -863,10 +907,13 @@
   // src/band-conditions.js
   var band_conditions_exports = {};
   __export(band_conditions_exports, {
+    HF_BANDS: () => HF_BANDS,
+    calculate24HourMatrix: () => calculate24HourMatrix,
     calculateBandConditions: () => calculateBandConditions,
     calculateMUF: () => calculateMUF,
     conditionColorClass: () => conditionColorClass,
     conditionLabel: () => conditionLabel,
+    getReliabilityColor: () => getReliabilityColor,
     initDayNightToggle: () => initDayNightToggle,
     renderPropagationWidget: () => renderPropagationWidget
   });
@@ -983,6 +1030,47 @@
     };
     return map[condition] || "Unknown";
   }
+  function getReliabilityColor(rel) {
+    if (rel < 10) return "#1a1a1a";
+    if (rel < 33) return "#c0392b";
+    if (rel < 66) return "#f1c40f";
+    return "#27ae60";
+  }
+  function calculate24HourMatrix() {
+    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
+      return Array.from({ length: 24 }, (_, i) => ({
+        hour: i,
+        bands: {},
+        muf: 0
+      }));
+    }
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    const matrix = [];
+    for (let hour = 0; hour < 24; hour++) {
+      const isDay = hour >= 6 && hour < 18;
+      const muf = calculateMUF(sfi, isDay);
+      const bands = {};
+      for (const band of HF_BANDS) {
+        const reliability = calculateBandReliability(
+          band.freqMHz,
+          muf,
+          kIndex,
+          aIndex,
+          isDay
+        );
+        bands[band.name] = reliability;
+      }
+      matrix.push({
+        hour,
+        bands,
+        muf: Math.round(muf * 10) / 10
+      });
+    }
+    return matrix;
+  }
   function initDayNightToggle() {
     const dayBtn = $("dayToggle");
     const nightBtn = $("nightToggle");
@@ -1075,6 +1163,155 @@
         { name: "12m", freqMHz: 24.93, label: "12m" },
         { name: "10m", freqMHz: 28.5, label: "10m" }
       ];
+    }
+  });
+
+  // src/voacap.js
+  var voacap_exports = {};
+  __export(voacap_exports, {
+    clearVoacapOverlay: () => clearVoacapOverlay,
+    initVoacapListeners: () => initVoacapListeners,
+    renderVoacapMatrix: () => renderVoacapMatrix,
+    toggleBandOverlay: () => toggleBandOverlay
+  });
+  function initVoacapListeners() {
+    const matrix = $("voacapMatrix");
+    if (matrix) {
+      matrix.addEventListener("click", (e) => {
+        const row = e.target.closest(".voacap-row");
+        if (row && row.dataset.band) {
+          toggleBandOverlay(row.dataset.band);
+        }
+      });
+    }
+  }
+  function renderVoacapMatrix() {
+    const container = $("voacapMatrix");
+    if (!container) return;
+    const matrix = calculate24HourMatrix();
+    const hasData = matrix.some((entry) => Object.keys(entry.bands).length > 0);
+    if (!hasData) {
+      container.innerHTML = '<div class="voacap-no-data">Waiting for solar data...</div>';
+      return;
+    }
+    const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    let html = '<table class="voacap-table">';
+    html += '<thead><tr><th class="voacap-band-header"></th>';
+    for (let h = 0; h < 24; h += 2) {
+      const isNow = h === nowHour || h + 1 === nowHour;
+      const nowClass = isNow ? "voacap-now" : "";
+      html += `<th class="voacap-hour-header ${nowClass}" colspan="2">${String(h).padStart(2, "0")}</th>`;
+    }
+    html += "</tr></thead>";
+    html += "<tbody>";
+    for (const band of HF_BANDS) {
+      const isOverlayActive = state_default.hfPropOverlayBand === band.name;
+      const activeClass = isOverlayActive ? "voacap-row-active" : "";
+      html += `<tr class="voacap-row ${activeClass}" data-band="${band.name}">`;
+      html += `<td class="voacap-band-label">${band.label}</td>`;
+      for (let h = 0; h < 24; h++) {
+        const hourData = matrix[h];
+        const reliability = hourData.bands[band.name] || 0;
+        const color = getReliabilityColor(reliability);
+        const isNow = h === nowHour;
+        const nowClass = isNow ? "voacap-cell-now" : "";
+        html += `<td class="voacap-cell ${nowClass}" style="background-color: ${color}" title="${band.label} @ ${String(h).padStart(2, "0")}z: ${reliability}%"></td>`;
+      }
+      html += "</tr>";
+    }
+    html += "</tbody></table>";
+    html += `
+    <div class="voacap-legend">
+      <span class="voacap-legend-item"><span class="voacap-legend-color" style="background: #1a1a1a"></span>Closed</span>
+      <span class="voacap-legend-item"><span class="voacap-legend-color" style="background: #c0392b"></span>Poor</span>
+      <span class="voacap-legend-item"><span class="voacap-legend-color" style="background: #f1c40f"></span>Fair</span>
+      <span class="voacap-legend-item"><span class="voacap-legend-color" style="background: #27ae60"></span>Good</span>
+    </div>
+  `;
+    container.innerHTML = html;
+  }
+  function toggleBandOverlay(band) {
+    clearBandOverlay();
+    if (state_default.hfPropOverlayBand === band) {
+      state_default.hfPropOverlayBand = null;
+      renderVoacapMatrix();
+      return;
+    }
+    state_default.hfPropOverlayBand = band;
+    renderVoacapMatrix();
+    drawBandOverlay(band);
+  }
+  function clearBandOverlay() {
+    if (!state_default.map) return;
+    for (const circle of bandOverlayCircles) {
+      state_default.map.removeLayer(circle);
+    }
+    bandOverlayCircles = [];
+  }
+  function drawBandOverlay(band) {
+    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
+    const L2 = window.L;
+    const matrix = calculate24HourMatrix();
+    const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const hourData = matrix[nowHour];
+    const reliability = hourData.bands[band] || 0;
+    const bandDef = HF_BANDS.find((b) => b.name === band);
+    if (!bandDef) return;
+    const baseRadius = 500;
+    const maxRadius = 15e3;
+    const radius = baseRadius + (maxRadius - baseRadius) * (reliability / 100);
+    if (reliability < 10) {
+      const circle = L2.circle([state_default.myLat, state_default.myLon], {
+        radius: 500 * 1e3,
+        // 500 km in meters
+        color: "#c0392b",
+        fillColor: "#c0392b",
+        fillOpacity: 0.1,
+        weight: 1
+      });
+      circle.addTo(state_default.map);
+      bandOverlayCircles.push(circle);
+      return;
+    }
+    const steps = 4;
+    for (let i = steps; i >= 1; i--) {
+      const stepRadius = radius / steps * i;
+      const stepReliability = reliability * (i / steps);
+      const color = getReliabilityColor(stepReliability);
+      const circle = L2.circle([state_default.myLat, state_default.myLon], {
+        radius: stepRadius * 1e3,
+        // Convert km to meters
+        color,
+        fillColor: color,
+        fillOpacity: 0.05 + 0.1 * (steps - i) / steps,
+        weight: 1,
+        dashArray: i === steps ? null : "4 4"
+      });
+      circle.addTo(state_default.map);
+      bandOverlayCircles.push(circle);
+    }
+    const marker = L2.marker([state_default.myLat, state_default.myLon], {
+      icon: L2.divIcon({
+        className: "voacap-center-marker",
+        html: `<div class="voacap-center-label">${band}: ${reliability}%</div>`,
+        iconSize: [80, 20],
+        iconAnchor: [40, 10]
+      })
+    });
+    marker.addTo(state_default.map);
+    bandOverlayCircles.push(marker);
+  }
+  function clearVoacapOverlay() {
+    clearBandOverlay();
+    state_default.hfPropOverlayBand = null;
+  }
+  var bandOverlayCircles;
+  var init_voacap = __esm({
+    "src/voacap.js"() {
+      init_state();
+      init_dom();
+      init_band_conditions();
+      bandOverlayCircles = [];
     }
   });
 
@@ -2482,6 +2719,8 @@
       loadSolarImage();
       const { renderPropagationWidget: renderPropagationWidget2 } = await Promise.resolve().then(() => (init_band_conditions(), band_conditions_exports));
       renderPropagationWidget2();
+      const { renderVoacapMatrix: renderVoacapMatrix2 } = await Promise.resolve().then(() => (init_voacap(), voacap_exports));
+      renderVoacapMatrix2();
     } catch (err) {
       console.error("Failed to fetch solar:", err);
     }
@@ -5016,7 +5255,240 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     feedbackForm.addEventListener("submit", submitFeedback);
   }
 
+  // src/live-spots.js
+  init_state();
+  init_dom();
+  init_geo();
+  init_utils();
+  var BAND_COLORS = {
+    "160m": "#9c27b0",
+    "80m": "#673ab7",
+    "60m": "#3f51b5",
+    "40m": "#2196f3",
+    "30m": "#00bcd4",
+    "20m": "#4caf50",
+    "17m": "#8bc34a",
+    "15m": "#cddc39",
+    "12m": "#ffeb3b",
+    "10m": "#ff9800",
+    "6m": "#ff5722",
+    "2m": "#f44336",
+    "70cm": "#e91e63"
+  };
+  function initLiveSpotsListeners() {
+    const cfgBtn = $("liveSpotsCfgBtn");
+    if (cfgBtn) {
+      cfgBtn.addEventListener("click", showLiveSpotsConfig);
+    }
+    const cfgOk = $("liveSpotsCfgOk");
+    if (cfgOk) {
+      cfgOk.addEventListener("click", dismissLiveSpotsConfig);
+    }
+    const splash = $("liveSpotsCfgSplash");
+    if (splash) {
+      splash.addEventListener("click", (e) => {
+        if (e.target === splash) dismissLiveSpotsConfig();
+      });
+    }
+    const modeSelect = $("liveSpotsModeSelect");
+    if (modeSelect) {
+      modeSelect.value = state_default.liveSpots.displayMode;
+      modeSelect.addEventListener("change", () => {
+        state_default.liveSpots.displayMode = modeSelect.value;
+        localStorage.setItem("hamtab_livespots_mode", modeSelect.value);
+        renderLiveSpots();
+      });
+    }
+  }
+  function showLiveSpotsConfig() {
+    const splash = $("liveSpotsCfgSplash");
+    if (splash) splash.classList.remove("hidden");
+    const modeSelect = $("liveSpotsModeSelect");
+    if (modeSelect) modeSelect.value = state_default.liveSpots.displayMode;
+  }
+  function dismissLiveSpotsConfig() {
+    const splash = $("liveSpotsCfgSplash");
+    if (splash) splash.classList.add("hidden");
+  }
+  async function fetchLiveSpots() {
+    if (!state_default.myCallsign) {
+      renderLiveSpots();
+      return;
+    }
+    try {
+      const url = `/api/spots/psk/heard?callsign=${encodeURIComponent(state_default.myCallsign)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.liveSpots.data = data.spots || [];
+      state_default.liveSpots.summary = data.summary || {};
+      state_default.liveSpots.lastFetch = Date.now();
+      renderLiveSpots();
+    } catch (err) {
+      if (state_default.debug) console.error("Failed to fetch Live Spots:", err);
+      renderLiveSpots();
+    }
+  }
+  function renderLiveSpots() {
+    const status = $("liveSpotsStatus");
+    const summary = $("liveSpotsSummary");
+    const count = $("liveSpotsCount");
+    if (!summary) return;
+    if (!state_default.myCallsign) {
+      if (status) {
+        status.textContent = "Set your callsign in Config";
+        status.classList.add("visible");
+      }
+      summary.innerHTML = "";
+      if (count) count.textContent = "";
+      return;
+    }
+    if (status) {
+      if (state_default.liveSpots.data.length === 0 && state_default.liveSpots.lastFetch) {
+        status.textContent = "No spots in last hour";
+        status.classList.add("visible");
+      } else if (!state_default.liveSpots.lastFetch) {
+        status.textContent = "Loading...";
+        status.classList.add("visible");
+      } else {
+        status.textContent = "";
+        status.classList.remove("visible");
+      }
+    }
+    if (count) {
+      const total = state_default.liveSpots.data.length;
+      count.textContent = total > 0 ? `(${total})` : "";
+    }
+    const bands = Object.keys(state_default.liveSpots.summary).sort((a, b) => {
+      const order = ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm"];
+      return order.indexOf(a) - order.indexOf(b);
+    });
+    if (bands.length === 0) {
+      summary.innerHTML = "";
+      return;
+    }
+    let html = "";
+    for (const band of bands) {
+      const info = state_default.liveSpots.summary[band];
+      const isActive = state_default.liveSpots.visibleBands.has(band);
+      const activeClass = isActive ? "active" : "";
+      const color = BAND_COLORS[band] || "#888";
+      let valueHtml;
+      if (state_default.liveSpots.displayMode === "distance") {
+        const km = info.farthestKm || 0;
+        const mi = Math.round(km * 0.621371);
+        valueHtml = `<span class="live-spots-value">${state_default.distanceUnit === "km" ? km : mi} ${state_default.distanceUnit}</span>`;
+      } else {
+        valueHtml = `<span class="live-spots-value">${info.count}</span>`;
+      }
+      html += `
+      <div class="live-spots-band-card ${activeClass}" data-band="${esc(band)}" style="border-color: ${color}">
+        <span class="live-spots-band-name">${esc(band)}</span>
+        ${valueHtml}
+        ${state_default.liveSpots.displayMode === "distance" && info.farthestCall ? `<span class="live-spots-farthest">${esc(info.farthestCall)}</span>` : ""}
+      </div>
+    `;
+    }
+    summary.innerHTML = html;
+    const cards = summary.querySelectorAll(".live-spots-band-card");
+    cards.forEach((card) => {
+      card.addEventListener("click", () => {
+        const band = card.dataset.band;
+        toggleBandOnMap(band);
+        card.classList.toggle("active");
+      });
+    });
+  }
+  function toggleBandOnMap(band) {
+    if (state_default.liveSpots.visibleBands.has(band)) {
+      state_default.liveSpots.visibleBands.delete(band);
+    } else {
+      state_default.liveSpots.visibleBands.add(band);
+    }
+    renderLiveSpotsOnMap();
+  }
+  function renderLiveSpotsOnMap() {
+    if (!state_default.map) return;
+    clearLiveSpotsFromMap();
+    if (state_default.myLat == null || state_default.myLon == null) return;
+    if (state_default.liveSpots.visibleBands.size === 0) return;
+    const L2 = window.L;
+    const spotsByBand = {};
+    for (const spot of state_default.liveSpots.data) {
+      if (!spot.band || !state_default.liveSpots.visibleBands.has(spot.band)) continue;
+      if (spot.receiverLat == null || spot.receiverLon == null) continue;
+      if (!spotsByBand[spot.band]) spotsByBand[spot.band] = [];
+      spotsByBand[spot.band].push(spot);
+    }
+    for (const band of Object.keys(spotsByBand)) {
+      const color = BAND_COLORS[band] || "#888";
+      const spots = spotsByBand[band];
+      for (const spot of spots) {
+        const pts = geodesicPoints(state_default.myLat, state_default.myLon, spot.receiverLat, spot.receiverLon, 50);
+        const segments = [[]];
+        let lastLon = pts[0][1];
+        for (const pt of pts) {
+          if (Math.abs(pt[1] - lastLon) > 180) {
+            segments.push([]);
+          }
+          segments[segments.length - 1].push([pt[0], pt[1]]);
+          lastLon = pt[1];
+        }
+        const line = L2.polyline(segments, {
+          color,
+          weight: 2,
+          opacity: 0.6,
+          dashArray: "4 3"
+        });
+        line.addTo(state_default.map);
+        const lineKey = `${spot.receiver}-${spot.spotTime}`;
+        if (!state_default.liveSpotsLines) state_default.liveSpotsLines = {};
+        state_default.liveSpotsLines[lineKey] = line;
+        const marker = L2.marker([spot.receiverLat, spot.receiverLon], {
+          icon: L2.divIcon({
+            className: "live-spots-rx-marker",
+            html: `<div class="live-spots-rx-icon" style="background: ${color}">&#9632;</div>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+          })
+        });
+        const popupHtml = `
+        <div class="live-spots-popup">
+          <div class="live-spots-popup-call">${esc(spot.receiver)}</div>
+          <div class="live-spots-popup-grid">${esc(spot.receiverLocator || "")}</div>
+          <div class="live-spots-popup-details">
+            ${spot.distanceKm ? `${spot.distanceKm} km` : ""}
+            ${spot.snr ? ` / SNR: ${esc(spot.snr)} dB` : ""}
+          </div>
+          <div class="live-spots-popup-mode">${esc(spot.mode)} on ${esc(band)}</div>
+        </div>
+      `;
+        marker.bindPopup(popupHtml);
+        marker.addTo(state_default.map);
+        const markerKey = `${spot.receiver}-${spot.spotTime}`;
+        state_default.liveSpotsMarkers[markerKey] = marker;
+      }
+    }
+  }
+  function clearLiveSpotsFromMap() {
+    for (const key of Object.keys(state_default.liveSpotsMarkers)) {
+      if (state_default.map && state_default.liveSpotsMarkers[key]) {
+        state_default.map.removeLayer(state_default.liveSpotsMarkers[key]);
+      }
+    }
+    state_default.liveSpotsMarkers = {};
+    if (state_default.liveSpotsLines) {
+      for (const key of Object.keys(state_default.liveSpotsLines)) {
+        if (state_default.map && state_default.liveSpotsLines[key]) {
+          state_default.map.removeLayer(state_default.liveSpotsLines[key]);
+        }
+      }
+      state_default.liveSpotsLines = null;
+    }
+  }
+
   // src/main.js
+  init_voacap();
   migrate();
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
@@ -5047,6 +5519,8 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initHelpListeners();
   initReferenceListeners();
   initFeedbackListeners();
+  initLiveSpotsListeners();
+  initVoacapListeners();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;
@@ -5056,7 +5530,11 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     initUpdateDisplay();
     fetchWeather();
     startNwsPolling();
+    fetchLiveSpots();
+    renderVoacapMatrix();
   }
+  setInterval(fetchLiveSpots, 5 * 60 * 1e3);
+  setInterval(renderVoacapMatrix, 60 * 1e3);
   setInitApp(initApp);
   initWidgets();
   switchSource(state_default.currentSource);

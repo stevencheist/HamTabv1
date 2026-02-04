@@ -15,7 +15,7 @@ if (saved === 'day' || saved === 'night') {
 }
 
 // HF amateur bands (MHz)
-const HF_BANDS = [
+export const HF_BANDS = [
   { name: '160m', freqMHz: 1.9,   label: '160m' },
   { name: '80m',  freqMHz: 3.7,   label: '80m'  },
   { name: '60m',  freqMHz: 5.35,  label: '60m'  },
@@ -241,6 +241,74 @@ export function conditionLabel(condition) {
     'unknown': 'Unknown',
   };
   return map[condition] || 'Unknown';
+}
+
+// --- 24-Hour Propagation Matrix ---
+
+/**
+ * Get reliability color for a given percentage
+ * @param {number} rel - Reliability percentage (0-100)
+ * @returns {string} - CSS color string
+ */
+export function getReliabilityColor(rel) {
+  if (rel < 10) return '#1a1a1a';  // Black — band closed
+  if (rel < 33) return '#c0392b';  // Red — poor
+  if (rel < 66) return '#f1c40f';  // Yellow — fair
+  return '#27ae60';                 // Green — good
+}
+
+/**
+ * Calculate 24-hour propagation matrix for all HF bands
+ * Returns predictions for each hour based on estimated solar conditions
+ *
+ * @returns {Array} - Array of 24 entries: { hour, bands: { '20m': reliability%, ... }, muf }
+ */
+export function calculate24HourMatrix() {
+  if (!state.lastSolarData || !state.lastSolarData.indices) {
+    // Return placeholder data if no solar data available
+    return Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      bands: {},
+      muf: 0,
+    }));
+  }
+
+  const { indices } = state.lastSolarData;
+  const sfi = parseFloat(indices.sfi) || 70;
+  const kIndex = parseInt(indices.kindex) || 2;
+  const aIndex = parseInt(indices.aindex) || 5;
+
+  const matrix = [];
+
+  for (let hour = 0; hour < 24; hour++) {
+    // Determine day/night for this UTC hour
+    // Simple model: 06:00-18:00 UTC is "day" at 0° longitude
+    // Adjust based on hour
+    const isDay = hour >= 6 && hour < 18;
+
+    const muf = calculateMUF(sfi, isDay);
+
+    // Calculate reliability for each band at this hour
+    const bands = {};
+    for (const band of HF_BANDS) {
+      const reliability = calculateBandReliability(
+        band.freqMHz,
+        muf,
+        kIndex,
+        aIndex,
+        isDay
+      );
+      bands[band.name] = reliability;
+    }
+
+    matrix.push({
+      hour,
+      bands,
+      muf: Math.round(muf * 10) / 10,
+    });
+  }
+
+  return matrix;
 }
 
 // --- UI Rendering ---

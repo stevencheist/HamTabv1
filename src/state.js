@@ -108,6 +108,9 @@ const state = {
   // Widgets
   zCounter: 10, // next z-index to assign when a widget is focused (increments on each click)
 
+  // Reference widget
+  currentReferenceTab: 'rst', // active reference tab (rst, phonetic, etc.)
+
   // Init flag
   appInitialized: false,
 

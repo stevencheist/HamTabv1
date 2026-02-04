@@ -69,6 +69,150 @@ New shared features go on `main`. Both variant branches merge from `main` to sta
 
 ---
 
+## Self-Hosted Installation (lanmode)
+
+> **Important:** HamTab uses the `lanmode` branch for self-hosted installations. The `main` branch contains shared code only — it does not include the install scripts, self-signed TLS, or update checker. Always checkout `lanmode` after cloning.
+
+### macOS
+
+**Prerequisites:** Node.js 18+ and Git.
+
+```bash
+# Install Node.js via Homebrew
+brew install node
+
+# Or via nvm (recommended)
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.zshrc
+nvm install 20
+
+# Git (if not already installed)
+xcode-select --install
+```
+
+```bash
+git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+npm install
+npm start
+```
+
+### Linux (Debian / Ubuntu / Raspberry Pi)
+
+```bash
+sudo dnf install nodejs git
+git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+npm install
+npm start
+```
+
+### Linux (Automated Installer)
+
+The included install script handles everything: installs Node.js if needed, copies the app to `/opt/hamtab`, configures ports and Weather Underground, and optionally sets up a systemd service for boot-start with automatic crash recovery. Works on any systemd-based Linux distribution including Raspberry Pi OS, Debian, Ubuntu, and Fedora.
+
+```bash
+git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+sudo bash install.sh
+```
+
+1. **Ports** — Choose HTTP and HTTPS ports (defaults: 3000 and 3443)
+2. **Weather Underground** — Choose whether to use WU for weather data, and enter your API key (or add it later via the Config screen in the browser)
+3. **Start on boot** — If yes, installs a systemd service that starts HamTab automatically and restarts on failure
+
+**Uninstall:**
+
+```bash
+sudo bash /opt/hamtab/uninstall.sh
+```
+
+This stops the service, offers to back up your `.env` file, and removes the install directory.
+
+> **Note:** The WU API key can also be set from the Config splash screen in the browser — it saves directly to the server's `.env` file so all LAN clients share it.
+
+### Windows
+
+**Prerequisites:**
+
+- Download Node.js LTS from [nodejs.org](https://nodejs.org/), or:
+  ```powershell
+  winget install OpenJS.NodeJS.LTS
+  ```
+- Download Git from [git-scm.com](https://git-scm.com/download/win), or:
+  ```powershell
+  winget install Git.Git
+  ```
+
+**Install and run (Command Prompt or PowerShell):**
+
+```powershell
+git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+npm install
+npm start
+```
+
+### Windows (Run as a Service)
+
+To run HamTab as a Windows service that starts automatically on boot, use the included PowerShell installer. It uses [NSSM](https://nssm.cc/) (downloaded automatically) to register HamTab as a service.
+
+**Prerequisites:** Node.js, Git, PowerShell (run as Administrator).
+
+```powershell
+git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+powershell -ExecutionPolicy Bypass -File install.ps1
+```
+
+The installer will:
+1. Download NSSM if not already present (saved to `tools\nssm\`)
+2. Prompt for HTTP and HTTPS ports (defaults: 3000 and 3443)
+3. Prompt for a Weather Underground API key (optional)
+4. Run `npm install` and `npm run build`
+5. Register and start the HamTab service
+
+**Management commands:**
+
+```powershell
+.\tools\nssm\nssm.exe status HamTab     # check status
+.\tools\nssm\nssm.exe restart HamTab    # restart
+.\tools\nssm\nssm.exe stop HamTab       # stop
+.\tools\nssm\nssm.exe start HamTab      # start
+```
+
+**Logs:** `logs\hamtab.log`
+
+**Uninstall:**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File uninstall.ps1
+```
+
+### Windows (WSL2)
+
+If running inside WSL2, follow the Linux instructions above to install inside your WSL distribution. See [WSL2 Setup](#wsl2-setup) below for network access from Windows and LAN devices.
+
+### After Installation
+
+On first startup the server auto-generates a self-signed TLS certificate (saved to `certs/`). Two servers start:
+
+- **HTTP** on port 3000 (default) — for localhost/desktop use
+- **HTTPS** on port 3443 (default) — for LAN/mobile access (required for GPS geolocation)
+
+These ports are configurable during install or by editing the `.env` file (`PORT` and `HTTPS_PORT`).
+
+Open **http://localhost:3000** and you'll be prompted to configure your callsign and location.
+
+> **Mobile / tablet access:** Browsers require HTTPS for the Geolocation API. From other devices on your LAN, use `https://<your-LAN-IP>:3443` and accept the self-signed certificate warning.
+
+---
+
 ## Development Setup
 
 **Prerequisites:** Node.js 20+

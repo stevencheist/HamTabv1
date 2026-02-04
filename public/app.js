@@ -4881,6 +4881,103 @@
     switchReferenceTab(savedTab);
   }
 
+  // src/feedback.js
+  init_dom();
+  var formOpenTime = 0;
+  function openFeedback() {
+    $("feedbackSplash").classList.remove("hidden");
+    $("feedbackForm").reset();
+    $("feedbackStatus").classList.add("hidden");
+    $("feedbackCharCount").textContent = "0";
+    $("feedbackSubmit").disabled = false;
+    formOpenTime = Date.now();
+    $("feedbackMessage").focus();
+  }
+  function closeFeedback() {
+    $("feedbackSplash").classList.add("hidden");
+  }
+  function updateCharCount() {
+    const textarea = $("feedbackMessage");
+    const count = textarea.value.length;
+    $("feedbackCharCount").textContent = count;
+  }
+  function showStatus(message, type) {
+    const status = $("feedbackStatus");
+    status.textContent = message;
+    status.className = "feedback-status " + type;
+  }
+  async function submitFeedback(e) {
+    e.preventDefault();
+    const submitBtn = $("feedbackSubmit");
+    const form = $("feedbackForm");
+    const formData = new FormData(form);
+    const data = {
+      name: formData.get("name") || "",
+      email: formData.get("email") || "",
+      feedback: formData.get("feedback") || "",
+      website: formData.get("website") || ""
+      // honeypot
+    };
+    if (data.feedback.length < 10) {
+      showStatus("Feedback must be at least 10 characters", "error");
+      return;
+    }
+    if (data.feedback.length > 5e3) {
+      showStatus("Feedback must be less than 5000 characters", "error");
+      return;
+    }
+    const timeSinceOpen = Date.now() - formOpenTime;
+    if (timeSinceOpen < 3e3) {
+      showStatus("Please take a moment to review your feedback", "error");
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Sending...";
+    showStatus("Sending your feedback...", "success");
+    try {
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data)
+      });
+      const result = await response.json();
+      if (response.ok) {
+        showStatus("Thank you! Your feedback has been submitted successfully.", "success");
+        form.reset();
+        updateCharCount();
+        setTimeout(closeFeedback, 2e3);
+      } else {
+        showStatus(result.error || "Failed to submit feedback. Please try again.", "error");
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send Feedback";
+      }
+    } catch (err) {
+      console.error("Feedback submission error:", err);
+      showStatus("Network error. Please check your connection and try again.", "error");
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Send Feedback";
+    }
+  }
+  function initFeedbackListeners() {
+    const feedbackBtn = $("feedbackBtn");
+    const feedbackCancel = $("feedbackCancel");
+    const feedbackForm = $("feedbackForm");
+    const feedbackMessage = $("feedbackMessage");
+    const feedbackSplash = $("feedbackSplash");
+    feedbackBtn.addEventListener("click", openFeedback);
+    feedbackCancel.addEventListener("click", closeFeedback);
+    feedbackSplash.addEventListener("click", (e) => {
+      if (e.target === feedbackSplash) closeFeedback();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !feedbackSplash.classList.contains("hidden")) {
+        closeFeedback();
+      }
+    });
+    feedbackMessage.addEventListener("input", updateCharCount);
+    feedbackForm.addEventListener("submit", submitFeedback);
+  }
+
   // src/main.js
   migrate();
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
@@ -4911,6 +5008,7 @@
   initSpotDetail();
   initHelpListeners();
   initReferenceListeners();
+  initFeedbackListeners();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

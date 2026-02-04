@@ -36,6 +36,7 @@ import { initSpotDetail } from './spot-detail.js';
 import { initDayNightToggle } from './band-conditions.js';
 import { initHelpListeners } from './help.js';
 import { initReferenceListeners } from './reference.js';
+import { initFeedbackListeners } from './feedback.js';
 
 // Initialize map
 initMap();
@@ -72,6 +73,7 @@ initDayNightToggle();
 initSpotDetail();
 initHelpListeners();
 initReferenceListeners();
+initFeedbackListeners();
 
 // Wire initApp into splash dismissal
 function initApp() {

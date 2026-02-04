@@ -4,7 +4,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 **Mission:** Provide a modern, web-based amateur radio dashboard for the ~10,000+ HamClock users whose installations will stop functioning in June 2026, while serving the broader ham radio community.
 
-**Last updated:** 2026-02-04 (deployment mode analysis added)
+**Last updated:** 2026-02-04
 
 ---
 
@@ -293,6 +293,15 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Goal:** Customization and usability improvements
 **Timeline:** 4-6 weeks
 
+#### P8.0: Layout & Responsiveness (Priority)
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Operator info visibility | ❌ | HIGH | 🌐 | Callsign, name, license, location, and control buttons larger and bolder |
+| Widget non-overlapping layout | ❌ | HIGH | 🌐 | Widgets should not overlap; auto-size and snap together |
+| Proportional widget resize | ❌ | HIGH | 🌐 | Widgets resize proportionately to maintain layout on window change |
+| Responsive modals | ❌ | HIGH | 🌐 | Modals resize to fit within viewport at any zoom level |
+| Accessibility standards | ❌ | HIGH | 🌐 | Define standards for visual impairments, color blindness, readability |
+
 #### P8.1: Configuration Management
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
@@ -326,6 +335,11 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Time shift planning | ❌ | LOW | 🌐 | Client-side historical calculations |
 
 **Phase 8 Deliverables:**
+- Non-overlapping widget layout with auto-size and snap behavior
+- Proportional widget resizing on window resize
+- Responsive modals that fit within viewport at any zoom
+- Improved operator info visibility (larger, bolder text)
+- Documented accessibility standards
 - Multiple configuration profiles with export/import
 - Color customization and light theme
 - Stopwatch and countdown timers

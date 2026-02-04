@@ -71,7 +71,7 @@ function renderReferenceContent(tab) {
     html += `<div class="ref-note"><a href="${esc(content.link.url)}" target="_blank" rel="noopener">${esc(content.link.text)}</a></div>`;
   }
 
-  $('#referenceContent').innerHTML = html;
+  $('referenceContent').innerHTML = html;
 }
 
 // --- Event Listeners ---

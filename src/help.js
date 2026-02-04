@@ -9,7 +9,7 @@ function renderHelp(widgetId) {
   const help = WIDGET_HELP[widgetId];
   if (!help) return;
 
-  $('#helpTitle').textContent = help.title;
+  $('helpTitle').textContent = help.title;
 
   let html = '';
 
@@ -38,8 +38,8 @@ function renderHelp(widgetId) {
     html += `</div>`;
   }
 
-  $('#helpContent').innerHTML = html;
-  $('#helpSplash').classList.remove('hidden');
+  $('helpContent').innerHTML = html;
+  $('helpSplash').classList.remove('hidden');
 }
 
 // --- Event Listeners ---
@@ -55,14 +55,14 @@ export function initHelpListeners() {
   });
 
   // Close help modal
-  $('#helpOk').addEventListener('click', () => {
-    $('#helpSplash').classList.add('hidden');
+  $('helpOk').addEventListener('click', () => {
+    $('helpSplash').classList.add('hidden');
   });
 
   // Close on overlay click
-  $('#helpSplash').addEventListener('click', (e) => {
+  $('helpSplash').addEventListener('click', (e) => {
     if (e.target.id === 'helpSplash') {
-      $('#helpSplash').classList.add('hidden');
+      $('helpSplash').classList.add('hidden');
     }
   });
 }

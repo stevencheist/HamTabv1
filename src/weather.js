@@ -68,11 +68,28 @@ export function fetchNwsConditions() {
   });
 }
 
+// Weather icon mapping for graphical display
+const wxIcons = {
+  'wx-clear-day': '☀️',
+  'wx-clear-night': '🌙',
+  'wx-partly-cloudy-day': '⛅',
+  'wx-partly-cloudy-night': '☁️',
+  'wx-cloudy': '☁️',
+  'wx-rain': '🌧️',
+  'wx-thunderstorm': '⛈️',
+  'wx-snow': '❄️',
+  'wx-fog': '🌫️'
+};
+
 function applyWeatherBackground(forecast, isDaytime) {
   const headerClock = $('headerClockLocal');
+  const wxIcon = $('clockWxIcon');
   if (!headerClock) return;
   wxBgClasses.forEach(c => headerClock.classList.remove(c));
-  if (!forecast) return;
+  if (!forecast) {
+    if (wxIcon) wxIcon.textContent = '';
+    return;
+  }
   const fc = forecast.toLowerCase();
   let cls = '';
   if (/thunder|t-storm/.test(fc)) cls = 'wx-thunderstorm';
@@ -84,7 +101,10 @@ function applyWeatherBackground(forecast, isDaytime) {
     else cls = 'wx-cloudy';
   }
   else if (/sunny|clear/.test(fc)) cls = isDaytime ? 'wx-clear-day' : 'wx-clear-night';
-  if (cls) headerClock.classList.add(cls);
+  if (cls) {
+    headerClock.classList.add(cls);
+    if (wxIcon) wxIcon.textContent = wxIcons[cls] || '';
+  }
 }
 
 export function fetchNwsAlerts() {

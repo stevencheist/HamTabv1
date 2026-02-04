@@ -4810,7 +4810,7 @@
   function renderHelp(widgetId) {
     const help = WIDGET_HELP[widgetId];
     if (!help) return;
-    $("#helpTitle").textContent = help.title;
+    $("helpTitle").textContent = help.title;
     let html = "";
     if (help.description) {
       html += `<div class="help-description">${esc(help.description)}</div>`;
@@ -4831,8 +4831,8 @@
       });
       html += `</div>`;
     }
-    $("#helpContent").innerHTML = html;
-    $("#helpSplash").classList.remove("hidden");
+    $("helpContent").innerHTML = html;
+    $("helpSplash").classList.remove("hidden");
   }
   function initHelpListeners() {
     document.querySelectorAll(".widget-help-btn").forEach((btn) => {
@@ -4842,12 +4842,12 @@
         renderHelp(widgetId);
       });
     });
-    $("#helpOk").addEventListener("click", () => {
-      $("#helpSplash").classList.add("hidden");
+    $("helpOk").addEventListener("click", () => {
+      $("helpSplash").classList.add("hidden");
     });
-    $("#helpSplash").addEventListener("click", (e) => {
+    $("helpSplash").addEventListener("click", (e) => {
       if (e.target.id === "helpSplash") {
-        $("#helpSplash").classList.add("hidden");
+        $("helpSplash").classList.add("hidden");
       }
     });
   }
@@ -4902,7 +4902,7 @@
     if (content.link) {
       html += `<div class="ref-note"><a href="${esc(content.link.url)}" target="_blank" rel="noopener">${esc(content.link.text)}</a></div>`;
     }
-    $("#referenceContent").innerHTML = html;
+    $("referenceContent").innerHTML = html;
   }
   function initReferenceListeners() {
     const savedTab = localStorage.getItem("hamtab_reference_tab") || DEFAULT_REFERENCE_TAB;

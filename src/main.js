@@ -32,10 +32,12 @@ import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
 import { initSatellites, fetchSatellitePositions } from './satellites.js';
 import { initSpotDetail } from './spot-detail.js';
-import { initDayNightToggle } from './band-conditions.js';
+import { initDayNightToggle, renderPropagationWidget } from './band-conditions.js';
 import { initHelpListeners } from './help.js';
 import { initReferenceListeners } from './reference.js';
 import { initFeedbackListeners } from './feedback.js';
+import { initLiveSpotsListeners, fetchLiveSpots, renderLiveSpotsOnMap } from './live-spots.js';
+import { initVoacapListeners, renderVoacapMatrix } from './voacap.js';
 
 // Initialize map
 initMap();
@@ -71,6 +73,8 @@ initSpotDetail();
 initHelpListeners();
 initReferenceListeners();
 initFeedbackListeners();
+initLiveSpotsListeners();
+initVoacapListeners();
 
 // Wire initApp into splash dismissal
 function initApp() {
@@ -83,7 +87,15 @@ function initApp() {
   sendUpdateInterval();
   fetchWeather();
   startNwsPolling();
+  fetchLiveSpots();
+  renderVoacapMatrix();
 }
+
+// Live Spots refresh (5 min — PSKReporter rate limit)
+setInterval(fetchLiveSpots, 5 * 60 * 1000);
+
+// VOACAP matrix refresh (1 min — updates with solar data)
+setInterval(renderVoacapMatrix, 60 * 1000);
 
 setInitApp(initApp);
 

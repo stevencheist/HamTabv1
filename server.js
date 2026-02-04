@@ -339,6 +339,134 @@ app.get('/api/spots/psk', async (req, res) => {
   }
 });
 
+// --- Live Spots (PSKReporter "heard" query) ---
+
+// Per-callsign cache for Live Spots
+const pskHeardCache = {}; // { 'CALLSIGN': { data, expires }, ... }
+const PSK_HEARD_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+// Haversine distance calculation (km)
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+// Live Spots: Query PSKReporter for spots where YOUR signal was received
+app.get('/api/spots/psk/heard', async (req, res) => {
+  try {
+    const callsign = (req.query.callsign || '').toUpperCase().trim();
+
+    // Validate callsign format
+    if (!callsign || !/^[A-Z0-9]{3,10}$/i.test(callsign)) {
+      return res.status(400).json({ error: 'Provide a valid callsign' });
+    }
+
+    // Check cache
+    const cached = pskHeardCache[callsign];
+    if (cached && Date.now() < cached.expires) {
+      return res.json(cached.data);
+    }
+
+    // Build query params for PSKReporter
+    const params = new URLSearchParams({
+      senderCallsign: callsign,
+      flowStartSeconds: '-3600', // Last hour
+      rrlimit: '500',
+      rronly: '1',
+      nolocator: '0',
+    });
+
+    const url = `https://retrieve.pskreporter.info/query?${params}`;
+    const xml = await fetchText(url);
+
+    // Parse XML
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '',
+    });
+    const doc = parser.parse(xml);
+
+    const reports = doc.receptionReports?.receptionReport;
+    if (!reports) {
+      const result = { spots: [], summary: {} };
+      pskHeardCache[callsign] = { data: result, expires: Date.now() + PSK_HEARD_CACHE_TTL };
+      return res.json(result);
+    }
+
+    const reportArray = Array.isArray(reports) ? reports : [reports];
+
+    // Transform to spot format
+    const spots = reportArray.map(r => {
+      const freqHz = parseInt(r.frequency, 10) || 0;
+      const freqMHz = (freqHz / 1000000).toFixed(3);
+      const flowStartSec = parseInt(r.flowStartSeconds, 10) || 0;
+      const spotTime = new Date(flowStartSec * 1000).toISOString();
+
+      const senderCoords = gridToLatLon(r.senderLocator || '');
+      const receiverCoords = gridToLatLon(r.receiverLocator || '');
+
+      const snrVal = parseInt(r.sNR, 10);
+      const snrStr = isNaN(snrVal) ? '' : `${snrVal > 0 ? '+' : ''}${snrVal}`;
+
+      // Calculate distance if both coords available
+      let distanceKm = null;
+      if (senderCoords && receiverCoords) {
+        distanceKm = Math.round(haversineKm(
+          senderCoords.lat, senderCoords.lon,
+          receiverCoords.lat, receiverCoords.lon
+        ));
+      }
+
+      return {
+        callsign: r.senderCallsign || '',
+        frequency: freqMHz,
+        mode: r.mode || '',
+        receiver: r.receiverCallsign || '',
+        receiverLocator: r.receiverLocator || '',
+        receiverLat: receiverCoords?.lat || null,
+        receiverLon: receiverCoords?.lon || null,
+        senderLocator: r.senderLocator || '',
+        senderLat: senderCoords?.lat || null,
+        senderLon: senderCoords?.lon || null,
+        snr: snrStr,
+        band: freqToBandStr(freqMHz),
+        spotTime,
+        distanceKm,
+      };
+    });
+
+    // Filter out spots with no valid receiver coordinates
+    const validSpots = spots.filter(s => s.receiverLat !== null && s.receiverLon !== null);
+
+    // Build summary by band
+    const summary = {};
+    for (const spot of validSpots) {
+      if (!spot.band) continue;
+      if (!summary[spot.band]) {
+        summary[spot.band] = { count: 0, farthestKm: 0, farthestCall: '' };
+      }
+      summary[spot.band].count++;
+      if (spot.distanceKm !== null && spot.distanceKm > summary[spot.band].farthestKm) {
+        summary[spot.band].farthestKm = spot.distanceKm;
+        summary[spot.band].farthestCall = spot.receiver;
+      }
+    }
+
+    const result = { spots: validSpots, summary };
+    pskHeardCache[callsign] = { data: result, expires: Date.now() + PSK_HEARD_CACHE_TTL };
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching PSKReporter heard spots:', err.message);
+    res.status(502).json({ error: 'Failed to fetch PSKReporter spots' });
+  }
+});
+
 // Proxy SOTA spots API
 app.get('/api/spots/sota', async (req, res) => {
   try {
@@ -1605,7 +1733,3 @@ const tlsOptions = ensureCerts();
 https.createServer(tlsOptions, app).listen(HTTPS_PORT, HOST, () => {
   console.log(`HTTPS server running at https://${HOST}:${HTTPS_PORT}`);
 });
-
-// Run initial update check and start timer
-checkForUpdates();
-startUpdateTimer();

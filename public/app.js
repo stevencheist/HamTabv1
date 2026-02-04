@@ -3708,14 +3708,16 @@
     saveWidgetVisibility();
     applyWidgetVisibility();
     const intervalSelect = $("splashUpdateInterval");
-    const intervalVal = intervalSelect.value;
-    localStorage.setItem("hamtab_update_interval", intervalVal);
-    fetch("/api/update/interval", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
-    }).catch(() => {
-    });
+    if (intervalSelect) {
+      const intervalVal = intervalSelect.value;
+      localStorage.setItem("hamtab_update_interval", intervalVal);
+      fetch("/api/update/interval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
+      }).catch(() => {
+      });
+    }
     $("splashGridDropdown").classList.remove("open");
     $("splash").classList.add("hidden");
     updateOperatorDisplay2();
@@ -4129,7 +4131,7 @@
   init_dom();
   function initUpdateDisplay() {
     const el = $("platformLabel");
-    if (el) el.textContent = "v0.11.0";
+    if (el) el.textContent = "v0.12.0";
   }
 
   // src/settings-sync.js

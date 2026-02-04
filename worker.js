@@ -8,45 +8,15 @@ export class HamTab extends DurableObject {
   sleepAfter = '5m';
 
   async fetch(request) {
-    try {
-      // Debug: check what's available
-      const hasCtx = !!this.ctx;
-      const hasContainer = hasCtx && !!this.ctx.container;
-      const hasGetTcpPort = hasContainer && typeof this.ctx.container.getTcpPort === 'function';
-
-      if (!hasGetTcpPort) {
-        return new Response(JSON.stringify({
-          debug: true,
-          hasCtx,
-          hasContainer,
-          hasGetTcpPort,
-          ctxKeys: hasCtx ? Object.keys(this.ctx) : null,
-          containerKeys: hasContainer ? Object.keys(this.ctx.container) : null,
-        }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Use the container API to proxy request to the container
-      const port = this.ctx.container.getTcpPort(this.defaultPort);
-      const url = new URL(request.url);
-      return port.fetch(`http://container${url.pathname}${url.search}`, {
-        method: request.method,
-        headers: request.headers,
-        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-      });
-    } catch (err) {
-      return new Response(JSON.stringify({
-        doError: err.message,
-        name: err.name,
-        stack: err.stack,
-        port: this.defaultPort
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    // Simple test - just return info about this object
+    return new Response(JSON.stringify({
+      test: 'fetch reached',
+      hasCtx: 'ctx' in this,
+      thisKeys: Object.keys(this),
+      proto: Object.getOwnPropertyNames(Object.getPrototypeOf(this)),
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
 

@@ -101,6 +101,7 @@ main ──────────────────────── sh
 - Keep server.js endpoints consistent in error response format
 - Test changes by running `npm start` and verifying in browser
 - New functions, intervals, and state fields must include comments per the Commenting Style rules above (citations, magic numbers, purpose)
+- **Toggleable error handling** — All generated code should include error handling that can be enabled for debugging. Use a debug flag or verbose mode that's off by default but can be turned on to surface errors (e.g. `if (state.debug) console.error(...)`). The capability must exist even if disabled in production.
 
 ## Versioning & Updates
 

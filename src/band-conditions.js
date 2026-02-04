@@ -5,6 +5,15 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
 
+// Day/night toggle state
+let dayNightTime = 'day'; // 'day' or 'night'
+
+// Load preference
+const saved = localStorage.getItem('hamtab_band_time');
+if (saved === 'day' || saved === 'night') {
+  dayNightTime = saved;
+}
+
 // HF amateur bands (MHz)
 const HF_BANDS = [
   { name: '160m', freqMHz: 1.9,   label: '160m' },
@@ -228,6 +237,41 @@ export function conditionLabel(condition) {
 // --- UI Rendering ---
 
 /**
+ * Initialize day/night toggle listeners
+ */
+export function initDayNightToggle() {
+  const dayBtn = $('dayToggle');
+  const nightBtn = $('nightToggle');
+
+  if (!dayBtn || !nightBtn) return;
+
+  // Set initial state
+  updateToggleButtons();
+
+  dayBtn.addEventListener('click', () => {
+    dayNightTime = 'day';
+    localStorage.setItem('hamtab_band_time', dayNightTime);
+    updateToggleButtons();
+    renderPropagationWidget();
+  });
+
+  nightBtn.addEventListener('click', () => {
+    dayNightTime = 'night';
+    localStorage.setItem('hamtab_band_time', dayNightTime);
+    updateToggleButtons();
+    renderPropagationWidget();
+  });
+}
+
+function updateToggleButtons() {
+  const dayBtn = $('dayToggle');
+  const nightBtn = $('nightToggle');
+
+  if (dayBtn) dayBtn.classList.toggle('active', dayNightTime === 'day');
+  if (nightBtn) nightBtn.classList.toggle('active', dayNightTime === 'night');
+}
+
+/**
  * Helper to get condition class for HamQSL band conditions
  */
 function hamqslCondClass(cond) {
@@ -299,7 +343,7 @@ export function renderPropagationWidget() {
     grid.appendChild(card);
   });
 
-  // Render HamQSL band conditions (day/night from HamQSL data)
+  // Render HamQSL band conditions (day or night from HamQSL data based on toggle)
   if (hamqslGrid && state.lastSolarData && state.lastSolarData.bands) {
     const { bands } = state.lastSolarData;
     const bandMap = {};
@@ -312,8 +356,9 @@ export function renderPropagationWidget() {
     const bandOrder = ['80m-40m', '30m-20m', '17m-15m', '12m-10m'];
     bandOrder.forEach(band => {
       if (!bandMap[band]) return;
-      const day = bandMap[band]['day'] || '-';
-      const night = bandMap[band]['night'] || '-';
+
+      // Get condition for selected time period
+      const condition = bandMap[band][dayNightTime] || '-';
 
       const card = document.createElement('div');
       card.className = 'hamqsl-band-card';
@@ -322,36 +367,12 @@ export function renderPropagationWidget() {
       nameSpan.className = 'hamqsl-band-name';
       nameSpan.textContent = band;
 
-      const conditionsDiv = document.createElement('div');
-      conditionsDiv.className = 'hamqsl-band-conditions';
-
-      const dayItem = document.createElement('div');
-      dayItem.className = 'hamqsl-cond-item';
-      const dayTime = document.createElement('span');
-      dayTime.className = 'hamqsl-cond-time';
-      dayTime.textContent = 'Day';
-      const dayValue = document.createElement('span');
-      dayValue.className = `hamqsl-cond-value ${hamqslCondClass(day)}`;
-      dayValue.textContent = day;
-      dayItem.appendChild(dayTime);
-      dayItem.appendChild(dayValue);
-
-      const nightItem = document.createElement('div');
-      nightItem.className = 'hamqsl-cond-item';
-      const nightTime = document.createElement('span');
-      nightTime.className = 'hamqsl-cond-time';
-      nightTime.textContent = 'Night';
-      const nightValue = document.createElement('span');
-      nightValue.className = `hamqsl-cond-value ${hamqslCondClass(night)}`;
-      nightValue.textContent = night;
-      nightItem.appendChild(nightTime);
-      nightItem.appendChild(nightValue);
-
-      conditionsDiv.appendChild(dayItem);
-      conditionsDiv.appendChild(nightItem);
+      const condValue = document.createElement('span');
+      condValue.className = `hamqsl-cond-value-single ${hamqslCondClass(condition)}`;
+      condValue.textContent = condition;
 
       card.appendChild(nameSpan);
-      card.appendChild(conditionsDiv);
+      card.appendChild(condValue);
       hamqslGrid.appendChild(card);
     });
   }

@@ -1224,6 +1224,35 @@ header {
 
 /* ---- Propagation Widget ---- */
 
+.day-night-toggle {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.day-night-toggle .toggle-btn {
+  padding: 2px 8px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.day-night-toggle .toggle-btn:hover {
+  background: var(--surface3);
+  color: var(--text);
+}
+
+.day-night-toggle .toggle-btn.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
 .prop-summary {
   display: flex;
   justify-content: space-around;
@@ -1374,40 +1403,20 @@ header {
   background: var(--surface2);
   border-radius: 4px;
   padding: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .hamqsl-band-name {
   font-size: 0.7rem;
   font-weight: 600;
   color: var(--text);
-  margin-bottom: 4px;
-  display: block;
 }
 
-.hamqsl-band-conditions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.hamqsl-cond-item {
-  flex: 1;
-  text-align: center;
-}
-
-.hamqsl-cond-time {
-  font-size: 0.6rem;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  display: block;
-  margin-bottom: 2px;
-}
-
-.hamqsl-cond-value {
-  font-size: 0.75rem;
-  font-weight: 600;
-  display: block;
+.hamqsl-cond-value-single {
+  font-size: 0.85rem;
+  font-weight: 700;
 }
 
 /* ---- Header center (empty placeholder) ---- */

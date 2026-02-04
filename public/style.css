@@ -1387,16 +1387,36 @@ header {
   box-shadow: -2px 0 8px rgba(92, 107, 192, 0.2);
 }
 
-/* ---- Header center (empty placeholder) ---- */
+/* ---- Header center clocks ---- */
 
 .header-center {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: 1px;
+  gap: 24px;
   flex-shrink: 1;
   min-width: 0;
-  overflow: hidden;
+}
+
+.header-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.header-clock-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.header-clock-time {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+  font-family: 'Courier New', monospace;
 }
 
 /* ---- Band condition color classes (used in propagation widget) ---- */

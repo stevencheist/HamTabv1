@@ -52,7 +52,6 @@
         licenseClass: localStorage.getItem("hamtab_license_class") || "",
         propMetric: localStorage.getItem("hamtab_prop_metric") || "mufd",
         mapCenterMode: localStorage.getItem("hamtab_map_center") || "qth",
-        clockStyle: localStorage.getItem("hamtab_clock_style") || "digital",
         // Map layers
         propLayer: null,
         propLabelLayer: null,
@@ -439,8 +438,6 @@
       init_solar();
       init_lunar();
       WIDGET_DEFS = [
-        { id: "widget-clock-local", name: "Local Time" },
-        { id: "widget-clock-utc", name: "UTC" },
         { id: "widget-filters", name: "Filters" },
         { id: "widget-activations", name: "On the Air" },
         { id: "widget-map", name: "HamMap" },
@@ -2873,17 +2870,13 @@
     const rightW = Math.round(W * 0.25);
     const centerW = W - leftW - rightW - pad * 4;
     const rightHalf = Math.round((H - pad * 3) / 2);
-    const clockH = state_default.clockStyle === "analog" ? 280 : 130;
-    const clockW = Math.round((centerW - pad) / 2);
     const rightX = leftW + centerW + pad * 3;
     const filtersH = 220;
     const activationsH = H - filtersH - pad * 3;
     const layout = {
-      "widget-clock-local": { left: leftW + pad * 2, top: pad, width: clockW, height: clockH },
-      "widget-clock-utc": { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
       "widget-filters": { left: pad, top: pad, width: leftW, height: filtersH },
       "widget-activations": { left: pad, top: filtersH + pad * 2, width: leftW, height: activationsH },
-      "widget-map": { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
+      "widget-map": { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
       "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
     };
     const rightBottomIds = ["widget-propagation", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail"];
@@ -3327,86 +3320,6 @@
   init_dom();
   init_utils();
   init_geo();
-  function drawAnalogClock(canvas, date) {
-    const size = Math.min(canvas.parentElement.clientWidth, canvas.parentElement.clientHeight - 24) - 4;
-    if (size < 20) return;
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext("2d");
-    const r = size / 2;
-    ctx.clearRect(0, 0, size, size);
-    ctx.save();
-    ctx.translate(r, r);
-    ctx.beginPath();
-    ctx.arc(0, 0, r - 2, 0, Math.PI * 2);
-    ctx.fillStyle = "#0f3460";
-    ctx.fill();
-    ctx.strokeStyle = "#2a3a5e";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    for (let i = 1; i <= 12; i++) {
-      const angle = i * Math.PI / 6 - Math.PI / 2;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      ctx.beginPath();
-      ctx.moveTo(cos * (r - 12), sin * (r - 12));
-      ctx.lineTo(cos * (r - 5), sin * (r - 5));
-      ctx.strokeStyle = "#8899aa";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = "#e0e0e0";
-      ctx.font = `bold ${Math.round(r * 0.22)}px monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(i.toString(), cos * (r - 22), sin * (r - 22));
-    }
-    for (let i = 0; i < 60; i++) {
-      if (i % 5 === 0) continue;
-      const angle = i * Math.PI / 30 - Math.PI / 2;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(angle) * (r - 8), Math.sin(angle) * (r - 8));
-      ctx.lineTo(Math.cos(angle) * (r - 5), Math.sin(angle) * (r - 5));
-      ctx.strokeStyle = "#2a3a5e";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-    const h = date.getHours() % 12;
-    const m = date.getMinutes();
-    const s = date.getSeconds();
-    const hAngle = (h + m / 60) * Math.PI / 6 - Math.PI / 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(hAngle) * r * 0.5, Math.sin(hAngle) * r * 0.5);
-    ctx.strokeStyle = "#e0e0e0";
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    const mAngle = (m + s / 60) * Math.PI / 30 - Math.PI / 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(mAngle) * r * 0.7, Math.sin(mAngle) * r * 0.7);
-    ctx.strokeStyle = "#e0e0e0";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    const sAngle = s * Math.PI / 30 - Math.PI / 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(sAngle) * r * 0.75, Math.sin(sAngle) * r * 0.75);
-    ctx.strokeStyle = "#e94560";
-    ctx.lineWidth = 1;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, 0, 3, 0, Math.PI * 2);
-    ctx.fillStyle = "#e94560";
-    ctx.fill();
-    ctx.restore();
-  }
-  function applyClockStyle() {
-    $("clockLocal").classList.toggle("analog", state_default.clockStyle === "analog");
-    $("clockUtc").classList.toggle("analog", state_default.clockStyle === "analog");
-  }
   function updateDayNight() {
     const now = /* @__PURE__ */ new Date();
     if (state_default.myLat !== null && state_default.myLon !== null) {
@@ -3418,21 +3331,10 @@
   }
   function updateClocks() {
     const now = /* @__PURE__ */ new Date();
-    const dateOpts = { weekday: "short", month: "short", day: "numeric", year: "numeric" };
-    const localIcon = state_default.lastLocalDay === true ? "\u2600\uFE0F" : state_default.lastLocalDay === false ? "\u{1F319}" : "";
-    const utcIcon = state_default.lastUtcDay === true ? "\u2600\uFE0F" : state_default.lastUtcDay === false ? "\u{1F319}" : "";
     const localTime = fmtTime(now);
     const utcTime = fmtTime(now, { timeZone: "UTC" });
-    $("clockLocalTime").innerHTML = (localIcon ? '<span class="daynight-emoji">' + localIcon + "</span> " : "") + esc(localTime);
-    $("clockUtcTime").innerHTML = (utcIcon ? '<span class="daynight-emoji">' + utcIcon + "</span> " : "") + esc(utcTime);
-    $("clockUtcDate").textContent = now.toLocaleDateString(void 0, Object.assign({ timeZone: "UTC" }, dateOpts));
-    if (state_default.clockStyle === "analog") {
-      drawAnalogClock($("clockLocalCanvas"), now);
-      const utcDate = new Date(now);
-      utcDate.setMinutes(utcDate.getMinutes() + utcDate.getTimezoneOffset());
-      drawAnalogClock($("clockUtcCanvas"), utcDate);
-    }
-    applyClockStyle();
+    $("clockLocalTime").textContent = localTime;
+    $("clockUtcTime").textContent = utcTime;
     updateDayNight();
   }
 
@@ -3754,7 +3656,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.10.0";
+    $("splashVersion").textContent = "0.11.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -4044,38 +3946,6 @@
         renderAllMapOverlays();
       });
     }
-    $("clockLocalCfgBtn").addEventListener("mousedown", (e) => {
-      e.stopPropagation();
-    });
-    $("clockUtcCfgBtn").addEventListener("mousedown", (e) => {
-      e.stopPropagation();
-    });
-    function showClockCfg() {
-      if (state_default.clockStyle === "analog") $("clockStyleAnalog").checked = true;
-      else $("clockStyleDigital").checked = true;
-      $("clockCfgSplash").classList.remove("hidden");
-    }
-    function dismissClockCfg() {
-      state_default.clockStyle = document.querySelector('input[name="clockStyle"]:checked').value;
-      localStorage.setItem("hamtab_clock_style", state_default.clockStyle);
-      $("clockCfgSplash").classList.add("hidden");
-      applyClockStyle();
-      const def = getDefaultLayout();
-      ["widget-clock-local", "widget-clock-utc", "widget-map"].forEach((id) => {
-        const el = document.getElementById(id);
-        const pos = def[id];
-        if (el && pos) {
-          el.style.height = pos.height + "px";
-          el.style.top = pos.top + "px";
-        }
-      });
-      saveWidgets();
-      if (state_default.map) state_default.map.invalidateSize();
-      updateClocks();
-    }
-    $("clockLocalCfgBtn").addEventListener("click", showClockCfg);
-    $("clockUtcCfgBtn").addEventListener("click", showClockCfg);
-    $("clockCfgOk").addEventListener("click", dismissClockCfg);
     $("spotColCfgBtn").addEventListener("mousedown", (e) => {
       e.stopPropagation();
     });

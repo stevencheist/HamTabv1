@@ -77,9 +77,6 @@ export function getDefaultLayout() {
   const centerW = W - leftW - rightW - pad * 4;
   const rightHalf = Math.round((H - pad * 3) / 2);
 
-  const clockH = state.clockStyle === 'analog' ? 280 : 130;
-  const clockW = Math.round((centerW - pad) / 2);
-
   const rightX = leftW + centerW + pad * 3;
 
   // Split left column: filters (220px) at top, activations below
@@ -87,11 +84,9 @@ export function getDefaultLayout() {
   const activationsH = H - filtersH - pad * 3;
 
   const layout = {
-    'widget-clock-local': { left: leftW + pad * 2, top: pad, width: clockW, height: clockH },
-    'widget-clock-utc': { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
     'widget-filters': { left: pad, top: pad, width: leftW, height: filtersH },
     'widget-activations': { left: pad, top: filtersH + pad * 2, width: leftW, height: activationsH },
-    'widget-map': { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
+    'widget-map': { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
     'widget-solar': { left: rightX, top: pad, width: rightW, height: rightHalf },
   };
 

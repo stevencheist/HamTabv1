@@ -2,8 +2,6 @@ import { aColor, kColor, solarWindColor, bzColor, auroraColor, geomagColor } fro
 import { lunarDecColor, lunarPlColor } from './lunar.js';
 
 export const WIDGET_DEFS = [
-  { id: 'widget-clock-local', name: 'Local Time' },
-  { id: 'widget-clock-utc',   name: 'UTC' },
   { id: 'widget-filters',     name: 'Filters' },
   { id: 'widget-activations', name: 'On the Air' },
   { id: 'widget-map',         name: 'HamMap' },

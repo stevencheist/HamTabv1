@@ -28,7 +28,6 @@ const state = {
   licenseClass: localStorage.getItem('hamtab_license_class') || '',
   propMetric: localStorage.getItem('hamtab_prop_metric') || 'mufd',
   mapCenterMode: localStorage.getItem('hamtab_map_center') || 'qth',
-  clockStyle: localStorage.getItem('hamtab_clock_style') || 'digital',
 
   // Map layers
   propLayer: null,

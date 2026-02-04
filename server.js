@@ -114,6 +114,11 @@ async function fetchCallCoords(callsign) {
 let dxcCache = { data: null, expires: 0 };
 const DXC_CACHE_TTL = 10 * 1000; // 10 seconds — HamQTH minimum polling interval
 
+// --- PSKReporter spot cache ---
+
+let pskCache = { data: null, expires: 0 };
+const PSK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes — PSKReporter recommended minimum
+
 // Extract mode from DXC comment field
 function extractModeFromComment(comment) {
   if (!comment) return '';
@@ -156,6 +161,17 @@ function freqToBandStr(freqMHz) {
   if (freq >= 144.0 && freq <= 148.0) return '2m';
   if (freq >= 420.0 && freq <= 450.0) return '70cm';
   return '';
+}
+
+// Convert Maidenhead grid square to lat/lon
+function gridToLatLon(grid) {
+  if (!grid || grid.length < 4) return null;
+  const A = 'A'.charCodeAt(0);
+  const ZERO = '0'.charCodeAt(0);
+  // Field (AA): 20° longitude, 10° latitude per field
+  const lon = (grid.charCodeAt(0) - A) * 20 + (grid.charCodeAt(2) - ZERO) * 2 + 1 - 180;
+  const lat = (grid.charCodeAt(1) - A) * 10 + (grid.charCodeAt(3) - ZERO) + 0.5 - 90;
+  return { lat, lon };
 }
 
 // Proxy HamQTH DX Cluster spots
@@ -233,6 +249,84 @@ app.get('/api/spots/dxc', async (req, res) => {
   } catch (err) {
     console.error('Error fetching DXC spots:', err.message);
     res.status(502).json({ error: 'Failed to fetch DX Cluster spots' });
+  }
+});
+
+// Proxy PSKReporter API
+app.get('/api/spots/psk', async (req, res) => {
+  try {
+    // Return cached data if fresh
+    if (pskCache.data && Date.now() < pskCache.expires) {
+      return res.json(pskCache.data);
+    }
+
+    // Build query params
+    const params = new URLSearchParams({
+      flowStartSeconds: '-3600',  // Last hour
+      rrlimit: '500',             // Max 500 reports
+      rronly: '1',                // Reception reports only
+      nolocator: '0',             // Include grid squares
+    });
+
+    const url = `https://retrieve.pskreporter.info/query?${params}`;
+    const xml = await fetchText(url);
+
+    // Parse XML
+    const parser = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '',
+    });
+    const doc = parser.parse(xml);
+
+    // Extract reception reports array
+    const reports = doc.receptionReports?.receptionReport;
+    if (!reports) {
+      pskCache = { data: [], expires: Date.now() + PSK_CACHE_TTL };
+      return res.json([]);
+    }
+
+    const reportArray = Array.isArray(reports) ? reports : [reports];
+
+    // Transform to spot format
+    const spots = reportArray.map(r => {
+      const freqHz = parseInt(r.frequency, 10) || 0;
+      const freqMHz = (freqHz / 1000000).toFixed(3);
+      const flowStartSec = parseInt(r.flowStartSeconds, 10) || 0;
+      const spotTime = new Date(flowStartSec * 1000).toISOString();
+
+      const senderCoords = gridToLatLon(r.senderLocator || '');
+      const receiverCoords = gridToLatLon(r.receiverLocator || '');
+
+      const snrVal = parseInt(r.sNR, 10);
+      const snrStr = isNaN(snrVal) ? '' : `${snrVal > 0 ? '+' : ''}${snrVal}`;
+
+      return {
+        callsign: r.senderCallsign || '',
+        frequency: freqMHz,
+        mode: r.mode || '',
+        reporter: r.receiverCallsign || '',
+        reporterLocator: r.receiverLocator || '',
+        reporterLat: receiverCoords?.lat || null,
+        reporterLon: receiverCoords?.lon || null,
+        senderLocator: r.senderLocator || '',
+        latitude: senderCoords?.lat || null,
+        longitude: senderCoords?.lon || null,
+        snr: snrStr,
+        band: freqToBandStr(freqMHz),
+        spotTime,
+        name: `Heard by ${r.receiverCallsign || 'unknown'}`,
+        comments: snrStr ? `SNR: ${snrStr} dB` : '',
+      };
+    });
+
+    // Filter out spots with no valid transmitter coordinates
+    const validSpots = spots.filter(s => s.latitude !== null && s.longitude !== null);
+
+    pskCache = { data: validSpots, expires: Date.now() + PSK_CACHE_TTL };
+    res.json(validSpots);
+  } catch (err) {
+    console.error('Error fetching PSKReporter spots:', err.message);
+    res.status(502).json({ error: 'Failed to fetch PSKReporter spots' });
   }
 });
 

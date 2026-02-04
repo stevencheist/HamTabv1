@@ -190,10 +190,14 @@ export function showSplash() {
   $('timeFmt12').checked = !state.use24h;
 
   // Load unit preferences
-  $('distUnitMi').checked = state.distanceUnit === 'mi';
-  $('distUnitKm').checked = state.distanceUnit === 'km';
-  $('tempUnitF').checked = state.temperatureUnit === 'F';
-  $('tempUnitC').checked = state.temperatureUnit === 'C';
+  const distUnitMi = $('distUnitMi');
+  const distUnitKm = $('distUnitKm');
+  const tempUnitF = $('tempUnitF');
+  const tempUnitC = $('tempUnitC');
+  if (distUnitMi) distUnitMi.checked = state.distanceUnit === 'mi';
+  if (distUnitKm) distUnitKm.checked = state.distanceUnit === 'km';
+  if (tempUnitF) tempUnitF.checked = state.temperatureUnit === 'F';
+  if (tempUnitC) tempUnitC.checked = state.temperatureUnit === 'C';
 
   const widgetList = document.getElementById('splashWidgetList');
   widgetList.innerHTML = '';
@@ -252,8 +256,10 @@ function dismissSplash() {
     localStorage.setItem('hamtab_time24', String(state.use24h));
 
     // Save unit preferences
-    state.distanceUnit = $('distUnitKm').checked ? 'km' : 'mi';
-    state.temperatureUnit = $('tempUnitC').checked ? 'C' : 'F';
+    const distUnitKm = $('distUnitKm');
+    const tempUnitC = $('tempUnitC');
+    state.distanceUnit = distUnitKm && distUnitKm.checked ? 'km' : 'mi';
+    state.temperatureUnit = tempUnitC && tempUnitC.checked ? 'C' : 'F';
     localStorage.setItem('hamtab_distance_unit', state.distanceUnit);
     localStorage.setItem('hamtab_temperature_unit', state.temperatureUnit);
 

@@ -1,53 +1,31 @@
 // --- Cloudflare Worker entry point (hostedmode) ---
 // Routes /api/settings to Workers KV, everything else to the Container.
 
-import { DurableObject } from 'cloudflare:workers';
+import { Container } from '@cloudflare/containers';
 
-export class HamTab extends DurableObject {
+export class HamTab extends Container {
   defaultPort = 8080;
   sleepAfter = '5m';
 
-  async fetch(request) {
-    try {
-      const container = this.ctx.container;
+  // Lifecycle hooks for debugging
+  onStart() {
+    console.log('[HamTab Container] Started', {
+      timestamp: new Date().toISOString(),
+      port: this.defaultPort
+    });
+  }
 
-      // Start the container if not running
-      if (!container.running) {
-        await container.start();
-        // Wait a moment for the container to be ready
-        await new Promise(r => setTimeout(r, 1000));
-      }
+  onStop() {
+    console.log('[HamTab Container] Stopped', {
+      timestamp: new Date().toISOString()
+    });
+  }
 
-      // Check if container is actually running now
-      if (!container.running) {
-        return new Response(JSON.stringify({
-          error: 'Container failed to start',
-          running: container.running
-        }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-
-      // Proxy request to the container
-      const port = container.getTcpPort(this.defaultPort);
-      const url = new URL(request.url);
-
-      return port.fetch(`http://container${url.pathname}${url.search}`, {
-        method: request.method,
-        headers: request.headers,
-        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-      });
-    } catch (err) {
-      return new Response(JSON.stringify({
-        doError: err.message,
-        stack: err.stack,
-        name: err.name
-      }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+  onError(error) {
+    console.error('[HamTab Container] Error', {
+      error: error instanceof Error ? error.message : String(error),
+      timestamp: new Date().toISOString()
+    });
   }
 }
 
@@ -108,8 +86,17 @@ export default {
 
       // --- Proxy everything else to the Container ---
       const id = env.HAMTAB.idFromName('hamtab');
-      const container = env.HAMTAB.get(id);
-      return container.fetch(request);
+      const instance = env.HAMTAB.get(id);
+
+      // Wait for container to be ready on port 8080
+      await instance.startAndWaitForPorts({ ports: [8080] });
+
+      // Proxy request to container
+      return instance.fetch(`http://container.internal${url.pathname}${url.search}`, {
+        method: request.method,
+        headers: request.headers,
+        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+      });
     } catch (err) {
       return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
         status: 500,

@@ -157,6 +157,25 @@ export const SOURCE_DEFS = {
     spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
     sortKey: 'spotTime',
   },
+  psk: {
+    label: 'PSK',
+    endpoint: '/api/spots/psk',
+    columns: [
+      { key: 'callsign',        label: 'TX Call',  class: 'callsign' },
+      { key: 'frequency',       label: 'Freq',     class: 'freq' },
+      { key: 'mode',            label: 'Mode',     class: 'mode' },
+      { key: 'reporter',        label: 'RX Call',  class: '' },
+      { key: 'snr',             label: 'SNR',      class: '' },
+      { key: 'senderLocator',   label: 'TX Grid',  class: '' },
+      { key: 'reporterLocator', label: 'RX Grid',  class: '' },
+      { key: 'spotTime',        label: 'Time',     class: '' },
+      { key: 'age',             label: 'Age',      class: '' },
+    ],
+    filters: ['band', 'mode', 'distance', 'age'],
+    hasMap: true,
+    spotId: (s) => `${s.callsign}-${s.reporter}-${s.frequency}-${s.spotTime}`,
+    sortKey: 'spotTime',
+  },
 };
 
 export const SOLAR_FIELD_DEFS = [

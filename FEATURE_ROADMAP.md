@@ -2,7 +2,7 @@
 
 This document tracks advanced features and enhancements planned for HamTabV1.
 
-**Last updated:** 2026-02-03
+**Last updated:** 2026-02-04
 
 ---
 
@@ -50,6 +50,7 @@ This document tracks advanced features and enhancements planned for HamTabV1.
 | 30-day history graphs | ✅ | 🟡 | HamTab has values, not graphs |
 | Per-band reliability | ✅ | ❌ | Open/marginal/closed indicators |
 | ITU-R P.533 integration | ✅ | ❌ | Optional microservice |
+| VOACAP propagation charts | ✅ | ❌ | Band condition views ([#91](https://github.com/stevencheist/HamTabv1/issues/91)) |
 | KC2G ionosonde data | ✅ | ✅ | Real-time measurements |
 | X-ray flux from GOES | ✅ | ✅ | Both implemented |
 | HamQSL band conditions | ✅ | ✅ | XML feed |
@@ -81,6 +82,7 @@ This document tracks advanced features and enhancements planned for HamTabV1.
 | Multi-language support | ✅ | ❌ | 8 languages in OpenHamClock |
 | Fullscreen mode | ✅ | ❌ | Dedicated shack display |
 | Theme-based tile switching | ✅ | ❌ | OSM/OpenTopoMap/satellite |
+| Feedback/bug report button | ❌ | ❌ | Link to GitHub issues ([#88](https://github.com/stevencheist/HamTabv1/issues/88)) |
 
 ---
 
@@ -151,19 +153,29 @@ This document tracks advanced features and enhancements planned for HamTabV1.
 | systemd service | ✅ | ✅ | Both support |
 | Cloud deployment | ✅ | ✅ | Railway vs Cloudflare |
 | Windows installer | ❌ | ✅ | HamTab only |
+| Uninstall script | ❌ | ❌ | Remove service + files ([#90](https://github.com/stevencheist/HamTabv1/issues/90)) |
+| Configurable port | ❌ | ❌ | Via .env or CLI arg ([#90](https://github.com/stevencheist/HamTabv1/issues/90)) |
 
 ---
 
 ## Implementation Priorities
 
-### High Value, Moderate Effort
-1. ✅ **DX Cluster integration** — Multi-source spot management (implemented in `src/source.js`)
-2. ✅ **Enhanced satellite tracking** — Multi-satellite tracking with N2YO API, Doppler, passes (implemented in `src/satellites.js`)
-3. ✅ **Richer filter system** — 9-category filtering with presets and persistence (implemented in `src/filters.js`)
-4. ✅ **Per-band propagation predictions** — Individual band reliability with MUF-based calculations (implemented in `src/band-conditions.js`)
+### User-Requested (Active GitHub Issues)
+These items have been requested by users and are prioritized for implementation.
+
+1. ❌ **VOACAP propagation views** — Band condition charts and predictions ([#91](https://github.com/stevencheist/HamTabv1/issues/91))
+2. ❌ **Configurable port** — Allow changing web UI port via .env or CLI ([#90](https://github.com/stevencheist/HamTabv1/issues/90))
+3. ❌ **Uninstall script** — Clean removal of service and files ([#90](https://github.com/stevencheist/HamTabv1/issues/90))
+4. ❌ **Feedback button** — In-app link to GitHub issues for bug reports ([#88](https://github.com/stevencheist/HamTabv1/issues/88))
+
+### Completed
+- ✅ **PSKReporter integration** — Digital mode reception reports with SNR levels (implemented in `server.js`, `src/constants.js`)
+- ✅ **DX Cluster integration** — Multi-source spot management (implemented in `src/source.js`)
+- ✅ **Enhanced satellite tracking** — Multi-satellite tracking with N2YO API, Doppler, passes (implemented in `src/satellites.js`)
+- ✅ **Richer filter system** — 9-category filtering with presets and persistence (implemented in `src/filters.js`)
+- ✅ **Per-band propagation predictions** — Individual band reliability with MUF-based calculations (implemented in `src/band-conditions.js`)
 
 ### High Value, Higher Effort
-5. ❌ **PSKReporter integration** — Digital mode reception reports (MQTT real-time + HTTP fallback)
 6. ❌ **WSJT-X integration** — UDP listener for FT8/FT4/JT65/JT9/WSPR (local + cloud relay)
 7. ❌ **Multi-language support** — Internationalization (8+ languages like OpenHamClock)
 

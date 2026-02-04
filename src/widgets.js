@@ -82,10 +82,15 @@ export function getDefaultLayout() {
 
   const rightX = leftW + centerW + pad * 3;
 
+  // Split left column: filters (220px) at top, activations below
+  const filtersH = 220;
+  const activationsH = H - filtersH - pad * 3;
+
   const layout = {
     'widget-clock-local': { left: leftW + pad * 2, top: pad, width: clockW, height: clockH },
     'widget-clock-utc': { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
-    'widget-activations': { left: pad, top: pad, width: leftW, height: H - pad * 2 },
+    'widget-filters': { left: pad, top: pad, width: leftW, height: filtersH },
+    'widget-activations': { left: pad, top: filtersH + pad * 2, width: leftW, height: activationsH },
     'widget-map': { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
     'widget-solar': { left: rightX, top: pad, width: rightW, height: rightHalf },
   };

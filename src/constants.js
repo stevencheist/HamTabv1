@@ -9,7 +9,7 @@ export const WIDGET_DEFS = [
   { id: 'widget-propagation', name: 'Band Conditions' },
   { id: 'widget-lunar',       name: 'Lunar / EME' },
   { id: 'widget-satellites',  name: 'Satellites' },
-  { id: 'widget-rst',          name: 'RST Reference' },
+  { id: 'widget-rst',          name: 'Reference' },
   { id: 'widget-spot-detail', name: 'DX Detail' },
 ];
 
@@ -245,6 +245,166 @@ export const US_PRIVILEGES = {
     [222.0, 225.0, 'all'], [420.0, 450.0, 'all'],
   ],
 };
+
+// Help content for all widgets
+export const WIDGET_HELP = {
+  'widget-filters': {
+    title: 'Filters',
+    description: 'Filter spots by band, mode, distance, age, and location.',
+    sections: [
+      { heading: 'Multi-Select Filters', content: 'Click multiple bands or modes to filter. Click again to deselect.' },
+      { heading: 'Distance Filter', content: 'Filters spots within N miles/km of your QTH. Requires location to be set.' },
+      { heading: 'Age Filter', content: 'Filters spots posted within the last N minutes.' },
+      { heading: 'Presets', content: 'Save and load filter combinations for quick switching between common setups.' },
+    ],
+  },
+  'widget-activations': {
+    title: 'On the Air',
+    description: 'Live spots from POTA, SOTA, DX Cluster, and PSKReporter.',
+    sections: [
+      { heading: 'POTA Columns', content: 'Callsign, Frequency, Mode, Park Reference (clickable link), Park Name, Spot Time, Age' },
+      { heading: 'SOTA Columns', content: 'Callsign, Frequency, Mode, Summit Reference (clickable link), Summit Details, Spot Time, Age' },
+      { heading: 'DXC Columns', content: 'DX Station, Frequency, Mode, Spotter, Country, Continent, Spot Time, Age' },
+      { heading: 'PSK Columns', content: 'TX Callsign, Frequency, Mode, RX Callsign, SNR, TX Grid, RX Grid, Spot Time, Age' },
+      { heading: 'Click Row', content: 'Click a row to select and view details, show on map, and draw geodesic path.' },
+    ],
+  },
+  'widget-map': {
+    title: 'HamMap',
+    description: 'Interactive map showing spots, your QTH, satellites, and propagation overlays.',
+    sections: [
+      { heading: 'Markers', content: 'Click markers to select spots. Selected spot shows in DX Detail widget.' },
+      { heading: 'Overlays', content: 'Toggle lat/lon grid, Maidenhead grid, timezones, and propagation layers via gear icon.' },
+      { heading: 'Center Mode', content: 'Choose QTH (your location) or Spot (selected spot) centering in Config.' },
+      { heading: 'Geodesic Line', content: 'Shows great-circle path from your QTH to selected spot.' },
+    ],
+  },
+  'widget-solar': {
+    title: 'Solar',
+    description: 'Real-time solar conditions and space weather data from HamQSL.',
+    sections: [
+      { heading: 'Key Metrics', content: 'Solar Flux (SFI), Sunspots, A-Index, K-Index, X-Ray flux, and more.' },
+      { heading: 'Color Coding', content: 'A-Index, K-Index, Solar Wind, Bz, Aurora, and Geomag Field are color-coded (green = good, yellow = fair, red = poor).' },
+      { heading: 'Custom Fields', content: 'Click gear icon to show/hide fields. Default shows SFI, Sunspots, A/K-Index, X-Ray, Signal Noise.' },
+    ],
+    links: [
+      { label: 'HamQSL Space Weather', url: 'https://www.hamqsl.com/solar.html' },
+    ],
+  },
+  'widget-propagation': {
+    title: 'Band Conditions',
+    description: 'Global propagation forecast showing MUF, Signal Strength, and SNR by band.',
+    sections: [
+      { heading: 'Metrics', content: 'Choose between MUFD (Maximum Usable Frequency Day), SS (Signal Strength), or SNR.' },
+      { heading: 'Day/Night Toggle', content: 'View current conditions or 12-hour forecast (day ↔ night).' },
+      { heading: 'Color Scale', content: 'Green/yellow/red gradient shows propagation quality. Hover for values.' },
+    ],
+    links: [
+      { label: 'NOAA SWPC', url: 'https://www.swpc.noaa.gov/' },
+    ],
+  },
+  'widget-lunar': {
+    title: 'Lunar / EME',
+    description: 'Moon phase, position, and EME path loss calculations.',
+    sections: [
+      { heading: 'EME Path Loss', content: 'Calculated at 144 MHz. Varies with moon distance (perigee ~367 dB, apogee ~370 dB).' },
+      { heading: 'Declination', content: 'Moon\'s position relative to celestial equator. Affects EME window duration and elevation.' },
+      { heading: 'Custom Fields', content: 'Click gear icon to show elongation, ecliptic coordinates, and right ascension.' },
+    ],
+    links: [
+      { label: 'ARRL EME Guide', url: 'https://www.arrl.org/eme' },
+    ],
+  },
+  'widget-satellites': {
+    title: 'Satellites',
+    description: 'Live tracking and pass predictions for amateur radio satellites via N2YO.',
+    sections: [
+      { heading: 'Track Satellites', content: 'Click gear icon to add/remove satellites. ISS is tracked by default.' },
+      { heading: 'Live Position', content: 'Shows real-time lat/lon, altitude, azimuth, elevation, and footprint on map.' },
+      { heading: 'Pass Predictions', content: 'Click a satellite to view upcoming passes with AOS/LOS times and max elevation.' },
+      { heading: 'API Key Required', content: 'Get a free N2YO API key and enter it in Config to enable satellite tracking.' },
+    ],
+    links: [
+      { label: 'N2YO API', url: 'https://www.n2yo.com/api/' },
+      { label: 'AMSAT', url: 'https://www.amsat.org/' },
+    ],
+  },
+  'widget-rst': {
+    title: 'RST Reference',
+    description: 'Quick reference for RST signal reporting codes.',
+    sections: [
+      { heading: 'Readability (R)', content: '1 = Unreadable, 5 = Perfectly readable' },
+      { heading: 'Signal Strength (S)', content: '1 = Faint, 9 = Very strong' },
+      { heading: 'Tone (T, CW only)', content: '1 = Harsh/hum, 9 = Perfect tone' },
+      { heading: 'Usage', content: 'Phone: RS only (e.g. 59). CW: RST (e.g. 599).' },
+    ],
+    links: [
+      { label: 'Ham Radio School — Signal Reports', url: 'https://www.hamradioschool.com/post/practical-signal-reports' },
+    ],
+  },
+  'widget-spot-detail': {
+    title: 'DX Detail',
+    description: 'Detailed information about the selected spot.',
+    sections: [
+      { heading: 'Callsign Lookup', content: 'Shows name, address, license class, and grid square from QRZ.com (if available).' },
+      { heading: 'Distance & Bearing', content: 'Great-circle distance and heading from your QTH to the spot.' },
+      { heading: 'Frequency & Mode', content: 'Operating frequency and mode from the spot data.' },
+      { heading: 'Selection', content: 'Click a row in On the Air or a map marker to populate this widget.' },
+    ],
+  },
+};
+
+// Reference tabs content
+export const REFERENCE_TABS = {
+  rst: {
+    label: 'RST',
+    content: {
+      description: 'Signal reporting system for readability, strength, and tone.',
+      table: {
+        headers: ['', 'Readability', 'Strength', 'Tone (CW)'],
+        rows: [
+          ['1', 'Unreadable', 'Faint', 'Harsh, hum'],
+          ['2', 'Barely readable', 'Very weak', 'Harsh, modulation'],
+          ['3', 'Readable with difficulty', 'Weak', 'Rough, hum'],
+          ['4', 'Almost perfectly readable', 'Fair', 'Rough, modulation'],
+          ['5', 'Perfectly readable', 'Fairly good', 'Wavering, strong hum'],
+          ['6', '—', 'Good', 'Wavering, strong mod'],
+          ['7', '—', 'Moderately strong', 'Good, slight hum'],
+          ['8', '—', 'Strong', 'Good, slight mod'],
+          ['9', '—', 'Very strong', 'Perfect tone'],
+        ],
+      },
+      note: 'Phone: RS only (e.g. 59) · CW: RST (e.g. 599)',
+      link: { text: 'Ham Radio School — Practical Signal Reports', url: 'https://www.hamradioschool.com/post/practical-signal-reports' },
+    },
+  },
+  phonetic: {
+    label: 'Phonetic',
+    content: {
+      description: 'NATO phonetic alphabet for clear letter pronunciation.',
+      table: {
+        headers: ['Letter', 'Phonetic', 'Letter', 'Phonetic'],
+        rows: [
+          ['A', 'Alpha', 'N', 'November'],
+          ['B', 'Bravo', 'O', 'Oscar'],
+          ['C', 'Charlie', 'P', 'Papa'],
+          ['D', 'Delta', 'Q', 'Quebec'],
+          ['E', 'Echo', 'R', 'Romeo'],
+          ['F', 'Foxtrot', 'S', 'Sierra'],
+          ['G', 'Golf', 'T', 'Tango'],
+          ['H', 'Hotel', 'U', 'Uniform'],
+          ['I', 'India', 'V', 'Victor'],
+          ['J', 'Juliet', 'W', 'Whiskey'],
+          ['K', 'Kilo', 'X', 'X-ray'],
+          ['L', 'Lima', 'Y', 'Yankee'],
+          ['M', 'Mike', 'Z', 'Zulu'],
+        ],
+      },
+    },
+  },
+};
+
+export const DEFAULT_REFERENCE_TAB = 'rst';
 
 export const WIDGET_STORAGE_KEY = 'hamtab_widgets';
 export const USER_LAYOUT_KEY = 'hamtab_widgets_user';

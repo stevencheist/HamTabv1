@@ -689,6 +689,7 @@
   var band_conditions_exports = {};
   __export(band_conditions_exports, {
     calculateBandConditions: () => calculateBandConditions,
+    calculateMUF: () => calculateMUF,
     conditionColorClass: () => conditionColorClass,
     conditionLabel: () => conditionLabel,
     initDayNightToggle: () => initDayNightToggle,
@@ -745,7 +746,7 @@
     if (reliability >= 20) return "poor";
     return "closed";
   }
-  function calculateBandConditions() {
+  function calculateBandConditions(timeOfDay = null) {
     if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
       return HF_BANDS.map((band) => ({
         ...band,
@@ -758,8 +759,15 @@
     const sfi = parseFloat(indices.sfi) || 70;
     const kIndex = parseInt(indices.kindex) || 2;
     const aIndex = parseInt(indices.aindex) || 5;
-    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
-    const isDay = utcHour >= 6 && utcHour < 18;
+    let isDay;
+    if (timeOfDay === "day") {
+      isDay = true;
+    } else if (timeOfDay === "night") {
+      isDay = false;
+    } else {
+      const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+      isDay = utcHour >= 6 && utcHour < 18;
+    }
     const muf = calculateMUF(sfi, isDay);
     return HF_BANDS.map((band) => {
       const reliability = calculateBandReliability(
@@ -824,21 +832,13 @@
     if (dayBtn) dayBtn.classList.toggle("active", dayNightTime === "day");
     if (nightBtn) nightBtn.classList.toggle("active", dayNightTime === "night");
   }
-  function hamqslCondClass(cond) {
-    const c = (cond || "").toLowerCase();
-    if (c === "good") return "cond-good";
-    if (c === "fair") return "cond-fair";
-    if (c === "poor") return "cond-poor";
-    return "";
-  }
   function renderPropagationWidget() {
     const grid = $("bandConditionsGrid");
     const mufValue = $("propMufValue");
     const sfiValue = $("propSfiValue");
     const kindexValue = $("propKindexValue");
-    const hamqslGrid = $("hamqslBandsGrid");
     if (!grid) return;
-    const conditions = calculateBandConditions();
+    const conditions = calculateBandConditions(dayNightTime);
     if (mufValue) {
       const muf = conditions[0]?.muf || 0;
       mufValue.textContent = muf > 0 ? `${muf} MHz` : "--";
@@ -860,7 +860,8 @@
     grid.innerHTML = "";
     conditions.forEach((band) => {
       const card = document.createElement("div");
-      card.className = `band-card ${conditionColorClass(band.condition)}`;
+      const timeClass = dayNightTime === "day" ? "band-card-day" : "band-card-night";
+      card.className = `band-card ${conditionColorClass(band.condition)} ${timeClass}`;
       const name = document.createElement("span");
       name.className = "band-name";
       name.textContent = band.label;
@@ -875,31 +876,6 @@
       card.appendChild(condLabel);
       grid.appendChild(card);
     });
-    if (hamqslGrid && state_default.lastSolarData && state_default.lastSolarData.bands) {
-      const { bands } = state_default.lastSolarData;
-      const bandMap = {};
-      bands.forEach((b) => {
-        if (!bandMap[b.band]) bandMap[b.band] = {};
-        bandMap[b.band][b.time] = b.condition;
-      });
-      hamqslGrid.innerHTML = "";
-      const bandOrder = ["80m-40m", "30m-20m", "17m-15m", "12m-10m"];
-      bandOrder.forEach((band) => {
-        if (!bandMap[band]) return;
-        const condition = bandMap[band][dayNightTime] || "-";
-        const card = document.createElement("div");
-        card.className = "hamqsl-band-card";
-        const nameSpan = document.createElement("span");
-        nameSpan.className = "hamqsl-band-name";
-        nameSpan.textContent = band;
-        const condValue = document.createElement("span");
-        condValue.className = `hamqsl-cond-value-single ${hamqslCondClass(condition)}`;
-        condValue.textContent = condition;
-        card.appendChild(nameSpan);
-        card.appendChild(condValue);
-        hamqslGrid.appendChild(card);
-      });
-    }
   }
   var dayNightTime, saved, HF_BANDS;
   var init_band_conditions = __esm({

@@ -69,21 +69,8 @@ export function fetchNwsConditions() {
 }
 
 function applyWeatherBackground(forecast, isDaytime) {
-  const body = document.querySelector('#widget-clock-local .widget-body');
-  wxBgClasses.forEach(c => body.classList.remove(c));
-  if (!forecast) return;
-  const fc = forecast.toLowerCase();
-  let cls = '';
-  if (/thunder|t-storm/.test(fc)) cls = 'wx-thunderstorm';
-  else if (/snow|flurr|blizzard|sleet|ice/.test(fc)) cls = 'wx-snow';
-  else if (/rain|drizzle|shower/.test(fc)) cls = 'wx-rain';
-  else if (/fog|haze|mist/.test(fc)) cls = 'wx-fog';
-  else if (/cloudy|overcast/.test(fc)) {
-    if (/partly|mostly sunny/.test(fc)) cls = isDaytime ? 'wx-partly-cloudy-day' : 'wx-partly-cloudy-night';
-    else cls = 'wx-cloudy';
-  }
-  else if (/sunny|clear/.test(fc)) cls = isDaytime ? 'wx-clear-day' : 'wx-clear-night';
-  if (cls) body.classList.add(cls);
+  // Weather background removed - clocks now in header
+  // Could add weather icon to header-clock-group if desired
 }
 
 export function fetchNwsAlerts() {

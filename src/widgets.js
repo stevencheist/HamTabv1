@@ -341,12 +341,22 @@ export function initWidgets() {
     const saved = localStorage.getItem(WIDGET_STORAGE_KEY);
     if (saved) {
       layout = JSON.parse(saved);
-      const { width: aW, height: aH } = getWidgetArea();
-      for (const id of Object.keys(layout)) {
-        const p = layout[id];
-        if (p.left > aW - 30 || p.top > aH - 30 || p.left + p.width < 30 || p.top + p.height < 10) {
-          layout = null;
-          break;
+
+      // Clear layout if it contains removed clock widgets
+      if (layout['widget-clock-local'] || layout['widget-clock-utc']) {
+        console.log('Clearing old layout with clock widgets');
+        localStorage.removeItem(WIDGET_STORAGE_KEY);
+        localStorage.removeItem(USER_LAYOUT_KEY);
+        layout = null;
+      } else {
+        // Validate positions
+        const { width: aW, height: aH } = getWidgetArea();
+        for (const id of Object.keys(layout)) {
+          const p = layout[id];
+          if (p.left > aW - 30 || p.top > aH - 30 || p.left + p.width < 30 || p.top + p.height < 10) {
+            layout = null;
+            break;
+          }
         }
       }
     }

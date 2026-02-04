@@ -1398,6 +1398,13 @@ header {
   min-width: 0;
 }
 
+.header-clock-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
 .header-clock {
   display: flex;
   flex-direction: column;
@@ -1417,6 +1424,14 @@ header {
   font-weight: 600;
   color: var(--text);
   font-family: 'Courier New', monospace;
+}
+
+.header-clock-weather {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 200px;
+  line-height: 1.2;
 }
 
 /* ---- Band condition color classes (used in propagation widget) ---- */

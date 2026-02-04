@@ -273,6 +273,78 @@ When working on multiple related features or a feature set with more than one ta
 - **Update as you go** — Mark items complete as work progresses
 - **Single-item tasks** — Don't create tracking files for one-off changes; use commit messages and PR descriptions instead
 
+## User Guide Documentation
+
+HamTab has a PDF user guide generated from Markdown files. **Keep it updated as features change.**
+
+### Location
+```
+docs/user-guide/
+├── content/           # Markdown source files (01-introduction.md, etc.)
+├── screenshots/       # Widget and UI screenshots (PNG)
+├── template/          # HTML template for PDF styling
+└── build.mjs          # Build script
+```
+
+### Building the PDF
+```bash
+npm run build:docs
+```
+Output: `public/HamTab-User-Guide.pdf`
+
+### When to Update Documentation
+
+**IMPORTANT: Update the user guide whenever you:**
+- Add a new widget → Update `03-widgets.md`
+- Add new filter options → Update `06-filters.md`
+- Add new data sources → Update `05-data-sources.md`
+- Change configuration options → Update `07-configuration.md`
+- Add new map features → Update `04-map-features.md`
+- Change setup/onboarding → Update `02-getting-started.md`
+- Fix common issues → Update `09-troubleshooting.md`
+
+### Content Files
+
+| File | Content |
+|------|---------|
+| `01-introduction.md` | Overview, features, requirements, deployment modes |
+| `02-getting-started.md` | Setup, callsign, location, API keys |
+| `03-widgets.md` | All 11 widgets documented in detail |
+| `04-map-features.md` | Markers, overlays, geodesic paths, satellites |
+| `05-data-sources.md` | POTA, SOTA, DXC, PSK, weather, N2YO |
+| `06-filters.md` | Band, mode, distance, age, location, privilege |
+| `07-configuration.md` | Settings, export/import, localStorage keys |
+| `08-reference-tables.md` | RST, NATO phonetics, band chart, privileges |
+| `09-troubleshooting.md` | Common issues and solutions |
+
+### Screenshots
+
+Screenshots go in `docs/user-guide/screenshots/`. Use descriptive names:
+- `widget-solar.png`
+- `widget-filters.png`
+- `map-overlays.png`
+- `config-modal.png`
+
+Reference in markdown: `![Widget Name](../screenshots/widget-name.png)`
+
+**Screenshot guidelines:**
+- PNG format, reasonable resolution
+- Crop to relevant area
+- Use dark theme (matches app default)
+- Include sample data where helpful
+
+### Writing Style
+
+- Use second person ("You can...", "Click the...")
+- Keep language accessible to non-technical users
+- Include tables for reference data
+- Use callout boxes for tips/warnings:
+  ```html
+  <div class="tip">Helpful hint here.</div>
+  <div class="warning">Important note here.</div>
+  <div class="important">Critical information here.</div>
+  ```
+
 ## GitHub Issue Communication
 
 When commenting on issues or asking questions of users:

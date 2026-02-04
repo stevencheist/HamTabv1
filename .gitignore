@@ -6,3 +6,5 @@ logs/
 .claude/
 feedback-private-key.pem
 FEEDBACK_DECRYPTION_GUIDE.md
+nul
+docs/user-guide/debug-output.html

@@ -4918,6 +4918,41 @@
   // src/feedback.js
   init_dom();
   var formOpenTime = 0;
+  var EMAIL_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsMluvnUJ2MW0r2KQIqZF
+MjdGDYqGib2b4eUcoLZjaRCfTr6gPZBFEAgb5o9xWrJ/eoAMUbNU3DY+iu0OhmIH
+ZpCDB1jUHm5Lzy8YPkTLtZ8323FNUdMOyOoH59+oYxabZLZoHHtDF4y1uwIL6TFM
+d87aR9tHibSG8qUhpBnbqplxRbrkDolRw8hAWsCl9W3tMsLYd7rAKXRQRbR+zUuK
+ckjhF//MaPhf4OA1DPeXhzNEN/jCVe16FkqiHR+3TDAZUf76RpBV/Rr+XUE4oV4B
+r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
+8wIDAQAB
+-----END PUBLIC KEY-----`;
+  async function encryptEmail(email) {
+    if (!email || !email.trim()) return "";
+    try {
+      const publicKeyData = EMAIL_PUBLIC_KEY.replace("-----BEGIN PUBLIC KEY-----", "").replace("-----END PUBLIC KEY-----", "").replace(/\s/g, "");
+      const binaryKey = Uint8Array.from(atob(publicKeyData), (c) => c.charCodeAt(0));
+      const publicKey = await crypto.subtle.importKey(
+        "spki",
+        binaryKey,
+        { name: "RSA-OAEP", hash: "SHA-256" },
+        false,
+        ["encrypt"]
+      );
+      const encoder = new TextEncoder();
+      const emailData = encoder.encode(email.trim());
+      const encryptedBuffer = await crypto.subtle.encrypt(
+        { name: "RSA-OAEP" },
+        publicKey,
+        emailData
+      );
+      const encryptedArray = new Uint8Array(encryptedBuffer);
+      return btoa(String.fromCharCode(...encryptedArray));
+    } catch (err) {
+      console.error("Email encryption failed:", err);
+      return "";
+    }
+  }
   function openFeedback() {
     $("feedbackSplash").classList.remove("hidden");
     $("feedbackForm").reset();
@@ -4945,9 +4980,12 @@
     const submitBtn = $("feedbackSubmit");
     const form = $("feedbackForm");
     const formData = new FormData(form);
+    const emailRaw = formData.get("email") || "";
+    const emailEncrypted = emailRaw ? await encryptEmail(emailRaw) : "";
     const data = {
       name: formData.get("name") || "",
-      email: formData.get("email") || "",
+      email: emailEncrypted,
+      // encrypted email or empty string
       feedback: formData.get("feedback") || "",
       website: formData.get("website") || ""
       // honeypot

@@ -91,10 +91,18 @@ export default {
       // Wait for container to be ready on port 8080
       await instance.startAndWaitForPorts({ ports: [8080] });
 
+      // Clone headers and inject secrets for specific endpoints
+      const headers = new Headers(request.headers);
+
+      // Inject GitHub token for feedback endpoint
+      if (url.pathname === '/api/feedback' && env.GITHUB_FEEDBACK_TOKEN) {
+        headers.set('X-GitHub-Token', env.GITHUB_FEEDBACK_TOKEN);
+      }
+
       // Proxy request to container
       return instance.fetch(`http://container.internal${url.pathname}${url.search}`, {
         method: request.method,
-        headers: request.headers,
+        headers,
         body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
       });
     } catch (err) {

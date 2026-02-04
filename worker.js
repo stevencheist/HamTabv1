@@ -26,7 +26,11 @@ export class HamTab extends DurableObject {
         body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
       });
     } catch (err) {
-      return new Response(JSON.stringify({ error: err.message }), {
+      return new Response(JSON.stringify({
+        doError: err.message,
+        stack: err.stack,
+        name: err.name
+      }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });

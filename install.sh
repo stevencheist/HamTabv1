@@ -52,27 +52,65 @@ else
   echo "Already in $INSTALL_DIR, skipping copy."
 fi
 
+# --- Port validation helper ---
+validate_port() {
+  local port="$1"
+  local label="$2"
+  if ! [[ "$port" =~ ^[0-9]+$ ]] || [ "$port" -lt 1 ] || [ "$port" -gt 65535 ]; then
+    echo "Invalid port: $port (must be 1-65535). Using default." >&2
+    return 1
+  fi
+  if [ "$port" -lt 1024 ]; then
+    echo "  Warning: port $port < 1024 requires root to bind." >&2
+  fi
+  return 0
+}
+
 # --- .env setup ---
 if [ ! -f "$INSTALL_DIR/.env" ]; then
+  echo ""
+  echo "--- Port Configuration ---"
+  read -rp "HTTP port [3000]: " HTTP_PORT
+  HTTP_PORT="${HTTP_PORT:-3000}"
+  if ! validate_port "$HTTP_PORT" "HTTP"; then
+    HTTP_PORT=3000
+  fi
+
+  read -rp "HTTPS port [3443]: " TLS_PORT
+  TLS_PORT="${TLS_PORT:-3443}"
+  if ! validate_port "$TLS_PORT" "HTTPS"; then
+    TLS_PORT=3443
+  fi
+
   echo ""
   read -rp "Use Weather Underground for weather data? [y/N] " WU_CHOICE
   WU_CHOICE="${WU_CHOICE:-N}"
 
+  WU_KEY=""
   if [[ "$WU_CHOICE" =~ ^[Yy] ]]; then
     read -rp "Enter your WU API key (or press Enter to add later): " WU_KEY
-    echo "WU_API_KEY=$WU_KEY" > "$INSTALL_DIR/.env"
-    if [ -z "$WU_KEY" ]; then
-      echo ".env created. Add your key later in $INSTALL_DIR/.env"
-    else
-      echo ".env created with API key."
-    fi
+  fi
+
+  # Write .env with port and API key settings
+  {
+    echo "PORT=$HTTP_PORT"
+    echo "HTTPS_PORT=$TLS_PORT"
+    echo "WU_API_KEY=$WU_KEY"
+  } > "$INSTALL_DIR/.env"
+
+  if [ -n "$WU_KEY" ]; then
+    echo ".env created with API key."
   else
-    echo "WU_API_KEY=" > "$INSTALL_DIR/.env"
-    echo ".env created (WU disabled)."
+    echo ".env created."
   fi
   chown "$REAL_USER":"$REAL_USER" "$INSTALL_DIR/.env"
 else
   echo "Existing .env found, keeping it."
+  # Read existing port values for display
+  HTTP_PORT=$(grep -oP '^PORT=\K[0-9]+' "$INSTALL_DIR/.env" 2>/dev/null || echo "3000")
+  TLS_PORT=$(grep -oP '^HTTPS_PORT=\K[0-9]+' "$INSTALL_DIR/.env" 2>/dev/null || echo "3443")
+  echo "  HTTP port:  $HTTP_PORT"
+  echo "  HTTPS port: $TLS_PORT"
 fi
 
 # --- Install dependencies ---
@@ -134,4 +172,12 @@ else
 fi
 
 echo ""
-echo "Install complete."
+echo "==================================="
+echo "  Install complete!"
+echo "==================================="
+echo ""
+echo "  HTTP:   http://localhost:${HTTP_PORT}"
+echo "  HTTPS:  https://localhost:${TLS_PORT}"
+echo ""
+echo "  Uninstall: sudo bash $INSTALL_DIR/uninstall.sh"
+echo ""

@@ -4,3 +4,4 @@ certs/
 tools/
 logs/
 .claude/
+feedback-private-key.pem

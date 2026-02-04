@@ -4,6 +4,57 @@ import { $ } from './dom.js';
 
 let formOpenTime = 0; // track when form was opened (for time-based spam check)
 
+// RSA public key for email encryption (GDPR compliance)
+// Only Steven and Francisco have the private key to decrypt
+const EMAIL_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsMluvnUJ2MW0r2KQIqZF
+MjdGDYqGib2b4eUcoLZjaRCfTr6gPZBFEAgb5o9xWrJ/eoAMUbNU3DY+iu0OhmIH
+ZpCDB1jUHm5Lzy8YPkTLtZ8323FNUdMOyOoH59+oYxabZLZoHHtDF4y1uwIL6TFM
+d87aR9tHibSG8qUhpBnbqplxRbrkDolRw8hAWsCl9W3tMsLYd7rAKXRQRbR+zUuK
+ckjhF//MaPhf4OA1DPeXhzNEN/jCVe16FkqiHR+3TDAZUf76RpBV/Rr+XUE4oV4B
+r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
+8wIDAQAB
+-----END PUBLIC KEY-----`;
+
+// Encrypt email address using RSA-OAEP (client-side only, GDPR-compliant)
+async function encryptEmail(email) {
+  if (!email || !email.trim()) return '';
+
+  try {
+    // Import public key
+    const publicKeyData = EMAIL_PUBLIC_KEY
+      .replace('-----BEGIN PUBLIC KEY-----', '')
+      .replace('-----END PUBLIC KEY-----', '')
+      .replace(/\s/g, '');
+
+    const binaryKey = Uint8Array.from(atob(publicKeyData), c => c.charCodeAt(0));
+    const publicKey = await crypto.subtle.importKey(
+      'spki',
+      binaryKey,
+      { name: 'RSA-OAEP', hash: 'SHA-256' },
+      false,
+      ['encrypt']
+    );
+
+    // Encrypt email
+    const encoder = new TextEncoder();
+    const emailData = encoder.encode(email.trim());
+    const encryptedBuffer = await crypto.subtle.encrypt(
+      { name: 'RSA-OAEP' },
+      publicKey,
+      emailData
+    );
+
+    // Convert to base64 for transmission
+    const encryptedArray = new Uint8Array(encryptedBuffer);
+    return btoa(String.fromCharCode(...encryptedArray));
+  } catch (err) {
+    console.error('Email encryption failed:', err);
+    // If encryption fails, don't send the email at all (privacy-first)
+    return '';
+  }
+}
+
 // Open feedback modal
 function openFeedback() {
   $('feedbackSplash').classList.remove('hidden');
@@ -43,9 +94,14 @@ async function submitFeedback(e) {
 
   // Get form data
   const formData = new FormData(form);
+  const emailRaw = formData.get('email') || '';
+
+  // Encrypt email for GDPR compliance (only Steven and Francisco can decrypt)
+  const emailEncrypted = emailRaw ? await encryptEmail(emailRaw) : '';
+
   const data = {
     name: formData.get('name') || '',
-    email: formData.get('email') || '',
+    email: emailEncrypted, // encrypted email or empty string
     feedback: formData.get('feedback') || '',
     website: formData.get('website') || '' // honeypot
   };

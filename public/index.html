@@ -151,6 +151,7 @@
         <div class="wx-alert-badge hidden" id="wxAlertBadge">&#9888;</div>
         <div class="header-clock" id="headerClockLocal">
           <div class="header-clock-label">Local</div>
+          <div class="header-clock-wx-icon" id="clockWxIcon"></div>
           <div class="header-clock-time" id="clockLocalTime"></div>
           <div class="header-clock-weather" id="clockLocalWeather"></div>
           <div class="wx-source-logo hidden" id="wxSourceLogo" title="Weather data source"></div>
@@ -178,7 +179,7 @@
   <div class="widget-area" id="widgetArea">
     <!-- Filters -->
     <div class="widget" id="widget-filters">
-      <div class="widget-header">Filters</div>
+      <div class="widget-header">Filters <button class="widget-help-btn" data-widget="widget-filters" title="Help">?</button></div>
       <div class="widget-body">
         <div class="widget-filters" id="widgetFilters">
           <!-- Row 1: Band and Mode (multi-select buttons) -->
@@ -227,6 +228,7 @@
     <!-- Activations -->
     <div class="widget" id="widget-activations">
       <div class="widget-header">On the Air <span id="spotCount" class="spot-count"></span>
+        <button class="widget-help-btn" data-widget="widget-activations" title="Help">?</button>
         <button class="widget-cfg-btn" id="spotColCfgBtn" title="Configure columns">&#9881;</button>
       </div>
       <div class="widget-body">
@@ -258,6 +260,7 @@
     <!-- Map -->
     <div class="widget" id="widget-map">
       <div class="widget-header">HamMap
+        <button class="widget-help-btn" data-widget="widget-map" title="Help">?</button>
         <button class="widget-cfg-btn" id="mapOverlayCfgBtn" title="Map overlays">&#9881;</button>
         <div class="prop-controls">
           <button class="prop-metric-btn" data-metric="off">Prop Off</button>
@@ -278,7 +281,7 @@
 
     <!-- Solar -->
     <div class="widget" id="widget-solar">
-      <div class="widget-header">Solar <button class="widget-cfg-btn" id="solarCfgBtn" title="Configure fields">&#9881;</button></div>
+      <div class="widget-header">Solar <button class="widget-help-btn" data-widget="widget-solar" title="Help">?</button><button class="widget-cfg-btn" id="solarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
         <div class="solar-image-container">
           <select id="solarImageType">
@@ -301,6 +304,7 @@
     <div class="widget" id="widget-propagation">
       <div class="widget-header">
         Band Conditions
+        <button class="widget-help-btn" data-widget="widget-propagation" title="Help">?</button>
         <div class="day-night-toggle">
           <button class="toggle-btn" id="dayToggle" data-time="day">Day</button>
           <button class="toggle-btn" id="nightToggle" data-time="night">Night</button>
@@ -328,7 +332,7 @@
 
     <!-- Lunar / EME -->
     <div class="widget" id="widget-lunar">
-      <div class="widget-header">Lunar / EME <button class="widget-cfg-btn" id="lunarCfgBtn" title="Configure fields">&#9881;</button></div>
+      <div class="widget-header">Lunar / EME <button class="widget-help-btn" data-widget="widget-lunar" title="Help">?</button><button class="widget-cfg-btn" id="lunarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
         <canvas id="moonCanvas" width="160" height="160"></canvas>
         <div class="lunar-cards" id="lunarCards"></div>
@@ -339,6 +343,7 @@
     <!-- Satellites -->
     <div class="widget" id="widget-satellites">
       <div class="widget-header">Satellites
+        <button class="widget-help-btn" data-widget="widget-satellites" title="Help">?</button>
         <button class="widget-cfg-btn" id="satCfgBtn" title="Configure satellites">&#9881;</button>
       </div>
       <div class="widget-body">
@@ -348,34 +353,22 @@
       <div class="widget-resize"></div>
     </div>
 
-    <!-- RST Reference -->
+    <!-- Reference -->
     <div class="widget" id="widget-rst">
-      <div class="widget-header">RST Reference</div>
+      <div class="widget-header">Reference <button class="widget-help-btn" data-widget="widget-rst" title="Help">?</button></div>
       <div class="widget-body rst-body">
-        <table class="rst-table">
-          <thead>
-            <tr><th></th><th>Readability</th><th>Strength</th><th>Tone (CW)</th></tr>
-          </thead>
-          <tbody>
-            <tr><td>1</td><td>Unreadable</td><td>Faint</td><td>Harsh, hum</td></tr>
-            <tr><td>2</td><td>Barely readable</td><td>Very weak</td><td>Harsh, modulation</td></tr>
-            <tr><td>3</td><td>Readable with difficulty</td><td>Weak</td><td>Rough, hum</td></tr>
-            <tr><td>4</td><td>Almost perfectly readable</td><td>Fair</td><td>Rough, modulation</td></tr>
-            <tr><td>5</td><td>Perfectly readable</td><td>Fairly good</td><td>Wavering, strong hum</td></tr>
-            <tr><td>6</td><td>—</td><td>Good</td><td>Wavering, strong mod</td></tr>
-            <tr><td>7</td><td>—</td><td>Moderately strong</td><td>Good, slight hum</td></tr>
-            <tr><td>8</td><td>—</td><td>Strong</td><td>Good, slight mod</td></tr>
-            <tr><td>9</td><td>—</td><td>Very strong</td><td>Perfect tone</td></tr>
-          </tbody>
-        </table>
-        <div class="rst-note">Phone: RS only (e.g. 59) · CW: RST (e.g. 599)<br><a href="https://www.hamradioschool.com/post/practical-signal-reports" target="_blank" rel="noopener">Ham Radio School — Practical Signal Reports</a></div>
+        <div class="reference-tabs" id="referenceTabs">
+          <button class="reference-tab active" data-ref-tab="rst">RST</button>
+          <button class="reference-tab" data-ref-tab="phonetic">Phonetic</button>
+        </div>
+        <div id="referenceContent"></div>
       </div>
       <div class="widget-resize"></div>
     </div>
 
     <!-- Spot Detail -->
     <div class="widget" id="widget-spot-detail">
-      <div class="widget-header">DX Detail</div>
+      <div class="widget-header">DX Detail <button class="widget-help-btn" data-widget="widget-spot-detail" title="Help">?</button></div>
       <div class="widget-body" id="spotDetailBody">
         <div class="spot-detail-empty">Select a DX</div>
       </div>
@@ -417,6 +410,15 @@
       <h2>Weather Alerts</h2>
       <div class="wx-alert-list" id="wxAlertList"></div>
       <button id="wxAlertClose">Close</button>
+    </div>
+  </div>
+
+  <!-- Help modal -->
+  <div class="splash-overlay hidden" id="helpSplash">
+    <div class="splash-box help-box">
+      <h2 id="helpTitle"></h2>
+      <div id="helpContent"></div>
+      <button id="helpOk">Close</button>
     </div>
   </div>
 

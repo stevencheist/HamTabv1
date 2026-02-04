@@ -242,9 +242,11 @@ export async function fetchSolar() {
     state.lastSolarData = data;
     renderSolar(data);
     loadSolarImage();
-    // Also update propagation widget since it depends on solar data
+    // Also update propagation widgets since they depend on solar data
     const { renderPropagationWidget } = await import('./band-conditions.js');
     renderPropagationWidget();
+    const { renderVoacapMatrix } = await import('./voacap.js');
+    renderVoacapMatrix();
   } catch (err) {
     console.error('Failed to fetch solar:', err);
   }

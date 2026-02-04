@@ -115,6 +115,21 @@ const state = {
   updateStatusPolling: null,
   updateReleaseUrl: null,
 
+  // Live Spots (PSKReporter "heard" data)
+  liveSpots: {
+    data: [],
+    summary: {},
+    lastFetch: null,
+    displayMode: localStorage.getItem('hamtab_livespots_mode') || 'count', // 'count' or 'distance'
+    maxAge: parseInt(localStorage.getItem('hamtab_livespots_maxage'), 10) || 60, // minutes
+    visibleBands: new Set(),
+  },
+  liveSpotsMarkers: {},
+  liveSpotsLines: null,
+
+  // HF Propagation (24-hour matrix)
+  hfPropOverlayBand: null, // currently displayed band overlay on map
+
   // Init flag
   appInitialized: false,
 

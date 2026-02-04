@@ -115,6 +115,13 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Goal:** Professional propagation predictions (most requested HamClock feature)
 **Timeline:** 6-8 weeks
 
+#### P3.0: Config Modal Redesign
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Tab-based organization | ❌ | HIGH | Group settings (General/Location/API Keys/Advanced) |
+| Improved layout | ❌ | HIGH | Better spacing, logical grouping |
+| Field validation | ❌ | MEDIUM | Real-time feedback for inputs |
+
 #### P3.1: VOACAP Integration 🔥
 | Feature | Status | Priority | Issue | Notes |
 |---------|--------|----------|-------|-------|
@@ -132,6 +139,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Grayline planning tool | ❌ | LOW | DE/DX twilight overlap |
 
 **Phase 3 Deliverables:**
+- Redesigned config modal with tab-based organization
 - Full VOACAP integration with REL/TOA maps
 - 24-hour reliability grid
 - DRAP map overlay
@@ -282,7 +290,6 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P8.1: Configuration Management
 | Feature | Status | Priority | Notes |
 |---------|--------|----------|-------|
-| Config modal redesign | ❌ | HIGH | Tab system to group settings (General/Location/API Keys/Advanced) |
 | Multiple configuration profiles | ❌ | HIGH | A/B/C save slots |
 | Configuration export/import | ❌ | HIGH | JSON backup/restore |
 | Configuration rename | ❌ | LOW | Label profiles |
@@ -313,7 +320,6 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Time shift planning | ❌ | LOW | View future/past conditions |
 
 **Phase 8 Deliverables:**
-- Redesigned config modal with tab-based organization
 - Multiple configuration profiles with export/import
 - Color customization and light theme
 - Stopwatch and countdown timers

@@ -8,12 +8,16 @@ export class HamTab extends DurableObject {
   sleepAfter = '5m';
 
   async fetch(request) {
-    // Simple test - just return info about this object
+    // Check what's on ctx
+    const ctxKeys = Object.keys(this.ctx);
+    const ctxProto = Object.getOwnPropertyNames(Object.getPrototypeOf(this.ctx));
+    const hasContainer = 'container' in this.ctx;
+
     return new Response(JSON.stringify({
-      test: 'fetch reached',
-      hasCtx: 'ctx' in this,
-      thisKeys: Object.keys(this),
-      proto: Object.getOwnPropertyNames(Object.getPrototypeOf(this)),
+      ctxKeys,
+      ctxProto,
+      hasContainer,
+      containerType: hasContainer ? typeof this.ctx.container : null,
     }), {
       headers: { 'Content-Type': 'application/json' },
     });

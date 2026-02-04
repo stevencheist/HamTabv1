@@ -1410,6 +1410,11 @@ header {
   flex-direction: column;
   align-items: center;
   gap: 2px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(15, 52, 96, 0.3);
+  transition: background 0.3s ease;
+  position: relative;
 }
 
 .header-clock-label {
@@ -1432,6 +1437,64 @@ header {
   text-align: center;
   max-width: 200px;
   line-height: 1.2;
+  margin-top: 2px;
+}
+
+/* Weather backgrounds for header clock */
+#headerClockLocal.wx-clear-day {
+  background: linear-gradient(135deg, rgba(135,206,250,0.2) 0%, rgba(255,215,0,0.15) 100%);
+}
+
+#headerClockLocal.wx-clear-night {
+  background: linear-gradient(135deg, rgba(25,25,112,0.3) 0%, rgba(72,61,139,0.2) 100%);
+}
+
+#headerClockLocal.wx-partly-cloudy-day {
+  background: linear-gradient(135deg, rgba(176,196,222,0.25) 0%, rgba(255,228,181,0.15) 100%);
+}
+
+#headerClockLocal.wx-partly-cloudy-night {
+  background: linear-gradient(135deg, rgba(70,80,100,0.3) 0%, rgba(100,100,130,0.2) 100%);
+}
+
+#headerClockLocal.wx-cloudy {
+  background: linear-gradient(135deg, rgba(119,136,153,0.25) 0%, rgba(160,160,180,0.2) 100%);
+}
+
+#headerClockLocal.wx-rain {
+  background: linear-gradient(135deg, rgba(70,130,180,0.3) 0%, rgba(100,149,237,0.2) 100%);
+}
+
+#headerClockLocal.wx-thunderstorm {
+  background: linear-gradient(135deg, rgba(75,0,130,0.3) 0%, rgba(138,43,226,0.2) 100%);
+}
+
+#headerClockLocal.wx-snow {
+  background: linear-gradient(135deg, rgba(240,248,255,0.25) 0%, rgba(176,224,230,0.2) 100%);
+}
+
+#headerClockLocal.wx-fog {
+  background: linear-gradient(135deg, rgba(190,190,190,0.25) 0%, rgba(211,211,211,0.2) 100%);
+}
+
+.wx-source-logo {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.4);
+  opacity: 0.7;
+}
+
+.wx-source-logo.wx-src-wu {
+  color: #ff6b35;
+}
+
+.wx-source-logo.wx-src-nws {
+  color: #4a90e2;
 }
 
 /* ---- Band condition color classes (used in propagation widget) ---- */

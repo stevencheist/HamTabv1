@@ -3352,6 +3352,7 @@
   init_state();
   init_dom();
   init_utils();
+  var wxBgClasses = ["wx-clear-day", "wx-clear-night", "wx-partly-cloudy-day", "wx-partly-cloudy-night", "wx-cloudy", "wx-rain", "wx-thunderstorm", "wx-snow", "wx-fog"];
   function useWU() {
     return state_default.wxStation && state_default.wxApiKey;
   }
@@ -3414,6 +3415,21 @@
     });
   }
   function applyWeatherBackground(forecast, isDaytime2) {
+    const headerClock = $("headerClockLocal");
+    if (!headerClock) return;
+    wxBgClasses.forEach((c) => headerClock.classList.remove(c));
+    if (!forecast) return;
+    const fc = forecast.toLowerCase();
+    let cls = "";
+    if (/thunder|t-storm/.test(fc)) cls = "wx-thunderstorm";
+    else if (/snow|flurr|blizzard|sleet|ice/.test(fc)) cls = "wx-snow";
+    else if (/rain|drizzle|shower/.test(fc)) cls = "wx-rain";
+    else if (/fog|haze|mist/.test(fc)) cls = "wx-fog";
+    else if (/cloudy|overcast/.test(fc)) {
+      if (/partly|mostly sunny/.test(fc)) cls = isDaytime2 ? "wx-partly-cloudy-day" : "wx-partly-cloudy-night";
+      else cls = "wx-cloudy";
+    } else if (/sunny|clear/.test(fc)) cls = isDaytime2 ? "wx-clear-day" : "wx-clear-night";
+    if (cls) headerClock.classList.add(cls);
   }
   function fetchNwsAlerts() {
     if (state_default.myLat === null || state_default.myLon === null) return;

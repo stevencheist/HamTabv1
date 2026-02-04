@@ -6,6 +6,23 @@ import { DurableObject } from 'cloudflare:workers';
 export class HamTab extends DurableObject {
   defaultPort = 8080;
   sleepAfter = '5m';
+
+  async fetch(request) {
+    try {
+      const url = new URL(request.url);
+      const containerUrl = `http://localhost:${this.defaultPort}${url.pathname}${url.search}`;
+      return fetch(containerUrl, {
+        method: request.method,
+        headers: request.headers,
+        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+      });
+    } catch (err) {
+      return new Response(JSON.stringify({ doError: err.message, stack: err.stack }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+  }
 }
 
 // Decode user email from CF Access JWT (already verified by Access before reaching Worker)
@@ -23,41 +40,55 @@ function getUserEmail(request) {
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
+    try {
+      const url = new URL(request.url);
 
-    // --- Settings KV routes ---
-    if (url.pathname === '/api/settings') {
-      const email = getUserEmail(request);
-      if (!email) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401,
+      // --- Health check ---
+      if (url.pathname === '/healthz') {
+        return new Response(JSON.stringify({ ok: true, time: Date.now() }), {
           headers: { 'Content-Type': 'application/json' },
         });
       }
 
-      const kvKey = `settings:${email}`;
+      // --- Settings KV routes ---
+      if (url.pathname === '/api/settings') {
+        const email = getUserEmail(request);
+        if (!email) {
+          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
 
-      if (request.method === 'GET') {
-        const data = await env.SETTINGS_KV.get(kvKey, 'json');
-        return new Response(JSON.stringify(data || {}), {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        const kvKey = `settings:${email}`;
+
+        if (request.method === 'GET') {
+          const data = await env.SETTINGS_KV.get(kvKey, 'json');
+          return new Response(JSON.stringify(data || {}), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        if (request.method === 'PUT') {
+          const body = await request.json();
+          await env.SETTINGS_KV.put(kvKey, JSON.stringify(body));
+          return new Response(JSON.stringify({ ok: true }), {
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
+        return new Response('Method not allowed', { status: 405 });
       }
 
-      if (request.method === 'PUT') {
-        const body = await request.json();
-        await env.SETTINGS_KV.put(kvKey, JSON.stringify(body));
-        return new Response(JSON.stringify({ ok: true }), {
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
-
-      return new Response('Method not allowed', { status: 405 });
+      // --- Proxy everything else to the Container ---
+      const id = env.HAMTAB.idFromName('hamtab');
+      const container = env.HAMTAB.get(id);
+      return container.fetch(request);
+    } catch (err) {
+      return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
     }
-
-    // --- Proxy everything else to the Container ---
-    const id = env.HAMTAB.idFromName('hamtab');
-    const container = env.HAMTAB.get(id);
-    return container.fetch(request);
   },
 };

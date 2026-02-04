@@ -189,6 +189,12 @@ export function showSplash() {
   $('timeFmt24').checked = state.use24h;
   $('timeFmt12').checked = !state.use24h;
 
+  // Load unit preferences
+  $('distUnitMi').checked = state.distanceUnit === 'mi';
+  $('distUnitKm').checked = state.distanceUnit === 'km';
+  $('tempUnitF').checked = state.temperatureUnit === 'F';
+  $('tempUnitC').checked = state.temperatureUnit === 'C';
+
   const widgetList = document.getElementById('splashWidgetList');
   widgetList.innerHTML = '';
   WIDGET_DEFS.forEach(w => {
@@ -236,6 +242,12 @@ function dismissSplash() {
 
   state.use24h = $('timeFmt24').checked;
   localStorage.setItem('hamtab_time24', String(state.use24h));
+
+  // Save unit preferences
+  state.distanceUnit = $('distUnitKm').checked ? 'km' : 'mi';
+  state.temperatureUnit = $('tempUnitC').checked ? 'C' : 'F';
+  localStorage.setItem('hamtab_distance_unit', state.distanceUnit);
+  localStorage.setItem('hamtab_temperature_unit', state.temperatureUnit);
 
   state.wxStation = ($('splashWxStation').value || '').trim().toUpperCase();
   state.wxApiKey = ($('splashWxApiKey').value || '').trim();

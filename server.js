@@ -905,10 +905,6 @@ function startUpdateTimer() {
   console.log(`Update check interval: ${updateCheckInterval / 1000}s`);
 }
 
-// Run initial check and start timer
-checkForUpdates();
-startUpdateTimer();
-
 // Status endpoint
 app.get('/api/update/status', (req, res) => {
   res.json({
@@ -1626,3 +1622,7 @@ const tlsOptions = ensureCerts();
 https.createServer(tlsOptions, app).listen(HTTPS_PORT, HOST, () => {
   console.log(`HTTPS server running at https://${HOST}:${HTTPS_PORT}`);
 });
+
+// Run initial update check and start timer
+checkForUpdates();
+startUpdateTimer();

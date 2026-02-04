@@ -78,6 +78,164 @@ app.get('/api/spots', async (req, res) => {
   }
 });
 
+// --- DX Cluster callsign coordinate cache ---
+
+const dxcCallCache = {};  // { 'W1AW': { lat, lon, expires }, ... }
+const DXC_CALL_TTL_OK   = 24 * 60 * 60 * 1000; // 24 hours for successful lookups
+const DXC_CALL_TTL_FAIL =      60 * 60 * 1000; // 1 hour for failed lookups
+
+async function fetchCallCoords(callsign) {
+  const key = callsign.toUpperCase();
+  const cached = dxcCallCache[key];
+  if (cached && Date.now() < cached.expires) return cached;
+  try {
+    const data = await fetchJSON(`https://callook.info/${encodeURIComponent(key)}/json`);
+    if (data.status === 'VALID' && data.location) {
+      const entry = {
+        lat: parseFloat(data.location.latitude) || null,
+        lon: parseFloat(data.location.longitude) || null,
+        expires: Date.now() + DXC_CALL_TTL_OK,
+      };
+      dxcCallCache[key] = entry;
+      return entry;
+    }
+    const entry = { lat: null, lon: null, expires: Date.now() + DXC_CALL_TTL_FAIL };
+    dxcCallCache[key] = entry;
+    return entry;
+  } catch {
+    const entry = { lat: null, lon: null, expires: Date.now() + DXC_CALL_TTL_FAIL };
+    dxcCallCache[key] = entry;
+    return entry;
+  }
+}
+
+// --- DX Cluster spot cache ---
+
+let dxcCache = { data: null, expires: 0 };
+const DXC_CACHE_TTL = 10 * 1000; // 10 seconds — HamQTH minimum polling interval
+
+// Extract mode from DXC comment field
+function extractModeFromComment(comment) {
+  if (!comment) return '';
+  const c = comment.toUpperCase();
+  // Common digital modes
+  if (c.includes('FT8')) return 'FT8';
+  if (c.includes('FT4')) return 'FT4';
+  if (c.includes('JS8')) return 'JS8';
+  if (c.includes('RTTY')) return 'RTTY';
+  if (c.includes('PSK31') || c.includes('PSK')) return 'PSK';
+  if (c.includes('JT65')) return 'JT65';
+  if (c.includes('JT9')) return 'JT9';
+  if (c.includes('WSPR')) return 'WSPR';
+  if (c.includes('MFSK')) return 'MFSK';
+  if (c.includes('OLIVIA')) return 'OLIVIA';
+  // CW
+  if (c.includes('CW') || c.includes('MORSE')) return 'CW';
+  // Phone modes
+  if (c.includes('SSB') || c.includes('USB') || c.includes('LSB')) return 'SSB';
+  if (c.includes('FM')) return 'FM';
+  if (c.includes('AM')) return 'AM';
+  return '';
+}
+
+// Convert frequency to band string
+function freqToBandStr(freqMHz) {
+  const freq = parseFloat(freqMHz);
+  if (isNaN(freq)) return '';
+  if (freq >= 1.8 && freq <= 2.0) return '160m';
+  if (freq >= 3.5 && freq <= 4.0) return '80m';
+  if (freq >= 5.3 && freq <= 5.4) return '60m';
+  if (freq >= 7.0 && freq <= 7.3) return '40m';
+  if (freq >= 10.1 && freq <= 10.15) return '30m';
+  if (freq >= 14.0 && freq <= 14.35) return '20m';
+  if (freq >= 18.068 && freq <= 18.168) return '17m';
+  if (freq >= 21.0 && freq <= 21.45) return '15m';
+  if (freq >= 24.89 && freq <= 24.99) return '12m';
+  if (freq >= 28.0 && freq <= 29.7) return '10m';
+  if (freq >= 50.0 && freq <= 54.0) return '6m';
+  if (freq >= 144.0 && freq <= 148.0) return '2m';
+  if (freq >= 420.0 && freq <= 450.0) return '70cm';
+  return '';
+}
+
+// Proxy HamQTH DX Cluster spots
+app.get('/api/spots/dxc', async (req, res) => {
+  try {
+    // Return cached data if fresh
+    if (dxcCache.data && Date.now() < dxcCache.expires) {
+      return res.json(dxcCache.data);
+    }
+
+    const raw = await fetchText('https://www.hamqth.com/dxc_csv.php');
+    const lines = raw.split('\n').filter(l => l.trim());
+
+    const spots = [];
+    for (const line of lines) {
+      // HamQTH CSV is caret-delimited: callsign^freq^datetime^spotter^comment^lotw^eqsl^continent^band^country^adif_id
+      const parts = line.split('^');
+      if (parts.length < 11) continue;
+
+      const [callsign, freqKhz, datetime, spotter, comment, lotw, eqsl, continent, band, country, adifId] = parts;
+
+      // Convert frequency from kHz to MHz
+      const freqMHz = (parseFloat(freqKhz) / 1000).toFixed(3);
+
+      // Parse datetime (format: YYYY-MM-DD HH:MM:SS)
+      let spotTime = '';
+      if (datetime) {
+        spotTime = datetime.replace(' ', 'T') + 'Z';
+      }
+
+      spots.push({
+        callsign: callsign || '',
+        frequency: freqMHz,
+        mode: extractModeFromComment(comment),
+        spotter: spotter || '',
+        name: country || '',
+        continent: continent || '',
+        band: freqToBandStr(parseFloat(freqMHz)) || band || '',
+        spotTime,
+        comments: comment || '',
+        lotwUser: lotw === '1',
+        eqslUser: eqsl === '1',
+        latitude: null,
+        longitude: null,
+        adifId: adifId || '',
+      });
+    }
+
+    // Batch lookup coordinates for unique US callsigns
+    const usCallsigns = new Set();
+    for (const s of spots) {
+      if (s.callsign && /^[AKNW][A-Z]?\d/.test(s.callsign.toUpperCase())) {
+        usCallsigns.add(s.callsign.toUpperCase());
+      }
+    }
+
+    // Limit concurrent lookups to avoid overwhelming callook.info
+    const callsignArray = [...usCallsigns].slice(0, 50); // max 50 lookups per refresh
+    await Promise.allSettled(callsignArray.map(c => fetchCallCoords(c)));
+
+    // Merge coordinates
+    for (const s of spots) {
+      const key = s.callsign.toUpperCase();
+      const coords = dxcCallCache[key];
+      if (coords && coords.lat !== null && coords.lon !== null) {
+        s.latitude = coords.lat;
+        s.longitude = coords.lon;
+      }
+    }
+
+    // Cache the result
+    dxcCache = { data: spots, expires: Date.now() + DXC_CACHE_TTL };
+
+    res.json(spots);
+  } catch (err) {
+    console.error('Error fetching DXC spots:', err.message);
+    res.status(502).json({ error: 'Failed to fetch DX Cluster spots' });
+  }
+});
+
 // Proxy SOTA spots API
 app.get('/api/spots/sota', async (req, res) => {
   try {
@@ -143,41 +301,211 @@ app.get('/api/solar', async (req, res) => {
   }
 });
 
-// Proxy ISS position API
-app.get('/api/iss', async (req, res) => {
+// --- N2YO Satellite Tracking API ---
+
+// Satellite list cache (category 18 = amateur radio)
+let satListCache = { data: null, expires: 0 };
+const SAT_LIST_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+// Satellite position cache
+let satPosCache = { data: null, expires: 0, key: '' };
+const SAT_POS_TTL = 10 * 1000; // 10 seconds
+
+// Pass prediction cache (per satellite)
+const satPassCache = {}; // { 'satId:lat:lon': { data, expires } }
+const SAT_PASS_TTL = 5 * 60 * 1000; // 5 minutes
+
+// TLE cache (per satellite)
+const satTleCache = {}; // { satId: { data, expires } }
+const SAT_TLE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+
+// Fetch amateur radio satellite list (N2YO category 18)
+app.get('/api/satellites/list', async (req, res) => {
+  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'No N2YO API key configured' });
+  }
+
   try {
-    const data = await fetchJSON('https://api.wheretheiss.at/v1/satellites/25544');
-    res.json(data);
+    // Return cached data if fresh
+    if (satListCache.data && Date.now() < satListCache.expires) {
+      return res.json(satListCache.data);
+    }
+
+    const url = `https://api.n2yo.com/rest/v1/satellite/above/0/0/0/90/18/&apiKey=${apiKey}`;
+    const data = await fetchJSON(url);
+
+    // Extract satellite list from response
+    const satellites = (data.above || []).map(s => ({
+      satId: s.satid,
+      name: s.satname,
+      intDesignator: s.intDesignator,
+    }));
+
+    satListCache = { data: satellites, expires: Date.now() + SAT_LIST_TTL };
+    res.json(satellites);
   } catch (err) {
-    console.error('Error fetching ISS data:', err.message);
-    res.status(502).json({ error: 'Failed to fetch ISS data' });
+    console.error('Error fetching satellite list:', err.message);
+    res.status(502).json({ error: 'Failed to fetch satellite list' });
   }
 });
 
-// ISS orbit ground track (one full orbit, ~92 minutes)
-app.get('/api/iss/orbit', async (req, res) => {
+// Fetch positions for multiple satellites (batched)
+app.get('/api/satellites/positions', async (req, res) => {
+  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'No N2YO API key configured' });
+  }
+
+  const { ids, lat, lon, seconds } = req.query;
+  if (!ids) {
+    return res.status(400).json({ error: 'Provide satellite IDs' });
+  }
+
+  const obsLat = parseFloat(lat) || 0;
+  const obsLon = parseFloat(lon) || 0;
+  const secs = parseInt(seconds, 10) || 1;
+  const satIds = ids.split(',').map(id => id.trim()).filter(Boolean).slice(0, 10); // max 10 satellites
+
+  if (satIds.length === 0) {
+    return res.status(400).json({ error: 'Provide at least one satellite ID' });
+  }
+
+  // Cache key based on IDs
+  const cacheKey = satIds.sort().join(',');
+  if (satPosCache.key === cacheKey && satPosCache.data && Date.now() < satPosCache.expires) {
+    return res.json(satPosCache.data);
+  }
+
   try {
-    const now = Math.floor(Date.now() / 1000);
-    const period = 92 * 60;
-    const step = 120; // 2-minute intervals
-    const allTimestamps = [];
-    for (let t = now; t <= now + period; t += step) {
-      allTimestamps.push(t);
-    }
+    const positions = {};
 
-    // API allows max 10 timestamps per request — batch sequentially
-    const positions = [];
-    for (let i = 0; i < allTimestamps.length; i += 10) {
-      const batch = allTimestamps.slice(i, i + 10);
-      const url = `https://api.wheretheiss.at/v1/satellites/25544/positions?timestamps=${batch.join(',')}&units=kilometers`;
-      const batchResult = await fetchJSON(url);
-      positions.push(...batchResult);
-    }
+    // Fetch positions for each satellite in parallel
+    await Promise.all(satIds.map(async (satId) => {
+      try {
+        const url = `https://api.n2yo.com/rest/v1/satellite/positions/${encodeURIComponent(satId)}/${obsLat}/${obsLon}/0/${secs}/&apiKey=${apiKey}`;
+        const data = await fetchJSON(url);
+        if (data.positions && data.positions.length > 0) {
+          const pos = data.positions[0];
+          positions[satId] = {
+            satId: data.info?.satid || parseInt(satId, 10),
+            name: data.info?.satname || '',
+            lat: pos.satlatitude,
+            lon: pos.satlongitude,
+            alt: pos.sataltitude,
+            azimuth: pos.azimuth,
+            elevation: pos.elevation,
+            ra: pos.ra,
+            dec: pos.dec,
+            timestamp: pos.timestamp,
+          };
+        }
+      } catch (err) {
+        console.error(`Error fetching position for sat ${satId}:`, err.message);
+      }
+    }));
 
+    satPosCache = { data: positions, expires: Date.now() + SAT_POS_TTL, key: cacheKey };
     res.json(positions);
   } catch (err) {
-    console.error('Error fetching ISS orbit:', err.message);
-    res.status(502).json({ error: 'Failed to fetch ISS orbit' });
+    console.error('Error fetching satellite positions:', err.message);
+    res.status(502).json({ error: 'Failed to fetch satellite positions' });
+  }
+});
+
+// Fetch pass predictions for a single satellite
+app.get('/api/satellites/passes', async (req, res) => {
+  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'No N2YO API key configured' });
+  }
+
+  const { id, lat, lon, days, minEl } = req.query;
+  if (!id) {
+    return res.status(400).json({ error: 'Provide satellite ID' });
+  }
+
+  const obsLat = parseFloat(lat);
+  const obsLon = parseFloat(lon);
+  if (isNaN(obsLat) || isNaN(obsLon)) {
+    return res.status(400).json({ error: 'Provide valid lat and lon' });
+  }
+
+  const numDays = Math.min(parseInt(days, 10) || 2, 10); // max 10 days
+  const minElevation = Math.min(parseInt(minEl, 10) || 10, 90);
+
+  // Check cache
+  const cacheKey = `${id}:${obsLat.toFixed(2)}:${obsLon.toFixed(2)}`;
+  const cached = satPassCache[cacheKey];
+  if (cached && Date.now() < cached.expires) {
+    return res.json(cached.data);
+  }
+
+  try {
+    const url = `https://api.n2yo.com/rest/v1/satellite/radiopasses/${encodeURIComponent(id)}/${obsLat}/${obsLon}/0/${numDays}/${minElevation}/&apiKey=${apiKey}`;
+    const data = await fetchJSON(url);
+
+    const passes = (data.passes || []).map(p => ({
+      startUTC: p.startUTC,
+      startAz: p.startAz,
+      startAzCompass: p.startAzCompass,
+      maxUTC: p.maxUTC,
+      maxAz: p.maxAz,
+      maxAzCompass: p.maxAzCompass,
+      maxEl: p.maxEl,
+      endUTC: p.endUTC,
+      endAz: p.endAz,
+      endAzCompass: p.endAzCompass,
+    }));
+
+    const result = {
+      satId: data.info?.satid,
+      name: data.info?.satname,
+      passesCount: data.info?.passescount || passes.length,
+      passes,
+    };
+
+    satPassCache[cacheKey] = { data: result, expires: Date.now() + SAT_PASS_TTL };
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching satellite passes:', err.message);
+    res.status(502).json({ error: 'Failed to fetch satellite passes' });
+  }
+});
+
+// Fetch TLE data for a satellite (used for Doppler calculations)
+app.get('/api/satellites/tle', async (req, res) => {
+  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'No N2YO API key configured' });
+  }
+
+  const { id } = req.query;
+  if (!id) {
+    return res.status(400).json({ error: 'Provide satellite ID' });
+  }
+
+  // Check cache
+  const cached = satTleCache[id];
+  if (cached && Date.now() < cached.expires) {
+    return res.json(cached.data);
+  }
+
+  try {
+    const url = `https://api.n2yo.com/rest/v1/satellite/tle/${encodeURIComponent(id)}/&apiKey=${apiKey}`;
+    const data = await fetchJSON(url);
+
+    const result = {
+      satId: data.info?.satid,
+      name: data.info?.satname,
+      tle: data.tle,
+    };
+
+    satTleCache[id] = { data: result, expires: Date.now() + SAT_TLE_TTL };
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching satellite TLE:', err.message);
+    res.status(502).json({ error: 'Failed to fetch satellite TLE' });
   }
 });
 
@@ -553,9 +881,10 @@ app.post('/api/config/env', (req, res) => {
     }
 
     // Update or append each key
+    const allowedKeys = ['WU_API_KEY', 'N2YO_API_KEY'];
     for (const [key, value] of Object.entries(updates)) {
       // Only allow known env keys
-      if (key !== 'WU_API_KEY') continue;
+      if (!allowedKeys.includes(key)) continue;
       const idx = lines.findIndex(l => l.startsWith(key + '='));
       const entry = `${key}=${value}`;
       if (idx >= 0) {
@@ -568,7 +897,7 @@ app.post('/api/config/env', (req, res) => {
     fs.writeFileSync(envPath, lines.filter(l => l.trim() !== '').join('\n') + '\n');
     // Update process.env so it takes effect immediately
     for (const [key, value] of Object.entries(updates)) {
-      if (key === 'WU_API_KEY') process.env[key] = value;
+      if (allowedKeys.includes(key)) process.env[key] = value;
     }
     res.json({ ok: true });
   } catch (err) {

@@ -65,6 +65,14 @@
       </div>
 
       <div class="splash-divider"></div>
+      <div class="splash-sat-section">
+        <span class="splash-loc-title">Satellite Tracking (optional)</span>
+        <label for="splashN2yoApiKey">N2YO API Key</label>
+        <input type="text" id="splashN2yoApiKey" placeholder="N2YO API key for satellite tracking" autocomplete="off" spellcheck="false" style="text-transform:none;" />
+        <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;"><a href="https://www.n2yo.com/api/" target="_blank" style="color:var(--accent);">Get a free API key (1000 req/hr)</a></div>
+      </div>
+
+      <div class="splash-divider"></div>
       <div class="splash-widgets-section">
         <span class="splash-loc-title">Widgets</span>
         <div class="splash-widget-list" id="splashWidgetList"></div>
@@ -224,15 +232,47 @@
         <div class="source-tabs" id="sourceTabs">
           <button class="source-tab active" data-source="pota">POTA</button>
           <button class="source-tab" data-source="sota">SOTA</button>
+          <button class="source-tab" data-source="dxc">DXC</button>
         </div>
         <div class="widget-filters" id="widgetFilters">
-          <div class="band-filters" id="bandFilters"></div>
-          <div class="mode-filters" id="modeFilters"></div>
-          <select id="countryFilter"><option value="">All Countries</option></select>
-          <select id="stateFilter"><option value="">All States</option></select>
-          <select id="gridFilter"><option value="">All Grids</option></select>
-          <!-- US callsigns only -->
-          <label class="priv-filter-label" title="Only show spots within your US license privileges"><input type="checkbox" id="privFilter"> My privileges</label>
+          <!-- Row 1: Band and Mode (multi-select buttons) -->
+          <div class="filter-row">
+            <div class="band-filters" id="bandFilters"></div>
+            <div class="mode-filters" id="modeFilters"></div>
+          </div>
+          <!-- Row 2: Distance and Age -->
+          <div class="filter-row filter-row-range">
+            <div class="distance-filter" id="distanceFilterWrap">
+              <label class="filter-label">Dist:</label>
+              <input type="number" id="distanceFilter" min="0" step="50" placeholder="Max">
+              <select id="distanceUnit"><option value="mi">mi</option><option value="km">km</option></select>
+            </div>
+            <div class="age-filter" id="ageFilterWrap">
+              <label class="filter-label">Age:</label>
+              <select id="ageFilter">
+                <option value="">All</option>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="60">1 hr</option>
+                <option value="120">2 hr</option>
+              </select>
+            </div>
+          </div>
+          <!-- Row 3: Existing dropdowns -->
+          <div class="filter-row">
+            <select id="countryFilter"><option value="">All Countries</option></select>
+            <select id="stateFilter"><option value="">All States</option></select>
+            <select id="gridFilter"><option value="">All Grids</option></select>
+            <select id="continentFilter"><option value="">All Continents</option></select>
+            <label class="priv-filter-label" title="Only show spots within your US license privileges"><input type="checkbox" id="privFilter"> My privileges</label>
+          </div>
+          <!-- Row 4: Presets -->
+          <div class="filter-row filter-row-presets" id="presetFilterWrap">
+            <select id="presetFilter"><option value="">Load Preset...</option></select>
+            <button id="savePresetBtn">Save</button>
+            <button id="deletePresetBtn">Del</button>
+            <button id="clearFiltersBtn">Clear All</button>
+          </div>
         </div>
         <div class="table-wrap">
           <table id="spotsTable">
@@ -305,6 +345,18 @@
       <div class="widget-resize"></div>
     </div>
 
+    <!-- Satellites -->
+    <div class="widget" id="widget-satellites">
+      <div class="widget-header">Satellites
+        <button class="widget-cfg-btn" id="satCfgBtn" title="Configure satellites">&#9881;</button>
+      </div>
+      <div class="widget-body">
+        <div class="sat-list" id="satList"></div>
+        <div class="sat-passes" id="satPasses"></div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
     <!-- RST Reference -->
     <div class="widget" id="widget-rst">
       <div class="widget-header">RST Reference</div>
@@ -350,6 +402,21 @@
         <label><input type="checkbox" id="mapOvTimezone" /> Timezone Lines</label>
       </div>
       <button id="mapOverlayCfgOk">OK</button>
+    </div>
+  </div>
+
+  <!-- Satellite config overlay -->
+  <div class="splash-overlay hidden" id="satCfgSplash">
+    <div class="splash-box sat-cfg-box">
+      <h2>Satellite Tracking</h2>
+      <label for="satApiKey">N2YO API Key</label>
+      <input type="text" id="satApiKey" placeholder="Get free key at n2yo.com/api" autocomplete="off" spellcheck="false" style="text-transform:none;" />
+      <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:12px;text-align:left;">
+        <a href="https://www.n2yo.com/api/" target="_blank" style="color:var(--accent);">Get a free API key (1000 req/hr)</a>
+      </div>
+      <div class="splash-loc-title" style="margin-bottom:8px;">Satellites to Track</div>
+      <div class="sat-select-list" id="satSelectList"></div>
+      <button id="satCfgOk">OK</button>
     </div>
   </div>
 

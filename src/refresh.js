@@ -2,7 +2,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
 import { fmtTime } from './utils.js';
-import { applyFilter, updateBandFilterButtons, updateModeFilterButtons, updateCountryFilter, updateStateFilter, updateGridFilter } from './filters.js';
+import { applyFilter, updateBandFilterButtons, updateModeFilterButtons, updateCountryFilter, updateStateFilter, updateGridFilter, updateContinentFilter } from './filters.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 import { fetchSolar, fetchPropagation } from './solar.js';
@@ -31,6 +31,7 @@ export async function fetchSourceData(source) {
       updateCountryFilter();
       updateStateFilter();
       updateGridFilter();
+      updateContinentFilter();
       $('lastUpdated').textContent = 'Updated: ' + fmtTime(new Date());
     }
   } catch (err) {
@@ -41,6 +42,7 @@ export async function fetchSourceData(source) {
 export function refreshAll() {
   fetchSourceData('pota');
   fetchSourceData('sota');
+  fetchSourceData('dxc');
   fetchSolar();
   fetchLunar();
   fetchPropagation();

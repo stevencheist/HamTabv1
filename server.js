@@ -642,6 +642,52 @@ app.get('/api/callsign/:call', async (req, res) => {
   }
 });
 
+// --- Mode-Specific Endpoints ---
+// (Empty on main - populated on deployment branches)
+// Lanmode adds: /api/update/*, /api/restart
+// Hostedmode adds: /api/settings-sync (future)
+
+// --- Configuration Endpoints ---
+app.post('/api/config/env', (req, res) => {
+  try {
+    const envPath = path.join(__dirname, '.env');
+    const updates = req.body; // { key: value, ... }
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({ error: 'Invalid body' });
+    }
+
+    // Read existing .env lines
+    let lines = [];
+    if (fs.existsSync(envPath)) {
+      lines = fs.readFileSync(envPath, 'utf-8').split('\n');
+    }
+
+    // Update or append each key
+    const allowedKeys = ['WU_API_KEY', 'N2YO_API_KEY'];
+    for (const [key, value] of Object.entries(updates)) {
+      // Only allow known env keys
+      if (!allowedKeys.includes(key)) continue;
+      const idx = lines.findIndex(l => l.startsWith(key + '='));
+      const entry = `${key}=${value}`;
+      if (idx >= 0) {
+        lines[idx] = entry;
+      } else {
+        lines.push(entry);
+      }
+    }
+
+    fs.writeFileSync(envPath, lines.filter(l => l.trim() !== '').join('\n') + '\n');
+    // Update process.env so it takes effect immediately
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedKeys.includes(key)) process.env[key] = value;
+    }
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Failed to update .env:', err.message);
+    res.status(500).json({ error: 'Failed to save config' });
+  }
+});
+
 // --- Feedback endpoint (creates GitHub issue) ---
 app.post('/api/feedback', feedbackLimiter, async (req, res) => {
   try {

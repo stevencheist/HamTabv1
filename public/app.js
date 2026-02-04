@@ -2166,13 +2166,6 @@
     if (s.includes("storm") || s.includes("major")) return "var(--red)";
     return "";
   }
-  function condClass(cond) {
-    const c = (cond || "").toLowerCase();
-    if (c === "good") return "cond-good";
-    if (c === "fair") return "cond-fair";
-    if (c === "poor") return "cond-poor";
-    return "";
-  }
   function loadSolarFieldVisibility() {
     const { SOLAR_FIELD_DEFS: SOLAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
     try {
@@ -2356,38 +2349,6 @@
       div.appendChild(labelDiv);
       div.appendChild(valueDiv);
       solarIndices.appendChild(div);
-    });
-    const headerBandsRow = $("headerBandsRow");
-    headerBandsRow.innerHTML = "";
-    const bandMap = {};
-    bands.forEach((b) => {
-      if (!bandMap[b.band]) bandMap[b.band] = {};
-      bandMap[b.band][b.time] = b.condition;
-    });
-    const bandOrder = ["80m-40m", "30m-20m", "17m-15m", "12m-10m"];
-    bandOrder.forEach((band) => {
-      if (!bandMap[band]) return;
-      const day = bandMap[band]["day"] || "-";
-      const night = bandMap[band]["night"] || "-";
-      const item = document.createElement("div");
-      item.className = "header-band-item";
-      const nameSpan = document.createElement("span");
-      nameSpan.className = "header-band-name";
-      nameSpan.textContent = band;
-      const daySpan = document.createElement("span");
-      daySpan.className = "header-band-day " + condClass(day);
-      daySpan.textContent = day;
-      const sep = document.createElement("span");
-      sep.textContent = "/";
-      sep.style.color = "var(--text-dim)";
-      const nightSpan = document.createElement("span");
-      nightSpan.className = "header-band-night " + condClass(night);
-      nightSpan.textContent = night;
-      item.appendChild(nameSpan);
-      item.appendChild(daySpan);
-      item.appendChild(sep);
-      item.appendChild(nightSpan);
-      headerBandsRow.appendChild(item);
     });
   }
   async function fetchPropagation() {

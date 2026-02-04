@@ -48,4 +48,10 @@
       "new_sqlite_classes": ["HamTab"]
     }
   ]
+
+  // REQUIRED SECRETS (set via wrangler CLI):
+  // wrangler secret put GITHUB_FEEDBACK_TOKEN
+  //   - GitHub fine-grained PAT with Issues: Read/Write permission
+  //   - Used by feedback system to create GitHub issues
+  //   - Get token from: https://github.com/settings/personal-access-tokens/new
 }

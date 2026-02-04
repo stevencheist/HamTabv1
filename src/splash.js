@@ -222,6 +222,14 @@ export function showSplash() {
 function dismissSplash() {
   const val = $('splashCallsign').value.trim().toUpperCase();
   if (!val) return;
+
+  // Hide modal first to ensure UI responds immediately
+  const splashEl = $('splash');
+  const gridDropdown = $('splashGridDropdown');
+  if (gridDropdown) gridDropdown.classList.remove('open');
+  if (splashEl) splashEl.classList.add('hidden');
+
+  // Save settings
   state.myCallsign = val;
   localStorage.setItem('hamtab_callsign', state.myCallsign);
 
@@ -243,9 +251,11 @@ function dismissSplash() {
   fetchWeather();
 
   const widgetList = document.getElementById('splashWidgetList');
-  widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    state.widgetVisibility[cb.dataset.widgetId] = cb.checked;
-  });
+  if (widgetList) {
+    widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      state.widgetVisibility[cb.dataset.widgetId] = cb.checked;
+    });
+  }
   saveWidgetVisibility();
   applyWidgetVisibility();
 
@@ -261,8 +271,6 @@ function dismissSplash() {
     }).catch(() => {});
   }
 
-  $('splashGridDropdown').classList.remove('open');
-  $('splash').classList.add('hidden');
   updateOperatorDisplay();
   centerMapOnUser();
   updateUserMarker();

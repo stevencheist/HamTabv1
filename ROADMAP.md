@@ -282,6 +282,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P8.1: Configuration Management
 | Feature | Status | Priority | Notes |
 |---------|--------|----------|-------|
+| Config modal redesign | ❌ | HIGH | Tab system to group settings (General/Location/API Keys/Advanced) |
 | Multiple configuration profiles | ❌ | HIGH | A/B/C save slots |
 | Configuration export/import | ❌ | HIGH | JSON backup/restore |
 | Configuration rename | ❌ | LOW | Label profiles |
@@ -312,6 +313,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Time shift planning | ❌ | LOW | View future/past conditions |
 
 **Phase 8 Deliverables:**
+- Redesigned config modal with tab-based organization
 - Multiple configuration profiles with export/import
 - Color customization and light theme
 - Stopwatch and countdown timers

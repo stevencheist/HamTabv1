@@ -586,6 +586,25 @@
           hasMap: true,
           spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
           sortKey: "spotTime"
+        },
+        psk: {
+          label: "PSK",
+          endpoint: "/api/spots/psk",
+          columns: [
+            { key: "callsign", label: "TX Call", class: "callsign" },
+            { key: "frequency", label: "Freq", class: "freq" },
+            { key: "mode", label: "Mode", class: "mode" },
+            { key: "reporter", label: "RX Call", class: "" },
+            { key: "snr", label: "SNR", class: "" },
+            { key: "senderLocator", label: "TX Grid", class: "" },
+            { key: "reporterLocator", label: "RX Grid", class: "" },
+            { key: "spotTime", label: "Time", class: "" },
+            { key: "age", label: "Age", class: "" }
+          ],
+          filters: ["band", "mode", "distance", "age"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.reporter}-${s.frequency}-${s.spotTime}`,
+          sortKey: "spotTime"
         }
       };
       SOLAR_FIELD_DEFS = [
@@ -3664,7 +3683,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.11.0";
+    $("splashVersion").textContent = "0.12.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -4073,6 +4092,7 @@
     fetchSourceData("pota");
     fetchSourceData("sota");
     fetchSourceData("dxc");
+    fetchSourceData("psk");
     fetchSolar();
     fetchLunar();
     fetchPropagation();

@@ -1,12 +1,19 @@
 import { $ } from './dom.js';
 import { WIDGET_HELP } from './constants.js';
 import { esc } from './utils.js';
+import state from './state.js';
 
 // --- Help Modal Rendering ---
 
 // Renders help content for a given widget ID
 function renderHelp(widgetId) {
-  const help = WIDGET_HELP[widgetId];
+  // For the reference widget, show help for the active tab
+  let helpKey = widgetId;
+  if (widgetId === 'widget-rst' && state.currentReferenceTab && state.currentReferenceTab !== 'rst') {
+    const tabKey = `widget-rst:${state.currentReferenceTab}`;
+    if (WIDGET_HELP[tabKey]) helpKey = tabKey;
+  }
+  const help = WIDGET_HELP[helpKey];
   if (!help) return;
 
   $('helpTitle').textContent = help.title;

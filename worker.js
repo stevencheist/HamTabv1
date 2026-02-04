@@ -9,6 +9,25 @@ export class HamTab extends DurableObject {
 
   async fetch(request) {
     try {
+      // Debug: check what's available
+      const hasCtx = !!this.ctx;
+      const hasContainer = hasCtx && !!this.ctx.container;
+      const hasGetTcpPort = hasContainer && typeof this.ctx.container.getTcpPort === 'function';
+
+      if (!hasGetTcpPort) {
+        return new Response(JSON.stringify({
+          debug: true,
+          hasCtx,
+          hasContainer,
+          hasGetTcpPort,
+          ctxKeys: hasCtx ? Object.keys(this.ctx) : null,
+          containerKeys: hasContainer ? Object.keys(this.ctx.container) : null,
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
       // Use the container API to proxy request to the container
       const port = this.ctx.container.getTcpPort(this.defaultPort);
       const url = new URL(request.url);

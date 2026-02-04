@@ -5,7 +5,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync, spawn } = require('child_process');
+const { execSync } = require('child_process');
 const { URL } = require('url');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -875,14 +875,20 @@ app.get('/api/weather/alerts', async (req, res) => {
   }
 });
 
-function nwsFetchOnce(url) {
+function nwsFetchOnce(url, redirectCount = 0) {
   return new Promise((resolve, reject) => {
+    if (redirectCount > MAX_REDIRECTS) {
+      return reject(new Error('Too many NWS redirects'));
+    }
     if (!url || typeof url !== 'string') {
       return reject(new Error(`nwsFetchOnce called with invalid url: ${JSON.stringify(url)}`));
     }
     let parsed;
     try { parsed = new URL(url); } catch (e) {
       return reject(new Error(`Invalid URL passed to nwsFetch: "${url}" — ${e.message}`));
+    }
+    if (parsed.protocol !== 'https:') {
+      return reject(new Error('Only HTTPS URLs are allowed for NWS requests'));
     }
     resolveHost(parsed.hostname).then((resolvedIP) => {
       if (isPrivateIP(resolvedIP)) {
@@ -907,14 +913,22 @@ function nwsFetchOnce(url) {
           try { redirectUrl = new URL(resp.headers.location, url).href; } catch (e) {
             return reject(new Error(`Bad redirect Location: "${resp.headers.location}" from ${url}`));
           }
-          return nwsFetchOnce(redirectUrl).then(resolve).catch(reject);
+          return nwsFetchOnce(redirectUrl, redirectCount + 1).then(resolve).catch(reject);
         }
         if (resp.statusCode < 200 || resp.statusCode >= 300) {
           resp.resume();
           return reject(new Error(`HTTP ${resp.statusCode} from ${parsed.hostname}${parsed.pathname}`));
         }
         let data = '';
-        resp.on('data', chunk => { data += chunk; });
+        let bytes = 0;
+        resp.on('data', chunk => {
+          bytes += chunk.length;
+          if (bytes > MAX_RESPONSE_BYTES) {
+            resp.destroy();
+            return reject(new Error('NWS response too large'));
+          }
+          data += chunk;
+        });
         resp.on('end', () => resolve(data));
         resp.on('error', reject);
       });
@@ -985,8 +999,11 @@ app.post('/api/config/env', (req, res) => {
     for (const [key, value] of Object.entries(updates)) {
       // Only allow known env keys
       if (!allowedKeys.includes(key)) continue;
+      // Sanitize: reject control chars (newline injection), enforce max length
+      const sanitized = String(value).replace(/[\r\n\0]/g, '').trim();
+      if (sanitized.length > 128 || sanitized.length === 0) continue;
       const idx = lines.findIndex(l => l.startsWith(key + '='));
-      const entry = `${key}=${value}`;
+      const entry = `${key}=${sanitized}`;
       if (idx >= 0) {
         lines[idx] = entry;
       } else {
@@ -995,9 +1012,12 @@ app.post('/api/config/env', (req, res) => {
     }
 
     fs.writeFileSync(envPath, lines.filter(l => l.trim() !== '').join('\n') + '\n');
-    // Update process.env so it takes effect immediately
+    // Update process.env so it takes effect immediately (with same sanitization)
     for (const [key, value] of Object.entries(updates)) {
-      if (allowedKeys.includes(key)) process.env[key] = value;
+      if (!allowedKeys.includes(key)) continue;
+      const sanitized = String(value).replace(/[\r\n\0]/g, '').trim();
+      if (sanitized.length > 128 || sanitized.length === 0) continue;
+      process.env[key] = sanitized;
     }
     res.json({ ok: true });
   } catch (err) {
@@ -1432,10 +1452,10 @@ function isPrivateIP(ip) {
   if (ip === '::1') return true;
   if (ip.startsWith('fc') || ip.startsWith('fd')) return true; // unique local
   if (ip.startsWith('fe80')) return true; // link-local
-  if (ip === '::' || ip.startsWith('::ffff:')) {
+  if (ip === '::') return true; // unspecified address
+  if (ip.startsWith('::ffff:')) {
     // IPv4-mapped IPv6 — extract and check the IPv4 part
-    const v4 = ip.replace('::ffff:', '');
-    if (v4 !== ip) return isPrivateIP(v4);
+    return isPrivateIP(ip.substring(7));
   }
 
   // IPv4
@@ -1486,7 +1506,7 @@ function secureFetch(url, redirectCount = 0) {
         path: parsed.pathname + parsed.search,
         port: parsed.port || 443,
         headers: {
-          'User-Agent': 'POTA-App/1.0',
+          'User-Agent': 'HamTab/1.0',
           'Host': parsed.hostname,
         },
         servername: parsed.hostname, // for TLS SNI
@@ -1722,6 +1742,19 @@ function ensureCerts() {
 
   return { key: pems.private, cert: pems.cert };
 }
+
+// --- Cache eviction (runs every 30 minutes, removes expired entries) ---
+const allCaches = [dxcCallCache, pskHeardCache, satPassCache, satTleCache, nwsGridCache, sdoDirCache, sotaSummitCache];
+setInterval(() => {
+  const now = Date.now();
+  for (const cache of allCaches) {
+    for (const key of Object.keys(cache)) {
+      if (cache[key] && cache[key].expires && now > cache[key].expires) {
+        delete cache[key];
+      }
+    }
+  }
+}, 30 * 60 * 1000); // 30 minutes
 
 // --- Start servers ---
 

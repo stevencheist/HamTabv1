@@ -14,7 +14,11 @@
   --green: #00c853;
   --yellow: #ffd600;
   --red: #ff1744;
+  --orange: #ff9100;
   --border: #2a3a5e;
+  --bg-secondary: #1a1a2e;
+  --bg-tertiary: #252540;
+  --surface3: #1a4a7a;
 }
 
 html, body {
@@ -102,7 +106,7 @@ html, body {
 .splash-version {
   text-align: center;
   font-size: 0.75rem;
-  color: var(--muted);
+  color: var(--text-dim);
   margin-top: 12px;
 }
 
@@ -2248,7 +2252,8 @@ header {
   border-bottom: 1px solid rgba(42, 58, 94, 0.4);
 }
 
-.ref-table td:first-child {
+.ref-table td:first-child,
+.ref-table td:nth-child(3) {
   text-align: center;
   font-weight: 700;
   color: var(--accent);

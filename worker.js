@@ -14,6 +14,19 @@ export class HamTab extends DurableObject {
       // Start the container if not running
       if (!container.running) {
         await container.start();
+        // Wait a moment for the container to be ready
+        await new Promise(r => setTimeout(r, 1000));
+      }
+
+      // Check if container is actually running now
+      if (!container.running) {
+        return new Response(JSON.stringify({
+          error: 'Container failed to start',
+          running: container.running
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
 
       // Proxy request to the container

@@ -2,10 +2,13 @@
   "name": "hamtabv1",
   "main": "worker.js",
   "compatibility_date": "2026-01-16",
+  "account_id": "2d96977bf715fc9bc0432ed71154d550",
+  "workers_dev": true,
 
   // Route requests from hamtab.net to this Worker
   "routes": [
-    { "pattern": "hamtab.net/*", "zone_name": "hamtab.net" }
+    { "pattern": "hamtab.net/*", "zone_name": "hamtab.net" },
+    { "pattern": "www.hamtab.net/*", "zone_name": "hamtab.net" }
   ],
 
   // Cloudflare Container — runs Node.js Express on port 8080

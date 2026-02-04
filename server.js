@@ -725,8 +725,8 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
     const nameSafe = (name || '').trim().substring(0, 100);
     const emailSafe = (email || '').trim().substring(0, 100);
 
-    // 5. Check for GitHub token
-    const githubToken = process.env.GITHUB_FEEDBACK_TOKEN;
+    // 5. Check for GitHub token (from env or Worker header in hostedmode)
+    const githubToken = process.env.GITHUB_FEEDBACK_TOKEN || req.headers['x-github-token'];
     if (!githubToken) {
       console.error('GITHUB_FEEDBACK_TOKEN not configured');
       return res.status(500).json({ error: 'Feedback system not configured. Please contact the developer.' });

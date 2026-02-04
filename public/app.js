@@ -38,6 +38,8 @@
         activeMaxDistance: null,
         // miles (null = no filter)
         distanceUnit: localStorage.getItem("hamtab_distance_unit") || "mi",
+        temperatureUnit: localStorage.getItem("hamtab_temperature_unit") || "F",
+        // F or C
         activeMaxAge: null,
         // minutes (null = no filter)
         // Filter presets per source
@@ -116,7 +118,9 @@
         n2yoApiKey: localStorage.getItem("hamtab_n2yo_apikey") || "",
         // Geodesic
         geodesicLine: null,
-        // L.polyline for great circle path from QTH to selected spot
+        // L.polyline for short path great circle from QTH to selected spot
+        geodesicLineLong: null,
+        // L.polyline for long path great circle from QTH to selected spot
         // Weather
         wxStation: localStorage.getItem("hamtab_wx_station") || "",
         wxApiKey: localStorage.getItem("hamtab_wx_apikey") || "",
@@ -1611,11 +1615,12 @@
     if (state_default.myLat !== null && state_default.myLon !== null && !isNaN(lat) && !isNaN(lon)) {
       const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
       const longPath = (Math.round(deg) + 180) % 360;
-      const mi = Math.round(distanceMi(state_default.myLat, state_default.myLon, lat, lon));
+      const mi = distanceMi(state_default.myLat, state_default.myLon, lat, lon);
+      const dist = state_default.distanceUnit === "km" ? Math.round(mi * 1.60934) : Math.round(mi);
       bearingHtml = `
       <div class="spot-detail-row"><span class="spot-detail-label">SP Bearing:</span> ${Math.round(deg)}\xB0 ${bearingToCardinal(deg)}</div>
       <div class="spot-detail-row"><span class="spot-detail-label">LP Bearing:</span> ${longPath}\xB0 ${bearingToCardinal(longPath)}</div>
-      <div class="spot-detail-row"><span class="spot-detail-label">Distance:</span> ${mi.toLocaleString()} mi</div>
+      <div class="spot-detail-row"><span class="spot-detail-label">Distance:</span> ${dist.toLocaleString()} ${state_default.distanceUnit}</div>
     `;
     }
     const localTime = !isNaN(lon) ? localTimeAtLon(lon, state_default.use24h) : "";
@@ -1657,9 +1662,18 @@
       if (wx && wxEl && currentSpot === spot) {
         const cls = wxClass(wx.shortForecast);
         wxEl.className = `spot-detail-wx ${cls}`;
+        let tempStr = "";
+        if (wx.temperature != null) {
+          const apiUnit = wx.temperatureUnit || "F";
+          let temp = wx.temperature;
+          if (apiUnit !== state_default.temperatureUnit) {
+            temp = apiUnit === "F" ? Math.round((temp - 32) * 5 / 9) : Math.round(temp * 9 / 5 + 32);
+          }
+          tempStr = `${temp}\xB0${state_default.temperatureUnit}`;
+        }
         wxEl.innerHTML = `
         <span class="spot-detail-label">Weather:</span>
-        ${esc(wx.shortForecast || "")} ${wx.temperature != null ? `${wx.temperature}\xB0${wx.temperatureUnit || "F"}` : ""}
+        ${esc(wx.shortForecast || "")} ${tempStr}
         ${wx.windSpeed ? `\xB7 Wind ${esc(wx.windSpeed)} ${esc(wx.windDirection || "")}` : ""}
       `;
       }
@@ -1717,6 +1731,10 @@
       state_default.map.removeLayer(state_default.geodesicLine);
       state_default.geodesicLine = null;
     }
+    if (state_default.geodesicLineLong) {
+      state_default.map.removeLayer(state_default.geodesicLineLong);
+      state_default.geodesicLineLong = null;
+    }
   }
   function drawGeodesicLine(spot) {
     if (state_default.myLat == null || state_default.myLon == null || !state_default.map) return;
@@ -1737,22 +1755,40 @@
       return;
     }
     const pts = geodesicPoints(state_default.myLat, state_default.myLon, spotLat, spotLon, 64);
-    const segments = [[]];
-    for (let i = 0; i < pts.length; i++) {
-      segments[segments.length - 1].push(pts[i]);
-      if (i < pts.length - 1) {
-        if (Math.abs(pts[i + 1][1] - pts[i][1]) > 180) {
-          segments.push([]);
+    function splitAtDateline(points) {
+      const segments = [[]];
+      for (let i = 0; i < points.length; i++) {
+        segments[segments.length - 1].push(points[i]);
+        if (i < points.length - 1) {
+          if (Math.abs(points[i + 1][1] - points[i][1]) > 180) {
+            segments.push([]);
+          }
         }
       }
+      return segments;
     }
-    state_default.geodesicLine = L.polyline(segments, {
+    state_default.geodesicLine = L.polyline(splitAtDateline(pts), {
       color: "#ff9800",
       weight: 2,
       opacity: 0.7,
       dashArray: "6 4"
     });
     state_default.geodesicLine.addTo(state_default.map);
+    const midIdx = Math.floor(pts.length / 2);
+    const midPt = pts[midIdx];
+    const antiLat = -midPt[0];
+    let antiLon = midPt[1] + 180;
+    if (antiLon > 180) antiLon -= 360;
+    const ptsToAnti = geodesicPoints(state_default.myLat, state_default.myLon, antiLat, antiLon, 48);
+    const ptsFromAnti = geodesicPoints(antiLat, antiLon, spotLat, spotLon, 48);
+    const longPts = [...ptsToAnti.slice(0, -1), ...ptsFromAnti];
+    state_default.geodesicLineLong = L.polyline(splitAtDateline(longPts), {
+      color: "#ff9800",
+      weight: 1.5,
+      opacity: 0.35,
+      dashArray: "4 6"
+    });
+    state_default.geodesicLineLong.addTo(state_default.map);
   }
   function renderMarkers() {
     if (!state_default.map) return;
@@ -1776,9 +1812,10 @@
       if (state_default.myLat !== null && state_default.myLon !== null) {
         const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
         const longPath = (Math.round(deg) + 180) % 360;
-        const mi = Math.round(distanceMi(state_default.myLat, state_default.myLon, lat, lon));
+        const mi = distanceMi(state_default.myLat, state_default.myLon, lat, lon);
+        const dist = state_default.distanceUnit === "km" ? Math.round(mi * 1.60934) : Math.round(mi);
         dirLine = `<div class="popup-dir">SP: ${Math.round(deg)}\xB0 ${bearingToCardinal(deg)} \xB7 LP: ${longPath}\xB0 ${bearingToCardinal(longPath)}</div>`;
-        distLine = `<div class="popup-dist">Distance: ~${mi.toLocaleString()} mi</div>`;
+        distLine = `<div class="popup-dist">Distance: ~${dist.toLocaleString()} ${state_default.distanceUnit}</div>`;
       }
       const localTime = localTimeAtLon(lon, state_default.use24h);
       marker.bindPopup(`
@@ -1900,6 +1937,10 @@
       const sid = spotId(spot);
       tr.dataset.spotId = sid;
       if (sid === state_default.selectedSpotId) tr.classList.add("selected");
+      const spotCall = (spot.activator || spot.callsign || "").toUpperCase();
+      if (state_default.myCallsign && spotCall === state_default.myCallsign.toUpperCase()) {
+        tr.classList.add("my-spot");
+      }
       cols.forEach((col) => {
         const td = document.createElement("td");
         if (col.class) td.className = col.class;
@@ -3902,7 +3943,15 @@
     fetch(url).then((r) => r.ok ? r.json() : Promise.reject()).then((data) => {
       applyWeatherBackground(data.shortForecast, data.isDaytime);
       if (!useWU()) {
-        const tempStr = data.temperature != null ? data.temperature + "\xB0" + (data.temperatureUnit || "F") : "";
+        let tempStr = "";
+        if (data.temperature != null) {
+          const apiUnit = data.temperatureUnit || "F";
+          let temp = data.temperature;
+          if (apiUnit !== state_default.temperatureUnit) {
+            temp = apiUnit === "F" ? Math.round((temp - 32) * 5 / 9) : Math.round(temp * 9 / 5 + 32);
+          }
+          tempStr = temp + "\xB0" + state_default.temperatureUnit;
+        }
         const cond = data.shortForecast || "";
         const wind = data.windDirection && data.windSpeed ? data.windDirection + " " + data.windSpeed : "";
         const hum = data.relativeHumidity != null ? data.relativeHumidity + "%" : "";
@@ -4162,6 +4211,10 @@
     }
     $("timeFmt24").checked = state_default.use24h;
     $("timeFmt12").checked = !state_default.use24h;
+    $("distUnitMi").checked = state_default.distanceUnit === "mi";
+    $("distUnitKm").checked = state_default.distanceUnit === "km";
+    $("tempUnitF").checked = state_default.temperatureUnit === "F";
+    $("tempUnitC").checked = state_default.temperatureUnit === "C";
     const widgetList = document.getElementById("splashWidgetList");
     widgetList.innerHTML = "";
     WIDGET_DEFS.forEach((w) => {
@@ -4200,6 +4253,10 @@
     }
     state_default.use24h = $("timeFmt24").checked;
     localStorage.setItem("hamtab_time24", String(state_default.use24h));
+    state_default.distanceUnit = $("distUnitKm").checked ? "km" : "mi";
+    state_default.temperatureUnit = $("tempUnitC").checked ? "C" : "F";
+    localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
+    localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
     state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
     state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
     state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();

@@ -12,6 +12,7 @@ const state = {
   activeContinent: null,
   activeMaxDistance: null, // miles (null = no filter)
   distanceUnit: localStorage.getItem('hamtab_distance_unit') || 'mi',
+  temperatureUnit: localStorage.getItem('hamtab_temperature_unit') || 'F', // F or C
   activeMaxAge: null, // minutes (null = no filter)
 
   // Filter presets per source
@@ -88,7 +89,8 @@ const state = {
   n2yoApiKey: localStorage.getItem('hamtab_n2yo_apikey') || '',
 
   // Geodesic
-  geodesicLine: null, // L.polyline for great circle path from QTH to selected spot
+  geodesicLine: null, // L.polyline for short path great circle from QTH to selected spot
+  geodesicLineLong: null, // L.polyline for long path great circle from QTH to selected spot
 
   // Weather
   wxStation: localStorage.getItem('hamtab_wx_station') || '',

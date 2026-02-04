@@ -1410,7 +1410,7 @@ header {
   display: block;
 }
 
-/* ---- Header band conditions strip ---- */
+/* ---- Header center (empty placeholder) ---- */
 
 .header-center {
   display: flex;
@@ -1422,47 +1422,7 @@ header {
   overflow: hidden;
 }
 
-.header-bands-title {
-  font-size: 0.68rem;
-  color: var(--text-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-weight: 600;
-}
-
-.header-bands-hint {
-  font-weight: 400;
-  font-size: 0.6rem;
-  color: var(--text-dim);
-  opacity: 0.7;
-  text-transform: none;
-  letter-spacing: 0;
-}
-
-.header-bands-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-}
-
-.header-band-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
-  white-space: nowrap;
-}
-
-.header-band-name {
-  color: var(--text-dim);
-  font-weight: 600;
-}
-
-.header-band-day,
-.header-band-night {
-  font-weight: 600;
-}
-
+/* ---- Band condition color classes (used in propagation widget) ---- */
 
 .cond-good { color: var(--green); font-weight: 600; }
 .cond-fair { color: var(--yellow); font-weight: 600; }

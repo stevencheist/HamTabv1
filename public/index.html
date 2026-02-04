@@ -221,17 +221,10 @@
       <div class="widget-resize"></div>
     </div>
 
-    <!-- Activations -->
-    <div class="widget" id="widget-activations">
-      <div class="widget-header">On the Air <span id="spotCount" class="spot-count"></span>
-        <button class="widget-cfg-btn" id="spotColCfgBtn" title="Configure columns">&#9881;</button>
-      </div>
+    <!-- Filters -->
+    <div class="widget" id="widget-filters">
+      <div class="widget-header">Filters</div>
       <div class="widget-body">
-        <div class="source-tabs" id="sourceTabs">
-          <button class="source-tab active" data-source="pota">POTA</button>
-          <button class="source-tab" data-source="sota">SOTA</button>
-          <button class="source-tab" data-source="dxc">DXC</button>
-        </div>
         <div class="widget-filters" id="widgetFilters">
           <!-- Row 1: Band and Mode (multi-select buttons) -->
           <div class="filter-row">
@@ -271,6 +264,21 @@
             <button id="deletePresetBtn">Del</button>
             <button id="clearFiltersBtn">Clear All</button>
           </div>
+        </div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Activations -->
+    <div class="widget" id="widget-activations">
+      <div class="widget-header">On the Air <span id="spotCount" class="spot-count"></span>
+        <button class="widget-cfg-btn" id="spotColCfgBtn" title="Configure columns">&#9881;</button>
+      </div>
+      <div class="widget-body">
+        <div class="source-tabs" id="sourceTabs">
+          <button class="source-tab active" data-source="pota">POTA</button>
+          <button class="source-tab" data-source="sota">SOTA</button>
+          <button class="source-tab" data-source="dxc">DXC</button>
         </div>
         <div class="table-wrap">
           <table id="spotsTable">

@@ -5,3 +5,5 @@ tools/
 logs/
 .claude/
 .wrangler/
+feedback-private-key.pem
+FEEDBACK_DECRYPTION_GUIDE.md

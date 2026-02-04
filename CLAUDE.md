@@ -205,6 +205,46 @@ Security is a top priority. Flag any code that could introduce a vulnerability.
 - **HSTS** — Enabled with 1-year max-age. Cloudflare handles TLS termination.
 - **Wrangler secrets** — Use `wrangler secret put` for server-side secrets. Never store in `wrangler.jsonc`.
 
+## Privacy & GDPR Compliance
+
+HamTab has users worldwide, including the EU. Privacy and GDPR compliance are mandatory.
+
+**Core principles:**
+- **Data minimization** — Collect only what's necessary. No tracking, analytics, or telemetry.
+- **Transparency** — Clear privacy notices when collecting any personal data.
+- **User control** — Users must be able to request data deletion.
+- **Security by design** — Encrypt PII at collection point when possible.
+
+**Personal data handling:**
+- **Feedback system** — Email addresses are encrypted client-side before transmission using RSA-2048. Only Steven and Francisco can decrypt.
+  - Public key: `src/feedback.js` (committed to repo)
+  - Private key: `feedback-private-key.pem` (NEVER commit, both developers must have secure offline copy)
+  - Decryption: `node decrypt-feedback-email.js <encrypted-base64>`
+  - Encrypted emails stored in GitHub issues are GDPR-compliant (encrypted at rest, deletion possible)
+- **Callsign data** — User-entered callsigns live in localStorage only (client-side, never transmitted)
+- **Location data** — Optional, client-side only, used for map centering and weather
+- **No cookies** — App uses localStorage exclusively, no tracking cookies
+- **No analytics** — No Google Analytics, Cloudflare Analytics, or similar tracking
+
+**Adding new features that collect data:**
+1. Ask: "Is this data truly necessary?"
+2. If yes, add clear privacy notice in UI (see feedback modal example)
+3. Make it optional unless absolutely required
+4. Never transmit PII in plaintext if it will be stored
+5. Provide ability to delete (e.g., clear button, manual GitHub issue deletion)
+
+**GDPR user rights:**
+- **Right to access** — Users can see their data (GitHub issues are public or viewable on request)
+- **Right to deletion** — GitHub issues can be deleted manually, localStorage cleared via browser
+- **Right to portability** — Config export allows users to download their data
+
+**Implementation checklist for new data collection:**
+- [ ] Added privacy notice in UI explaining what, why, where
+- [ ] Made collection optional unless absolutely necessary
+- [ ] Encrypted PII if it will be stored/transmitted
+- [ ] Provided deletion mechanism
+- [ ] Documented in CLAUDE.md if it introduces new privacy considerations
+
 ## Working with Claude
 
 Stay on `main` for most work. Use simple commands to manage branches:

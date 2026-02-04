@@ -10,6 +10,7 @@
     "start:direct": "node server.js"
   },
   "dependencies": {
+    "@cloudflare/containers": "^0.1.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.0",
     "express-rate-limit": "^8.2.1",

@@ -249,14 +249,17 @@ function dismissSplash() {
   saveWidgetVisibility();
   applyWidgetVisibility();
 
+  // Update interval setting (lanmode only - element may not exist on hostedmode)
   const intervalSelect = $('splashUpdateInterval');
-  const intervalVal = intervalSelect.value;
-  localStorage.setItem('hamtab_update_interval', intervalVal);
-  fetch('/api/update/interval', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
-  }).catch(() => {});
+  if (intervalSelect) {
+    const intervalVal = intervalSelect.value;
+    localStorage.setItem('hamtab_update_interval', intervalVal);
+    fetch('/api/update/interval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
+    }).catch(() => {});
+  }
 
   $('splashGridDropdown').classList.remove('open');
   $('splash').classList.add('hidden');

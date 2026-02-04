@@ -4183,53 +4183,66 @@
     $("splashCallsign").focus();
   }
   function dismissSplash() {
-    const val = $("splashCallsign").value.trim().toUpperCase();
+    const callsignEl = $("splashCallsign");
+    const val = callsignEl ? callsignEl.value.trim().toUpperCase() : "";
     if (!val) return;
     const splashEl = $("splash");
     const gridDropdown = $("splashGridDropdown");
     if (gridDropdown) gridDropdown.classList.remove("open");
     if (splashEl) splashEl.classList.add("hidden");
-    state_default.myCallsign = val;
-    localStorage.setItem("hamtab_callsign", state_default.myCallsign);
-    if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
-      localStorage.setItem("hamtab_lat", String(state_default.myLat));
-      localStorage.setItem("hamtab_lon", String(state_default.myLon));
+    try {
+      state_default.myCallsign = val;
+      localStorage.setItem("hamtab_callsign", state_default.myCallsign);
+      if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
+        localStorage.setItem("hamtab_lat", String(state_default.myLat));
+        localStorage.setItem("hamtab_lon", String(state_default.myLon));
+      }
+      const timeFmt24 = $("timeFmt24");
+      state_default.use24h = timeFmt24 ? timeFmt24.checked : state_default.use24h;
+      localStorage.setItem("hamtab_time24", String(state_default.use24h));
+      const wxStationEl = $("splashWxStation");
+      const wxApiKeyEl = $("splashWxApiKey");
+      const n2yoApiKeyEl = $("splashN2yoApiKey");
+      state_default.wxStation = wxStationEl ? wxStationEl.value.trim().toUpperCase() : state_default.wxStation;
+      state_default.wxApiKey = wxApiKeyEl ? wxApiKeyEl.value.trim() : state_default.wxApiKey;
+      state_default.n2yoApiKey = n2yoApiKeyEl ? n2yoApiKeyEl.value.trim() : state_default.n2yoApiKey;
+      localStorage.setItem("hamtab_wx_station", state_default.wxStation);
+      localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
+      localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
+      fetchWeather();
+      const widgetList = document.getElementById("splashWidgetList");
+      if (widgetList) {
+        widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+          state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
+        });
+      }
+      saveWidgetVisibility();
+      applyWidgetVisibility();
+      const intervalSelect = $("splashUpdateInterval");
+      if (intervalSelect) {
+        const intervalVal = intervalSelect.value;
+        localStorage.setItem("hamtab_update_interval", intervalVal);
+        fetch("/api/update/interval", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
+        }).catch(() => {
+        });
+      }
+    } catch (e) {
+      console.warn("Error saving settings:", e);
     }
-    state_default.use24h = $("timeFmt24").checked;
-    localStorage.setItem("hamtab_time24", String(state_default.use24h));
-    state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
-    state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
-    state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
-    localStorage.setItem("hamtab_wx_station", state_default.wxStation);
-    localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
-    localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
-    fetchWeather();
-    const widgetList = document.getElementById("splashWidgetList");
-    if (widgetList) {
-      widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-        state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
-      });
+    try {
+      updateOperatorDisplay2();
+      centerMapOnUser();
+      updateUserMarker();
+      updateClocks();
+      renderSpots();
+      if (_initApp) _initApp();
+      fetchLicenseClass(state_default.myCallsign);
+    } catch (e) {
+      console.warn("Error updating display after dismiss:", e);
     }
-    saveWidgetVisibility();
-    applyWidgetVisibility();
-    const intervalSelect = $("splashUpdateInterval");
-    if (intervalSelect) {
-      const intervalVal = intervalSelect.value;
-      localStorage.setItem("hamtab_update_interval", intervalVal);
-      fetch("/api/update/interval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
-      }).catch(() => {
-      });
-    }
-    updateOperatorDisplay2();
-    centerMapOnUser();
-    updateUserMarker();
-    updateClocks();
-    renderSpots();
-    if (_initApp) _initApp();
-    fetchLicenseClass(state_default.myCallsign);
   }
   function initSplashListeners() {
     $("splashOk").addEventListener("click", dismissSplash);

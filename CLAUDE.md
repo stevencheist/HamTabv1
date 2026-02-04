@@ -20,16 +20,30 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
 ## Branch Strategy
 
 ```
-main ──────────────────────── shared codebase, full feature set
+main ──────────────────────── SHARED CODE ONLY (no mode-specific features)
  ├── lanmode                  self-hosted variant (Windows/Linux/Raspberry Pi)
  └── hostedmode               cloud variant (Cloudflare Containers)
 ```
 
-- **`main`** — Shared codebase. All new features land here first. Both deployment branches merge from `main` to stay current.
-- **`lanmode`** — Adds self-hosted code: self-signed TLS, CORS restricted to RFC 1918, GitHub Releases update checker, local admin endpoints. Targets home servers and Raspberry Pi.
-- **`hostedmode`** — Adds cloud code: Cloudflare Worker + Container, Workers KV settings sync, Cloudflare Access auth, GitHub Actions CI/CD. Targets hamtab.net. Automated deployment on every push.
+**CRITICAL: Main = Shared Code Only**
 
-**Merge direction:** `main` → `lanmode`, `main` → `hostedmode`. Never merge between deployment branches directly.
+- **`main`** — Contains ONLY code that works identically in both modes. No lanmode-specific features (update checker, self-signed TLS), no hostedmode-specific features (Workers KV, CI/CD). All shared features develop here first.
+- **`lanmode`** — Merges from `main` + adds self-hosted code: self-signed TLS, CORS restricted to RFC 1918, GitHub Releases update checker (`src/update.js`), `/api/restart` endpoint. Targets home servers and Raspberry Pi.
+- **`hostedmode`** — Merges from `main` + adds cloud code: Cloudflare Worker + Container, Workers KV settings sync, Cloudflare Access auth, GitHub Actions CI/CD. Targets hamtab.net. Automated deployment on every push.
+
+**Merge direction:**
+- ✅ `main` → `lanmode` (merges shared code to lanmode)
+- ✅ `main` → `hostedmode` (merges shared code to hostedmode)
+- ❌ Never merge between deployment branches directly
+- ❌ Never merge mode-specific code back to `main`
+
+**Decision tree for new features:**
+- Feature works identically in both modes? → Develop on `main`, merge to both branches
+- Feature is lanmode-only? → Develop on `lanmode`, never merge to `main`
+- Feature is hostedmode-only? → Develop on `hostedmode`, never merge to `main`
+- Feature needs different implementations? → Shared UI on `main`, mode-specific storage/logic on branches
+
+**See BRANCH_STRATEGY.md for complete guidelines and conflict prevention.**
 
 ## Key Files
 
@@ -87,12 +101,58 @@ main ──────────────────────── sh
 
 ## Commit & Branch Conventions
 
-- Commit messages: imperative mood ("Add X", "Fix Y")
+### Commit Messages
+- Imperative mood ("Add X", "Fix Y")
 - Match existing style from git log
-- **New features** — Develop on `main` or feature branches, then merge to `main`
-- **Deployment sync** — After merging to `main`, merge `main` into both `lanmode` and `hostedmode` to maintain feature parity
-- **Branch-specific code** — Deployment-specific changes go directly to `lanmode` or `hostedmode`, never to `main`
-- **CLAUDE.md edits** — All CLAUDE.md changes go to `main` only, then merge out. Never edit CLAUDE.md directly on deployment branches.
+- Include mode indicator for clarity:
+  - `"Add feedback system (shared)"` — Feature on main
+  - `"Add update checker (lanmode)"` — Lanmode-only feature
+  - `"Add Workers KV sync (hostedmode)"` — Hostedmode-only feature
+
+### Feature Development Workflow
+
+**CRITICAL: Before developing, ask "Where does this belong?"**
+
+1. **Shared features (works identically in both modes):**
+   - ✅ Develop on `main` branch
+   - ✅ Merge to both `lanmode` and `hostedmode`
+   - Examples: UI widgets, client-side logic, API proxies
+
+2. **Lanmode-only features:**
+   - ✅ Develop on `lanmode` branch ONLY
+   - ❌ **NEVER merge to `main`** (causes conflicts)
+   - Examples: Update checker, self-signed TLS, `/api/restart`
+
+3. **Hostedmode-only features:**
+   - ✅ Develop on `hostedmode` branch ONLY
+   - ❌ **NEVER merge to `main`** (causes conflicts)
+   - Examples: Workers KV, CI/CD, Cloudflare Access integration
+
+4. **Features needing different implementations:**
+   - ✅ Shared UI/logic on `main`
+   - ✅ Mode-specific storage/endpoints on branches
+   - Example: Config profiles (UI on main, localStorage on lanmode, KV on hostedmode)
+
+### Branch Sync Protocol
+
+- **After committing to `main`:**
+  1. Push `main`
+  2. Merge `main` → `lanmode` (should be clean)
+  3. Push `lanmode`
+  4. Merge `main` → `hostedmode` (should be clean)
+  5. Push `hostedmode`
+
+- **If merge conflicts occur:**
+  - ⚠️ **STOP!** This indicates mode-specific code on `main`
+  - Review BRANCH_STRATEGY.md conflict resolution protocol
+  - Fix the issue, don't force the merge
+
+### Documentation Edits
+
+- **CLAUDE.md** — All changes go to `main` only, then merge out
+- **BRANCH_STRATEGY.md** — All changes go to `main` only, then merge out
+- **ROADMAP.md** — All changes go to `main` only, then merge out
+- Never edit documentation directly on deployment branches
 
 ## Code Quality
 

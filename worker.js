@@ -9,19 +9,14 @@ export class HamTab extends DurableObject {
 
   async fetch(request) {
     try {
+      // Use the container API to proxy request to the container
+      const port = this.ctx.container.getTcpPort(this.defaultPort);
       const url = new URL(request.url);
-      const containerUrl = `http://127.0.0.1:${this.defaultPort}${url.pathname}${url.search}`;
-
-      // Clone headers and set Host
-      const headers = new Headers(request.headers);
-      headers.set('Host', `127.0.0.1:${this.defaultPort}`);
-
-      const resp = await fetch(containerUrl, {
+      return port.fetch(`http://container${url.pathname}${url.search}`, {
         method: request.method,
-        headers: headers,
+        headers: request.headers,
         body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
       });
-      return resp;
     } catch (err) {
       return new Response(JSON.stringify({
         doError: err.message,

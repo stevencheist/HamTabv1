@@ -11,10 +11,12 @@ export class HamTab extends DurableObject {
     try {
       const container = this.ctx.container;
 
-      // Check if container is running
-      const isRunning = container.running;
+      // Start the container if not running
+      if (!container.running) {
+        await container.start();
+      }
 
-      // Get the port and try to fetch
+      // Get the port and proxy the request
       const port = container.getTcpPort(this.defaultPort);
       const url = new URL(request.url);
 

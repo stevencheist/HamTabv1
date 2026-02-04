@@ -4,7 +4,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 **Mission:** Provide a modern, web-based amateur radio dashboard for the ~10,000+ HamClock users whose installations will stop functioning in June 2026, while serving the broader ham radio community.
 
-**Last updated:** 2026-02-04
+**Last updated:** 2026-02-03
 
 ---
 
@@ -131,8 +131,8 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P3.1: VOACAP Integration 🔥
 | Feature | Status | Priority | Mode | Issue | Notes |
 |---------|--------|----------|------|-------|-------|
-| Reliability graph (24h × band) | ❌ | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Time/band grid |
-| REL map overlay | ❌ | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Path reliability from DE |
+| Reliability graph (24h × band) | ✅ | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | HF Propagation widget with color-coded matrix |
+| REL map overlay | 🟡 | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Click band row shows reliability circles |
 | TOA map overlay | ❌ | HIGH | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Take-off angle map |
 | Power level selection | ❌ | MEDIUM | 🌐 | — | 5/50/500W options |
 | Mode selection | ❌ | MEDIUM | 🌐 | — | CW/SSB/RTTY/etc |
@@ -363,6 +363,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P9.2: Digital Modes
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
+| Live Spots (PSKReporter "heard") | ✅ | HIGH | 🌐 | Shows where user is being received with map paths |
 | PSKReporter MQTT | ❌ | MEDIUM | ☁️ | WebSocket CSP, may need MQTT-over-WS bridge |
 | WSPR integration | ❌ | MEDIUM | 🌐 | Server proxies wsprnet.org API |
 | RBN integration | ❌ | MEDIUM | 🌐 | Server proxies RBN API |
@@ -422,10 +423,10 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Category | Total | Implemented | Partial | Not Impl | Completion |
 |----------|-------|-------------|---------|----------|------------|
 | Map Features & Projections | 32 | 9 | 4 | 19 | 28% |
-| Spot Sources & Integration | 20 | 5 | 1 | 14 | 25% |
+| Spot Sources & Integration | 21 | 6 | 1 | 14 | 29% |
 | Filtering & Watch Lists | 14 | 9 | 0 | 5 | 64% |
 | Solar & Space Weather | 19 | 11 | 6 | 2 | 58% |
-| Propagation Modeling | 7 | 2 | 0 | 5 | 29% |
+| Propagation Modeling | 7 | 3 | 1 | 3 | 43% |
 | Lunar & EME | 12 | 6 | 1 | 5 | 50% |
 | Satellite Tracking | 15 | 5 | 2 | 8 | 33% |
 | Weather Integration | 9 | 7 | 0 | 2 | 78% |
@@ -436,13 +437,13 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Reference Materials | 7 | 3 | 0 | 4 | 43% |
 | Deployment & Installation | 11 | 8 | 0 | 3 | 73% |
 | Other Features | 3 | 1 | 1 | 1 | 33% |
-| **TOTAL** | **215** | **92** | **16** | **107** | **43%** |
+| **TOTAL** | **216** | **94** | **17** | **105** | **44%** |
 
 ### By Priority (High Demand 🔥 Features)
 
 | Feature | Phase | Status | User Demand |
 |---------|-------|--------|-------------|
-| VOACAP integration | P3 | ❌ | CRITICAL |
+| VOACAP integration | P3 | 🟡 | CRITICAL |
 | UDP spot input (WSJT-X) | P4 | ❌ | CRITICAL |
 | Configurable port | P1 | ❌ | HIGH |
 | Uninstall script | P1 | ❌ | HIGH |
@@ -467,7 +468,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | [#88](https://github.com/stevencheist/HamTabv1/issues/88) | Feedback button | ❌ | P1 | MEDIUM |
 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Configurable port | ❌ | P1 | HIGH |
 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Uninstall script | ❌ | P1 | HIGH |
-| [#91](https://github.com/stevencheist/HamTabv1/issues/91) | VOACAP propagation | ❌ | P3 | CRITICAL |
+| [#91](https://github.com/stevencheist/HamTabv1/issues/91) | VOACAP propagation + Live Spots | 🟡 | P3/P9 | CRITICAL |
 
 ---
 
@@ -483,7 +484,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 - ✅ Satellite tracking
 - ✅ Weather integration
 - ✅ Filter system
-- ❌ VOACAP propagation (P3)
+- 🟡 VOACAP propagation (P3) — HF Propagation widget with 24h matrix implemented
 - ❌ UDP spot input (P4)
 - ❌ Space weather graphs (P1)
 - ❌ Watch list modes (P2)
@@ -520,7 +521,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 - **Satellites:** N2YO API
 - **Weather:** NWS, Weather Underground
 - **Callsign:** callook.info, QRZ
-- **Spots:** api.pota.app, api2.sota.org.uk, HamQTH CSV, pskreporter.info
+- **Spots:** api.pota.app, api2.sota.org.uk, HamQTH CSV, pskreporter.info (including "heard by" Live Spots)
 
 ### Planned (By Phase)
 - **P3:** VOACAP.com (propagation modeling)

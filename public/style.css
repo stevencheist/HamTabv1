@@ -2396,6 +2396,18 @@ header {
   margin-top: 4px;
 }
 
+.feedback-privacy-notice {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  margin-top: 6px;
+  margin-bottom: 0;
+  line-height: 1.4;
+  padding: 6px 8px;
+  background: rgba(0, 255, 255, 0.05);
+  border-left: 2px solid var(--accent);
+  border-radius: 2px;
+}
+
 .feedback-status {
   padding: 8px 12px;
   border-radius: 4px;

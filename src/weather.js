@@ -54,7 +54,16 @@ export function fetchNwsConditions() {
   fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
     applyWeatherBackground(data.shortForecast, data.isDaytime);
     if (!useWU()) {
-      const tempStr = data.temperature != null ? data.temperature + '\u00B0' + (data.temperatureUnit || 'F') : '';
+      let tempStr = '';
+      if (data.temperature != null) {
+        const apiUnit = data.temperatureUnit || 'F';
+        let temp = data.temperature;
+        // Convert to user's preferred unit if different from API
+        if (apiUnit !== state.temperatureUnit) {
+          temp = apiUnit === 'F' ? Math.round((temp - 32) * 5 / 9) : Math.round(temp * 9 / 5 + 32);
+        }
+        tempStr = temp + '\u00B0' + state.temperatureUnit;
+      }
       const cond = data.shortForecast || '';
       const wind = data.windDirection && data.windSpeed ? data.windDirection + ' ' + data.windSpeed : '';
       const hum = data.relativeHumidity != null ? data.relativeHumidity + '%' : '';

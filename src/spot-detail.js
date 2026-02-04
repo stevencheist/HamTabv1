@@ -103,11 +103,12 @@ export async function updateSpotDetail(spot) {
   if (state.myLat !== null && state.myLon !== null && !isNaN(lat) && !isNaN(lon)) {
     const deg = bearingTo(state.myLat, state.myLon, lat, lon);
     const longPath = (Math.round(deg) + 180) % 360; // reverse azimuth
-    const mi = Math.round(distanceMi(state.myLat, state.myLon, lat, lon));
+    const mi = distanceMi(state.myLat, state.myLon, lat, lon);
+    const dist = state.distanceUnit === 'km' ? Math.round(mi * 1.60934) : Math.round(mi);
     bearingHtml = `
       <div class="spot-detail-row"><span class="spot-detail-label">SP Bearing:</span> ${Math.round(deg)}° ${bearingToCardinal(deg)}</div>
       <div class="spot-detail-row"><span class="spot-detail-label">LP Bearing:</span> ${longPath}° ${bearingToCardinal(longPath)}</div>
-      <div class="spot-detail-row"><span class="spot-detail-label">Distance:</span> ${mi.toLocaleString()} mi</div>
+      <div class="spot-detail-row"><span class="spot-detail-label">Distance:</span> ${dist.toLocaleString()} ${state.distanceUnit}</div>
     `;
   }
 
@@ -160,9 +161,19 @@ export async function updateSpotDetail(spot) {
     if (wx && wxEl && currentSpot === spot) {
       const cls = wxClass(wx.shortForecast);
       wxEl.className = `spot-detail-wx ${cls}`;
+      // Convert temperature to user's preferred unit
+      let tempStr = '';
+      if (wx.temperature != null) {
+        const apiUnit = wx.temperatureUnit || 'F';
+        let temp = wx.temperature;
+        if (apiUnit !== state.temperatureUnit) {
+          temp = apiUnit === 'F' ? Math.round((temp - 32) * 5 / 9) : Math.round(temp * 9 / 5 + 32);
+        }
+        tempStr = `${temp}°${state.temperatureUnit}`;
+      }
       wxEl.innerHTML = `
         <span class="spot-detail-label">Weather:</span>
-        ${esc(wx.shortForecast || '')} ${wx.temperature != null ? `${wx.temperature}°${wx.temperatureUnit || 'F'}` : ''}
+        ${esc(wx.shortForecast || '')} ${tempStr}
         ${wx.windSpeed ? `· Wind ${esc(wx.windSpeed)} ${esc(wx.windDirection || '')}` : ''}
       `;
     }

@@ -147,8 +147,8 @@
         localStorage.setItem("hamtab_prop_metric", state.propMetric);
       }
       try {
-        const saved = JSON.parse(localStorage.getItem("hamtab_map_overlays"));
-        if (saved) Object.assign(state.mapOverlays, saved);
+        const saved2 = JSON.parse(localStorage.getItem("hamtab_map_overlays"));
+        if (saved2) Object.assign(state.mapOverlays, saved2);
       } catch (e) {
       }
       savedLat = localStorage.getItem("hamtab_lat");
@@ -290,8 +290,8 @@
   }
   function loadLunarFieldVisibility() {
     try {
-      const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
+      const saved2 = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
+      if (saved2 && typeof saved2 === "object") return saved2;
     } catch (e) {
     }
     const vis = {};
@@ -691,6 +691,7 @@
     calculateBandConditions: () => calculateBandConditions,
     conditionColorClass: () => conditionColorClass,
     conditionLabel: () => conditionLabel,
+    initDayNightToggle: () => initDayNightToggle,
     renderPropagationWidget: () => renderPropagationWidget
   });
   function calculateMUF(sfi, isDay) {
@@ -799,6 +800,30 @@
     };
     return map[condition] || "Unknown";
   }
+  function initDayNightToggle() {
+    const dayBtn = $("dayToggle");
+    const nightBtn = $("nightToggle");
+    if (!dayBtn || !nightBtn) return;
+    updateToggleButtons();
+    dayBtn.addEventListener("click", () => {
+      dayNightTime = "day";
+      localStorage.setItem("hamtab_band_time", dayNightTime);
+      updateToggleButtons();
+      renderPropagationWidget();
+    });
+    nightBtn.addEventListener("click", () => {
+      dayNightTime = "night";
+      localStorage.setItem("hamtab_band_time", dayNightTime);
+      updateToggleButtons();
+      renderPropagationWidget();
+    });
+  }
+  function updateToggleButtons() {
+    const dayBtn = $("dayToggle");
+    const nightBtn = $("nightToggle");
+    if (dayBtn) dayBtn.classList.toggle("active", dayNightTime === "day");
+    if (nightBtn) nightBtn.classList.toggle("active", dayNightTime === "night");
+  }
   function hamqslCondClass(cond) {
     const c = (cond || "").toLowerCase();
     if (c === "good") return "cond-good";
@@ -861,49 +886,32 @@
       const bandOrder = ["80m-40m", "30m-20m", "17m-15m", "12m-10m"];
       bandOrder.forEach((band) => {
         if (!bandMap[band]) return;
-        const day = bandMap[band]["day"] || "-";
-        const night = bandMap[band]["night"] || "-";
+        const condition = bandMap[band][dayNightTime] || "-";
         const card = document.createElement("div");
         card.className = "hamqsl-band-card";
         const nameSpan = document.createElement("span");
         nameSpan.className = "hamqsl-band-name";
         nameSpan.textContent = band;
-        const conditionsDiv = document.createElement("div");
-        conditionsDiv.className = "hamqsl-band-conditions";
-        const dayItem = document.createElement("div");
-        dayItem.className = "hamqsl-cond-item";
-        const dayTime = document.createElement("span");
-        dayTime.className = "hamqsl-cond-time";
-        dayTime.textContent = "Day";
-        const dayValue = document.createElement("span");
-        dayValue.className = `hamqsl-cond-value ${hamqslCondClass(day)}`;
-        dayValue.textContent = day;
-        dayItem.appendChild(dayTime);
-        dayItem.appendChild(dayValue);
-        const nightItem = document.createElement("div");
-        nightItem.className = "hamqsl-cond-item";
-        const nightTime = document.createElement("span");
-        nightTime.className = "hamqsl-cond-time";
-        nightTime.textContent = "Night";
-        const nightValue = document.createElement("span");
-        nightValue.className = `hamqsl-cond-value ${hamqslCondClass(night)}`;
-        nightValue.textContent = night;
-        nightItem.appendChild(nightTime);
-        nightItem.appendChild(nightValue);
-        conditionsDiv.appendChild(dayItem);
-        conditionsDiv.appendChild(nightItem);
+        const condValue = document.createElement("span");
+        condValue.className = `hamqsl-cond-value-single ${hamqslCondClass(condition)}`;
+        condValue.textContent = condition;
         card.appendChild(nameSpan);
-        card.appendChild(conditionsDiv);
+        card.appendChild(condValue);
         hamqslGrid.appendChild(card);
       });
     }
   }
-  var HF_BANDS;
+  var dayNightTime, saved, HF_BANDS;
   var init_band_conditions = __esm({
     "src/band-conditions.js"() {
       init_state();
       init_dom();
       init_utils();
+      dayNightTime = "day";
+      saved = localStorage.getItem("hamtab_band_time");
+      if (saved === "day" || saved === "night") {
+        dayNightTime = saved;
+      }
       HF_BANDS = [
         { name: "160m", freqMHz: 1.9, label: "160m" },
         { name: "80m", freqMHz: 3.7, label: "80m" },
@@ -1394,8 +1402,8 @@
   // src/spots.js
   function loadSpotColumnVisibility() {
     try {
-      const saved = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
+      const saved2 = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
+      if (saved2 && typeof saved2 === "object") return saved2;
     } catch (e) {
     }
     const vis = {};
@@ -1977,17 +1985,17 @@
   }
   function loadFiltersForSource(source) {
     try {
-      const saved = JSON.parse(localStorage.getItem(`hamtab_filter_${source}`));
-      if (saved) {
-        state_default.activeBands = new Set(saved.bands || []);
-        state_default.activeModes = new Set(saved.modes || []);
-        state_default.activeMaxDistance = saved.maxDistance ?? null;
-        state_default.activeMaxAge = saved.maxAge ?? null;
-        state_default.activeCountry = saved.country ?? null;
-        state_default.activeState = saved.state ?? null;
-        state_default.activeGrid = saved.grid ?? null;
-        state_default.activeContinent = saved.continent ?? null;
-        state_default.privilegeFilterEnabled = saved.privilegeFilter ?? false;
+      const saved2 = JSON.parse(localStorage.getItem(`hamtab_filter_${source}`));
+      if (saved2) {
+        state_default.activeBands = new Set(saved2.bands || []);
+        state_default.activeModes = new Set(saved2.modes || []);
+        state_default.activeMaxDistance = saved2.maxDistance ?? null;
+        state_default.activeMaxAge = saved2.maxAge ?? null;
+        state_default.activeCountry = saved2.country ?? null;
+        state_default.activeState = saved2.state ?? null;
+        state_default.activeGrid = saved2.grid ?? null;
+        state_default.activeContinent = saved2.continent ?? null;
+        state_default.privilegeFilterEnabled = saved2.privilegeFilter ?? false;
         return;
       }
     } catch (e) {
@@ -2169,8 +2177,8 @@
   function loadSolarFieldVisibility() {
     const { SOLAR_FIELD_DEFS: SOLAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
     try {
-      const saved = JSON.parse(localStorage.getItem(SOLAR_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
+      const saved2 = JSON.parse(localStorage.getItem(SOLAR_VIS_KEY));
+      if (saved2 && typeof saved2 === "object") return saved2;
     } catch (e) {
     }
     const vis = {};
@@ -2185,8 +2193,8 @@
     const canvas = $("solarCanvas");
     const playBtn = $("solarPlayBtn");
     if (!select || !canvas) return;
-    const saved = localStorage.getItem("hamtab_sdo_type");
-    if (saved) select.value = saved;
+    const saved2 = localStorage.getItem("hamtab_sdo_type");
+    if (saved2) select.value = saved2;
     select.addEventListener("change", () => {
       localStorage.setItem("hamtab_sdo_type", select.value);
       solarFrames = [];
@@ -2826,8 +2834,8 @@
   var WIDGET_VIS_KEY = "hamtab_widget_vis";
   function loadWidgetVisibility() {
     try {
-      const saved = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
+      const saved2 = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
+      if (saved2 && typeof saved2 === "object") return saved2;
     } catch (e) {
     }
     const vis = {};
@@ -3105,9 +3113,9 @@
   function initWidgets() {
     let layout;
     try {
-      const saved = localStorage.getItem(WIDGET_STORAGE_KEY);
-      if (saved) {
-        layout = JSON.parse(saved);
+      const saved2 = localStorage.getItem(WIDGET_STORAGE_KEY);
+      if (saved2) {
+        layout = JSON.parse(saved2);
         const { width: aW, height: aH } = getWidgetArea();
         for (const id of Object.keys(layout)) {
           const p = layout[id];
@@ -4305,12 +4313,12 @@
     }, 1e3);
   }
   function sendUpdateInterval() {
-    const saved = localStorage.getItem("hamtab_update_interval");
-    if (saved) {
+    const saved2 = localStorage.getItem("hamtab_update_interval");
+    if (saved2) {
       fetch("/api/update/interval", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seconds: parseInt(saved, 10) })
+        body: JSON.stringify({ seconds: parseInt(saved2, 10) })
       }).catch(() => {
       });
     }
@@ -4736,6 +4744,7 @@
 
   // src/main.js
   init_spot_detail();
+  init_band_conditions();
   migrate();
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
@@ -4761,6 +4770,7 @@
   initWeatherListeners();
   initPropListeners();
   initSolarImage();
+  initDayNightToggle();
   initSpotDetail();
   function initApp() {
     if (state_default.appInitialized) return;

@@ -32,6 +32,7 @@ import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
 import { initSatellites, fetchSatellitePositions } from './satellites.js';
 import { initSpotDetail } from './spot-detail.js';
+import { initDayNightToggle } from './band-conditions.js';
 
 // Initialize map
 initMap();
@@ -62,6 +63,7 @@ initFullscreenListeners();
 initWeatherListeners();
 initPropListeners();
 initSolarImage();
+initDayNightToggle();
 initSpotDetail();
 
 // Wire initApp into splash dismissal

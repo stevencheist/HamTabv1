@@ -1376,47 +1376,15 @@ header {
   color: var(--text-dim);
 }
 
-/* ---- HamQSL Band Conditions ---- */
-
-.hamqsl-bands-section {
-  border-top: 1px solid var(--border);
-  margin-top: 10px;
-  padding: 10px;
+/* Day/night border indicators */
+.band-card-day {
+  border-left: 3px solid #ffa726;
+  box-shadow: -2px 0 8px rgba(255, 167, 38, 0.2);
 }
 
-.hamqsl-bands-title {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  margin-bottom: 8px;
-}
-
-.hamqsl-bands-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-}
-
-.hamqsl-band-card {
-  background: var(--surface2);
-  border-radius: 4px;
-  padding: 8px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.hamqsl-band-name {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: var(--text);
-}
-
-.hamqsl-cond-value-single {
-  font-size: 0.85rem;
-  font-weight: 700;
+.band-card-night {
+  border-left: 3px solid #5c6bc0;
+  box-shadow: -2px 0 8px rgba(92, 107, 192, 0.2);
 }
 
 /* ---- Header center (empty placeholder) ---- */

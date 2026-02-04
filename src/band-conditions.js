@@ -42,7 +42,7 @@ const HF_BANDS = [
  * @param {boolean} isDay - True if daytime at ionospheric reflection point
  * @returns {number} - Estimated MUF in MHz
  */
-function calculateMUF(sfi, isDay) {
+export function calculateMUF(sfi, isDay) {
   // foF2 correlation with SFI (empirical)
   // Day: foF2 ≈ 0.9 × sqrt(SFI)
   // Night: foF2 ≈ 0.6 × sqrt(SFI)
@@ -154,9 +154,10 @@ function classifyCondition(reliability) {
 
 /**
  * Calculate current band conditions for all HF bands
+ * @param {string} timeOfDay - 'day' or 'night' to override auto-detection
  * @returns {Array} - Array of band condition objects
  */
-export function calculateBandConditions() {
+export function calculateBandConditions(timeOfDay = null) {
   if (!state.lastSolarData || !state.lastSolarData.indices) {
     return HF_BANDS.map(band => ({
       ...band,
@@ -173,10 +174,18 @@ export function calculateBandConditions() {
   const kIndex = parseInt(indices.kindex) || 2;
   const aIndex = parseInt(indices.aindex) || 5;
 
-  // Determine if daytime (simple UTC-based approximation)
-  // For better accuracy, this could use user location and solar zenith angle
-  const utcHour = new Date().getUTCHours();
-  const isDay = utcHour >= 6 && utcHour < 18; // Rough day = 06:00-18:00 UTC
+  // Determine if daytime
+  // If timeOfDay is specified (from toggle), use that; otherwise auto-detect
+  let isDay;
+  if (timeOfDay === 'day') {
+    isDay = true;
+  } else if (timeOfDay === 'night') {
+    isDay = false;
+  } else {
+    // Auto-detect based on UTC time (simple approximation)
+    const utcHour = new Date().getUTCHours();
+    isDay = utcHour >= 6 && utcHour < 18; // Rough day = 06:00-18:00 UTC
+  }
 
   // Calculate MUF
   const muf = calculateMUF(sfi, isDay);
@@ -272,17 +281,6 @@ function updateToggleButtons() {
 }
 
 /**
- * Helper to get condition class for HamQSL band conditions
- */
-function hamqslCondClass(cond) {
-  const c = (cond || '').toLowerCase();
-  if (c === 'good') return 'cond-good';
-  if (c === 'fair') return 'cond-fair';
-  if (c === 'poor') return 'cond-poor';
-  return '';
-}
-
-/**
  * Render the propagation widget with band conditions
  */
 export function renderPropagationWidget() {
@@ -290,12 +288,11 @@ export function renderPropagationWidget() {
   const mufValue = $('propMufValue');
   const sfiValue = $('propSfiValue');
   const kindexValue = $('propKindexValue');
-  const hamqslGrid = $('hamqslBandsGrid');
 
   if (!grid) return;
 
-  // Calculate per-band conditions
-  const conditions = calculateBandConditions();
+  // Calculate per-band conditions using selected day/night mode
+  const conditions = calculateBandConditions(dayNightTime);
 
   // Update summary values
   if (mufValue) {
@@ -319,11 +316,12 @@ export function renderPropagationWidget() {
     }
   }
 
-  // Render per-band prediction cards
+  // Render per-band prediction cards with day/night indicator
   grid.innerHTML = '';
   conditions.forEach(band => {
     const card = document.createElement('div');
-    card.className = `band-card ${conditionColorClass(band.condition)}`;
+    const timeClass = dayNightTime === 'day' ? 'band-card-day' : 'band-card-night';
+    card.className = `band-card ${conditionColorClass(band.condition)} ${timeClass}`;
 
     const name = document.createElement('span');
     name.className = 'band-name';
@@ -342,38 +340,4 @@ export function renderPropagationWidget() {
     card.appendChild(condLabel);
     grid.appendChild(card);
   });
-
-  // Render HamQSL band conditions (day or night from HamQSL data based on toggle)
-  if (hamqslGrid && state.lastSolarData && state.lastSolarData.bands) {
-    const { bands } = state.lastSolarData;
-    const bandMap = {};
-    bands.forEach(b => {
-      if (!bandMap[b.band]) bandMap[b.band] = {};
-      bandMap[b.band][b.time] = b.condition;
-    });
-
-    hamqslGrid.innerHTML = '';
-    const bandOrder = ['80m-40m', '30m-20m', '17m-15m', '12m-10m'];
-    bandOrder.forEach(band => {
-      if (!bandMap[band]) return;
-
-      // Get condition for selected time period
-      const condition = bandMap[band][dayNightTime] || '-';
-
-      const card = document.createElement('div');
-      card.className = 'hamqsl-band-card';
-
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'hamqsl-band-name';
-      nameSpan.textContent = band;
-
-      const condValue = document.createElement('span');
-      condValue.className = `hamqsl-cond-value-single ${hamqslCondClass(condition)}`;
-      condValue.textContent = condition;
-
-      card.appendChild(nameSpan);
-      card.appendChild(condValue);
-      hamqslGrid.appendChild(card);
-    });
-  }
 }

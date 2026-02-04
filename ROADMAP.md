@@ -1,539 +1,720 @@
-# HamTab Feature Roadmap
+# HamTab Development Roadmap
 
-Comprehensive roadmap tracking HamTab's feature development and implementation priorities.
+Unified roadmap combining feature tracking with HamClock user insights to guide HamTab development through June 2026 and beyond.
 
-**Background:** HamClock's creator passed away, and all existing HamClock installations will stop functioning in June 2026. HamTab aims to preserve this functionality for the amateur radio community while modernizing the platform as a web-based dashboard.
+**Mission:** Provide a modern, web-based amateur radio dashboard for the ~10,000+ HamClock users whose installations will stop functioning in June 2026, while serving the broader ham radio community.
 
 **Last updated:** 2026-02-04
 
 ---
 
 ## Legend
-- ✅ Implemented
-- 🟡 Partially implemented
-- ❌ Not yet implemented
-- 🔵 Alternative approach used
-- ➖ Not applicable to web-based app
+
+- ✅ **Implemented** — Feature is complete and deployed
+- 🟡 **Partially implemented** — Core functionality exists, missing some aspects
+- 🔵 **Alternative approach** — Different implementation than requested
+- ❌ **Not implemented** — Planned or requested but not yet built
+- ➖ **Not applicable** — Not suitable for web-based app
+- 🔥 **High demand** — Frequently requested in HamClock FAQs/issues
+- 📅 **Scheduled** — Committed to specific development phase
 
 ---
 
-## 1. Map Features & Projections
+## Implementation Phases
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **Projections** |
-| Mercator | ✅ | Leaflet default |
-| Azimuthal (DE-centered) | ❌ | Custom projection needed |
-| Azimuthal One Globe | ❌ | Custom projection needed |
-| Robinson | ❌ | Custom projection needed |
-| **Map Styles** |
-| Political boundaries | 🟡 | CARTO Dark tiles |
-| Terrain | ❌ | Additional tile layer |
-| DRAP overlay | ❌ | NOAA DRAP API |
-| MUF-VOACAP | ❌ | VOACAP integration ([#91](https://github.com/stevencheist/HamTabv1/issues/91)) |
-| MUF-RT (ionosonde) | ✅ | kc2g.com GeoJSON |
-| foF2 map | ✅ | kc2g.com GeoJSON |
-| Aurora overlay | ❌ | NOAA OVATION model |
-| Weather overlay | ❌ | Temperature/isobars/wind |
-| Clouds (IR satellite) | ❌ | NOAA GOES imagery |
-| **Grid Overlays** |
-| Lat/Long grid | ✅ | Toggleable |
-| Maidenhead grid | ✅ | Multi-resolution |
-| Timezone grid | ✅ | Timezone boundaries |
-| Tropics lines | ❌ | ±23.5° latitude lines |
-| Azimuthal bearing rings | ❌ | Requires azimuthal projection |
-| CQ Zones | ❌ | Zone boundary GeoJSON |
-| ITU Zones | ❌ | Zone boundary GeoJSON |
-| **Map Features** |
-| Interactive world map | ✅ | Leaflet-based |
-| Night/day terminator | ✅ | Gray line overlay |
-| Great-circle paths | ✅ | Short path only |
-| Long path line | ❌ | Opposite direction arc |
-| Zoom/pan | ✅ | Full Leaflet controls |
-| DE marker | ✅ | User QTH |
-| DX marker | ✅ | Selected spot |
-| Sun sub-earth position | ❌ | Solar noon point |
-| Moon sub-earth position | ❌ | Lunar sub-point |
-| NCDXF beacon markers | ❌ | 18 beacon locations |
-| DXpedition markers | ❌ | NG3K/DXNews integration |
-| Satellite ground track | 🟡 | Footprint only, not full orbit |
-| Satellite footprint circles | ✅ | Horizon visibility zone |
-| Map info table (cursor hover) | 🟡 | Spot detail panel |
-| RSS feed overlay | ❌ | Scrolling news ticker |
-| City labels | ❌ | Population-based display |
-| Earthquake markers | ❌ | USGS data |
-| Weather radar overlay | ❌ | Precipitation layer |
-| Symbol legend | ❌ | Band colors, sun/moon icons |
+### ✅ Phase 0: Foundation (Completed)
+**Timeline:** Pre-2026-02-04
+**Status:** Complete
+
+- ✅ Vanilla JS + ES modules architecture
+- ✅ Express stateless backend
+- ✅ Two deployment modes (lanmode/hostedmode)
+- ✅ Basic widget system with drag/drop/resize
+- ✅ POTA/SOTA/DXC/PSK spot integration
+- ✅ Map with gray line and markers
+- ✅ Solar/lunar data and propagation
+- ✅ Satellite tracking (N2YO API)
+- ✅ Weather integration (NWS + Weather Underground)
+- ✅ Filter system with presets
+- ✅ Help system with per-widget documentation
+- ✅ Reference widget (RST + NATO Phonetic)
 
 ---
 
-## 2. Spot Sources & Integration
+### 📅 Phase 1: Critical User Requests (Feb-Mar 2026)
+**Goal:** Address active GitHub issues and most common HamClock user pain points
+**Timeline:** 4-6 weeks
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **POTA/SOTA** |
-| POTA spots | ✅ | api.pota.app |
-| SOTA spots | ✅ | api2.sota.org.uk |
-| WWFF spots | ❌ | WWFF API integration |
-| **DX Cluster** |
-| DX Cluster (live TCP) | 🔵 | HamQTH CSV (HTTP fallback) |
-| DX Cluster commands | ❌ | Native cluster syntax |
-| DXWatch fallback | ❌ | Alternative spot source |
-| Multi-source fallback | ❌ | DX Spider → HamQTH → DXWatch |
-| Telnet proxy microservice | ❌ | Persistent connections |
-| **Digital Modes** |
-| PSKReporter | ✅ | HTTP API integration |
-| PSKReporter MQTT | ❌ | Real-time WebSocket |
-| WSPR | ❌ | wsprnet.org API |
-| RBN (Reverse Beacon) | ❌ | reversebeacon.net API |
-| WSJT-X UDP listener | ❌ | Port 2237, local network |
-| WSJT-X cloud relay | ❌ | Bridge local UDP to cloud |
-| UDP spot input (N1MM) | ❌ | Local network integration |
-| **Other Sources** |
-| DXpeditions list | ❌ | NG3K + DXNews |
-| Contests calendar | ❌ | WA7BNM calendar |
-| ADIF log display | ❌ | File-based QSO log |
-| DX news ticker | ❌ | DXNews.com scraping |
-| **Spot Features** |
-| "My Spots" highlighting | ❌ | When user callsign spotted |
-| Spot retention window | ❌ | 5-30 minute configurable |
-| Click row to select | ✅ | Map and detail integration |
-| Hover-to-highlight | ✅ | Table and map sync |
+#### P1.1: Installation & Configuration 🔥
+| Feature | Status | Priority | Issue | Notes |
+|---------|--------|----------|-------|-------|
+| Configurable port | ❌ | HIGH | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Via .env or CLI arg |
+| Uninstall script | ❌ | HIGH | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | lanmode cleanup |
+| Feedback button | ❌ | MEDIUM | [#88](https://github.com/stevencheist/HamTabv1/issues/88) | Link to GitHub issues |
+| Docker support | ❌ | MEDIUM | — | Container deployment |
 
----
+#### P1.2: Essential Features 🔥
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Units toggle (metric/imperial) | ❌ | HIGH | Miles/km, F/C, in/hPa |
+| Long path display | ❌ | HIGH | Opposite direction great circle |
+| Spot retention window | ❌ | MEDIUM | 5-30 minute configurable max age |
+| "My Spots" highlighting | ❌ | MEDIUM | When user callsign is spotted |
 
-## 3. Filtering & Watch Lists
+#### P1.3: Space Weather History 🔥
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| 30-day solar flux graph | ❌ | HIGH | Historical SFI trend |
+| 7-day K-index graph | ❌ | HIGH | Geomagnetic history |
+| 24-hour X-ray graph | ❌ | HIGH | Flare activity trend |
+| Bz/Bt history | ❌ | MEDIUM | IMF trends |
+| Solar wind history | ❌ | MEDIUM | Speed trends |
+| Aurora history | ❌ | MEDIUM | Auroral activity trends |
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Band filter (multi-select) | ✅ | Dynamic buttons |
-| Mode filter (multi-select) | ✅ | FT8/SSB/CW/etc. |
-| Distance filter | ✅ | Miles/km from QTH |
-| Age filter | ✅ | Minutes since spotted |
-| Country filter | ✅ | POTA/DXC integration |
-| State filter | ✅ | US locations |
-| Grid filter | ✅ | 4-char Maidenhead prefix |
-| Continent filter | ✅ | DXC data |
-| License privilege filter | ✅ | FCC Part 97 bands |
-| Filter presets | ✅ | Save/load combinations |
-| Prefix filter | ❌ | Call prefix matching |
-| Frequency range filter | ❌ | Min-max MHz |
-| ADIF-based filters | ❌ | NADXCC/NAPREF/etc. |
-| Watch list (Red/Only/Not) | ❌ | Highlight vs filter modes |
+**Phase 1 Deliverables:**
+- Users can change port without editing code
+- Clean uninstall for lanmode deployments
+- In-app feedback mechanism
+- Metric/Imperial unit preference
+- Long path display on map
+- Space weather trend analysis (6 history graphs)
 
 ---
 
-## 4. Solar & Space Weather
+### 📅 Phase 2: Watch Lists & Filtering (Mar-Apr 2026)
+**Goal:** Advanced filtering to match HamClock capabilities
+**Timeline:** 4-6 weeks
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **Solar Data** |
-| Solar Flux Index (SFI) | ✅ | NOAA/HamQSL |
-| Sunspot number | ✅ | Current value |
-| Sunspot 30-day history | ❌ | Historical graph |
-| X-Ray flux | ✅ | GOES satellite |
-| X-Ray 24h history | ❌ | Time-series graph |
-| SDO images (multi-wavelength) | ✅ | 4 wavelengths, animated |
-| **Geomagnetic** |
-| K-Index | ✅ | Current + forecast |
-| K-Index 7-day history | ❌ | Historical graph |
-| A-Index | ✅ | Current value |
-| Solar wind speed | ✅ | Current value |
-| Solar wind history | ❌ | Time-series graph |
-| Bz/Bt (IMF) | ✅ | Current value |
-| Bz/Bt history | ❌ | Time-series graph |
-| DST index | ❌ | Kyoto DST |
-| **Aurora & Propagation** |
-| Aurora percentage | ✅ | Current value |
-| Aurora history | ❌ | Time-series graph |
-| Aurora latitude | ✅ | Current value |
-| NOAA Space Weather Scales | ❌ | R/S/G 3-day forecast |
-| DRAP plot | ❌ | 24h max attenuated frequency |
-| Proton flux | ✅ | Current value |
-| Electron flux | ✅ | Current value |
-| Helium line | ✅ | He 10830Å |
-| Geomag field | ✅ | Current value |
-| Signal noise | ✅ | Current value |
-| **HF Conditions** |
-| Band conditions | ✅ | Good/Fair/Poor per band |
-| Day/night toggle | ✅ | 12-hour forecast |
-| Per-band reliability | ✅ | Color-coded grid |
-| VHF phenomena | ✅ | Sporadic E, Tropo, Aurora |
-| Grayline planning tool | ❌ | DE/DX twilight overlap |
+#### P2.1: Watch List Modes 🔥
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Red mode (highlight) | 🟡 | HIGH | Basic highlight exists, needs UI |
+| Only mode (filter) | ❌ | HIGH | Show only matching spots |
+| Not mode (exclude) | ❌ | HIGH | Hide matching spots |
+| Per-source watch lists | ❌ | HIGH | DXC/POTA/SOTA/PSK/ADIF separate |
+| Frequency range filtering | ❌ | MEDIUM | Min-max MHz |
+| Sub-band mode filtering | ❌ | MEDIUM | CW/SSB/RTTY within band |
+
+#### P2.2: ADIF Integration 🔥
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| ADIF log display | ❌ | HIGH | File-based QSO log viewer |
+| ADIF watch list | ❌ | HIGH | Filter against worked-before |
+| Sort by band/call/age/distance | ❌ | MEDIUM | Multiple sort options |
+| Click QSO to set DX | ❌ | MEDIUM | Map integration |
+| File reload on change | ❌ | LOW | Auto-refresh |
+
+**Phase 2 Deliverables:**
+- Red/Only/Not watch list modes for all sources
+- ADIF log integration with filtering
+- Enhanced filter system with frequency ranges
 
 ---
 
-## 5. Propagation Modeling
+### 📅 Phase 3: Propagation Modeling (Apr-May 2026)
+**Goal:** Professional propagation predictions (most requested HamClock feature)
+**Timeline:** 6-8 weeks
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| MUF-RT map (ionosonde) | ✅ | kc2g.com real-time |
-| foF2 map | ✅ | kc2g.com critical frequency |
-| VOACAP reliability graph | ❌ | 24h × band grid ([#91](https://github.com/stevencheist/HamTabv1/issues/91)) |
-| VOACAP map overlay | ❌ | Path reliability from DE ([#91](https://github.com/stevencheist/HamTabv1/issues/91)) |
-| TOA (take-off angle) map | ❌ | Best angle from DE |
-| ITU-R P.533 integration | ❌ | Production-grade modeling |
+#### P3.1: VOACAP Integration 🔥
+| Feature | Status | Priority | Issue | Notes |
+|---------|--------|----------|-------|-------|
+| Reliability graph (24h × band) | ❌ | CRITICAL | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Time/band grid |
+| REL map overlay | ❌ | CRITICAL | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Path reliability from DE |
+| TOA map overlay | ❌ | HIGH | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Take-off angle map |
+| Power level selection | ❌ | MEDIUM | — | 5/50/500W options |
+| Mode selection | ❌ | MEDIUM | — | CW/SSB/RTTY/etc |
 
----
+#### P3.2: Additional Propagation
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| DRAP overlay | ❌ | MEDIUM | D-Region absorption map |
+| Auto space weather mode | ❌ | LOW | Auto-show DRAP/Aurora when active |
+| Grayline planning tool | ❌ | LOW | DE/DX twilight overlap |
 
-## 6. Lunar & EME
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Moon phase image | ✅ | NASA SVS imagery |
-| Moon phase name | ✅ | New/Waxing/Full/etc. |
-| Illumination percentage | ✅ | 0-100% |
-| Declination | ✅ | ±28° range |
-| Distance | ✅ | km from Earth |
-| Path loss (144 MHz) | ✅ | Color-coded dB value |
-| Moon Az/El from DE | ❌ | Observer position |
-| Moon rise/set times | ❌ | Local calculations |
-| Moon radial velocity | ❌ | Doppler relevance |
-| EME planning tool | 🟡 | Have path loss, not DE/DX mutual visibility |
-| Moon rotation movie | ❌ | NASA animation link |
-| Elongation | ✅ | Hidden by default |
-| Ecliptic coordinates | ✅ | Hidden by default |
-| Right ascension | ✅ | Hidden by default |
+**Phase 3 Deliverables:**
+- Full VOACAP integration with REL/TOA maps
+- 24-hour reliability grid
+- DRAP map overlay
 
 ---
 
-## 7. Satellite Tracking
+### 📅 Phase 4: Hardware Integration (May-Jun 2026)
+**Goal:** Support external software and hardware (heavily used by HamClock users)
+**Timeline:** 6-8 weeks
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Multi-satellite tracking | ✅ | Unlimited via N2YO |
-| Amateur satellite database | ✅ | Pre-configured list |
-| Real-time position | ✅ | Az/El/Lat/Lon/Alt |
-| Doppler shift | ✅ | Uplink/downlink |
-| Pass predictions | ✅ | Rise/Max/Set times |
-| Footprint circles | ✅ | Horizon visibility zone |
-| Ground track orbit line | 🟡 | Footprint only, not full orbit |
-| Map markers | ✅ | Real-time position |
-| Satellite selection | ✅ | Add/remove from list |
-| Frequency display | ✅ | Uplinks/downlinks with modes |
-| Sky plot visualization | ❌ | Pass on polar plot |
-| TLE age display | ❌ | Element freshness |
-| User TLE file support | ❌ | Custom satellite definitions |
-| Satellite planning tool | ❌ | DE/DX mutual visibility |
-| SGP4 calculations | 🔵 | N2YO API handles this |
-| TLE from CelesTrak | 🔵 | N2YO API handles this |
+#### P4.1: UDP Spot Input 🔥
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| WSJT-X UDP listener | ❌ | CRITICAL | Port 2237, local network |
+| N1MM+ logger support | ❌ | HIGH | UDP DE-spotted packets |
+| DXLog support | ❌ | HIGH | UDP integration |
+| Log4OM support | ❌ | HIGH | UDP message format |
+| WSJT-X cloud relay | ❌ | MEDIUM | Bridge for hostedmode |
+| Multicast network support | ❌ | LOW | WSJT-X multicast |
 
----
+#### P4.2: hamlib/flrig Integration 🔥
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| rigctld rig control | ❌ | HIGH | Frequency setting from spots |
+| rotctld rotator control | ❌ | HIGH | Beam heading to DX |
+| flrig rig control | ❌ | MEDIUM | Alternative to rigctld |
+| PTT monitoring | ❌ | MEDIUM | "ON THE AIR" indicator |
+| Long path rotator support | ❌ | LOW | Point towards long path |
+| --vfo support | ❌ | LOW | VFO-specific control |
 
-## 8. Weather Integration
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Local weather display | ✅ | Header clock widget |
-| Weather at DX | ✅ | In spot detail panel |
-| Temperature/humidity/wind | ✅ | Current conditions |
-| NWS integration | ✅ | National Weather Service |
-| Weather Underground | ✅ | PWS station support |
-| Weather alerts | ✅ | NWS alert badges |
-| Forecast | ✅ | Short description |
-| Weather backgrounds | ✅ | Contextual header styling |
-| Open-Meteo | ❌ | No API key alternative |
-| OpenWeatherMap | ❌ | Optional API key source |
+**Phase 4 Deliverables:**
+- WSJT-X/N1MM+/DXLog/Log4OM UDP integration
+- hamlib/flrig rig and rotator control
+- PTT status monitoring
 
 ---
 
-## 9. Time & Location
+### 📅 Phase 5: Contests & DXpeditions (Jun-Jul 2026)
+**Goal:** Operating event tracking and planning
+**Timeline:** 4-6 weeks
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| **Time Display** |
-| Local time | ✅ | Digital clock widget |
-| UTC time | ✅ | Separate widget |
-| 12/24 hour toggle | ✅ | User preference |
-| Sun rise/set times | ✅ | On local clock |
-| Rise/set "at" vs "in" toggle | ❌ | Time or countdown |
-| Time shift (planning) | ❌ | View future/past |
-| Stopwatch | ❌ | With lap function |
-| Countdown timer | ❌ | Configurable duration |
-| Daily alarm | ❌ | Repeating |
-| One-time alarm | ❌ | Single occurrence |
-| Big Clock mode | ❌ | Full-screen display |
-| **Location** |
-| Callsign entry | ✅ | Settings modal |
-| Lat/Long entry | ✅ | Manual input |
-| Grid square entry | ✅ | Autocomplete |
-| IP geolocation | ✅ | Browser geolocation API |
-| GPS geolocation | ✅ | Browser geolocation API |
-| QRZ lookup | ✅ | Callsign data |
-| Timezone management | 🟡 | Auto-detect only |
-| **Distance & Bearing** |
-| Distance to DX | ✅ | Great circle |
-| Bearing to DX | ✅ | True bearing |
-| Short/Long path toggle | ❌ | Path selection |
-| Bearings (True/Magnetic) | ❌ | Magnetic declination |
+#### P5.1: Contest Features 🔥
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| WA7BNM calendar integration | ❌ | HIGH | Contest schedule |
+| Highlight contests in progress | ❌ | HIGH | Real-time status |
+| Remove past contests | ❌ | MEDIUM | Auto-cleanup |
+| Click to set alarm | ❌ | MEDIUM | Countdown to start |
+| Click to open contest page | ❌ | LOW | Direct web link |
+| Show dates on 2nd line | ❌ | LOW | UI option |
 
----
+#### P5.2: DXpedition Tracking 🔥
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| NG3K integration | ❌ | HIGH | Active DXpeditions |
+| DXNews integration | ❌ | HIGH | DXpedition news |
+| Map markers | ❌ | HIGH | Show on map |
+| Hide individual DXpeds | ❌ | MEDIUM | User preference |
+| Expedition mode indicator | ❌ | LOW | When spotted |
 
-## 10. UI/UX & Theming
+#### P5.3: Beacons
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| NCDXF beacon display | ❌ | MEDIUM | 18 beacon locations |
+| Frequency rotation schedule | ❌ | MEDIUM | Time-based rotation |
+| Map markers | ❌ | LOW | Show on map |
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Dark theme | ✅ | Default |
-| Light theme | ❌ | Not implemented |
-| Legacy theme (green-on-black) | ❌ | Not implemented |
-| Retro theme (90s GUI) | ❌ | Not implemented |
-| Modern responsive layout | ✅ | Flexbox widgets |
-| Classic fixed layout | ❌ | HamClock-inspired |
-| Widget drag & drop | ✅ | Persistent positions |
-| Widget resize | ✅ | Persistent sizes |
-| Widget visibility toggle | ✅ | Show/hide widgets |
-| Fullscreen mode | ✅ | F11 browser fullscreen |
-| Help system | ✅ | Per-widget help modals |
-| Multi-language support | ❌ | 8+ languages |
-| Theme-based map tiles | ❌ | OSM/OpenTopoMap/satellite |
-| Feedback/bug report button | ❌ | GitHub issues link ([#88](https://github.com/stevencheist/HamTabv1/issues/88)) |
-| Units toggle (Metric/Imperial) | ❌ | Currently miles/Fahrenheit only |
-| Date format | ❌ | 3 format options |
-| Scroll direction | ❌ | Top-down vs bottom-up |
-| Color customization | ❌ | Path/band colors |
-| Pane rotation period | ❌ | Auto-cycle widgets |
-| Map rotation period | ❌ | Auto-cycle styles |
-| Demo mode | ❌ | Auto-changing display |
-| Multiple config profiles | ❌ | A/B save slots |
+**Phase 5 Deliverables:**
+- Contest calendar with real-time status
+- DXpedition tracker with map markers
+- NCDXF beacon display
 
 ---
 
-## 11. Configuration & Persistence
+### 📅 Phase 6: Advanced Map Features (Jul-Aug 2026)
+**Goal:** Enhanced map visualization and projections
+**Timeline:** 6-8 weeks
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| localStorage settings | ✅ | Browser-based |
-| .env server config | ✅ | Backend secrets |
-| Settings modal | ✅ | Comprehensive config UI |
-| Filter persistence | ✅ | Per-source presets |
-| Theme persistence | ✅ | Remembers dark mode |
-| Layout persistence | ✅ | Widget positions/sizes |
-| Spot column visibility | ✅ | Per-source column config |
-| Solar field visibility | ✅ | Configurable metrics |
-| Lunar field visibility | ✅ | Configurable metrics |
-| Map overlay persistence | ✅ | Grid preferences |
-| Reference tab persistence | ✅ | RST vs Phonetic |
-| Configuration save/load | ✅ | localStorage |
-| Configuration export/import | ❌ | JSON file backup |
+#### P6.1: Map Projections
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Azimuthal (DE-centered) | ❌ | HIGH | Custom Leaflet projection |
+| Azimuthal bearing rings | ❌ | HIGH | Requires azimuthal projection |
+| Azimuthal One Globe | ❌ | MEDIUM | Single hemisphere view |
+| Robinson | ❌ | LOW | Equal-area projection |
 
----
+#### P6.2: Map Overlays
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Aurora overlay | ❌ | MEDIUM | NOAA OVATION model |
+| Weather overlay | ❌ | MEDIUM | Temperature/isobars/wind |
+| Clouds (IR satellite) | ❌ | MEDIUM | NOAA GOES imagery |
+| CQ Zones | ❌ | LOW | Zone boundary GeoJSON |
+| ITU Zones | ❌ | LOW | Zone boundary GeoJSON |
+| Tropics lines | ❌ | LOW | ±23.5° latitude lines |
 
-## 12. Hardware Integration
+#### P6.3: Map Features
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Cursor info table (hover) | 🟡 | MEDIUM | Location details on hover |
+| Sun sub-earth position | ❌ | MEDIUM | Solar noon point |
+| Moon sub-earth position | ❌ | MEDIUM | Lunar sub-point |
+| City labels | ❌ | LOW | Population-based display |
+| Symbol legend | ❌ | LOW | Band colors, icons |
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Rotator control (rotctld) | ❌ | hamlib integration |
-| Rig control (rigctld/flrig) | ❌ | Radio frequency setting |
-| KX3 serial control | ➖ | Hardware-specific |
-| BME280 sensor | ➖ | I2C hardware sensor |
-| Light sensor (LTR329) | ➖ | Auto-dimming |
-| GPIO switches/LEDs | ➖ | Raspberry Pi GPIO |
-| NMEA GPS input | ❌ | Serial GPS |
-| gpsd support | ❌ | Network GPS daemon |
-| Display brightness control | ➖ | Hardware-dependent |
-| Display on/off timer | ➖ | Hardware-dependent |
-
----
-
-## 13. Reference Materials
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| RST code reference | ✅ | Tabbed widget |
-| NATO phonetic alphabet | ✅ | Tabbed widget |
-| Band privilege reference | ✅ | FCC Part 97 overlay |
-| Q-codes | ❌ | Planned tab |
-| Common abbreviations | ❌ | Planned tab |
-| Band plan | ❌ | Planned tab |
-| CW abbreviations | ❌ | Planned tab |
+**Phase 6 Deliverables:**
+- Azimuthal projection with bearing rings
+- Aurora map overlay
+- Enhanced cursor info system
 
 ---
 
-## 14. Deployment & Installation
+### 📅 Phase 7: Satellite & EME (Aug-Sep 2026)
+**Goal:** Advanced satellite and moon tracking
+**Timeline:** 4-6 weeks
 
-| Feature | Status | Notes |
-|---------|--------|-------|
-| Git clone + npm | ✅ | Standard Node.js |
-| Raspberry Pi installer | ✅ | install.sh with systemd |
-| Windows installer | ✅ | install.ps1 with service |
-| Docker support | ❌ | Containerization |
-| Kiosk mode (Pi) | ❌ | Fullscreen Chromium |
-| systemd service | ✅ | lanmode |
-| Cloud deployment | ✅ | Cloudflare Containers (hostedmode) |
-| Self-signed TLS | ✅ | lanmode HTTPS |
-| Update checker | ✅ | GitHub Releases (lanmode) |
-| Configurable port | ❌ | Via .env or CLI ([#90](https://github.com/stevencheist/HamTabv1/issues/90)) |
-| Uninstall script | ❌ | Service + files cleanup ([#90](https://github.com/stevencheist/HamTabv1/issues/90)) |
+#### P7.1: Satellite Enhancements
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Ground track orbit line | 🟡 | HIGH | Full orbit, not just footprint |
+| Sky plot visualization | ❌ | HIGH | Polar pass chart |
+| User TLE file support | ❌ | MEDIUM | ~/.hamtab/user-sats.txt |
+| TLE age display | ❌ | MEDIUM | Element freshness warning |
+| Satellite planning tool | ❌ | MEDIUM | DE/DX mutual visibility |
+| Max TLE age configuration | ❌ | LOW | User preference |
 
----
+#### P7.2: Lunar & EME 🔥
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Moon Az/El from DE | ❌ | HIGH | Observer position |
+| Moon rise/set times | ❌ | HIGH | Local calculations |
+| EME planning tool | 🟡 | MEDIUM | Full DE/DX mutual visibility |
+| Moon radial velocity | ❌ | LOW | Doppler calculations |
+| Moon rotation movie link | ❌ | LOW | NASA animation |
 
-## 15. Other Features
-
-| Feature | Status | Notes |
-|---------|--------|-------|
-| NCDXF beacons display | ❌ | Frequency rotation |
-| Callsign bio lookup | 🟡 | QRZ link in detail panel |
-| NTP configuration | ➖ | Browser uses system time |
-| Symbol legend | ❌ | Band colors, icons |
-
----
-
-## Implementation Priorities
-
-### User-Requested (Active GitHub Issues)
-These items have been requested by users and are prioritized for implementation.
-
-1. ❌ **VOACAP propagation views** — Band condition charts and predictions ([#91](https://github.com/stevencheist/HamTabv1/issues/91))
-2. ❌ **Configurable port** — Allow changing web UI port via .env or CLI ([#90](https://github.com/stevencheist/HamTabv1/issues/90))
-3. ❌ **Uninstall script** — Clean removal of service and files ([#90](https://github.com/stevencheist/HamTabv1/issues/90))
-4. ❌ **Feedback button** — In-app link to GitHub issues for bug reports ([#88](https://github.com/stevencheist/HamTabv1/issues/88))
-
-### Recently Completed
-- ✅ **Help system** — Per-widget help modals with sections and links (2026-02-04)
-- ✅ **Reference widget redesign** — Tabbed RST + NATO Phonetic with persistence (2026-02-04)
-- ✅ **PSKReporter integration** — Digital mode reception reports with SNR levels
-- ✅ **DX Cluster integration** — Multi-source spot management
-- ✅ **Enhanced satellite tracking** — Multi-satellite tracking with N2YO API, Doppler, passes
-- ✅ **Richer filter system** — 9-category filtering with presets and persistence
-- ✅ **Per-band propagation predictions** — Individual band reliability with MUF-based calculations
-
-### Phase 1: Core Feature Parity (High Priority)
-1. ❌ **Long path line display** — Opposite direction great circle
-2. ❌ **WWFF spot integration** — World Wide Flora & Fauna API
-3. ❌ **VOACAP propagation predictions** — Professional propagation modeling ([#91](https://github.com/stevencheist/HamTabv1/issues/91))
-4. ❌ **DXpeditions list/map** — NG3K + DXNews integration
-5. ❌ **Contests calendar** — WA7BNM calendar integration
-6. ❌ **Solar/space weather history graphs** — 30-day SFI, 7-day Kp, 24h X-ray
-7. ❌ **NCDXF beacon display** — 18 beacon stations, frequency rotation
-8. ❌ **Moon Az/El/rise/set calculations** — Observer-relative lunar position
-9. ❌ **Stopwatch/countdown timer** — Shack utility tools
-10. ❌ **Units toggle** — Metric/Imperial preference
-
-### Phase 2: Advanced Features (Medium Priority)
-1. ❌ **Live DX Cluster TCP** — Telnet proxy microservice for persistent connections
-2. ❌ **PSKReporter MQTT** — Real-time WebSocket integration
-3. ❌ **WSPR integration** — wsprnet.org API
-4. ❌ **RBN integration** — Reverse Beacon Network API
-5. ❌ **WSJT-X UDP listener** — Port 2237, local network + cloud relay
-6. ❌ **ADIF log display** — QSO log viewer
-7. ❌ **Watch list system** — Red/Only/Not filter modes
-8. ❌ **Satellite sky plot** — Polar pass visualization
-9. ❌ **EME planning tool** — DE/DX mutual moon visibility
-10. ❌ **Grayline planning tool** — DE/DX twilight overlap calculator
-11. ❌ **CQ/ITU zone overlays** — Zone boundary GeoJSON
-12. ❌ **Aurora map overlay** — NOAA OVATION model
-13. ❌ **DRAP map overlay** — D-Region Absorption Prediction
-
-### Phase 3: Hardware Integration (Lower Priority for Web)
-1. ❌ **hamlib rotctld** — Rotator control integration
-2. ❌ **hamlib rigctld** — Radio control integration
-3. ❌ **flrig** — Alternative radio control
-4. ❌ **UDP spot receiver** — N1MM+ and other logger integration
-5. ❌ **gpsd** — Network GPS daemon integration
-
-### Phase 4: UI/UX Enhancements
-1. ❌ **Multi-language support** — 8+ languages (Spanish, French, German, Japanese, etc.)
-2. ❌ **Light theme** — Day mode color palette
-3. ❌ **Multiple themes** — Legacy/retro options
-4. ❌ **Azimuthal map projection** — DE-centered view
-5. ❌ **RSS ticker overlay** — Scrolling DX news
-6. ❌ **Map info table popup** — Cursor hover details
-7. ❌ **Fixed layout mode** — Classic HamClock visual layout
-8. ❌ **Plugin system** — Custom map overlay architecture
-9. ❌ **Color customization** — User-defined palette
-10. ❌ **Demo mode** — Auto-rotating display
-
-### Phase 5: Additional Features (Lower Priority)
-1. ❌ **Earthquake overlay** — USGS integration
-2. ❌ **Weather radar overlay** — Precipitation layer
-3. ❌ **Docker deployment** — Container support
-4. ❌ **Kiosk mode** — Auto-launch fullscreen for dedicated displays
-5. ❌ **ITU-R P.533 propagation** — Production-grade modeling microservice
-6. ❌ **Configuration export/import** — JSON backup/restore
+**Phase 7 Deliverables:**
+- Full satellite orbit visualization
+- Sky plot charts for passes
+- Lunar Az/El and rise/set times
+- DE/DX EME planning tool
 
 ---
 
-## Data Source Mapping
+### 📅 Phase 8: UI/UX Enhancements (Sep-Oct 2026)
+**Goal:** Customization and usability improvements
+**Timeline:** 4-6 weeks
 
-| Data Type | Current Source | Status |
-|-----------|---------------|--------|
-| Solar indices | hamqsl.com | ✅ Working |
-| X-ray flux | NOAA SWPC | ✅ Working |
-| TLE/satellite data | N2YO API | ✅ Working |
-| Solar images | sdo.gsfc.nasa.gov | ✅ Working |
-| Moon images | svs.gsfc.nasa.gov | ✅ Working |
-| Weather (US) | NWS + Weather Underground | ✅ Working |
-| Ionosonde data | kc2g.com | ✅ Working |
-| Callsign lookup | callook.info / QRZ | ✅ Working |
-| POTA spots | api.pota.app | ✅ Working |
-| SOTA spots | api2.sota.org.uk | ✅ Working |
-| DXC spots | HamQTH CSV | ✅ Working |
-| PSKReporter | pskreporter.info | ✅ Working |
-| Contests | WA7BNM | ❌ Need API/scrape |
-| DXpeditions | NG3K / DXNews | ❌ Need API/scrape |
-| VOACAP | voacap.com | ❌ Need integration ([#91](https://github.com/stevencheist/HamTabv1/issues/91)) |
-| WSPR | wspr.live | ❌ Need API |
-| RBN | reversebeacon.net | ❌ Need API |
-| WWFF | wwff.co | ❌ Need API |
-| DST index | Kyoto University | ❌ Need API |
-| DRAP | NOAA SWPC | ❌ Need API |
+#### P8.1: Configuration Management
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Multiple configuration profiles | ❌ | HIGH | A/B/C save slots |
+| Configuration export/import | ❌ | HIGH | JSON backup/restore |
+| Configuration rename | ❌ | LOW | Label profiles |
+
+#### P8.2: Theming & Customization
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Color customization | ❌ | MEDIUM | Path/band colors, RGB editor |
+| Light theme | ❌ | MEDIUM | Day mode palette |
+| Multiple color palettes | ❌ | MEDIUM | Save/load palettes |
+| Gray scale mode | ❌ | LOW | Monochrome display |
+
+#### P8.3: Display Modes
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Pane rotation | ❌ | MEDIUM | Auto-cycle widgets on timer |
+| Demo mode | ❌ | MEDIUM | Auto-rotating kiosk display |
+| Big Clock mode | ❌ | LOW | Full-screen clock |
+| Kiosk mode | ❌ | LOW | Auto-launch fullscreen (RPi) |
+
+#### P8.4: Other UX
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Stopwatch | ❌ | MEDIUM | With lap function |
+| Countdown timer | ❌ | MEDIUM | Station ID timer |
+| Daily alarm | ❌ | MEDIUM | Repeating alarms |
+| One-time alarm | ❌ | MEDIUM | Single occurrence |
+| Time shift planning | ❌ | LOW | View future/past conditions |
+
+**Phase 8 Deliverables:**
+- Multiple configuration profiles with export/import
+- Color customization and light theme
+- Stopwatch and countdown timers
 
 ---
 
-## Technical Notes
+### 📅 Phase 9: Advanced Integration (Oct-Nov 2026)
+**Goal:** External data sources and hardware
+**Timeline:** 4-6 weeks
 
-### Architecture Considerations
+#### P9.1: DX Cluster Live TCP 🔥
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Telnet proxy microservice | ❌ | HIGH | Persistent Spider connections |
+| DX Cluster commands | ❌ | HIGH | Native cluster syntax |
+| AR-Cluster support | ❌ | MEDIUM | Alternative cluster type |
+| CC-Cluster support | ❌ | MEDIUM | Alternative cluster type |
+| DXWatch fallback | ❌ | MEDIUM | If primary fails |
+| Multi-source fallback | ❌ | LOW | Automatic failover |
 
-**Current HamTab Architecture:**
-- Vanilla JS + ES modules → esbuild IIFE bundle
-- Express backend (stateless, no database)
+#### P9.2: Digital Modes
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| PSKReporter MQTT | ❌ | MEDIUM | Real-time WebSocket |
+| WSPR integration | ❌ | MEDIUM | wsprnet.org API |
+| RBN integration | ❌ | MEDIUM | Reverse Beacon Network |
+| WWFF spots | ❌ | LOW | World Flora & Fauna |
+
+#### P9.3: Additional Sources
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| RSS feeds (configurable) | ❌ | MEDIUM | User-defined feeds |
+| DX news ticker | ❌ | LOW | Scrolling headlines |
+| RSS ticker overlay | ❌ | LOW | On-map display |
+
+**Phase 9 Deliverables:**
+- Live DX Cluster TCP connections
+- PSKReporter MQTT real-time feed
+- WSPR and RBN integration
+
+---
+
+### 📅 Phase 10: Polish & Community (Nov-Dec 2026)
+**Goal:** Final features and community contributions
+**Timeline:** 4-6 weeks
+
+#### P10.1: Monitoring & Diagnostics
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| CPU temperature display | ❌ | LOW | Below callsign (if available) |
+| CPU temp history graphs | ❌ | LOW | Hour/day trends |
+| Disk space monitoring | ❌ | LOW | % full indicator |
+| Auto-remove old cache | ❌ | LOW | When disk nearly full |
+
+#### P10.2: Multi-User Features
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Read-only web connections | ❌ | MEDIUM | View-only port (8082) |
+| Multi-session proxy | ❌ | LOW | Per-IP instances (hostedmode) |
+| RESTful API expansion | ❌ | LOW | Additional endpoints |
+
+#### P10.3: Accessibility
+| Feature | Status | Priority | Notes |
+|---------|--------|----------|-------|
+| Multi-language support | ❌ | LOW | i18n (8+ languages) |
+| Keyboard navigation | ❌ | LOW | Full keyboard control |
+| Screen reader support | ❌ | LOW | ARIA labels |
+
+**Phase 10 Deliverables:**
+- System monitoring (CPU temp, disk space)
+- Read-only web access mode
+- Enhanced REST API
+
+---
+
+## Feature Status Matrix
+
+### By Category
+
+| Category | Total | Implemented | Partial | Not Impl | Completion |
+|----------|-------|-------------|---------|----------|------------|
+| Map Features & Projections | 32 | 9 | 4 | 19 | 28% |
+| Spot Sources & Integration | 20 | 5 | 1 | 14 | 25% |
+| Filtering & Watch Lists | 14 | 9 | 0 | 5 | 64% |
+| Solar & Space Weather | 19 | 11 | 6 | 2 | 58% |
+| Propagation Modeling | 7 | 2 | 0 | 5 | 29% |
+| Lunar & EME | 12 | 6 | 1 | 5 | 50% |
+| Satellite Tracking | 15 | 5 | 2 | 8 | 33% |
+| Weather Integration | 9 | 7 | 0 | 2 | 78% |
+| Time & Location | 21 | 10 | 1 | 10 | 48% |
+| UI/UX & Theming | 23 | 6 | 0 | 17 | 26% |
+| Configuration & Persistence | 13 | 10 | 0 | 3 | 77% |
+| Hardware Integration | 9 | 0 | 0 | 9 | 0% |
+| Reference Materials | 7 | 3 | 0 | 4 | 43% |
+| Deployment & Installation | 11 | 8 | 0 | 3 | 73% |
+| Other Features | 3 | 1 | 1 | 1 | 33% |
+| **TOTAL** | **215** | **92** | **16** | **107** | **43%** |
+
+### By Priority (High Demand 🔥 Features)
+
+| Feature | Phase | Status | User Demand |
+|---------|-------|--------|-------------|
+| VOACAP integration | P3 | ❌ | CRITICAL |
+| UDP spot input (WSJT-X) | P4 | ❌ | CRITICAL |
+| Configurable port | P1 | ❌ | HIGH |
+| Uninstall script | P1 | ❌ | HIGH |
+| Units toggle | P1 | ❌ | HIGH |
+| Long path display | P1 | ❌ | HIGH |
+| Space weather graphs | P1 | ❌ | HIGH |
+| Watch list modes | P2 | 🟡 | HIGH |
+| ADIF integration | P2 | ❌ | HIGH |
+| hamlib/flrig | P4 | ❌ | HIGH |
+| Contest calendar | P5 | ❌ | HIGH |
+| DXpeditions tracker | P5 | ❌ | HIGH |
+| Azimuthal projection | P6 | ❌ | HIGH |
+| Satellite sky plot | P7 | ❌ | HIGH |
+| Moon Az/El | P7 | ❌ | HIGH |
+
+---
+
+## Active GitHub Issues
+
+| Issue | Title | Status | Phase | Priority |
+|-------|-------|--------|-------|----------|
+| [#88](https://github.com/stevencheist/HamTabv1/issues/88) | Feedback button | ❌ | P1 | MEDIUM |
+| [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Configurable port | ❌ | P1 | HIGH |
+| [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Uninstall script | ❌ | P1 | HIGH |
+| [#91](https://github.com/stevencheist/HamTabv1/issues/91) | VOACAP propagation | ❌ | P3 | CRITICAL |
+
+---
+
+## Development Milestones
+
+### June 2026: HamClock EOL
+**Goal:** Provide viable alternative before HamClock shutdown
+
+**Required for HamClock migration:**
+- ✅ Basic spot sources (POTA/SOTA/DXC/PSK)
+- ✅ Map with gray line and markers
+- ✅ Solar/lunar data
+- ✅ Satellite tracking
+- ✅ Weather integration
+- ✅ Filter system
+- ❌ VOACAP propagation (P3)
+- ❌ UDP spot input (P4)
+- ❌ Space weather graphs (P1)
+- ❌ Watch list modes (P2)
+
+### September 2026: Feature Parity
+**Goal:** Match or exceed core HamClock capabilities
+
+**Core feature parity:**
+- All Phase 1-5 features completed
+- VOACAP integration
+- UDP integration (WSJT-X/N1MM+)
+- Contest/DXpedition tracking
+- Space weather history
+- Advanced filtering
+
+### December 2026: Community Edition
+**Goal:** Community-driven features and polish
+
+**Community features:**
+- Phases 6-10 advanced features
+- Multi-language support
+- RESTful API expansion
+- User contributions integration
+
+---
+
+## Data Source Strategy
+
+### Current (Implemented ✅)
+- **Solar/Space Weather:** hamqsl.com, NOAA SWPC
+- **Solar Images:** sdo.gsfc.nasa.gov
+- **Moon Images:** svs.gsfc.nasa.gov
+- **Ionosonde:** kc2g.com (MUF-RT, foF2)
+- **Satellites:** N2YO API
+- **Weather:** NWS, Weather Underground
+- **Callsign:** callook.info, QRZ
+- **Spots:** api.pota.app, api2.sota.org.uk, HamQTH CSV, pskreporter.info
+
+### Planned (By Phase)
+- **P3:** VOACAP.com (propagation modeling)
+- **P3:** NOAA SWPC (DRAP overlay)
+- **P4:** WSJT-X UDP (local network)
+- **P4:** N1MM+/DXLog/Log4OM UDP
+- **P5:** WA7BNM (contests calendar)
+- **P5:** NG3K, DXNews (DXpeditions)
+- **P6:** NOAA OVATION (aurora overlay)
+- **P6:** NOAA GOES (cloud imagery)
+- **P9:** DX Spider/AR/CC (live cluster)
+- **P9:** wsprnet.org (WSPR spots)
+- **P9:** reversebeacon.net (RBN)
+
+### Critical: No clearskyinstitute.com Dependency
+All data sources are publicly available APIs. HamTab is fully self-sufficient and will continue functioning after June 2026.
+
+---
+
+## Architecture Roadmap
+
+### Current Architecture
+- Vanilla JS + ES modules → esbuild IIFE
+- Express stateless backend
 - No framework dependencies
-- Direct API integrations (no microservices)
+- Direct API integrations
 - Two deployment modes (lanmode/hostedmode)
 
-**Potential Enhancements:**
-- Optional proxy microservices for persistent connections (DX cluster, propagation modeling)
-- WebSocket integration for real-time data streams (PSKReporter MQTT, live clusters)
-- Plugin/overlay system for extensibility
+### Planned Enhancements
+
+#### P3: VOACAP Microservice
+- Optional propagation modeling service
+- Separate container/process for compute-intensive VOACAP
+- REST API for REL/TOA map generation
+
+#### P4: UDP Gateway
+- Local network listener for WSJT-X/N1MM+
+- Optional cloud relay for hostedmode
+- WebSocket bridge for browser clients
+
+#### P9: Cluster Proxy
+- Telnet proxy for DX Spider/AR/CC
+- Persistent connection management
+- Multiple client support
+- Rate limiting and abuse prevention
+
+#### Future Considerations
+- WebSocket for real-time updates (PSKReporter MQTT)
 - Service worker for offline capability
-
-### Integration Opportunities
-
-1. **DX Cluster** — Implement telnet proxy microservice for persistent Spider connections
-2. **PSKReporter** — MQTT WebSocket for real-time, HTTP fallback for reliability
-3. **WSJT-X** — UDP listener on port 2237, optional cloud relay for hostedmode
-4. **Map Overlays** — Plugin architecture could integrate with existing widget system
-5. **Themes** — CSS custom properties already in use, easy to add more
-
-### Security Considerations
-
-- DX Spider proxy must validate telnet connections and prevent abuse
-- WSJT-X UDP listener needs LAN-only binding in lanmode
-- PSKReporter MQTT requires WebSocket CSP updates
-- Map overlay plugins need SSRF prevention for user-provided URLs
-- DXNews/contest scraping must sanitize HTML content
-- All external API calls proxied through server (no client-side external requests)
-
-### Web vs Hardware Limitations
-
-HamTab is web-based, so some hardware features are not applicable:
-- ➖ GPIO switches/LEDs (Raspberry Pi hardware)
-- ➖ I2C sensors (BME280, LTR329)
-- ➖ Display brightness control (hardware-dependent)
-- ➖ KX3 serial control (hardware-specific)
-
-These features can be implemented for lanmode deployments with optional hardware integration scripts, but are not core to the web dashboard.
+- Plugin architecture for custom overlays
+- GraphQL API for complex queries
 
 ---
 
-## Notes
+## Security Roadmap
 
-- Priority should be given to features that use publicly available APIs
-- Consider community API contributions for missing data sources
-- HamTab uses a flexible widget layout vs fixed pixel positions
-- User-requested features (GitHub issues) take highest priority
-- Recent work focuses on user experience improvements (help system, reference materials)
+### Current (Implemented ✅)
+- Helmet CSP enforcement
+- Rate limiting on all API routes
+- SSRF prevention (IP validation)
+- No client-side external requests
+- Input sanitization and validation
+- XSS prevention (textContent, esc() utility)
+- Self-signed TLS (lanmode)
+- Cloudflare Access auth (hostedmode)
+
+### Planned Enhancements
+
+#### P3-P4: Microservice Security
+- Cluster proxy: telnet connection validation
+- UDP gateway: LAN-only binding (lanmode)
+- VOACAP service: request validation and rate limiting
+
+#### P9: WebSocket Security
+- PSKReporter MQTT: CSP updates for WebSocket
+- Authentication tokens for multi-user sessions
+- TLS for all WebSocket connections
+
+#### P10: API Security
+- API key authentication for RESTful endpoints
+- Granular permissions (read-only vs admin)
+- Audit logging for configuration changes
 
 ---
 
-*Last updated: 2026-02-04*
+## Testing Strategy
+
+### Phase 1-2: Core Features
+- Unit tests for filter logic
+- Integration tests for spot sources
+- Browser compatibility (Chrome, Firefox, Safari)
+- Mobile responsive testing
+
+### Phase 3-4: External Integration
+- VOACAP API integration tests
+- UDP message parsing tests
+- hamlib/flrig mock integration tests
+- Network failure resilience
+
+### Phase 5-6: Advanced Features
+- Map projection accuracy tests
+- Overlay rendering performance tests
+- Contest/DXpedition data parsing tests
+
+### Phase 7-10: Polish
+- Multi-configuration switching tests
+- Theme rendering tests
+- Accessibility audits
+- Load testing (multi-user scenarios)
+
+---
+
+## Documentation Roadmap
+
+### User Documentation
+- ✅ CLAUDE.md (developer guide)
+- ✅ Help system (in-app widget help)
+- ❌ User guide (comprehensive manual)
+- ❌ FAQ (common questions)
+- ❌ Installation guides (per platform)
+- ❌ Video tutorials (YouTube)
+
+### Developer Documentation
+- ✅ README.md (project overview)
+- ✅ Code comments (inline documentation)
+- ❌ API documentation (RESTful endpoints)
+- ❌ Architecture guide (system design)
+- ❌ Contributing guide (for community)
+
+### Migration Guides
+- ❌ HamClock to HamTab migration guide
+- ❌ Configuration import/export guide
+- ❌ Feature comparison matrix
+- ❌ Troubleshooting guide
+
+---
+
+## Community & Contributions
+
+### Contribution Opportunities
+1. **Docker deployment** — Community-maintained containers
+2. **Platform-specific installers** — macOS, FreeBSD, Arch AUR
+3. **Translation** — Multi-language support (Phase 10)
+4. **Custom themes** — Color palettes and layouts
+5. **Scripts & automation** — Integration examples
+6. **Documentation** — Guides, tutorials, videos
+
+### User Contributions Wishlist (from HamClock)
+- Multi-user web proxy (hostedmode enhancement)
+- Static compilation for TrueNAS/NAS
+- ProxMox/LXC deployment guide
+- RESTful API wrapper scripts
+- Automation examples (QRZ lookup, RSS loading)
+- Platform-specific optimizations
+
+---
+
+## Success Metrics
+
+### June 2026 (HamClock EOL)
+- **User migration:** 1,000+ former HamClock users
+- **Feature completion:** 60% of roadmap features
+- **Critical features:** VOACAP, UDP input, watch lists
+
+### September 2026 (Feature Parity)
+- **User adoption:** 2,500+ active users
+- **Feature completion:** 75% of roadmap features
+- **GitHub stars:** 250+
+- **Community contributions:** 10+ contributors
+
+### December 2026 (Community Edition)
+- **User adoption:** 5,000+ active users
+- **Feature completion:** 90% of roadmap features
+- **Multi-language:** 3+ languages supported
+- **Deployment options:** Docker, native, cloud
+
+---
+
+## Risk Mitigation
+
+### Timeline Risks
+- **VOACAP integration complexity** — May require 8-10 weeks instead of 6-8
+  - Mitigation: Start research in P1, plan microservice architecture early
+- **UDP integration scope** — Supporting 4+ logger formats may take longer
+  - Mitigation: Prioritize WSJT-X first, add others incrementally
+- **HamClock EOL pressure** — June 2026 deadline is firm
+  - Mitigation: Focus P1-P4 on critical migration features
+
+### Technical Risks
+- **VOACAP API availability** — Third-party service may be unreliable
+  - Mitigation: Consider self-hosted VOACAP engine
+- **DX Cluster stability** — Telnet connections can be flaky
+  - Mitigation: Implement robust reconnection logic, HTTP fallback
+- **Browser compatibility** — Advanced features may not work on all browsers
+  - Mitigation: Feature detection, graceful degradation
+
+### Resource Risks
+- **Solo development** — All phases depend on single developer
+  - Mitigation: Prioritize ruthlessly, accept community contributions
+- **API rate limits** — External APIs may throttle requests
+  - Mitigation: Implement caching, respect rate limits, batch requests
+
+---
+
+## Conclusion
+
+This roadmap provides a clear path from the current 43% feature completion to a comprehensive amateur radio dashboard by December 2026. The phased approach prioritizes:
+
+1. **User needs** (Phases 1-2) — Address active issues and common pain points
+2. **Core functionality** (Phases 3-5) — Propagation, hardware integration, events
+3. **Advanced features** (Phases 6-8) — Maps, satellites, customization
+4. **Integration** (Phase 9) — Live data feeds and external tools
+5. **Polish** (Phase 10) — Monitoring, accessibility, community
+
+By June 2026, HamTab will provide a viable alternative for ~10,000 HamClock users facing the shutdown of their installations. The web-based architecture, self-hosted data sources, and modern UI position HamTab as the successor to HamClock while serving the broader amateur radio community.
+
+**Next Actions:**
+1. Complete Phase 1.1 features ([#88](https://github.com/stevencheist/HamTabv1/issues/88), [#90](https://github.com/stevencheist/HamTabv1/issues/90))
+2. Implement units toggle and long path display (Phase 1.2)
+3. Add space weather history graphs (Phase 1.3)
+4. Begin VOACAP research and architecture planning (Phase 3)
+
+---
+
+*Roadmap unified from ROADMAP.md and HAMCLOCK_INSIGHTS.md on 2026-02-04*

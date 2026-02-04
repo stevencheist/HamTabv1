@@ -33,7 +33,7 @@ function doFetchWeather() {
       const hum = data.humidity != null ? data.humidity + '%' : '';
       let line1 = [name, tempStr, cond].filter(Boolean).join('  ');
       let line2 = ['W: ' + wind.trim(), hum ? 'H: ' + hum : ''].filter(Boolean).join('  ');
-      $('clockLocalWeather').innerHTML = line1 + '<br>' + line2;
+      $('clockLocalWeather').innerHTML = esc(line1) + '<br>' + esc(line2);
       setWxSource('wu');
     }).catch(() => {
       $('clockLocalWeather').textContent = '';
@@ -60,7 +60,7 @@ export function fetchNwsConditions() {
       const hum = data.relativeHumidity != null ? data.relativeHumidity + '%' : '';
       let line1 = [tempStr, cond].filter(Boolean).join('  ');
       let line2 = [wind ? 'W: ' + wind : '', hum ? 'H: ' + hum : ''].filter(Boolean).join('  ');
-      $('clockLocalWeather').innerHTML = line1 + (line2 ? '<br>' + line2 : '');
+      $('clockLocalWeather').innerHTML = esc(line1) + (line2 ? '<br>' + esc(line2) : '');
       setWxSource('nws');
     }
   }).catch(err => {
@@ -154,7 +154,7 @@ export function initWeatherListeners() {
         '<div class="wx-alert-event wx-sev-' + (a.severity || 'Unknown') + '">' + esc(a.event) + ' (' + esc(a.severity) + ')</div>' +
         '<div class="wx-alert-headline">' + esc(a.headline || '') + '</div>' +
         '<div class="wx-alert-desc">' + esc(a.description || '') + '</div>' +
-        (a.web ? '<div class="wx-alert-link"><a href="' + esc(a.web) + '" target="_blank" rel="noopener">View on NWS website</a></div>' : '');
+        (a.web && /^https?:\/\//.test(a.web) ? '<div class="wx-alert-link"><a href="' + esc(a.web) + '" target="_blank" rel="noopener">View on NWS website</a></div>' : '');
       wxAlertList.appendChild(div);
     }
     $('wxAlertSplash').classList.remove('hidden');

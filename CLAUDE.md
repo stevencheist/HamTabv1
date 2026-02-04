@@ -11,6 +11,7 @@ HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanill
   - **Lanmode** — Self-hosted on Windows, Linux, or Raspberry Pi. Users download releases and run locally with self-signed TLS.
 - **Shared codebase** — All features that apply to both modes live on `main`. Deployment-specific code stays on its branch.
 - **Minimal divergence** — Hostedmode contains only what's necessary for Cloudflare (Worker, Dockerfile, KV sync, CI/CD). Lanmode contains only what's necessary for self-hosting (self-signed TLS, CORS restrictions, update checker).
+- **Beginner-friendly, expert-capable** — The UI and help text must be approachable for newly licensed hams while still providing the advanced features experienced operators expect. Help popups should clearly explain what each widget does, why it's useful, and how to use it — never assume the user knows ham radio jargon without context.
 
 ## Architecture
 

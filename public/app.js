@@ -722,42 +722,42 @@
       WIDGET_HELP = {
         "widget-filters": {
           title: "Filters",
-          description: "Filter spots by band, mode, distance, age, and location.",
+          description: "Narrow down the spot list to find exactly what you're looking for. Filters let you focus on specific bands, modes, nearby stations, or recent activity.",
           sections: [
-            { heading: "Multi-Select Filters", content: "Click multiple bands or modes to filter. Click again to deselect." },
-            { heading: "Distance Filter", content: "Filters spots within N miles/km of your QTH. Requires location to be set." },
-            { heading: "Age Filter", content: "Filters spots posted within the last N minutes." },
-            { heading: "Presets", content: "Save and load filter combinations for quick switching between common setups." }
+            { heading: "Band & Mode Filters", content: "Click one or more bands (like 20m, 40m) or modes (like FT8, SSB) to show only those spots. Click again to deselect. You can select as many as you want." },
+            { heading: "Distance Filter", content: "Show only spots within a certain distance from your location (QTH). You'll need to set your location in Config first. Great for finding nearby activations you can reach." },
+            { heading: "Age Filter", content: "Show only spots posted within the last N minutes. Older spots may no longer be active, so this helps you find stations that are on the air right now." },
+            { heading: "Presets", content: 'Save your favorite filter combinations and switch between them quickly. For example, save a "Local FT8" preset for nearby digital spots, and a "DX SSB" preset for long-distance voice contacts.' }
           ]
         },
         "widget-activations": {
           title: "On the Air",
-          description: "Live spots from POTA, SOTA, DX Cluster, and PSKReporter.",
+          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from four sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), and PSKReporter (digital mode reception reports).",
           sections: [
-            { heading: "POTA Columns", content: "Callsign, Frequency, Mode, Park Reference (clickable link), Park Name, Spot Time, Age" },
-            { heading: "SOTA Columns", content: "Callsign, Frequency, Mode, Summit Reference (clickable link), Summit Details, Spot Time, Age" },
-            { heading: "DXC Columns", content: "DX Station, Frequency, Mode, Spotter, Country, Continent, Spot Time, Age" },
-            { heading: "PSK Columns", content: "TX Callsign, Frequency, Mode, RX Callsign, SNR, TX Grid, RX Grid, Spot Time, Age" },
-            { heading: "Click Row", content: "Click a row to select and view details, show on map, and draw geodesic path." }
+            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, SOTA, DXC, and PSK sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
+            { heading: "POTA", content: "Shows operators activating parks for the Parks on the Air program. Click the park reference link to see park details on the POTA website." },
+            { heading: "SOTA", content: "Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details." },
+            { heading: "DX Cluster", content: "Worldwide spots from the DX Cluster network. Great for finding rare or distant (DX) stations." },
+            { heading: "PSK Reporter", content: "Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions." }
           ]
         },
         "widget-map": {
           title: "HamMap",
-          description: "Interactive map showing spots, your QTH, satellites, and propagation overlays.",
+          description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
           sections: [
-            { heading: "Markers", content: "Click markers to select spots. Selected spot shows in DX Detail widget." },
-            { heading: "Overlays", content: "Toggle lat/lon grid, Maidenhead grid, timezones, and propagation layers via gear icon." },
-            { heading: "Center Mode", content: "Choose QTH (your location) or Spot (selected spot) centering in Config." },
-            { heading: "Geodesic Line", content: "Shows great-circle path from your QTH to selected spot." }
+            { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
+            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, and propagation layers." },
+            { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
+            { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
           ]
         },
         "widget-solar": {
           title: "Solar",
-          description: "Real-time solar conditions and space weather data from HamQSL.",
+          description: "Real-time space weather data that affects radio propagation. The sun's activity directly determines which bands are open and how far your signal can travel.",
           sections: [
-            { heading: "Key Metrics", content: "Solar Flux (SFI), Sunspots, A-Index, K-Index, X-Ray flux, and more." },
-            { heading: "Color Coding", content: "A-Index, K-Index, Solar Wind, Bz, Aurora, and Geomag Field are color-coded (green = good, yellow = fair, red = poor)." },
-            { heading: "Custom Fields", content: "Click gear icon to show/hide fields. Default shows SFI, Sunspots, A/K-Index, X-Ray, Signal Noise." }
+            { heading: "What This Shows", content: "Solar Flux (SFI) and Sunspot Number indicate overall solar activity \u2014 higher values generally mean better HF propagation. The A-Index and K-Index measure geomagnetic disturbance \u2014 lower is better for radio." },
+            { heading: "Color Coding", content: "Values are color-coded: green means good conditions for radio, yellow means fair, and red means poor or disturbed. Watch the K-Index especially \u2014 values above 4 can shut down HF bands." },
+            { heading: "Customize Fields", content: "Click the gear icon to show or hide individual fields. By default, the most useful metrics are shown. Advanced users can enable additional fields like solar wind speed, Bz component, and aurora activity." }
           ],
           links: [
             { label: "HamQSL Space Weather", url: "https://www.hamqsl.com/solar.html" }
@@ -765,23 +765,24 @@
         },
         "widget-propagation": {
           title: "Band Conditions",
-          description: "Global propagation forecast showing MUF, Signal Strength, and SNR by band.",
+          description: "A forecast of current HF band conditions by region. This helps you decide which band to use based on where you want to communicate.",
           sections: [
-            { heading: "Metrics", content: "Choose between MUFD (Maximum Usable Frequency Day), SS (Signal Strength), or SNR." },
-            { heading: "Day/Night Toggle", content: "View current conditions or 12-hour forecast (day \u2194 night)." },
-            { heading: "Color Scale", content: "Green/yellow/red gradient shows propagation quality. Hover for values." }
+            { heading: "How to Read It", content: "Each row is a geographic region. The columns show band condition ratings. Green means the band is likely open to that region, yellow means marginal, and red means closed or poor." },
+            { heading: "Metrics", content: "Choose what to display: MUFD (Maximum Usable Frequency \u2014 the highest frequency likely to work), Signal Strength, or SNR (Signal-to-Noise Ratio). MUFD is the most commonly used." },
+            { heading: "Day/Night Toggle", content: "Switch between current conditions and the 12-hour forecast. Propagation changes significantly between day and night." }
           ],
           links: [
-            { label: "NOAA SWPC", url: "https://www.swpc.noaa.gov/" }
+            { label: "NOAA Space Weather", url: "https://www.swpc.noaa.gov/" }
           ]
         },
         "widget-lunar": {
           title: "Lunar / EME",
-          description: "Moon phase, position, and EME path loss calculations.",
+          description: 'Moon tracking data for Earth-Moon-Earth (EME or "moonbounce") communication. EME is an advanced technique where operators bounce radio signals off the moon to make contacts over very long distances.',
           sections: [
-            { heading: "EME Path Loss", content: "Calculated at 144 MHz. Varies with moon distance (perigee ~367 dB, apogee ~370 dB)." },
-            { heading: "Declination", content: "Moon's position relative to celestial equator. Affects EME window duration and elevation." },
-            { heading: "Custom Fields", content: "Click gear icon to show elongation, ecliptic coordinates, and right ascension." }
+            { heading: "Moon Phase & Position", content: "Shows the current moon phase, illumination, and sky position. The moon needs to be above the horizon at both your location and the other station's location for EME to work." },
+            { heading: "EME Path Loss", content: "Shows how much signal is lost on the round trip to the moon and back, calculated at 144 MHz (2m band). Lower path loss means better EME conditions. Loss varies with moon distance \u2014 closer moon (perigee) means less loss." },
+            { heading: "Declination", content: "The moon's angle relative to the equator. Higher declination generally means longer EME windows (more time with the moon above the horizon)." },
+            { heading: "Customize Fields", content: "Click the gear icon to show additional data like elongation, ecliptic coordinates, and right ascension for advanced planning." }
           ],
           links: [
             { label: "ARRL EME Guide", url: "https://www.arrl.org/eme" }
@@ -789,49 +790,79 @@
         },
         "widget-satellites": {
           title: "Satellites",
-          description: "Live tracking and pass predictions for amateur radio satellites via N2YO.",
+          description: "Track amateur radio satellites in real time and predict when they'll pass over your location. Many satellites carry amateur radio repeaters that anyone with a ham license can use to make contacts.",
           sections: [
-            { heading: "Track Satellites", content: "Click gear icon to add/remove satellites. ISS is tracked by default." },
-            { heading: "Live Position", content: "Shows real-time lat/lon, altitude, azimuth, elevation, and footprint on map." },
-            { heading: "Pass Predictions", content: "Click a satellite to view upcoming passes with AOS/LOS times and max elevation." },
-            { heading: "API Key Required", content: "Get a free N2YO API key and enter it in Config to enable satellite tracking." }
+            { heading: "Getting Started", content: "You'll need a free API key from N2YO.com \u2014 enter it in Config. The ISS (International Space Station) is tracked by default and has an amateur radio station onboard!" },
+            { heading: "Adding Satellites", content: "Click the gear icon to search for and add satellites to track. Popular choices include the ISS, AO-91, SO-50, and other FM satellites that are easy to work with a handheld radio." },
+            { heading: "Live Position", content: "See where each satellite is right now on the map, along with its altitude, speed, and whether it's above your horizon (visible to you)." },
+            { heading: "Pass Predictions", content: "Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work." }
           ],
           links: [
-            { label: "N2YO API", url: "https://www.n2yo.com/api/" },
-            { label: "AMSAT", url: "https://www.amsat.org/" }
+            { label: "N2YO Satellite Tracker", url: "https://www.n2yo.com/" },
+            { label: "AMSAT \u2014 Amateur Satellites", url: "https://www.amsat.org/" }
           ]
         },
         "widget-rst": {
           title: "RST Reference",
-          description: "Quick reference for RST signal reporting codes.",
+          description: "A quick-reference chart for RST signal reports. During a contact (QSO), you'll exchange signal reports to let each other know how well you're being received.",
           sections: [
-            { heading: "Readability (R)", content: "1 = Unreadable, 5 = Perfectly readable" },
-            { heading: "Signal Strength (S)", content: "1 = Faint, 9 = Very strong" },
-            { heading: "Tone (T, CW only)", content: "1 = Harsh/hum, 9 = Perfect tone" },
-            { heading: "Usage", content: "Phone: RS only (e.g. 59). CW: RST (e.g. 599)." }
+            { heading: "Readability (R)", content: "1 = Unreadable, 2 = Barely readable, 3 = Readable with difficulty, 4 = Readable with little difficulty, 5 = Perfectly readable. Most contacts are a 5." },
+            { heading: "Signal Strength (S)", content: "1 = Faint, up to 9 = Very strong. This corresponds roughly to your S-meter reading. S1-S3: needle barely moves, signal is in the noise \u2014 you may catch a word here and there. S4-S5: needle at the low end, you can follow the conversation but it takes concentration. S6-S7: needle at mid-scale, comfortable to listen to with occasional noise. S8-S9: needle at or near full scale, loud and clear like they're next door." },
+            { heading: "What You'll Hear", content: `A "3 by 3" signal sounds like someone talking through a wall with static \u2014 you can tell it's a voice but you strain to pick out words. A "5 by 5" is comfortable, like a clear phone call with some background hiss. A "5 by 9" is armchair copy \u2014 loud, crystal clear, no effort at all. Most everyday contacts on a good band will be 5 by 7 or better.` },
+            { heading: "Tone (T)", content: "Used for CW (Morse code) only. 1 = Rough/buzzy, 9 = Perfect pure tone. Most modern radios produce a 9." },
+            { heading: "Common Reports", content: `On phone (voice), you give just R and S \u2014 for example, "You're 5 by 9" means perfectly readable and very strong. On CW, add the tone: "599" is the most common report. Be honest with reports \u2014 a real 5-7 is more useful than a polite 5-9!` }
           ],
           links: [
             { label: "Ham Radio School \u2014 Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
           ]
         },
+        "widget-rst:phonetic": {
+          title: "Phonetic Alphabet",
+          description: `The NATO phonetic alphabet is used by hams to spell out callsigns and words clearly, especially when signals are weak or noisy. Instead of saying the letter "B", you say "Bravo" so it can't be confused with "D", "E", or "P".`,
+          sections: [
+            { heading: "When to Use It", content: `Use the phonetic alphabet whenever you give your callsign on the air. For example, W1AW would be spoken as "Whiskey One Alpha Whiskey". It's also used to spell names, locations, or any word that needs to be communicated clearly.` },
+            { heading: "Tips", content: `You'll quickly memorize the phonetics for your own callsign. Practice saying it aloud before your first contact! Some hams use creative alternatives (like "Kilowatt" for K), but the standard NATO alphabet is always understood.` }
+          ]
+        },
+        "widget-rst:morse": {
+          title: "Morse Code",
+          description: "Morse code (CW) is one of the oldest and most effective modes in ham radio. It uses short signals (dits, shown as dots) and long signals (dahs, shown as dashes) to represent letters and numbers. CW can get through when voice and digital modes can't.",
+          sections: [
+            { heading: "Learning Morse", content: 'The best way to learn Morse code is by sound, not by memorizing the dot-dash patterns visually. Apps like "Morse Trainer" or the Koch method help you learn by listening to characters at full speed.' },
+            { heading: "Prosigns", content: 'Prosigns are special Morse sequences with specific meanings: AR (.-.-.) means "end of message", BT (-...-) means "pause/break", SK (...-.-) means "end of contact", and 73 means "best regards".' },
+            { heading: "On the Air", content: "CW is popular for QRP (low power) operating because it's very efficient. A 5-watt CW signal can often be copied when a 100-watt voice signal cannot. Many hams enjoy CW contesting and DX." }
+          ],
+          links: [
+            { label: "LCWO \u2014 Learn CW Online", url: "https://lcwo.net/" }
+          ]
+        },
+        "widget-rst:qcodes": {
+          title: "Q-Codes",
+          description: `Q-codes are three-letter abbreviations starting with "Q" that were originally created for CW (Morse code) to save time. Many are now commonly used in voice conversations too. As a question, they end with a "?"; as a statement, they're a direct answer.`,
+          sections: [
+            { heading: "Most Common for New Hams", content: 'QTH = your location ("My QTH is Denver"). QSO = a contact/conversation. QSL = confirmation ("QSL" means "I confirm" or "received"). QRZ = "who is calling?" (also the name of a popular callsign lookup website).' },
+            { heading: "Power & Interference", content: "QRP = low power (5W or less) \u2014 a popular challenge mode. QRO = high power. QRM = man-made interference. QRN = natural noise (static). QSB = signal fading in and out." },
+            { heading: "Operating", content: `QSY = change frequency ("Let's QSY to 14.250"). QRT = shutting down for the day ("I'm going QRT"). QRV = ready to receive. QRL = the frequency is in use (always ask "QRL?" before transmitting on a frequency!).` }
+          ]
+        },
         "widget-spot-detail": {
           title: "DX Detail",
-          description: "Detailed information about the selected spot.",
+          description: "Shows detailed information about whichever station you've selected. Click any row in the On the Air table or any marker on the map to see that station's details here.",
           sections: [
-            { heading: "Callsign Lookup", content: "Shows name, address, license class, and grid square from QRZ.com (if available)." },
-            { heading: "Distance & Bearing", content: "Great-circle distance and heading from your QTH to the spot." },
-            { heading: "Frequency & Mode", content: "Operating frequency and mode from the spot data." },
-            { heading: "Selection", content: "Click a row in On the Air or a map marker to populate this widget." }
+            { heading: "Station Info", content: "Displays the operator's name, location, license class, and grid square (looked up from their callsign). This helps you know who you're about to contact." },
+            { heading: "Distance & Bearing", content: "Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config." },
+            { heading: "Frequency & Mode", content: "The frequency and mode the station is operating on, so you know exactly where to tune your radio." },
+            { heading: "Weather", content: "Shows current weather conditions at the station's location, if available." }
           ]
         },
         "widget-live-spots": {
           title: "Live Spots",
-          description: "Shows where YOUR signal is being received via PSKReporter.",
+          description: "See where YOUR signal is being received right now! When you transmit on digital modes like FT8 or FT4, stations around the world automatically report hearing you to PSKReporter. This widget shows those reports so you can see how far your signal is reaching.",
           sections: [
-            { heading: "Requirements", content: "Enter your callsign in Config. Works best when you're actively transmitting on digital modes (FT8, FT4, etc.)." },
-            { heading: "Band Cards", content: "Click a band card to toggle display of RX stations on the map. Shows count or farthest distance." },
-            { heading: "Display Mode", content: "Click gear icon to switch between count and distance display. Distance shows your farthest reach per band." },
-            { heading: "Map Overlay", content: "Active bands show geodesic paths from your QTH to each receiving station." }
+            { heading: "Getting Started", content: "Enter your callsign in Config, then transmit on a digital mode (FT8, FT4, JS8Call, etc.). Within a few minutes, you should see band cards appear showing who is hearing you." },
+            { heading: "Band Cards", content: "Each card represents a band where you're being heard. It shows either how many stations are receiving you or the distance to your farthest receiver. Click a card to show those stations on the map." },
+            { heading: "Display Mode", content: 'Click the gear icon to switch between "count" (number of stations hearing you) and "distance" (farthest reach per band). Distance mode also shows the callsign of your farthest contact.' },
+            { heading: "Map Lines", content: "When you click a band card, lines are drawn on the map from your location to each receiving station, giving you a visual picture of your signal coverage." }
           ],
           links: [
             { label: "PSKReporter", url: "https://pskreporter.info/" }
@@ -839,15 +870,15 @@
         },
         "widget-voacap": {
           title: "HF Propagation",
-          description: "24-hour propagation prediction matrix showing band reliability by hour.",
+          description: "A 24-hour prediction of which HF bands will be open and when. This helps you plan your operating \u2014 pick the right band for the time of day to maximize your chances of making contacts.",
           sections: [
-            { heading: "Matrix", content: "Rows are HF bands, columns are hours (UTC). Color intensity shows predicted reliability." },
-            { heading: "Current Hour", content: "The current UTC hour is highlighted with a border." },
-            { heading: "Color Scale", content: "Black = closed, Red = poor, Yellow = fair, Green = good. Based on MUF and solar conditions." },
-            { heading: "Map Overlay", content: "Click a band row to show/hide propagation circles on the map." }
+            { heading: "How to Read It", content: "Each row is an HF band (80m through 10m). Each column is an hour of the day in UTC. The color of each cell shows the predicted band reliability for that hour." },
+            { heading: "Color Scale", content: "Black = band closed (no propagation expected). Red = poor. Yellow = fair. Green = good (best chance of making contacts). Look for the green cells to find the best bands to use right now." },
+            { heading: "Current Hour", content: "The current UTC hour is highlighted so you can quickly see what's predicted to be open right now." },
+            { heading: "Map Overlay", content: "Click a band row to show estimated propagation range circles on the map, giving you a visual sense of how far that band can reach." }
           ],
           links: [
-            { label: "NOAA SWPC Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
+            { label: "NOAA Space Weather & Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
           ]
         }
       };
@@ -896,6 +927,56 @@
                 ["M", "Mike", "Z", "Zulu"]
               ]
             }
+          }
+        },
+        morse: {
+          label: "Morse",
+          content: {
+            description: "International Morse code \u2014 dits (.) and dahs (-) for each character.",
+            table: {
+              headers: ["Char", "Morse", "Char", "Morse"],
+              rows: [
+                ["A", ".-", "N", "-."],
+                ["B", "-...", "O", "---"],
+                ["C", "-.-.", "P", ".--."],
+                ["D", "-..", "Q", "--.-"],
+                ["E", ".", "R", ".-."],
+                ["F", "..-.", "S", "..."],
+                ["G", "--.", "T", "-"],
+                ["H", "....", "U", "..-"],
+                ["I", "..", "V", "...-"],
+                ["J", ".---", "W", ".--"],
+                ["K", "-.-", "X", "-..-"],
+                ["L", ".-..", "Y", "-.--"],
+                ["M", "--", "Z", "--.."],
+                ["0", "-----", "5", "....."],
+                ["1", ".----", "6", "-...."],
+                ["2", "..---", "7", "--..."],
+                ["3", "...--", "8", "---.."],
+                ["4", "....-", "9", "----."]
+              ]
+            },
+            note: "Prosigns: AR (end of message) = .-.-.  BT (pause) = -...-  SK (end of contact) = ...-.-"
+          }
+        },
+        qcodes: {
+          label: "Q-Codes",
+          content: {
+            description: "Common Q-codes used in amateur radio. Originally for CW, now widely used on voice too.",
+            table: {
+              headers: ["Code", "Meaning", "Code", "Meaning"],
+              rows: [
+                ["QRG", "Your exact frequency", "QRS", "Send more slowly"],
+                ["QRL", "Frequency is busy", "QRT", "Stop sending / shutting down"],
+                ["QRM", "Man-made interference", "QRV", "I am ready"],
+                ["QRN", "Natural interference", "QRX", "Stand by / wait"],
+                ["QRO", "Increase power", "QRZ", "Who is calling me?"],
+                ["QRP", "Reduce power / low power", "QSB", "Signal is fading"],
+                ["QSL", "I confirm / received", "QSO", "A contact (conversation)"],
+                ["QSY", "Change frequency", "QTH", "My location"]
+              ]
+            },
+            note: "QRP = operating at 5 watts or less \xB7 QRO = running high power \xB7 QSL cards confirm contacts"
           }
         }
       };
@@ -3801,7 +3882,7 @@
         const hum = data.humidity != null ? data.humidity + "%" : "";
         let line1 = [name, tempStr, cond].filter(Boolean).join("  ");
         let line2 = ["W: " + wind.trim(), hum ? "H: " + hum : ""].filter(Boolean).join("  ");
-        $("clockLocalWeather").innerHTML = line1 + "<br>" + line2;
+        $("clockLocalWeather").innerHTML = esc(line1) + "<br>" + esc(line2);
         setWxSource("wu");
       }).catch(() => {
         $("clockLocalWeather").textContent = "";
@@ -3826,7 +3907,7 @@
         const hum = data.relativeHumidity != null ? data.relativeHumidity + "%" : "";
         let line1 = [tempStr, cond].filter(Boolean).join("  ");
         let line2 = [wind ? "W: " + wind : "", hum ? "H: " + hum : ""].filter(Boolean).join("  ");
-        $("clockLocalWeather").innerHTML = line1 + (line2 ? "<br>" + line2 : "");
+        $("clockLocalWeather").innerHTML = esc(line1) + (line2 ? "<br>" + esc(line2) : "");
         setWxSource("nws");
       }
     }).catch((err) => {
@@ -3908,7 +3989,7 @@
       for (const a of state_default.nwsAlerts) {
         const div = document.createElement("div");
         div.className = "wx-alert-item";
-        div.innerHTML = '<div class="wx-alert-event wx-sev-' + (a.severity || "Unknown") + '">' + esc(a.event) + " (" + esc(a.severity) + ')</div><div class="wx-alert-headline">' + esc(a.headline || "") + '</div><div class="wx-alert-desc">' + esc(a.description || "") + "</div>" + (a.web ? '<div class="wx-alert-link"><a href="' + esc(a.web) + '" target="_blank" rel="noopener">View on NWS website</a></div>' : "");
+        div.innerHTML = '<div class="wx-alert-event wx-sev-' + (a.severity || "Unknown") + '">' + esc(a.event) + " (" + esc(a.severity) + ')</div><div class="wx-alert-headline">' + esc(a.headline || "") + '</div><div class="wx-alert-desc">' + esc(a.description || "") + "</div>" + (a.web && /^https?:\/\//.test(a.web) ? '<div class="wx-alert-link"><a href="' + esc(a.web) + '" target="_blank" rel="noopener">View on NWS website</a></div>' : "");
         wxAlertList.appendChild(div);
       }
       $("wxAlertSplash").classList.remove("hidden");
@@ -5046,8 +5127,14 @@
   init_dom();
   init_constants();
   init_utils();
+  init_state();
   function renderHelp(widgetId) {
-    const help = WIDGET_HELP[widgetId];
+    let helpKey = widgetId;
+    if (widgetId === "widget-rst" && state_default.currentReferenceTab && state_default.currentReferenceTab !== "rst") {
+      const tabKey = `widget-rst:${state_default.currentReferenceTab}`;
+      if (WIDGET_HELP[tabKey]) helpKey = tabKey;
+    }
+    const help = WIDGET_HELP[helpKey];
     if (!help) return;
     $("helpTitle").textContent = help.title;
     let html = "";

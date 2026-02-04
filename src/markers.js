@@ -37,6 +37,10 @@ function clearGeodesicLine() {
     state.map.removeLayer(state.geodesicLine);
     state.geodesicLine = null;
   }
+  if (state.geodesicLineLong) {
+    state.map.removeLayer(state.geodesicLineLong);
+    state.geodesicLineLong = null;
+  }
 }
 
 function drawGeodesicLine(spot) {
@@ -62,25 +66,50 @@ function drawGeodesicLine(spot) {
 
   const pts = geodesicPoints(state.myLat, state.myLon, spotLat, spotLon, 64); // 64 intermediate points for smooth arc
 
-  // Split into segments at dateline crossings (same pattern as ISS trail in iss.js)
-  const segments = [[]];
-  for (let i = 0; i < pts.length; i++) {
-    segments[segments.length - 1].push(pts[i]);
-    if (i < pts.length - 1) {
-      if (Math.abs(pts[i + 1][1] - pts[i][1]) > 180) {
-        segments.push([]);
+  // Helper: split points at dateline crossings
+  function splitAtDateline(points) {
+    const segments = [[]];
+    for (let i = 0; i < points.length; i++) {
+      segments[segments.length - 1].push(points[i]);
+      if (i < points.length - 1) {
+        if (Math.abs(points[i + 1][1] - points[i][1]) > 180) {
+          segments.push([]);
+        }
       }
     }
+    return segments;
   }
 
-  state.geodesicLine = L.polyline(segments, {
+  // Draw short path
+  state.geodesicLine = L.polyline(splitAtDateline(pts), {
     color: '#ff9800',
     weight: 2,
     opacity: 0.7,
     dashArray: '6 4',
   });
-
   state.geodesicLine.addTo(state.map);
+
+  // Draw long path (opposite direction around the great circle)
+  // Compute via antipode of the short path midpoint
+  const midIdx = Math.floor(pts.length / 2);
+  const midPt = pts[midIdx];
+  // Antipode: negate latitude, add 180° to longitude (normalize to -180,180)
+  const antiLat = -midPt[0];
+  let antiLon = midPt[1] + 180;
+  if (antiLon > 180) antiLon -= 360;
+
+  // Long path: QTH → antipode → spot
+  const ptsToAnti = geodesicPoints(state.myLat, state.myLon, antiLat, antiLon, 48);
+  const ptsFromAnti = geodesicPoints(antiLat, antiLon, spotLat, spotLon, 48);
+  const longPts = [...ptsToAnti.slice(0, -1), ...ptsFromAnti]; // avoid duplicate middle point
+
+  state.geodesicLineLong = L.polyline(splitAtDateline(longPts), {
+    color: '#ff9800',
+    weight: 1.5,
+    opacity: 0.35,
+    dashArray: '4 6',
+  });
+  state.geodesicLineLong.addTo(state.map);
 }
 
 export function renderMarkers() {
@@ -110,9 +139,10 @@ export function renderMarkers() {
     if (state.myLat !== null && state.myLon !== null) {
       const deg = bearingTo(state.myLat, state.myLon, lat, lon);
       const longPath = (Math.round(deg) + 180) % 360; // reverse azimuth
-      const mi = Math.round(distanceMi(state.myLat, state.myLon, lat, lon));
+      const mi = distanceMi(state.myLat, state.myLon, lat, lon);
+      const dist = state.distanceUnit === 'km' ? Math.round(mi * 1.60934) : Math.round(mi);
       dirLine = `<div class="popup-dir">SP: ${Math.round(deg)}° ${bearingToCardinal(deg)} · LP: ${longPath}° ${bearingToCardinal(longPath)}</div>`;
-      distLine = `<div class="popup-dist">Distance: ~${mi.toLocaleString()} mi</div>`;
+      distLine = `<div class="popup-dist">Distance: ~${dist.toLocaleString()} ${state.distanceUnit}</div>`;
     }
     const localTime = localTimeAtLon(lon, state.use24h);
     marker.bindPopup(`

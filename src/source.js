@@ -2,7 +2,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
 import { esc } from './utils.js';
-import { applyFilter, updateBandFilterButtons, updateModeFilterButtons, updateCountryFilter, updateStateFilter, updateGridFilter, updatePrivFilterVisibility } from './filters.js';
+import { applyFilter, updateBandFilterButtons, updateModeFilterButtons, updateCountryFilter, updateStateFilter, updateGridFilter, updateContinentFilter, updatePrivFilterVisibility, loadFiltersForSource, updateAllFilterUI, updatePresetDropdown, updateDistanceAgeVisibility } from './filters.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 
@@ -17,9 +17,18 @@ function updateFilterVisibility() {
 
   $('bandFilters').style.display = allowed.includes('band') ? '' : 'none';
   $('modeFilters').style.display = allowed.includes('mode') ? '' : 'none';
+
+  // Distance and age filters
+  const distWrap = $('distanceFilterWrap');
+  const ageWrap = $('ageFilterWrap');
+  if (distWrap) distWrap.style.display = allowed.includes('distance') ? '' : 'none';
+  if (ageWrap) ageWrap.style.display = allowed.includes('age') ? '' : 'none';
+
   $('countryFilter').style.display = allowed.includes('country') ? '' : 'none';
   $('stateFilter').style.display = allowed.includes('state') ? '' : 'none';
   $('gridFilter').style.display = allowed.includes('grid') ? '' : 'none';
+  const continentFilter = $('continentFilter');
+  if (continentFilter) continentFilter.style.display = allowed.includes('continent') ? '' : 'none';
 
   const privLabel = document.querySelector('.priv-filter-label');
   if (privLabel) {
@@ -44,31 +53,27 @@ export function switchSource(source) {
   updateTableColumns();
   updateFilterVisibility();
 
-  state.activeBand = null;
-  state.activeMode = null;
-  state.activeCountry = null;
-  state.activeState = null;
-  state.activeGrid = null;
-  const privFilterCheckbox = $('privFilter');
-  if (privFilterCheckbox) {
-    state.privilegeFilterEnabled = false;
-    privFilterCheckbox.checked = false;
-  }
+  // Load persisted filters for this source (instead of clearing)
+  loadFiltersForSource(source);
+
+  // Update dropdown filter values from state
   const countryFilter = $('countryFilter');
-  if (countryFilter) countryFilter.value = '';
+  if (countryFilter) countryFilter.value = state.activeCountry || '';
   const stateFilter = $('stateFilter');
-  if (stateFilter) stateFilter.value = '';
+  if (stateFilter) stateFilter.value = state.activeState || '';
   const gridFilter = $('gridFilter');
-  if (gridFilter) gridFilter.value = '';
+  if (gridFilter) gridFilter.value = state.activeGrid || '';
+  const continentFilter = $('continentFilter');
+  if (continentFilter) continentFilter.value = state.activeContinent || '';
+  const privFilterCheckbox = $('privFilter');
+  if (privFilterCheckbox) privFilterCheckbox.checked = state.privilegeFilterEnabled;
 
   applyFilter();
   renderSpots();
   renderMarkers();
-  updateBandFilterButtons();
-  updateModeFilterButtons();
-  updateCountryFilter();
-  updateStateFilter();
-  updateGridFilter();
+  updateAllFilterUI();
+  updatePresetDropdown();
+  updateDistanceAgeVisibility();
 }
 
 export function initSourceListeners() {

@@ -69,8 +69,9 @@ export function fetchNwsConditions() {
 }
 
 function applyWeatherBackground(forecast, isDaytime) {
-  const body = document.querySelector('#widget-clock-local .widget-body');
-  wxBgClasses.forEach(c => body.classList.remove(c));
+  const headerClock = $('headerClockLocal');
+  if (!headerClock) return;
+  wxBgClasses.forEach(c => headerClock.classList.remove(c));
   if (!forecast) return;
   const fc = forecast.toLowerCase();
   let cls = '';
@@ -83,7 +84,7 @@ function applyWeatherBackground(forecast, isDaytime) {
     else cls = 'wx-cloudy';
   }
   else if (/sunny|clear/.test(fc)) cls = isDaytime ? 'wx-clear-day' : 'wx-clear-night';
-  if (cls) body.classList.add(cls);
+  if (cls) headerClock.classList.add(cls);
 }
 
 export function fetchNwsAlerts() {

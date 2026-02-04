@@ -782,12 +782,102 @@ header {
 
 .widget-filters {
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 4px;
   padding: 6px 8px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
   align-items: center;
+}
+
+.filter-row-range {
+  gap: 12px;
+}
+
+.distance-filter,
+.age-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-label {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+#distanceFilter {
+  width: 60px;
+  padding: 2px 4px;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 3px;
+}
+
+#distanceUnit,
+#ageFilter {
+  padding: 2px 4px;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.filter-row-presets {
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+#presetFilter {
+  flex: 1;
+  min-width: 100px;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+#savePresetBtn,
+#deletePresetBtn,
+#clearFiltersBtn {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+#savePresetBtn:hover,
+#deletePresetBtn:hover,
+#clearFiltersBtn:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+#clearFiltersBtn {
+  margin-left: auto;
+}
+
+#distanceFilterWrap[style*="display: none"],
+#ageFilterWrap[style*="display: none"] {
+  display: none;
 }
 
 .band-filters,
@@ -823,7 +913,8 @@ header {
 
 #countryFilter,
 #stateFilter,
-#gridFilter {
+#gridFilter,
+#continentFilter {
   padding: 2px 6px;
   font-size: 0.7rem;
   border: 1px solid var(--border);
@@ -1131,59 +1222,282 @@ header {
   margin-top: 2px;
 }
 
-/* ---- Header band conditions strip ---- */
+/* ---- Propagation Widget ---- */
 
-.header-center {
+.day-night-toggle {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.day-night-toggle .toggle-btn {
+  padding: 2px 8px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.day-night-toggle .toggle-btn:hover {
+  background: var(--surface3);
+  color: var(--text);
+}
+
+.day-night-toggle .toggle-btn.active {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+}
+
+.prop-summary {
+  display: flex;
+  justify-content: space-around;
+  padding: 10px;
+  background: var(--surface2);
+  border-radius: 6px;
+  margin: 10px;
+}
+
+.prop-summary-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-  flex-shrink: 1;
-  min-width: 0;
-  overflow: hidden;
+  gap: 4px;
 }
 
-.header-bands-title {
-  font-size: 0.68rem;
+.prop-summary-label {
+  font-size: 0.65rem;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-weight: 600;
 }
 
-.header-bands-hint {
-  font-weight: 400;
-  font-size: 0.6rem;
+.prop-summary-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ---- Per-Band Conditions ---- */
+
+.band-conditions-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  padding: 10px;
+}
+
+.band-card {
+  background: var(--surface2);
+  border-radius: 4px;
+  padding: 6px 4px;
+  text-align: center;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.band-card:hover {
+  background: var(--surface3);
+}
+
+.band-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text);
+  display: block;
+  margin-bottom: 3px;
+}
+
+.band-reliability {
+  font-size: 1rem;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.band-condition-label {
+  font-size: 0.55rem;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  opacity: 0.8;
+  display: block;
+}
+
+/* Band condition colors */
+.band-excellent {
+  border-color: var(--green);
+}
+
+.band-excellent .band-reliability {
+  color: var(--green);
+}
+
+.band-good {
+  border-color: #4caf50;
+}
+
+.band-good .band-reliability {
+  color: #4caf50;
+}
+
+.band-fair {
+  border-color: var(--yellow);
+}
+
+.band-fair .band-reliability {
+  color: var(--yellow);
+}
+
+.band-poor {
+  border-color: var(--orange);
+}
+
+.band-poor .band-reliability {
+  color: var(--orange);
+}
+
+.band-closed {
+  border-color: var(--red);
+}
+
+.band-closed .band-reliability {
+  color: var(--red);
+}
+
+.band-unknown {
+  opacity: 0.5;
+}
+
+.band-unknown .band-reliability {
   color: var(--text-dim);
+}
+
+/* Day/night border indicators */
+.band-card-day {
+  border-left: 3px solid #ffa726;
+  box-shadow: -2px 0 8px rgba(255, 167, 38, 0.2);
+}
+
+.band-card-night {
+  border-left: 3px solid #5c6bc0;
+  box-shadow: -2px 0 8px rgba(92, 107, 192, 0.2);
+}
+
+/* ---- Header center clocks ---- */
+
+.header-center {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 24px;
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.header-clock-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+}
+
+.header-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  background: rgba(15, 52, 96, 0.3);
+  transition: background 0.3s ease;
+  position: relative;
+}
+
+.header-clock-label {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.header-clock-time {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--text);
+  font-family: 'Courier New', monospace;
+}
+
+.header-clock-weather {
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 200px;
+  line-height: 1.2;
+  margin-top: 2px;
+}
+
+/* Weather backgrounds for header clock */
+#headerClockLocal.wx-clear-day {
+  background: linear-gradient(135deg, rgba(135,206,250,0.2) 0%, rgba(255,215,0,0.15) 100%);
+}
+
+#headerClockLocal.wx-clear-night {
+  background: linear-gradient(135deg, rgba(25,25,112,0.3) 0%, rgba(72,61,139,0.2) 100%);
+}
+
+#headerClockLocal.wx-partly-cloudy-day {
+  background: linear-gradient(135deg, rgba(176,196,222,0.25) 0%, rgba(255,228,181,0.15) 100%);
+}
+
+#headerClockLocal.wx-partly-cloudy-night {
+  background: linear-gradient(135deg, rgba(70,80,100,0.3) 0%, rgba(100,100,130,0.2) 100%);
+}
+
+#headerClockLocal.wx-cloudy {
+  background: linear-gradient(135deg, rgba(119,136,153,0.25) 0%, rgba(160,160,180,0.2) 100%);
+}
+
+#headerClockLocal.wx-rain {
+  background: linear-gradient(135deg, rgba(70,130,180,0.3) 0%, rgba(100,149,237,0.2) 100%);
+}
+
+#headerClockLocal.wx-thunderstorm {
+  background: linear-gradient(135deg, rgba(75,0,130,0.3) 0%, rgba(138,43,226,0.2) 100%);
+}
+
+#headerClockLocal.wx-snow {
+  background: linear-gradient(135deg, rgba(240,248,255,0.25) 0%, rgba(176,224,230,0.2) 100%);
+}
+
+#headerClockLocal.wx-fog {
+  background: linear-gradient(135deg, rgba(190,190,190,0.25) 0%, rgba(211,211,211,0.2) 100%);
+}
+
+.wx-source-logo {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: rgba(0,0,0,0.4);
   opacity: 0.7;
-  text-transform: none;
-  letter-spacing: 0;
 }
 
-.header-bands-row {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+.wx-source-logo.wx-src-wu {
+  color: #ff6b35;
 }
 
-.header-band-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
-  white-space: nowrap;
+.wx-source-logo.wx-src-nws {
+  color: #4a90e2;
 }
 
-.header-band-name {
-  color: var(--text-dim);
-  font-weight: 600;
-}
-
-.header-band-day,
-.header-band-night {
-  font-weight: 600;
-}
-
+/* ---- Band condition color classes (used in propagation widget) ---- */
 
 .cond-good { color: var(--green); font-weight: 600; }
 .cond-fair { color: var(--yellow); font-weight: 600; }
@@ -1853,5 +2167,213 @@ header {
 #widget-spot-detail .widget-body {
   padding: 8px 10px;
   overflow-y: auto;
+}
+
+/* ---- Satellite Widget ---- */
+
+#widget-satellites .widget-body {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sat-list {
+  flex-shrink: 0;
+  max-height: 200px;
+  overflow-y: auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.sat-row {
+  display: flex;
+  align-items: center;
+  padding: 5px 8px;
+  font-size: 0.78rem;
+  border-bottom: 1px solid rgba(42, 58, 94, 0.4);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.sat-row:hover {
+  background: var(--surface2);
+}
+
+.sat-row.selected {
+  background: var(--surface2);
+  border-left: 3px solid var(--accent);
+}
+
+.sat-row.below-horizon {
+  opacity: 0.5;
+}
+
+.sat-name {
+  flex: 1;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.sat-azel {
+  width: 100px;
+  text-align: right;
+  color: var(--text-dim);
+  font-size: 0.72rem;
+}
+
+.sat-doppler {
+  width: 65px;
+  text-align: right;
+  color: var(--yellow);
+  font-size: 0.72rem;
+  font-family: monospace;
+}
+
+.sat-no-key,
+.sat-no-data {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-dim);
+  font-style: italic;
+  font-size: 0.8rem;
+}
+
+/* Satellite passes section */
+.sat-passes {
+  flex: 1;
+  padding: 8px;
+  overflow-y: auto;
+}
+
+.sat-passes-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sat-no-passes {
+  color: var(--text-dim);
+  font-size: 0.78rem;
+  font-style: italic;
+}
+
+.pass-item {
+  padding: 6px 8px;
+  margin-bottom: 6px;
+  background: var(--bg);
+  border-radius: 4px;
+  border-left: 3px solid var(--accent);
+}
+
+.pass-time {
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+.pass-details {
+  font-size: 0.75rem;
+  color: var(--yellow);
+}
+
+.pass-azimuth {
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+
+/* Satellite map markers */
+.sat-icon {
+  background: #4caf50;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  white-space: nowrap;
+  border: 2px solid #fff;
+  box-shadow: 0 0 8px rgba(76, 175, 80, 0.6);
+}
+
+.sat-icon.below-horizon {
+  background: #666;
+  box-shadow: none;
+}
+
+/* Satellite popup */
+.sat-popup-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #4caf50;
+  margin-bottom: 4px;
+}
+
+.sat-popup-row {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.sat-radio-header {
+  font-weight: 600;
+  font-size: 0.8rem;
+  color: var(--yellow);
+  margin-top: 8px;
+  margin-bottom: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+}
+
+.sat-freq-table {
+  width: 100%;
+  font-size: 0.75rem;
+  border-collapse: collapse;
+}
+
+.sat-freq-table td {
+  padding: 2px 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.sat-freq-table td:first-child {
+  color: var(--text-dim);
+}
+
+.sat-freq-table td:last-child {
+  font-family: monospace;
+  color: var(--yellow);
+  text-align: right;
+}
+
+/* Satellite config modal */
+.sat-cfg-box {
+  max-width: 400px;
+}
+
+.sat-select-list {
+  max-height: 250px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 16px;
+  text-align: left;
+}
+
+.sat-select-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--text);
+  margin-bottom: 0;
+  cursor: pointer;
+}
+
+.sat-select-item input[type="checkbox"] {
+  width: auto;
+  margin-bottom: 0;
+  cursor: pointer;
 }
 

@@ -3,12 +3,19 @@ const state = {
   markers: {},
   selectedSpotId: null,
 
-  // Filters
-  activeBand: null,
-  activeMode: null,
+  // Filters — multi-select bands/modes stored as Sets
+  activeBands: new Set(),
+  activeModes: new Set(),
   activeCountry: null,
   activeState: null,
   activeGrid: null,
+  activeContinent: null,
+  activeMaxDistance: null, // miles (null = no filter)
+  distanceUnit: localStorage.getItem('hamtab_distance_unit') || 'mi',
+  activeMaxAge: null, // minutes (null = no filter)
+
+  // Filter presets per source
+  filterPresets: { pota: {}, sota: {}, dxc: {} },
 
   // Auto-refresh
   autoRefreshEnabled: true,
@@ -21,7 +28,6 @@ const state = {
   licenseClass: localStorage.getItem('hamtab_license_class') || '',
   propMetric: localStorage.getItem('hamtab_prop_metric') || 'mufd',
   mapCenterMode: localStorage.getItem('hamtab_map_center') || 'qth',
-  clockStyle: localStorage.getItem('hamtab_clock_style') || 'digital',
 
   // Map layers
   propLayer: null,
@@ -36,8 +42,8 @@ const state = {
 
   // Source
   currentSource: localStorage.getItem('hamtab_spot_source') || 'pota',
-  sourceData: { pota: [], sota: [] },
-  sourceFiltered: { pota: [], sota: [] },
+  sourceData: { pota: [], sota: [], dxc: [] },
+  sourceFiltered: { pota: [], sota: [], dxc: [] },
 
   // Widget visibility
   widgetVisibility: null, // loaded in widgets.js
@@ -68,12 +74,18 @@ const state = {
   dayPolygon: null,
   userMarker: null,
 
-  // ISS
-  issMarker: null,
-  issCircle: null,
-  issTrail: [],
-  issTrailLine: null,
-  issOrbitLine: null,
+  // Satellites (multi-satellite tracking via N2YO)
+  satellites: {
+    tracked: [], // NORAD IDs of satellites to track (loaded from localStorage)
+    available: [], // list of available amateur radio satellites from N2YO
+    positions: {}, // { satId: { lat, lon, alt, azimuth, elevation, ... } }
+    passes: {}, // { satId: { passes: [...], expires: timestamp } }
+    markers: {}, // { satId: L.marker }
+    circles: {}, // { satId: L.circle (footprint) }
+    orbitLines: {}, // { satId: L.polyline }
+    selectedSatId: null, // currently selected satellite for pass display
+  },
+  n2yoApiKey: localStorage.getItem('hamtab_n2yo_apikey') || '',
 
   // Geodesic
   geodesicLine: null, // L.polyline for great circle path from QTH to selected spot
@@ -143,5 +155,25 @@ if (!state.manualLoc) {
     }
   }
 }
+
+// Load tracked satellites from localStorage (default to ISS if empty)
+try {
+  const savedTracked = JSON.parse(localStorage.getItem('hamtab_sat_tracked'));
+  if (Array.isArray(savedTracked) && savedTracked.length > 0) {
+    state.satellites.tracked = savedTracked;
+  } else {
+    state.satellites.tracked = [25544]; // ISS default
+  }
+} catch {
+  state.satellites.tracked = [25544];
+}
+
+// Load saved filter presets
+try {
+  const savedPresets = JSON.parse(localStorage.getItem('hamtab_filter_presets'));
+  if (savedPresets) {
+    state.filterPresets = { pota: {}, sota: {}, dxc: {}, ...savedPresets };
+  }
+} catch (e) {}
 
 export default state;

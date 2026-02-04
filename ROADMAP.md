@@ -4,12 +4,13 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 **Mission:** Provide a modern, web-based amateur radio dashboard for the ~10,000+ HamClock users whose installations will stop functioning in June 2026, while serving the broader ham radio community.
 
-**Last updated:** 2026-02-03
+**Last updated:** 2026-02-04
 
 ---
 
 ## Legend
 
+**Status:**
 - ✅ **Implemented** — Feature is complete and deployed
 - 🟡 **Partially implemented** — Core functionality exists, missing some aspects
 - 🔵 **Alternative approach** — Different implementation than requested
@@ -17,6 +18,11 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 - ➖ **Not applicable** — Not suitable for web-based app
 - 🔥 **High demand** — Frequently requested in HamClock FAQs/issues
 - 📅 **Scheduled** — Committed to specific development phase
+
+**Deployment Mode:**
+- 🌐 **Both** — Works in both lanmode and hostedmode
+- 🏠 **Lanmode** — Requires local network/hardware, incompatible with cloud
+- ☁️ **Hosted** — Works in both but requires different implementation in hostedmode
 
 ---
 
@@ -46,30 +52,30 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Timeline:** 4-6 weeks
 
 #### P1.1: Installation & Configuration 🔥
-| Feature | Status | Priority | Issue | Notes |
-|---------|--------|----------|-------|-------|
-| Configurable port | ❌ | HIGH | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Via .env or CLI arg |
-| Uninstall script | ❌ | HIGH | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | lanmode cleanup |
-| Feedback button | ❌ | MEDIUM | [#88](https://github.com/stevencheist/HamTabv1/issues/88) | Link to GitHub issues |
-| Docker support | ❌ | MEDIUM | — | Container deployment |
+| Feature | Status | Priority | Mode | Issue | Notes |
+|---------|--------|----------|------|-------|-------|
+| Configurable port | ❌ | HIGH | 🏠 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Via .env or CLI arg |
+| Uninstall script | ❌ | HIGH | 🏠 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | lanmode cleanup |
+| Feedback button | ❌ | MEDIUM | 🌐 | [#88](https://github.com/stevencheist/HamTabv1/issues/88) | Link to GitHub issues |
+| Docker support | ❌ | MEDIUM | ☁️ | — | lanmode only; hostedmode uses Cloudflare Containers |
 
 #### P1.2: Essential Features 🔥
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Units toggle (metric/imperial) | ❌ | HIGH | Miles/km, F/C, in/hPa |
-| Long path display | ❌ | HIGH | Opposite direction great circle |
-| Spot retention window | ❌ | MEDIUM | 5-30 minute configurable max age |
-| "My Spots" highlighting | ❌ | MEDIUM | When user callsign is spotted |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Units toggle (metric/imperial) | ❌ | HIGH | 🌐 | Miles/km, F/C, in/hPa |
+| Long path display | ❌ | HIGH | 🌐 | Opposite direction great circle |
+| Spot retention window | ❌ | MEDIUM | 🌐 | 5-30 minute configurable max age |
+| "My Spots" highlighting | ❌ | MEDIUM | 🌐 | When user callsign is spotted |
 
 #### P1.3: Space Weather History 🔥
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| 30-day solar flux graph | ❌ | HIGH | Historical SFI trend |
-| 7-day K-index graph | ❌ | HIGH | Geomagnetic history |
-| 24-hour X-ray graph | ❌ | HIGH | Flare activity trend |
-| Bz/Bt history | ❌ | MEDIUM | IMF trends |
-| Solar wind history | ❌ | MEDIUM | Speed trends |
-| Aurora history | ❌ | MEDIUM | Auroral activity trends |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| 30-day solar flux graph | ❌ | HIGH | 🌐 | Historical SFI trend |
+| 7-day K-index graph | ❌ | HIGH | 🌐 | Geomagnetic history |
+| 24-hour X-ray graph | ❌ | HIGH | 🌐 | Flare activity trend |
+| Bz/Bt history | ❌ | MEDIUM | 🌐 | IMF trends |
+| Solar wind history | ❌ | MEDIUM | 🌐 | Speed trends |
+| Aurora history | ❌ | MEDIUM | 🌐 | Auroral activity trends |
 
 **Phase 1 Deliverables:**
 - Users can change port without editing code
@@ -86,23 +92,23 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Timeline:** 4-6 weeks
 
 #### P2.1: Watch List Modes 🔥
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Red mode (highlight) | 🟡 | HIGH | Basic highlight exists, needs UI |
-| Only mode (filter) | ❌ | HIGH | Show only matching spots |
-| Not mode (exclude) | ❌ | HIGH | Hide matching spots |
-| Per-source watch lists | ❌ | HIGH | DXC/POTA/SOTA/PSK/ADIF separate |
-| Frequency range filtering | ❌ | MEDIUM | Min-max MHz |
-| Sub-band mode filtering | ❌ | MEDIUM | CW/SSB/RTTY within band |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Red mode (highlight) | 🟡 | HIGH | 🌐 | Basic highlight exists, needs UI |
+| Only mode (filter) | ❌ | HIGH | 🌐 | Show only matching spots |
+| Not mode (exclude) | ❌ | HIGH | 🌐 | Hide matching spots |
+| Per-source watch lists | ❌ | HIGH | 🌐 | DXC/POTA/SOTA/PSK/ADIF separate |
+| Frequency range filtering | ❌ | MEDIUM | 🌐 | Min-max MHz |
+| Sub-band mode filtering | ❌ | MEDIUM | 🌐 | CW/SSB/RTTY within band |
 
 #### P2.2: ADIF Integration 🔥
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| ADIF log display | ❌ | HIGH | File-based QSO log viewer |
-| ADIF watch list | ❌ | HIGH | Filter against worked-before |
-| Sort by band/call/age/distance | ❌ | MEDIUM | Multiple sort options |
-| Click QSO to set DX | ❌ | MEDIUM | Map integration |
-| File reload on change | ❌ | LOW | Auto-refresh |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| ADIF log display | ❌ | HIGH | ☁️ | File upload (lanmode) / KV or R2 storage (hostedmode) |
+| ADIF watch list | ❌ | HIGH | ☁️ | Requires ADIF storage |
+| Sort by band/call/age/distance | ❌ | MEDIUM | 🌐 | Client-side sorting |
+| Click QSO to set DX | ❌ | MEDIUM | 🌐 | Map integration |
+| File reload on change | ❌ | LOW | 🏠 | File watching (lanmode only) |
 
 **Phase 2 Deliverables:**
 - Red/Only/Not watch list modes for all sources
@@ -115,23 +121,31 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Goal:** Professional propagation predictions (most requested HamClock feature)
 **Timeline:** 6-8 weeks
 
+#### P3.0: Config Modal Redesign
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Tab-based organization | ❌ | HIGH | 🌐 | Group settings (General/Location/API Keys/Advanced) |
+| Improved layout | ❌ | HIGH | 🌐 | Better spacing, logical grouping |
+| Field validation | ❌ | MEDIUM | 🌐 | Real-time feedback for inputs |
+
 #### P3.1: VOACAP Integration 🔥
-| Feature | Status | Priority | Issue | Notes |
-|---------|--------|----------|-------|-------|
-| Reliability graph (24h × band) | ❌ | CRITICAL | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Time/band grid |
-| REL map overlay | ❌ | CRITICAL | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Path reliability from DE |
-| TOA map overlay | ❌ | HIGH | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Take-off angle map |
-| Power level selection | ❌ | MEDIUM | — | 5/50/500W options |
-| Mode selection | ❌ | MEDIUM | — | CW/SSB/RTTY/etc |
+| Feature | Status | Priority | Mode | Issue | Notes |
+|---------|--------|----------|------|-------|-------|
+| Reliability graph (24h × band) | ❌ | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Time/band grid |
+| REL map overlay | ❌ | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Path reliability from DE |
+| TOA map overlay | ❌ | HIGH | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Take-off angle map |
+| Power level selection | ❌ | MEDIUM | 🌐 | — | 5/50/500W options |
+| Mode selection | ❌ | MEDIUM | 🌐 | — | CW/SSB/RTTY/etc |
 
 #### P3.2: Additional Propagation
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| DRAP overlay | ❌ | MEDIUM | D-Region absorption map |
-| Auto space weather mode | ❌ | LOW | Auto-show DRAP/Aurora when active |
-| Grayline planning tool | ❌ | LOW | DE/DX twilight overlap |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| DRAP overlay | ❌ | MEDIUM | 🌐 | D-Region absorption map |
+| Auto space weather mode | ❌ | LOW | 🌐 | Auto-show DRAP/Aurora when active |
+| Grayline planning tool | ❌ | LOW | 🌐 | DE/DX twilight overlap |
 
 **Phase 3 Deliverables:**
+- Redesigned config modal with tab-based organization
 - Full VOACAP integration with REL/TOA maps
 - 24-hour reliability grid
 - DRAP map overlay
@@ -143,24 +157,24 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Timeline:** 6-8 weeks
 
 #### P4.1: UDP Spot Input 🔥
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| WSJT-X UDP listener | ❌ | CRITICAL | Port 2237, local network |
-| N1MM+ logger support | ❌ | HIGH | UDP DE-spotted packets |
-| DXLog support | ❌ | HIGH | UDP integration |
-| Log4OM support | ❌ | HIGH | UDP message format |
-| WSJT-X cloud relay | ❌ | MEDIUM | Bridge for hostedmode |
-| Multicast network support | ❌ | LOW | WSJT-X multicast |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| WSJT-X UDP listener | ❌ | CRITICAL | 🏠 | Port 2237, local network only |
+| N1MM+ logger support | ❌ | HIGH | 🏠 | UDP DE-spotted packets, local network |
+| DXLog support | ❌ | HIGH | 🏠 | UDP integration, local network |
+| Log4OM support | ❌ | HIGH | 🏠 | UDP message format, local network |
+| WSJT-X cloud relay | ❌ | MEDIUM | ☁️ | WebSocket bridge for hostedmode |
+| Multicast network support | ❌ | LOW | 🏠 | Multicast not available in cloud |
 
 #### P4.2: hamlib/flrig Integration 🔥
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| rigctld rig control | ❌ | HIGH | Frequency setting from spots |
-| rotctld rotator control | ❌ | HIGH | Beam heading to DX |
-| flrig rig control | ❌ | MEDIUM | Alternative to rigctld |
-| PTT monitoring | ❌ | MEDIUM | "ON THE AIR" indicator |
-| Long path rotator support | ❌ | LOW | Point towards long path |
-| --vfo support | ❌ | LOW | VFO-specific control |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| rigctld rig control | ❌ | HIGH | 🏠 | Local TCP connection to rig |
+| rotctld rotator control | ❌ | HIGH | 🏠 | Local TCP connection to rotator |
+| flrig rig control | ❌ | MEDIUM | 🏠 | Alternative to rigctld, local TCP |
+| PTT monitoring | ❌ | MEDIUM | 🏠 | Local hardware monitoring |
+| Long path rotator support | ❌ | LOW | 🏠 | Requires rotator control |
+| --vfo support | ❌ | LOW | 🏠 | VFO-specific control |
 
 **Phase 4 Deliverables:**
 - WSJT-X/N1MM+/DXLog/Log4OM UDP integration
@@ -174,30 +188,30 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Timeline:** 4-6 weeks
 
 #### P5.1: Contest Features 🔥
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| WA7BNM calendar integration | ❌ | HIGH | Contest schedule |
-| Highlight contests in progress | ❌ | HIGH | Real-time status |
-| Remove past contests | ❌ | MEDIUM | Auto-cleanup |
-| Click to set alarm | ❌ | MEDIUM | Countdown to start |
-| Click to open contest page | ❌ | LOW | Direct web link |
-| Show dates on 2nd line | ❌ | LOW | UI option |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| WA7BNM calendar integration | ❌ | HIGH | 🌐 | Server proxies contest calendar |
+| Highlight contests in progress | ❌ | HIGH | 🌐 | Client-side real-time status |
+| Remove past contests | ❌ | MEDIUM | 🌐 | Client-side auto-cleanup |
+| Click to set alarm | ❌ | MEDIUM | 🌐 | Browser notifications |
+| Click to open contest page | ❌ | LOW | 🌐 | External link |
+| Show dates on 2nd line | ❌ | LOW | 🌐 | UI preference |
 
 #### P5.2: DXpedition Tracking 🔥
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| NG3K integration | ❌ | HIGH | Active DXpeditions |
-| DXNews integration | ❌ | HIGH | DXpedition news |
-| Map markers | ❌ | HIGH | Show on map |
-| Hide individual DXpeds | ❌ | MEDIUM | User preference |
-| Expedition mode indicator | ❌ | LOW | When spotted |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| NG3K integration | ❌ | HIGH | 🌐 | Server proxies NG3K data |
+| DXNews integration | ❌ | HIGH | 🌐 | Server proxies DXNews |
+| Map markers | ❌ | HIGH | 🌐 | Client-side rendering |
+| Hide individual DXpeds | ❌ | MEDIUM | 🌐 | localStorage preference |
+| Expedition mode indicator | ❌ | LOW | 🌐 | Client-side logic |
 
 #### P5.3: Beacons
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| NCDXF beacon display | ❌ | MEDIUM | 18 beacon locations |
-| Frequency rotation schedule | ❌ | MEDIUM | Time-based rotation |
-| Map markers | ❌ | LOW | Show on map |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| NCDXF beacon display | ❌ | MEDIUM | 🌐 | 18 beacon locations (static data) |
+| Frequency rotation schedule | ❌ | MEDIUM | 🌐 | Client-side time calculations |
+| Map markers | ❌ | LOW | 🌐 | Client-side rendering |
 
 **Phase 5 Deliverables:**
 - Contest calendar with real-time status
@@ -211,31 +225,31 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Timeline:** 6-8 weeks
 
 #### P6.1: Map Projections
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Azimuthal (DE-centered) | ❌ | HIGH | Custom Leaflet projection |
-| Azimuthal bearing rings | ❌ | HIGH | Requires azimuthal projection |
-| Azimuthal One Globe | ❌ | MEDIUM | Single hemisphere view |
-| Robinson | ❌ | LOW | Equal-area projection |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Azimuthal (DE-centered) | ❌ | HIGH | 🌐 | Custom Leaflet projection |
+| Azimuthal bearing rings | ❌ | HIGH | 🌐 | Requires azimuthal projection |
+| Azimuthal One Globe | ❌ | MEDIUM | 🌐 | Single hemisphere view |
+| Robinson | ❌ | LOW | 🌐 | Equal-area projection |
 
 #### P6.2: Map Overlays
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Aurora overlay | ❌ | MEDIUM | NOAA OVATION model |
-| Weather overlay | ❌ | MEDIUM | Temperature/isobars/wind |
-| Clouds (IR satellite) | ❌ | MEDIUM | NOAA GOES imagery |
-| CQ Zones | ❌ | LOW | Zone boundary GeoJSON |
-| ITU Zones | ❌ | LOW | Zone boundary GeoJSON |
-| Tropics lines | ❌ | LOW | ±23.5° latitude lines |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Aurora overlay | ❌ | MEDIUM | 🌐 | Server proxies NOAA OVATION |
+| Weather overlay | ❌ | MEDIUM | 🌐 | Server proxies weather data |
+| Clouds (IR satellite) | ❌ | MEDIUM | 🌐 | Server proxies NOAA GOES |
+| CQ Zones | ❌ | LOW | 🌐 | Static GeoJSON |
+| ITU Zones | ❌ | LOW | 🌐 | Static GeoJSON |
+| Tropics lines | ❌ | LOW | 🌐 | Static overlay |
 
 #### P6.3: Map Features
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Cursor info table (hover) | 🟡 | MEDIUM | Location details on hover |
-| Sun sub-earth position | ❌ | MEDIUM | Solar noon point |
-| Moon sub-earth position | ❌ | MEDIUM | Lunar sub-point |
-| City labels | ❌ | LOW | Population-based display |
-| Symbol legend | ❌ | LOW | Band colors, icons |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Cursor info table (hover) | 🟡 | MEDIUM | 🌐 | Location details on hover |
+| Sun sub-earth position | ❌ | MEDIUM | 🌐 | Client-side solar calculations |
+| Moon sub-earth position | ❌ | MEDIUM | 🌐 | Client-side lunar calculations |
+| City labels | ❌ | LOW | 🌐 | Static data or map tiles |
+| Symbol legend | ❌ | LOW | 🌐 | UI element |
 
 **Phase 6 Deliverables:**
 - Azimuthal projection with bearing rings
@@ -249,23 +263,23 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Timeline:** 4-6 weeks
 
 #### P7.1: Satellite Enhancements
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Ground track orbit line | 🟡 | HIGH | Full orbit, not just footprint |
-| Sky plot visualization | ❌ | HIGH | Polar pass chart |
-| User TLE file support | ❌ | MEDIUM | ~/.hamtab/user-sats.txt |
-| TLE age display | ❌ | MEDIUM | Element freshness warning |
-| Satellite planning tool | ❌ | MEDIUM | DE/DX mutual visibility |
-| Max TLE age configuration | ❌ | LOW | User preference |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Ground track orbit line | 🟡 | HIGH | 🌐 | Client-side calculations |
+| Sky plot visualization | ❌ | HIGH | 🌐 | Client-side polar chart |
+| User TLE file support | ❌ | MEDIUM | ☁️ | File (lanmode) / KV or R2 storage (hostedmode) |
+| TLE age display | ❌ | MEDIUM | 🌐 | Client-side calculation |
+| Satellite planning tool | ❌ | MEDIUM | 🌐 | Client-side DE/DX visibility |
+| Max TLE age configuration | ❌ | LOW | 🌐 | Client-side preference |
 
 #### P7.2: Lunar & EME 🔥
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Moon Az/El from DE | ❌ | HIGH | Observer position |
-| Moon rise/set times | ❌ | HIGH | Local calculations |
-| EME planning tool | 🟡 | MEDIUM | Full DE/DX mutual visibility |
-| Moon radial velocity | ❌ | LOW | Doppler calculations |
-| Moon rotation movie link | ❌ | LOW | NASA animation |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Moon Az/El from DE | ❌ | HIGH | 🌐 | Client-side calculations |
+| Moon rise/set times | ❌ | HIGH | 🌐 | Client-side calculations |
+| EME planning tool | 🟡 | MEDIUM | 🌐 | Client-side DE/DX mutual visibility |
+| Moon radial velocity | ❌ | LOW | 🌐 | Client-side Doppler calculations |
+| Moon rotation movie link | ❌ | LOW | 🌐 | External NASA link |
 
 **Phase 7 Deliverables:**
 - Full satellite orbit visualization
@@ -280,46 +294,45 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Timeline:** 4-6 weeks
 
 #### P8.0: Layout & Responsiveness (Priority)
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Operator info visibility | ❌ | HIGH | Callsign, name, license, location, and control buttons need to be larger and bolder |
-| Widget non-overlapping layout | ❌ | HIGH | Widgets should not overlap; auto-size and snap together |
-| Proportional widget resize | ❌ | HIGH | Widgets resize proportionately to maintain layout (default or custom) when window changes |
-| Responsive modals | ❌ | HIGH | Modals resize to fit entirely within viewport at any browser zoom level |
-| Accessibility standards | ❌ | HIGH | Define and document standard accessibility requirements for visual impairments, color blindness, and readability |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Operator info visibility | ❌ | HIGH | 🌐 | Callsign, name, license, location, and control buttons larger and bolder |
+| Widget non-overlapping layout | ❌ | HIGH | 🌐 | Widgets should not overlap; auto-size and snap together |
+| Proportional widget resize | ❌ | HIGH | 🌐 | Widgets resize proportionately to maintain layout on window change |
+| Responsive modals | ❌ | HIGH | 🌐 | Modals resize to fit within viewport at any zoom level |
+| Accessibility standards | ❌ | HIGH | 🌐 | Define standards for visual impairments, color blindness, readability |
 
 #### P8.1: Configuration Management
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Config modal redesign | ❌ | HIGH | Tab system to group settings (General/Location/API Keys/Advanced) |
-| Multiple configuration profiles | ❌ | HIGH | A/B/C save slots |
-| Configuration export/import | ❌ | HIGH | JSON backup/restore |
-| Configuration rename | ❌ | LOW | Label profiles |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Multiple configuration profiles | ❌ | HIGH | ☁️ | localStorage (lanmode) / Workers KV (hostedmode) |
+| Configuration export/import | ❌ | HIGH | 🌐 | JSON download/upload |
+| Configuration rename | ❌ | LOW | ☁️ | localStorage (lanmode) / Workers KV (hostedmode) |
 
 #### P8.2: Theming & Customization
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Color customization | ❌ | MEDIUM | Path/band colors, RGB editor |
-| Light theme | ❌ | MEDIUM | Day mode palette |
-| Multiple color palettes | ❌ | MEDIUM | Save/load palettes |
-| Gray scale mode | ❌ | LOW | Monochrome display |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Color customization | ❌ | MEDIUM | 🌐 | CSS custom properties, localStorage |
+| Light theme | ❌ | MEDIUM | 🌐 | CSS theme toggle |
+| Multiple color palettes | ❌ | MEDIUM | 🌐 | localStorage presets |
+| Gray scale mode | ❌ | LOW | 🌐 | CSS filter |
 
 #### P8.3: Display Modes
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Pane rotation | ❌ | MEDIUM | Auto-cycle widgets on timer |
-| Demo mode | ❌ | MEDIUM | Auto-rotating kiosk display |
-| Big Clock mode | ❌ | LOW | Full-screen clock |
-| Kiosk mode | ❌ | LOW | Auto-launch fullscreen (RPi) |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Pane rotation | ❌ | MEDIUM | 🌐 | Client-side timer |
+| Demo mode | ❌ | MEDIUM | 🌐 | Client-side auto-rotation |
+| Big Clock mode | ❌ | LOW | 🌐 | UI state change |
+| Kiosk mode | ❌ | LOW | 🏠 | Auto-launch fullscreen (RPi only) |
 
 #### P8.4: Other UX
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Stopwatch | ❌ | MEDIUM | With lap function |
-| Countdown timer | ❌ | MEDIUM | Station ID timer |
-| Daily alarm | ❌ | MEDIUM | Repeating alarms |
-| One-time alarm | ❌ | MEDIUM | Single occurrence |
-| Time shift planning | ❌ | LOW | View future/past conditions |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Stopwatch | ❌ | MEDIUM | 🌐 | Client-side timer with lap function |
+| Countdown timer | ❌ | MEDIUM | 🌐 | Client-side station ID timer |
+| Daily alarm | ❌ | MEDIUM | 🌐 | Browser notifications |
+| One-time alarm | ❌ | MEDIUM | 🌐 | Browser notifications |
+| Time shift planning | ❌ | LOW | 🌐 | Client-side historical calculations |
 
 **Phase 8 Deliverables:**
 - Non-overlapping widget layout with auto-size and snap behavior
@@ -327,7 +340,6 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 - Responsive modals that fit within viewport at any zoom
 - Improved operator info visibility (larger, bolder text)
 - Documented accessibility standards
-- Redesigned config modal with tab-based organization
 - Multiple configuration profiles with export/import
 - Color customization and light theme
 - Stopwatch and countdown timers
@@ -339,29 +351,29 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Timeline:** 4-6 weeks
 
 #### P9.1: DX Cluster Live TCP 🔥
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Telnet proxy microservice | ❌ | HIGH | Persistent Spider connections |
-| DX Cluster commands | ❌ | HIGH | Native cluster syntax |
-| AR-Cluster support | ❌ | MEDIUM | Alternative cluster type |
-| CC-Cluster support | ❌ | MEDIUM | Alternative cluster type |
-| DXWatch fallback | ❌ | MEDIUM | If primary fails |
-| Multi-source fallback | ❌ | LOW | Automatic failover |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Telnet proxy microservice | ❌ | HIGH | ☁️ | Local TCP (lanmode) / separate Worker (hostedmode) |
+| DX Cluster commands | ❌ | HIGH | ☁️ | Requires proxy (see above) |
+| AR-Cluster support | ❌ | MEDIUM | ☁️ | Requires proxy (see above) |
+| CC-Cluster support | ❌ | MEDIUM | ☁️ | Requires proxy (see above) |
+| DXWatch fallback | ❌ | MEDIUM | 🌐 | HTTP fallback works everywhere |
+| Multi-source fallback | ❌ | LOW | 🌐 | Client-side failover |
 
 #### P9.2: Digital Modes
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| PSKReporter MQTT | ❌ | MEDIUM | Real-time WebSocket |
-| WSPR integration | ❌ | MEDIUM | wsprnet.org API |
-| RBN integration | ❌ | MEDIUM | Reverse Beacon Network |
-| WWFF spots | ❌ | LOW | World Flora & Fauna |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| PSKReporter MQTT | ❌ | MEDIUM | ☁️ | WebSocket CSP, may need MQTT-over-WS bridge |
+| WSPR integration | ❌ | MEDIUM | 🌐 | Server proxies wsprnet.org API |
+| RBN integration | ❌ | MEDIUM | 🌐 | Server proxies RBN API |
+| WWFF spots | ❌ | LOW | 🌐 | Server proxies WWFF data |
 
 #### P9.3: Additional Sources
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| RSS feeds (configurable) | ❌ | MEDIUM | User-defined feeds |
-| DX news ticker | ❌ | LOW | Scrolling headlines |
-| RSS ticker overlay | ❌ | LOW | On-map display |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| RSS feeds (configurable) | ❌ | MEDIUM | 🌐 | Server proxies RSS feeds |
+| DX news ticker | ❌ | LOW | 🌐 | Client-side rendering |
+| RSS ticker overlay | ❌ | LOW | 🌐 | Client-side overlay |
 
 **Phase 9 Deliverables:**
 - Live DX Cluster TCP connections
@@ -375,26 +387,26 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Timeline:** 4-6 weeks
 
 #### P10.1: Monitoring & Diagnostics
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| CPU temperature display | ❌ | LOW | Below callsign (if available) |
-| CPU temp history graphs | ❌ | LOW | Hour/day trends |
-| Disk space monitoring | ❌ | LOW | % full indicator |
-| Auto-remove old cache | ❌ | LOW | When disk nearly full |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| CPU temperature display | ❌ | LOW | 🏠 | Local hardware sensor (RPi) |
+| CPU temp history graphs | ❌ | LOW | 🏠 | Requires CPU temp |
+| Disk space monitoring | ❌ | LOW | 🏠 | Local filesystem monitoring |
+| Auto-remove old cache | ❌ | LOW | 🏠 | Local filesystem cleanup |
 
 #### P10.2: Multi-User Features
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Read-only web connections | ❌ | MEDIUM | View-only port (8082) |
-| Multi-session proxy | ❌ | LOW | Per-IP instances (hostedmode) |
-| RESTful API expansion | ❌ | LOW | Additional endpoints |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Read-only web connections | ❌ | MEDIUM | ☁️ | Port 8082 (lanmode) / Cloudflare Access roles (hostedmode) |
+| Multi-session proxy | ❌ | LOW | ☁️ | Per-IP instances (lanmode) / Durable Objects (hostedmode) |
+| RESTful API expansion | ❌ | LOW | 🌐 | Server endpoints |
 
 #### P10.3: Accessibility
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| Multi-language support | ❌ | LOW | i18n (8+ languages) |
-| Keyboard navigation | ❌ | LOW | Full keyboard control |
-| Screen reader support | ❌ | LOW | ARIA labels |
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Multi-language support | ❌ | LOW | 🌐 | i18n client-side (8+ languages) |
+| Keyboard navigation | ❌ | LOW | 🌐 | Client-side event handlers |
+| Screen reader support | ❌ | LOW | 🌐 | ARIA attributes |
 
 **Phase 10 Deliverables:**
 - System monitoring (CPU temp, disk space)
@@ -525,6 +537,130 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 ### Critical: No clearskyinstitute.com Dependency
 All data sources are publicly available APIs. HamTab is fully self-sufficient and will continue functioning after June 2026.
+
+---
+
+## Deployment Mode Analysis
+
+HamTab supports two deployment modes with a shared codebase on `main` and mode-specific implementations on `lanmode` and `hostedmode` branches.
+
+### Mode Distribution (215 Total Features)
+
+| Mode | Count | Percentage | Description |
+|------|-------|------------|-------------|
+| 🌐 **Both** | 179 | 83% | Works identically in both lanmode and hostedmode |
+| 🏠 **Lanmode** | 23 | 11% | Requires local network/hardware, incompatible with cloud |
+| ☁️ **Hosted** | 13 | 6% | Works in both but requires different implementation |
+
+### Lanmode-Only Features (23)
+
+**Hardware & Local Network (17):**
+- All UDP spot input (WSJT-X, N1MM+, DXLog, Log4OM) except cloud relay
+- All hamlib/flrig integration (rigctld, rotctld, flrig, PTT monitoring)
+- Multicast network support
+
+**System Monitoring (4):**
+- CPU temperature display and history
+- Disk space monitoring
+- Auto-remove old cache
+
+**Deployment (2):**
+- Configurable port (hostedmode uses wrangler.jsonc)
+- Uninstall script (hostedmode uses CI/CD)
+
+**UI (1):**
+- Kiosk mode auto-launch (RPi-specific)
+
+**File System (1):**
+- ADIF file reload on change (file watching)
+
+### Hostedmode Different Implementation (13)
+
+**Storage (5):**
+- ADIF log display → KV or R2 instead of file upload
+- ADIF watch list → depends on ADIF storage
+- User TLE file support → KV/R2 instead of ~/.hamtab/user-sats.txt
+- Multiple config profiles → Workers KV instead of localStorage
+- Configuration rename → Workers KV instead of localStorage
+
+**Network Services (6):**
+- Docker support → hostedmode already uses Cloudflare Containers; this feature is for lanmode
+- WSJT-X cloud relay → WebSocket bridge needed
+- DX Cluster TCP proxy → separate Worker/microservice
+- AR-Cluster, CC-Cluster → depends on cluster proxy
+- PSKReporter MQTT → may need MQTT-over-WebSocket bridge
+- Read-only web → Cloudflare Access roles instead of port 8082
+
+**Multi-User (2):**
+- Multi-session proxy → Durable Objects instead of per-IP instances
+
+### Both Modes (179)
+
+**Client-Side (majority):**
+- All UI/UX changes, filtering, watch lists
+- All calculations (solar, lunar, EME, satellites, propagation)
+- All map features, projections, and overlays
+- All theming and customization
+- All timers, alarms, and notifications
+
+**Server-Proxied APIs:**
+- All spot sources (POTA, SOTA, DXC, PSK, PSKReporter)
+- All space weather data (NOAA, hamqsl.com)
+- All propagation models (VOACAP, DRAP, ionosonde)
+- All contest/DXpedition sources (WA7BNM, NG3K, DXNews)
+- All weather data (NWS, Weather Underground)
+- All reference data (beacons, zones, overlays)
+
+### Phase-by-Phase Impact
+
+| Phase | 🌐 Both | 🏠 Lanmode | ☁️ Hosted | Lanmode % |
+|-------|---------|-----------|----------|-----------|
+| P1 | 10 | 2 | 1 | 15% |
+| P2 | 9 | 1 | 2 | 8% |
+| P3 | 11 | 0 | 0 | 0% |
+| P4 | 1 | 11 | 1 | 85% |
+| P5 | 15 | 0 | 0 | 0% |
+| P6 | 15 | 0 | 0 | 0% |
+| P7 | 10 | 0 | 1 | 0% |
+| P8 | 14 | 1 | 2 | 6% |
+| P9 | 9 | 0 | 4 | 0% |
+| P10 | 7 | 4 | 2 | 36% |
+
+**Phase 4 (Hardware Integration)** is 85% lanmode-only. Most other phases are universal (0-15% lanmode-only).
+
+### Implementation Strategy
+
+**Main Branch (Shared):**
+- Develop all 🌐 **Both** features on `main`
+- Client-side logic, UI components, calculations
+- Server proxy endpoints with identical behavior
+
+**Lanmode Branch:**
+- UDP listeners and hardware integration
+- System monitoring (CPU temp, disk space)
+- Installation/uninstall scripts
+- File-based storage and file watching
+
+**Hostedmode Branch:**
+- Workers KV for config/ADIF/TLE storage
+- Cloudflare Durable Objects for multi-session
+- WebSocket bridges for real-time services (cluster, MQTT)
+- Cloudflare Access integration for read-only mode
+- Container-optimized deployments
+
+### Critical Hostedmode Work Items
+
+**High Priority:**
+1. Workers KV integration for multi-config profiles (P8.1)
+2. ADIF storage strategy - R2 vs KV decision (P2.2)
+3. WSJT-X cloud relay architecture planning (P4.1)
+4. DX Cluster microservice design (P9.1)
+
+**Medium Priority:**
+1. User TLE file upload to KV/R2 (P7.1)
+2. PSKReporter MQTT WebSocket integration (P9.2)
+3. Multi-user session isolation via Durable Objects (P10.2)
+4. Read-only mode via Cloudflare Access roles (P10.2)
 
 ---
 

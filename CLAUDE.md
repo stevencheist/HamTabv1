@@ -101,6 +101,7 @@ main ──────────────────────── sh
 - Keep server.js endpoints consistent in error response format
 - Test changes by running `npm start` and verifying in browser
 - New functions, intervals, and state fields must include comments per the Commenting Style rules above (citations, magic numbers, purpose)
+- **Toggleable error handling** — All generated code should include error handling that can be enabled for debugging. Use a debug flag or verbose mode that's off by default but can be turned on to surface errors (e.g. `if (state.debug) console.error(...)`). The capability must exist even if disabled in production.
 
 ## Versioning & Updates
 
@@ -164,6 +165,15 @@ Stay on `main` for most work. Use simple commands to manage branches:
 **When to switch branches:**
 - **hostedmode** — Cloudflare-specific fixes (wrangler.jsonc, worker.js, Dockerfile, CI/CD)
 - **lanmode** — Self-hosted fixes (install scripts, update checker, CORS config)
+
+## Feature Tracking
+
+When working on multiple related features or a feature set with more than one task:
+
+- **Create a tracking document** — Use a `.md` file in the repo root (e.g. `FEATURE_NAME.md`) to track progress
+- **Document scope** — List all items to be implemented, their status (✅/🟡/❌), and any notes
+- **Update as you go** — Mark items complete as work progresses
+- **Single-item tasks** — Don't create tracking files for one-off changes; use commit messages and PR descriptions instead
 
 ## GitHub Issue Communication
 

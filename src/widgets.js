@@ -42,7 +42,7 @@ function redistributeRightColumn() {
   const rightX = parseInt(solarEl.style.left) || 0;
   const rightW = parseInt(solarEl.style.width) || 0;
 
-  const rightBottomIds = ['widget-lunar', 'widget-rst', 'widget-spot-detail'];
+  const rightBottomIds = ['widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail'];
   const vis = state.widgetVisibility || {};
   const visible = rightBottomIds.filter(id => vis[id] !== false);
   if (visible.length === 0) return;
@@ -77,21 +77,21 @@ export function getDefaultLayout() {
   const centerW = W - leftW - rightW - pad * 4;
   const rightHalf = Math.round((H - pad * 3) / 2);
 
-  const clockH = state.clockStyle === 'analog' ? 280 : 130;
-  const clockW = Math.round((centerW - pad) / 2);
-
   const rightX = leftW + centerW + pad * 3;
 
+  // Split left column: filters (220px) at top, activations below
+  const filtersH = 220;
+  const activationsH = H - filtersH - pad * 3;
+
   const layout = {
-    'widget-clock-local': { left: leftW + pad * 2, top: pad, width: clockW, height: clockH },
-    'widget-clock-utc': { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
-    'widget-activations': { left: pad, top: pad, width: leftW, height: H - pad * 2 },
-    'widget-map': { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
+    'widget-filters': { left: pad, top: pad, width: leftW, height: filtersH },
+    'widget-activations': { left: pad, top: filtersH + pad * 2, width: leftW, height: activationsH },
+    'widget-map': { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
     'widget-solar': { left: rightX, top: pad, width: rightW, height: rightHalf },
   };
 
   // Stack visible right-column widgets below solar
-  const rightBottomIds = ['widget-lunar', 'widget-rst', 'widget-spot-detail'];
+  const rightBottomIds = ['widget-propagation', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail'];
   const vis = state.widgetVisibility || {};
   const visibleBottom = rightBottomIds.filter(id => vis[id] !== false);
   const bottomSpace = H - rightHalf - pad * 2;
@@ -341,12 +341,22 @@ export function initWidgets() {
     const saved = localStorage.getItem(WIDGET_STORAGE_KEY);
     if (saved) {
       layout = JSON.parse(saved);
-      const { width: aW, height: aH } = getWidgetArea();
-      for (const id of Object.keys(layout)) {
-        const p = layout[id];
-        if (p.left > aW - 30 || p.top > aH - 30 || p.left + p.width < 30 || p.top + p.height < 10) {
-          layout = null;
-          break;
+
+      // Clear layout if it contains removed clock widgets
+      if (layout['widget-clock-local'] || layout['widget-clock-utc']) {
+        console.log('Clearing old layout with clock widgets');
+        localStorage.removeItem(WIDGET_STORAGE_KEY);
+        localStorage.removeItem(USER_LAYOUT_KEY);
+        layout = null;
+      } else {
+        // Validate positions
+        const { width: aW, height: aH } = getWidgetArea();
+        for (const id of Object.keys(layout)) {
+          const p = layout[id];
+          if (p.left > aW - 30 || p.top > aH - 30 || p.left + p.width < 30 || p.top + p.height < 10) {
+            layout = null;
+            break;
+          }
         }
       }
     }

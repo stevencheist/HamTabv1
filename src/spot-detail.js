@@ -77,14 +77,23 @@ export async function updateSpotDetail(spot) {
   const mode = spot.mode || '';
   const band = freqToBand(freq) || '';
   const ref = spot.reference || '';
+  const spotter = spot.spotter || '';
+  const continent = spot.continent || '';
 
-  // Reference link
+  // Reference link (for POTA/SOTA)
   let refHtml = '';
   if (ref) {
     const refUrl = state.currentSource === 'sota'
       ? `https://www.sota.org.uk/Summit/${encodeURIComponent(ref)}`
       : `https://pota.app/#/park/${encodeURIComponent(ref)}`;
     refHtml = `<a href="${refUrl}" target="_blank" rel="noopener">${esc(ref)}</a>`;
+  }
+
+  // Spotter link (for DXC)
+  let spotterHtml = '';
+  if (spotter && state.currentSource === 'dxc') {
+    const spotterQrzUrl = `https://www.qrz.com/db/${encodeURIComponent(spotter)}`;
+    spotterHtml = `<a href="${spotterQrzUrl}" target="_blank" rel="noopener">${esc(spotter)}</a>`;
   }
 
   // Bearing & distance
@@ -105,6 +114,12 @@ export async function updateSpotDetail(spot) {
   // DX local time placeholder
   const localTime = !isNaN(lon) ? localTimeAtLon(lon, state.use24h) : '';
 
+  // Build DXC-specific rows
+  const dxcRows = state.currentSource === 'dxc' ? `
+    ${spotterHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Spotter:</span> ${spotterHtml}</div>` : ''}
+    ${continent ? `<div class="spot-detail-row"><span class="spot-detail-label">Continent:</span> ${esc(continent)}</div>` : ''}
+  ` : '';
+
   body.innerHTML = `
     <div class="spot-detail-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${esc(displayCall)}</a></div>
     <div class="spot-detail-name" id="spotDetailName"></div>
@@ -112,7 +127,8 @@ export async function updateSpotDetail(spot) {
     <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode)}</div>
     ${band ? `<div class="spot-detail-row"><span class="spot-detail-label">Band:</span> ${esc(band)}</div>` : ''}
     ${refHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Ref:</span> ${refHtml}</div>` : ''}
-    ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">Name:</span> ${esc(spot.name)}</div>` : ''}
+    ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state.currentSource === 'dxc' ? 'Country:' : 'Name:'}</span> ${esc(spot.name)}</div>` : ''}
+    ${dxcRows}
     ${bearingHtml}
     ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ''}
     ${spot.comments ? `<div class="spot-detail-row spot-detail-comments">${esc(spot.comments)}</div>` : ''}

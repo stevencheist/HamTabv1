@@ -65,6 +65,14 @@
       </div>
 
       <div class="splash-divider"></div>
+      <div class="splash-sat-section">
+        <span class="splash-loc-title">Satellite Tracking (optional)</span>
+        <label for="splashN2yoApiKey">N2YO API Key</label>
+        <input type="text" id="splashN2yoApiKey" placeholder="N2YO API key for satellite tracking" autocomplete="off" spellcheck="false" style="text-transform:none;" />
+        <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;"><a href="https://www.n2yo.com/api/" target="_blank" style="color:var(--accent);">Get a free API key (1000 req/hr)</a></div>
+      </div>
+
+      <div class="splash-divider"></div>
       <div class="splash-widgets-section">
         <span class="splash-loc-title">Widgets</span>
         <div class="splash-widget-list" id="splashWidgetList"></div>
@@ -103,18 +111,6 @@
     </div>
   </div>
 
-  <!-- Clock style config overlay -->
-  <div class="splash-overlay hidden" id="clockCfgSplash">
-    <div class="splash-box clock-cfg-box">
-      <h2>Clock Style</h2>
-      <div class="splash-time-options" style="justify-content:center;margin-bottom:16px;">
-        <label><input type="radio" name="clockStyle" value="digital" id="clockStyleDigital"> Digital</label>
-        <label><input type="radio" name="clockStyle" value="analog" id="clockStyleAnalog"> Analog</label>
-      </div>
-      <button id="clockCfgOk">OK</button>
-    </div>
-  </div>
-
   <!-- Spot column config overlay -->
   <div class="splash-overlay hidden" id="spotColCfgSplash">
     <div class="splash-box spot-col-cfg-box">
@@ -150,9 +146,20 @@
         <button class="op-btn" id="bandRefBtn" title="Band privilege reference">Band Ref</button>
       </div>
     </div>
-    <div class="header-center" id="headerBands">
-      <div class="header-bands-title">Band Conditions <span class="header-bands-hint">(Day / Night)</span></div>
-      <div class="header-bands-row" id="headerBandsRow"></div>
+    <div class="header-center">
+      <div class="header-clock-group">
+        <div class="wx-alert-badge hidden" id="wxAlertBadge">&#9888;</div>
+        <div class="header-clock" id="headerClockLocal">
+          <div class="header-clock-label">Local</div>
+          <div class="header-clock-time" id="clockLocalTime"></div>
+          <div class="header-clock-weather" id="clockLocalWeather"></div>
+          <div class="wx-source-logo hidden" id="wxSourceLogo" title="Weather data source"></div>
+        </div>
+      </div>
+      <div class="header-clock" id="headerClockUtc">
+        <div class="header-clock-label">UTC</div>
+        <div class="header-clock-time" id="clockUtcTime"></div>
+      </div>
     </div>
     <div class="header-right">
       <span class="last-updated" id="lastUpdated"></span>
@@ -169,30 +176,49 @@
   </header>
 
   <div class="widget-area" id="widgetArea">
-    <!-- Local Time Clock -->
-    <div class="widget" id="widget-clock-local">
-      <div class="widget-header">Local Time <button class="widget-cfg-btn" id="clockLocalCfgBtn" title="Configure clock style">&#9881;</button></div>
+    <!-- Filters -->
+    <div class="widget" id="widget-filters">
+      <div class="widget-header">Filters</div>
       <div class="widget-body">
-        <div class="wx-alert-badge hidden" id="wxAlertBadge">&#9888;</div>
-        <div class="clock-display" id="clockLocal">
-          <div class="clock-time" id="clockLocalTime"></div>
-          <div class="clock-day-date" id="clockLocalDate"></div>
-          <canvas class="clock-analog-canvas" id="clockLocalCanvas" width="200" height="200"></canvas>
-          <div class="clock-weather" id="clockLocalWeather"></div>
-        </div>
-        <div class="wx-source-logo hidden" id="wxSourceLogo" title="Weather data source"></div>
-      </div>
-      <div class="widget-resize"></div>
-    </div>
-
-    <!-- UTC Clock -->
-    <div class="widget" id="widget-clock-utc">
-      <div class="widget-header">UTC <button class="widget-cfg-btn" id="clockUtcCfgBtn" title="Configure clock style">&#9881;</button></div>
-      <div class="widget-body">
-        <div class="clock-display" id="clockUtc">
-          <div class="clock-time" id="clockUtcTime"></div>
-          <div class="clock-day-date" id="clockUtcDate"></div>
-          <canvas class="clock-analog-canvas" id="clockUtcCanvas" width="200" height="200"></canvas>
+        <div class="widget-filters" id="widgetFilters">
+          <!-- Row 1: Band and Mode (multi-select buttons) -->
+          <div class="filter-row">
+            <div class="band-filters" id="bandFilters"></div>
+            <div class="mode-filters" id="modeFilters"></div>
+          </div>
+          <!-- Row 2: Distance and Age -->
+          <div class="filter-row filter-row-range">
+            <div class="distance-filter" id="distanceFilterWrap">
+              <label class="filter-label">Dist:</label>
+              <input type="number" id="distanceFilter" min="0" step="50" placeholder="Max">
+              <select id="distanceUnit"><option value="mi">mi</option><option value="km">km</option></select>
+            </div>
+            <div class="age-filter" id="ageFilterWrap">
+              <label class="filter-label">Age:</label>
+              <select id="ageFilter">
+                <option value="">All</option>
+                <option value="15">15 min</option>
+                <option value="30">30 min</option>
+                <option value="60">1 hr</option>
+                <option value="120">2 hr</option>
+              </select>
+            </div>
+          </div>
+          <!-- Row 3: Existing dropdowns -->
+          <div class="filter-row">
+            <select id="countryFilter"><option value="">All Countries</option></select>
+            <select id="stateFilter"><option value="">All States</option></select>
+            <select id="gridFilter"><option value="">All Grids</option></select>
+            <select id="continentFilter"><option value="">All Continents</option></select>
+            <label class="priv-filter-label" title="Only show spots within your US license privileges"><input type="checkbox" id="privFilter"> My privileges</label>
+          </div>
+          <!-- Row 4: Presets -->
+          <div class="filter-row filter-row-presets" id="presetFilterWrap">
+            <select id="presetFilter"><option value="">Load Preset...</option></select>
+            <button id="savePresetBtn">Save</button>
+            <button id="deletePresetBtn">Del</button>
+            <button id="clearFiltersBtn">Clear All</button>
+          </div>
         </div>
       </div>
       <div class="widget-resize"></div>
@@ -207,15 +233,7 @@
         <div class="source-tabs" id="sourceTabs">
           <button class="source-tab active" data-source="pota">POTA</button>
           <button class="source-tab" data-source="sota">SOTA</button>
-        </div>
-        <div class="widget-filters" id="widgetFilters">
-          <div class="band-filters" id="bandFilters"></div>
-          <div class="mode-filters" id="modeFilters"></div>
-          <select id="countryFilter"><option value="">All Countries</option></select>
-          <select id="stateFilter"><option value="">All States</option></select>
-          <select id="gridFilter"><option value="">All Grids</option></select>
-          <!-- US callsigns only -->
-          <label class="priv-filter-label" title="Only show spots within your US license privileges"><input type="checkbox" id="privFilter"> My privileges</label>
+          <button class="source-tab" data-source="dxc">DXC</button>
         </div>
         <div class="table-wrap">
           <table id="spotsTable">
@@ -259,7 +277,7 @@
 
     <!-- Solar -->
     <div class="widget" id="widget-solar">
-      <div class="widget-header">Solar &amp; Propagation <button class="widget-cfg-btn" id="solarCfgBtn" title="Configure fields">&#9881;</button></div>
+      <div class="widget-header">Solar <button class="widget-cfg-btn" id="solarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
         <div class="solar-image-container">
           <select id="solarImageType">
@@ -278,12 +296,53 @@
       <div class="widget-resize"></div>
     </div>
 
+    <!-- Band Conditions / Propagation -->
+    <div class="widget" id="widget-propagation">
+      <div class="widget-header">
+        Band Conditions
+        <div class="day-night-toggle">
+          <button class="toggle-btn" id="dayToggle" data-time="day">Day</button>
+          <button class="toggle-btn" id="nightToggle" data-time="night">Night</button>
+        </div>
+      </div>
+      <div class="widget-body">
+        <div class="prop-summary">
+          <div class="prop-summary-item">
+            <span class="prop-summary-label">MUF</span>
+            <span class="prop-summary-value" id="propMufValue">--</span>
+          </div>
+          <div class="prop-summary-item">
+            <span class="prop-summary-label">SFI</span>
+            <span class="prop-summary-value" id="propSfiValue">--</span>
+          </div>
+          <div class="prop-summary-item">
+            <span class="prop-summary-label">K-index</span>
+            <span class="prop-summary-value" id="propKindexValue">--</span>
+          </div>
+        </div>
+        <div class="band-conditions-grid" id="bandConditionsGrid"></div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
     <!-- Lunar / EME -->
     <div class="widget" id="widget-lunar">
       <div class="widget-header">Lunar / EME <button class="widget-cfg-btn" id="lunarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
         <canvas id="moonCanvas" width="160" height="160"></canvas>
         <div class="lunar-cards" id="lunarCards"></div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Satellites -->
+    <div class="widget" id="widget-satellites">
+      <div class="widget-header">Satellites
+        <button class="widget-cfg-btn" id="satCfgBtn" title="Configure satellites">&#9881;</button>
+      </div>
+      <div class="widget-body">
+        <div class="sat-list" id="satList"></div>
+        <div class="sat-passes" id="satPasses"></div>
       </div>
       <div class="widget-resize"></div>
     </div>
@@ -333,6 +392,21 @@
         <label><input type="checkbox" id="mapOvTimezone" /> Timezone Lines</label>
       </div>
       <button id="mapOverlayCfgOk">OK</button>
+    </div>
+  </div>
+
+  <!-- Satellite config overlay -->
+  <div class="splash-overlay hidden" id="satCfgSplash">
+    <div class="splash-box sat-cfg-box">
+      <h2>Satellite Tracking</h2>
+      <label for="satApiKey">N2YO API Key</label>
+      <input type="text" id="satApiKey" placeholder="Get free key at n2yo.com/api" autocomplete="off" spellcheck="false" style="text-transform:none;" />
+      <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:12px;text-align:left;">
+        <a href="https://www.n2yo.com/api/" target="_blank" style="color:var(--accent);">Get a free API key (1000 req/hr)</a>
+      </div>
+      <div class="splash-loc-title" style="margin-bottom:8px;">Satellites to Track</div>
+      <div class="sat-select-list" id="satSelectList"></div>
+      <button id="satCfgOk">OK</button>
     </div>
   </div>
 

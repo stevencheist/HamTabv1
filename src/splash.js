@@ -9,7 +9,6 @@ import { renderSpots } from './spots.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
 import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
-import { pushSettings } from './settings-sync.js';
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -205,6 +204,7 @@ export function showSplash() {
 
   $('splashWxStation').value = state.wxStation;
   $('splashWxApiKey').value = state.wxApiKey;
+  $('splashN2yoApiKey').value = state.n2yoApiKey;
 
   $('splashGridDropdown').classList.remove('open');
   $('splashGridDropdown').innerHTML = '';
@@ -235,8 +235,10 @@ function dismissSplash() {
 
   state.wxStation = ($('splashWxStation').value || '').trim().toUpperCase();
   state.wxApiKey = ($('splashWxApiKey').value || '').trim();
+  state.n2yoApiKey = ($('splashN2yoApiKey').value || '').trim();
   localStorage.setItem('hamtab_wx_station', state.wxStation);
   localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
+  localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
 
   fetchWeather();
 
@@ -247,7 +249,14 @@ function dismissSplash() {
   saveWidgetVisibility();
   applyWidgetVisibility();
 
-  pushSettings();
+  const intervalSelect = $('splashUpdateInterval');
+  const intervalVal = intervalSelect.value;
+  localStorage.setItem('hamtab_update_interval', intervalVal);
+  fetch('/api/update/interval', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
+  }).catch(() => {});
 
   $('splashGridDropdown').classList.remove('open');
   $('splash').classList.add('hidden');

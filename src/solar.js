@@ -51,14 +51,6 @@ export function geomagColor(val) {
   return '';
 }
 
-function condClass(cond) {
-  const c = (cond || '').toLowerCase();
-  if (c === 'good') return 'cond-good';
-  if (c === 'fair') return 'cond-fair';
-  if (c === 'poor') return 'cond-poor';
-  return '';
-}
-
 const SOLAR_VIS_KEY = 'hamtab_solar_fields';
 
 export function loadSolarFieldVisibility() {
@@ -250,6 +242,9 @@ export async function fetchSolar() {
     state.lastSolarData = data;
     renderSolar(data);
     loadSolarImage();
+    // Also update propagation widget since it depends on solar data
+    const { renderPropagationWidget } = await import('./band-conditions.js');
+    renderPropagationWidget();
   } catch (err) {
     console.error('Failed to fetch solar:', err);
   }
@@ -283,41 +278,6 @@ export function renderSolar(data) {
     div.appendChild(labelDiv);
     div.appendChild(valueDiv);
     solarIndices.appendChild(div);
-  });
-
-  // Band conditions in header strip
-  const headerBandsRow = $('headerBandsRow');
-  headerBandsRow.innerHTML = '';
-  const bandMap = {};
-  bands.forEach(b => {
-    if (!bandMap[b.band]) bandMap[b.band] = {};
-    bandMap[b.band][b.time] = b.condition;
-  });
-
-  const bandOrder = ['80m-40m', '30m-20m', '17m-15m', '12m-10m'];
-  bandOrder.forEach(band => {
-    if (!bandMap[band]) return;
-    const day = bandMap[band]['day'] || '-';
-    const night = bandMap[band]['night'] || '-';
-    const item = document.createElement('div');
-    item.className = 'header-band-item';
-    const nameSpan = document.createElement('span');
-    nameSpan.className = 'header-band-name';
-    nameSpan.textContent = band;
-    const daySpan = document.createElement('span');
-    daySpan.className = 'header-band-day ' + condClass(day);
-    daySpan.textContent = day;
-    const sep = document.createElement('span');
-    sep.textContent = '/';
-    sep.style.color = 'var(--text-dim)';
-    const nightSpan = document.createElement('span');
-    nightSpan.className = 'header-band-night ' + condClass(night);
-    nightSpan.textContent = night;
-    item.appendChild(nameSpan);
-    item.appendChild(daySpan);
-    item.appendChild(sep);
-    item.appendChild(nightSpan);
-    headerBandsRow.appendChild(item);
   });
 }
 

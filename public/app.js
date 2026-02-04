@@ -28,12 +28,20 @@
         // Markers & selection
         markers: {},
         selectedSpotId: null,
-        // Filters
-        activeBand: null,
-        activeMode: null,
+        // Filters — multi-select bands/modes stored as Sets
+        activeBands: /* @__PURE__ */ new Set(),
+        activeModes: /* @__PURE__ */ new Set(),
         activeCountry: null,
         activeState: null,
         activeGrid: null,
+        activeContinent: null,
+        activeMaxDistance: null,
+        // miles (null = no filter)
+        distanceUnit: localStorage.getItem("hamtab_distance_unit") || "mi",
+        activeMaxAge: null,
+        // minutes (null = no filter)
+        // Filter presets per source
+        filterPresets: { pota: {}, sota: {}, dxc: {} },
         // Auto-refresh
         autoRefreshEnabled: true,
         countdownSeconds: 60,
@@ -44,7 +52,6 @@
         licenseClass: localStorage.getItem("hamtab_license_class") || "",
         propMetric: localStorage.getItem("hamtab_prop_metric") || "mufd",
         mapCenterMode: localStorage.getItem("hamtab_map_center") || "qth",
-        clockStyle: localStorage.getItem("hamtab_clock_style") || "digital",
         // Map layers
         propLayer: null,
         propLabelLayer: null,
@@ -56,8 +63,8 @@
         mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false },
         // Source
         currentSource: localStorage.getItem("hamtab_spot_source") || "pota",
-        sourceData: { pota: [], sota: [] },
-        sourceFiltered: { pota: [], sota: [] },
+        sourceData: { pota: [], sota: [], dxc: [] },
+        sourceFiltered: { pota: [], sota: [], dxc: [] },
         // Widget visibility
         widgetVisibility: null,
         // loaded in widgets.js
@@ -87,12 +94,26 @@
         grayLinePolygon: null,
         dayPolygon: null,
         userMarker: null,
-        // ISS
-        issMarker: null,
-        issCircle: null,
-        issTrail: [],
-        issTrailLine: null,
-        issOrbitLine: null,
+        // Satellites (multi-satellite tracking via N2YO)
+        satellites: {
+          tracked: [],
+          // NORAD IDs of satellites to track (loaded from localStorage)
+          available: [],
+          // list of available amateur radio satellites from N2YO
+          positions: {},
+          // { satId: { lat, lon, alt, azimuth, elevation, ... } }
+          passes: {},
+          // { satId: { passes: [...], expires: timestamp } }
+          markers: {},
+          // { satId: L.marker }
+          circles: {},
+          // { satId: L.circle (footprint) }
+          orbitLines: {},
+          // { satId: L.polyline }
+          selectedSatId: null
+          // currently selected satellite for pass display
+        },
+        n2yoApiKey: localStorage.getItem("hamtab_n2yo_apikey") || "",
         // Geodesic
         geodesicLine: null,
         // L.polyline for great circle path from QTH to selected spot
@@ -122,8 +143,8 @@
         localStorage.setItem("hamtab_prop_metric", state.propMetric);
       }
       try {
-        const saved = JSON.parse(localStorage.getItem("hamtab_map_overlays"));
-        if (saved) Object.assign(state.mapOverlays, saved);
+        const saved2 = JSON.parse(localStorage.getItem("hamtab_map_overlays"));
+        if (saved2) Object.assign(state.mapOverlays, saved2);
       } catch (e) {
       }
       savedLat = localStorage.getItem("hamtab_lat");
@@ -149,6 +170,23 @@
             state.myLon = lon;
           }
         }
+      }
+      try {
+        const savedTracked = JSON.parse(localStorage.getItem("hamtab_sat_tracked"));
+        if (Array.isArray(savedTracked) && savedTracked.length > 0) {
+          state.satellites.tracked = savedTracked;
+        } else {
+          state.satellites.tracked = [25544];
+        }
+      } catch {
+        state.satellites.tracked = [25544];
+      }
+      try {
+        const savedPresets = JSON.parse(localStorage.getItem("hamtab_filter_presets"));
+        if (savedPresets) {
+          state.filterPresets = { pota: {}, sota: {}, dxc: {}, ...savedPresets };
+        }
+      } catch (e) {
       }
       state_default = state;
     }
@@ -248,8 +286,8 @@
   }
   function loadLunarFieldVisibility() {
     try {
-      const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
+      const saved2 = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
+      if (saved2 && typeof saved2 === "object") return saved2;
     } catch (e) {
     }
     const vis = {};
@@ -379,8 +417,10 @@
   // src/constants.js
   var constants_exports = {};
   __export(constants_exports, {
+    DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
     HEADER_H: () => HEADER_H,
     LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
+    SAT_FREQUENCIES: () => SAT_FREQUENCIES,
     SNAP_DIST: () => SNAP_DIST,
     SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
     SOURCE_DEFS: () => SOURCE_DEFS,
@@ -389,21 +429,108 @@
     WIDGET_DEFS: () => WIDGET_DEFS,
     WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY
   });
-  var WIDGET_DEFS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
       init_lunar();
       WIDGET_DEFS = [
-        { id: "widget-clock-local", name: "Local Time" },
-        { id: "widget-clock-utc", name: "UTC" },
+        { id: "widget-filters", name: "Filters" },
         { id: "widget-activations", name: "On the Air" },
         { id: "widget-map", name: "HamMap" },
-        { id: "widget-solar", name: "Solar & Propagation" },
+        { id: "widget-solar", name: "Solar" },
+        { id: "widget-propagation", name: "Band Conditions" },
         { id: "widget-lunar", name: "Lunar / EME" },
+        { id: "widget-satellites", name: "Satellites" },
         { id: "widget-rst", name: "RST Reference" },
         { id: "widget-spot-detail", name: "DX Detail" }
       ];
+      SAT_FREQUENCIES = {
+        25544: {
+          name: "ISS (ZARYA)",
+          uplinks: [
+            { freq: 145.99, mode: "FM", desc: "V/U Repeater" }
+          ],
+          downlinks: [
+            { freq: 437.8, mode: "FM", desc: "V/U Repeater" },
+            { freq: 145.8, mode: "FM", desc: "Voice/SSTV" },
+            { freq: 145.825, mode: "APRS", desc: "Packet" }
+          ]
+        },
+        43770: {
+          name: "AO-91 (RadFxSat)",
+          uplinks: [
+            { freq: 435.25, mode: "FM", desc: "67 Hz CTCSS" }
+          ],
+          downlinks: [
+            { freq: 145.96, mode: "FM", desc: "FM Voice" }
+          ]
+        },
+        43137: {
+          name: "AO-92 (Fox-1D)",
+          uplinks: [
+            { freq: 435.35, mode: "FM", desc: "67 Hz CTCSS" }
+          ],
+          downlinks: [
+            { freq: 145.88, mode: "FM", desc: "FM Voice" }
+          ]
+        },
+        27607: {
+          name: "SO-50 (SaudiSat-1C)",
+          uplinks: [
+            { freq: 145.85, mode: "FM", desc: "67 Hz arm, 74.4 Hz TX" }
+          ],
+          downlinks: [
+            { freq: 436.795, mode: "FM", desc: "FM Voice" }
+          ]
+        },
+        44909: {
+          name: "CAS-4A (ZHUHAI-1 01)",
+          uplinks: [
+            { freq: 435.21, mode: "SSB/CW", desc: "Linear Transponder" }
+          ],
+          downlinks: [
+            { freq: 145.855, mode: "SSB/CW", desc: "Linear Transponder" }
+          ]
+        },
+        44910: {
+          name: "CAS-4B (ZHUHAI-1 02)",
+          uplinks: [
+            { freq: 435.28, mode: "SSB/CW", desc: "Linear Transponder" }
+          ],
+          downlinks: [
+            { freq: 145.925, mode: "SSB/CW", desc: "Linear Transponder" }
+          ]
+        },
+        47960: {
+          name: "RS-44 (DOSAAF-85)",
+          uplinks: [
+            { freq: 145.935, mode: "SSB/CW", desc: "Linear Transponder" }
+          ],
+          downlinks: [
+            { freq: 435.61, mode: "SSB/CW", desc: "Linear Transponder" }
+          ]
+        },
+        54684: {
+          name: "TEVEL-1",
+          uplinks: [
+            { freq: 145.97, mode: "FM", desc: "FM Transponder" }
+          ],
+          downlinks: [
+            { freq: 436.4, mode: "FM", desc: "FM Transponder" }
+          ]
+        },
+        54685: {
+          name: "TEVEL-2",
+          uplinks: [
+            { freq: 145.97, mode: "FM", desc: "FM Transponder" }
+          ],
+          downlinks: [
+            { freq: 436.4, mode: "FM", desc: "FM Transponder" }
+          ]
+        }
+      };
+      DEFAULT_TRACKED_SATS = [25544];
       SOURCE_DEFS = {
         pota: {
           label: "POTA",
@@ -417,7 +544,7 @@
             { key: "spotTime", label: "Time", class: "" },
             { key: "age", label: "Age", class: "" }
           ],
-          filters: ["band", "mode", "country", "state", "grid", "privilege"],
+          filters: ["band", "mode", "distance", "age", "country", "state", "grid", "privilege"],
           hasMap: true,
           spotId: (s) => `${s.activator || s.callsign}-${s.reference}-${s.frequency}`,
           sortKey: "spotTime"
@@ -434,9 +561,27 @@
             { key: "spotTime", label: "Time", class: "" },
             { key: "age", label: "Age", class: "" }
           ],
-          filters: ["band", "mode"],
+          filters: ["band", "mode", "distance", "age"],
           hasMap: true,
           spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
+          sortKey: "spotTime"
+        },
+        dxc: {
+          label: "DXC",
+          endpoint: "/api/spots/dxc",
+          columns: [
+            { key: "callsign", label: "DX Station", class: "callsign" },
+            { key: "frequency", label: "Freq", class: "freq" },
+            { key: "mode", label: "Mode", class: "mode" },
+            { key: "spotter", label: "Spotter", class: "" },
+            { key: "name", label: "Country", class: "" },
+            { key: "continent", label: "Cont", class: "" },
+            { key: "spotTime", label: "Time", class: "" },
+            { key: "age", label: "Age", class: "" }
+          ],
+          filters: ["band", "mode", "distance", "age", "continent"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
           sortKey: "spotTime"
         }
       };
@@ -532,6 +677,224 @@
       USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
       HEADER_H = 30;
+    }
+  });
+
+  // src/band-conditions.js
+  var band_conditions_exports = {};
+  __export(band_conditions_exports, {
+    calculateBandConditions: () => calculateBandConditions,
+    calculateMUF: () => calculateMUF,
+    conditionColorClass: () => conditionColorClass,
+    conditionLabel: () => conditionLabel,
+    initDayNightToggle: () => initDayNightToggle,
+    renderPropagationWidget: () => renderPropagationWidget
+  });
+  function calculateMUF(sfi, isDay) {
+    const foF2Factor = isDay ? 0.9 : 0.6;
+    const foF2 = foF2Factor * Math.sqrt(Math.max(sfi, 50));
+    const obliquityFactor = 3.5;
+    return foF2 * obliquityFactor;
+  }
+  function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay) {
+    const mufLower = muf * 0.5;
+    const mufOptimal = muf * 0.85;
+    let baseReliability = 0;
+    if (bandFreqMHz < mufLower) {
+      if (isDay) {
+        baseReliability = Math.max(0, 20 - (mufLower - bandFreqMHz) * 2);
+      } else {
+        baseReliability = Math.min(85, 60 + (mufLower - bandFreqMHz) * 1.5);
+      }
+    } else if (bandFreqMHz <= mufOptimal) {
+      const position = (bandFreqMHz - mufLower) / (mufOptimal - mufLower);
+      baseReliability = 70 + 30 * Math.sin(position * Math.PI);
+    } else if (bandFreqMHz <= muf) {
+      const position = (bandFreqMHz - mufOptimal) / (muf - mufOptimal);
+      baseReliability = 90 - position * 40;
+    } else {
+      const excess = bandFreqMHz - muf;
+      baseReliability = Math.max(0, 40 - excess * 3);
+    }
+    let geomagPenalty = 0;
+    if (kIndex >= 6) {
+      geomagPenalty = (kIndex - 5) * 12;
+    } else if (kIndex >= 3) {
+      geomagPenalty = (kIndex - 2) * 5;
+    }
+    let aIndexPenalty = 0;
+    if (aIndex > 30) {
+      aIndexPenalty = Math.min(20, (aIndex - 30) / 2);
+    } else if (aIndex > 10) {
+      aIndexPenalty = (aIndex - 10) / 4;
+    }
+    const finalReliability = Math.max(0, Math.min(
+      100,
+      baseReliability - geomagPenalty - aIndexPenalty
+    ));
+    return Math.round(finalReliability);
+  }
+  function classifyCondition(reliability) {
+    if (reliability >= 80) return "excellent";
+    if (reliability >= 60) return "good";
+    if (reliability >= 40) return "fair";
+    if (reliability >= 20) return "poor";
+    return "closed";
+  }
+  function calculateBandConditions(timeOfDay = null) {
+    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
+      return HF_BANDS.map((band) => ({
+        ...band,
+        reliability: 0,
+        condition: "unknown",
+        muf: 0
+      }));
+    }
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    let isDay;
+    if (timeOfDay === "day") {
+      isDay = true;
+    } else if (timeOfDay === "night") {
+      isDay = false;
+    } else {
+      const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+      isDay = utcHour >= 6 && utcHour < 18;
+    }
+    const muf = calculateMUF(sfi, isDay);
+    return HF_BANDS.map((band) => {
+      const reliability = calculateBandReliability(
+        band.freqMHz,
+        muf,
+        kIndex,
+        aIndex,
+        isDay
+      );
+      return {
+        ...band,
+        reliability,
+        condition: classifyCondition(reliability),
+        muf: Math.round(muf * 10) / 10
+        // Round to 1 decimal
+      };
+    });
+  }
+  function conditionColorClass(condition) {
+    const map = {
+      "excellent": "band-excellent",
+      "good": "band-good",
+      "fair": "band-fair",
+      "poor": "band-poor",
+      "closed": "band-closed",
+      "unknown": "band-unknown"
+    };
+    return map[condition] || "band-unknown";
+  }
+  function conditionLabel(condition) {
+    const map = {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor",
+      "closed": "Closed",
+      "unknown": "Unknown"
+    };
+    return map[condition] || "Unknown";
+  }
+  function initDayNightToggle() {
+    const dayBtn = $("dayToggle");
+    const nightBtn = $("nightToggle");
+    if (!dayBtn || !nightBtn) return;
+    updateToggleButtons();
+    dayBtn.addEventListener("click", () => {
+      dayNightTime = "day";
+      localStorage.setItem("hamtab_band_time", dayNightTime);
+      updateToggleButtons();
+      renderPropagationWidget();
+    });
+    nightBtn.addEventListener("click", () => {
+      dayNightTime = "night";
+      localStorage.setItem("hamtab_band_time", dayNightTime);
+      updateToggleButtons();
+      renderPropagationWidget();
+    });
+  }
+  function updateToggleButtons() {
+    const dayBtn = $("dayToggle");
+    const nightBtn = $("nightToggle");
+    if (dayBtn) dayBtn.classList.toggle("active", dayNightTime === "day");
+    if (nightBtn) nightBtn.classList.toggle("active", dayNightTime === "night");
+  }
+  function renderPropagationWidget() {
+    const grid = $("bandConditionsGrid");
+    const mufValue = $("propMufValue");
+    const sfiValue = $("propSfiValue");
+    const kindexValue = $("propKindexValue");
+    if (!grid) return;
+    const conditions = calculateBandConditions(dayNightTime);
+    if (mufValue) {
+      const muf = conditions[0]?.muf || 0;
+      mufValue.textContent = muf > 0 ? `${muf} MHz` : "--";
+    }
+    if (state_default.lastSolarData && state_default.lastSolarData.indices) {
+      const { indices } = state_default.lastSolarData;
+      if (sfiValue) sfiValue.textContent = indices.sfi || "--";
+      if (kindexValue) {
+        const kindex = indices.kindex || "--";
+        kindexValue.textContent = kindex;
+        if (kindex !== "--") {
+          const k = parseInt(kindex);
+          if (k <= 2) kindexValue.style.color = "var(--green)";
+          else if (k <= 4) kindexValue.style.color = "var(--yellow)";
+          else kindexValue.style.color = "var(--red)";
+        }
+      }
+    }
+    grid.innerHTML = "";
+    conditions.forEach((band) => {
+      const card = document.createElement("div");
+      const timeClass = dayNightTime === "day" ? "band-card-day" : "band-card-night";
+      card.className = `band-card ${conditionColorClass(band.condition)} ${timeClass}`;
+      const name = document.createElement("span");
+      name.className = "band-name";
+      name.textContent = band.label;
+      const reliability = document.createElement("span");
+      reliability.className = "band-reliability";
+      reliability.textContent = `${band.reliability}%`;
+      const condLabel = document.createElement("span");
+      condLabel.className = "band-condition-label";
+      condLabel.textContent = conditionLabel(band.condition);
+      card.appendChild(name);
+      card.appendChild(reliability);
+      card.appendChild(condLabel);
+      grid.appendChild(card);
+    });
+  }
+  var dayNightTime, saved, HF_BANDS;
+  var init_band_conditions = __esm({
+    "src/band-conditions.js"() {
+      init_state();
+      init_dom();
+      init_utils();
+      dayNightTime = "day";
+      saved = localStorage.getItem("hamtab_band_time");
+      if (saved === "day" || saved === "night") {
+        dayNightTime = saved;
+      }
+      HF_BANDS = [
+        { name: "160m", freqMHz: 1.9, label: "160m" },
+        { name: "80m", freqMHz: 3.7, label: "80m" },
+        { name: "60m", freqMHz: 5.35, label: "60m" },
+        { name: "40m", freqMHz: 7.15, label: "40m" },
+        { name: "30m", freqMHz: 10.12, label: "30m" },
+        { name: "20m", freqMHz: 14.15, label: "20m" },
+        { name: "17m", freqMHz: 18.1, label: "17m" },
+        { name: "15m", freqMHz: 21.2, label: "15m" },
+        { name: "12m", freqMHz: 24.93, label: "12m" },
+        { name: "10m", freqMHz: 28.5, label: "10m" }
+      ];
     }
   });
 
@@ -729,10 +1092,17 @@
     const mode = spot.mode || "";
     const band = freqToBand(freq) || "";
     const ref = spot.reference || "";
+    const spotter = spot.spotter || "";
+    const continent = spot.continent || "";
     let refHtml = "";
     if (ref) {
       const refUrl = state_default.currentSource === "sota" ? `https://www.sota.org.uk/Summit/${encodeURIComponent(ref)}` : `https://pota.app/#/park/${encodeURIComponent(ref)}`;
       refHtml = `<a href="${refUrl}" target="_blank" rel="noopener">${esc(ref)}</a>`;
+    }
+    let spotterHtml = "";
+    if (spotter && state_default.currentSource === "dxc") {
+      const spotterQrzUrl = `https://www.qrz.com/db/${encodeURIComponent(spotter)}`;
+      spotterHtml = `<a href="${spotterQrzUrl}" target="_blank" rel="noopener">${esc(spotter)}</a>`;
     }
     let bearingHtml = "";
     const lat = parseFloat(spot.latitude);
@@ -748,6 +1118,10 @@
     `;
     }
     const localTime = !isNaN(lon) ? localTimeAtLon(lon, state_default.use24h) : "";
+    const dxcRows = state_default.currentSource === "dxc" ? `
+    ${spotterHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Spotter:</span> ${spotterHtml}</div>` : ""}
+    ${continent ? `<div class="spot-detail-row"><span class="spot-detail-label">Continent:</span> ${esc(continent)}</div>` : ""}
+  ` : "";
     body.innerHTML = `
     <div class="spot-detail-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${esc(displayCall)}</a></div>
     <div class="spot-detail-name" id="spotDetailName"></div>
@@ -755,7 +1129,8 @@
     <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode)}</div>
     ${band ? `<div class="spot-detail-row"><span class="spot-detail-label">Band:</span> ${esc(band)}</div>` : ""}
     ${refHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Ref:</span> ${refHtml}</div>` : ""}
-    ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">Name:</span> ${esc(spot.name)}</div>` : ""}
+    ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state_default.currentSource === "dxc" ? "Country:" : "Name:"}</span> ${esc(spot.name)}</div>` : ""}
+    ${dxcRows}
     ${bearingHtml}
     ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ""}
     ${spot.comments ? `<div class="spot-detail-row spot-detail-comments">${esc(spot.comments)}</div>` : ""}
@@ -998,8 +1373,8 @@
   // src/spots.js
   function loadSpotColumnVisibility() {
     try {
-      const saved = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
+      const saved2 = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
+      if (saved2 && typeof saved2 === "object") return saved2;
     } catch (e) {
     }
     const vis = {};
@@ -1049,6 +1424,17 @@
             a.addEventListener("click", (e) => e.stopPropagation());
             td.appendChild(a);
           }
+        } else if (col.key === "spotter" && state_default.currentSource === "dxc") {
+          const spotter = spot.spotter || "";
+          if (spotter) {
+            const a = document.createElement("a");
+            a.textContent = spotter;
+            a.href = `https://www.qrz.com/db/${encodeURIComponent(spotter)}`;
+            a.target = "_blank";
+            a.rel = "noopener";
+            a.addEventListener("click", (e) => e.stopPropagation());
+            td.appendChild(a);
+          }
         } else if (col.key === "name") {
           const val = spot[col.key] || "";
           td.textContent = val;
@@ -1079,22 +1465,35 @@
   var filters_exports = {};
   __export(filters_exports, {
     applyFilter: () => applyFilter,
+    clearAllFilters: () => clearAllFilters,
+    deletePreset: () => deletePreset,
     fetchLicenseClass: () => fetchLicenseClass,
+    filterByAge: () => filterByAge,
+    filterByDistance: () => filterByDistance,
     filterByPrivileges: () => filterByPrivileges,
     freqToBand: () => freqToBand,
     getAvailableBands: () => getAvailableBands,
+    getAvailableContinents: () => getAvailableContinents,
     getAvailableCountries: () => getAvailableCountries,
     getAvailableGrids: () => getAvailableGrids,
     getAvailableModes: () => getAvailableModes,
     getAvailableStates: () => getAvailableStates,
     initFilterListeners: () => initFilterListeners,
     isUSCallsign: () => isUSCallsign,
+    loadFiltersForSource: () => loadFiltersForSource,
+    loadPreset: () => loadPreset,
     normalizeMode: () => normalizeMode,
+    saveCurrentFilters: () => saveCurrentFilters,
+    savePreset: () => savePreset,
     spotId: () => spotId,
+    updateAllFilterUI: () => updateAllFilterUI,
     updateBandFilterButtons: () => updateBandFilterButtons,
+    updateContinentFilter: () => updateContinentFilter,
     updateCountryFilter: () => updateCountryFilter,
+    updateDistanceAgeVisibility: () => updateDistanceAgeVisibility,
     updateGridFilter: () => updateGridFilter,
     updateModeFilterButtons: () => updateModeFilterButtons,
+    updatePresetDropdown: () => updatePresetDropdown,
     updatePrivFilterVisibility: () => updatePrivFilterVisibility,
     updateStateFilter: () => updateStateFilter
   });
@@ -1146,6 +1545,21 @@
     }
     return false;
   }
+  function filterByDistance(spot) {
+    if (state_default.activeMaxDistance === null) return true;
+    if (state_default.myLat === null || state_default.myLon === null) return true;
+    if (spot.latitude == null || spot.longitude == null) return true;
+    const dist = distanceMi(state_default.myLat, state_default.myLon, spot.latitude, spot.longitude);
+    const thresholdMi = state_default.distanceUnit === "km" ? state_default.activeMaxDistance * 0.621371 : state_default.activeMaxDistance;
+    return dist <= thresholdMi;
+  }
+  function filterByAge(spot) {
+    if (state_default.activeMaxAge === null) return true;
+    if (!spot.spotTime) return true;
+    const ageMs = Date.now() - new Date(spot.spotTime).getTime();
+    const ageMin = ageMs / 6e4;
+    return ageMin <= state_default.activeMaxAge;
+  }
   function getCountryPrefix(ref) {
     if (!ref) return "";
     return ref.split("-")[0];
@@ -1158,11 +1572,19 @@
   function applyFilter() {
     const allowed = SOURCE_DEFS[state_default.currentSource].filters;
     state_default.sourceFiltered[state_default.currentSource] = (state_default.sourceData[state_default.currentSource] || []).filter((s) => {
-      if (allowed.includes("band") && state_default.activeBand && freqToBand(s.frequency) !== state_default.activeBand) return false;
-      if (allowed.includes("mode") && state_default.activeMode && (s.mode || "").toUpperCase() !== state_default.activeMode) return false;
+      if (allowed.includes("band") && state_default.activeBands.size > 0) {
+        const spotBand = freqToBand(s.frequency);
+        if (!spotBand || !state_default.activeBands.has(spotBand)) return false;
+      }
+      if (allowed.includes("mode") && state_default.activeModes.size > 0) {
+        if (!state_default.activeModes.has((s.mode || "").toUpperCase())) return false;
+      }
+      if (allowed.includes("distance") && !filterByDistance(s)) return false;
+      if (allowed.includes("age") && !filterByAge(s)) return false;
       if (allowed.includes("country") && state_default.activeCountry && getCountryPrefix(s.reference) !== state_default.activeCountry) return false;
       if (allowed.includes("state") && state_default.activeState && getUSState(s.locationDesc) !== state_default.activeState) return false;
       if (allowed.includes("grid") && state_default.activeGrid && (s.grid4 || "") !== state_default.activeGrid) return false;
+      if (allowed.includes("continent") && state_default.activeContinent && (s.continent || "") !== state_default.activeContinent) return false;
       if (allowed.includes("privilege") && state_default.privilegeFilterEnabled && !filterByPrivileges(s)) return false;
       return true;
     });
@@ -1182,9 +1604,10 @@
     bandFilters.innerHTML = "";
     const allBtn = document.createElement("button");
     allBtn.textContent = "All";
-    allBtn.className = state_default.activeBand === null ? "active" : "";
+    allBtn.className = state_default.activeBands.size === 0 ? "active" : "";
     allBtn.addEventListener("click", () => {
-      state_default.activeBand = null;
+      state_default.activeBands.clear();
+      saveCurrentFilters();
       applyFilter();
       renderSpots();
       renderMarkers();
@@ -1194,9 +1617,14 @@
     bands.forEach((band) => {
       const btn = document.createElement("button");
       btn.textContent = band;
-      btn.className = state_default.activeBand === band ? "active" : "";
+      btn.className = state_default.activeBands.has(band) ? "active" : "";
       btn.addEventListener("click", () => {
-        state_default.activeBand = band;
+        if (state_default.activeBands.has(band)) {
+          state_default.activeBands.delete(band);
+        } else {
+          state_default.activeBands.add(band);
+        }
+        saveCurrentFilters();
         applyFilter();
         renderSpots();
         renderMarkers();
@@ -1218,9 +1646,10 @@
     modeFilters.innerHTML = "";
     const allBtn = document.createElement("button");
     allBtn.textContent = "All";
-    allBtn.className = state_default.activeMode === null ? "active" : "";
+    allBtn.className = state_default.activeModes.size === 0 ? "active" : "";
     allBtn.addEventListener("click", () => {
-      state_default.activeMode = null;
+      state_default.activeModes.clear();
+      saveCurrentFilters();
       applyFilter();
       renderSpots();
       renderMarkers();
@@ -1230,9 +1659,14 @@
     modes.forEach((mode) => {
       const btn = document.createElement("button");
       btn.textContent = mode;
-      btn.className = state_default.activeMode === mode ? "active" : "";
+      btn.className = state_default.activeModes.has(mode) ? "active" : "";
       btn.addEventListener("click", () => {
-        state_default.activeMode = mode;
+        if (state_default.activeModes.has(mode)) {
+          state_default.activeModes.delete(mode);
+        } else {
+          state_default.activeModes.add(mode);
+        }
+        saveCurrentFilters();
         applyFilter();
         renderSpots();
         renderMarkers();
@@ -1303,6 +1737,29 @@
       gridFilter.appendChild(opt);
     });
   }
+  function getAvailableContinents() {
+    const contSet = /* @__PURE__ */ new Set();
+    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
+      if (s.continent) contSet.add(s.continent);
+    });
+    const order = ["AF", "AN", "AS", "EU", "NA", "OC", "SA"];
+    return order.filter((c) => contSet.has(c));
+  }
+  function updateContinentFilter() {
+    const continents = getAvailableContinents();
+    const current = state_default.activeContinent;
+    const continentFilter = $("continentFilter");
+    if (!continentFilter) return;
+    continentFilter.innerHTML = '<option value="">All Continents</option>';
+    const labels = { AF: "Africa", AN: "Antarctica", AS: "Asia", EU: "Europe", NA: "N. America", OC: "Oceania", SA: "S. America" };
+    continents.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.textContent = `${c} - ${labels[c] || c}`;
+      if (c === current) opt.selected = true;
+      continentFilter.appendChild(opt);
+    });
+  }
   function updatePrivFilterVisibility() {
     const label = document.querySelector(".priv-filter-label");
     if (!label) return;
@@ -1369,40 +1826,269 @@
     const countryFilter = $("countryFilter");
     const stateFilter = $("stateFilter");
     const gridFilter = $("gridFilter");
+    const continentFilter = $("continentFilter");
     countryFilter.addEventListener("change", () => {
       state_default.activeCountry = countryFilter.value || null;
+      saveCurrentFilters();
       applyFilter();
       renderSpots();
       renderMarkers();
     });
     stateFilter.addEventListener("change", () => {
       state_default.activeState = stateFilter.value || null;
+      saveCurrentFilters();
       applyFilter();
       renderSpots();
       renderMarkers();
     });
     gridFilter.addEventListener("change", () => {
       state_default.activeGrid = gridFilter.value || null;
+      saveCurrentFilters();
       applyFilter();
       renderSpots();
       renderMarkers();
     });
+    if (continentFilter) {
+      continentFilter.addEventListener("change", () => {
+        state_default.activeContinent = continentFilter.value || null;
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
     const privFilterCheckbox = $("privFilter");
     privFilterCheckbox.checked = state_default.privilegeFilterEnabled;
     updatePrivFilterVisibility();
     privFilterCheckbox.addEventListener("change", () => {
       state_default.privilegeFilterEnabled = privFilterCheckbox.checked;
       localStorage.setItem("hamtab_privilege_filter", String(state_default.privilegeFilterEnabled));
+      saveCurrentFilters();
       applyFilter();
       renderSpots();
       renderMarkers();
     });
+    const distanceInput = $("distanceFilter");
+    const distanceUnit = $("distanceUnit");
+    if (distanceInput) {
+      distanceInput.addEventListener("input", () => {
+        const val = distanceInput.value.trim();
+        state_default.activeMaxDistance = val === "" ? null : parseFloat(val);
+        if (isNaN(state_default.activeMaxDistance)) state_default.activeMaxDistance = null;
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
+    if (distanceUnit) {
+      distanceUnit.value = state_default.distanceUnit;
+      distanceUnit.addEventListener("change", () => {
+        state_default.distanceUnit = distanceUnit.value;
+        localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
+    const ageFilter = $("ageFilter");
+    if (ageFilter) {
+      ageFilter.addEventListener("change", () => {
+        const val = ageFilter.value;
+        state_default.activeMaxAge = val === "" ? null : parseInt(val, 10);
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
+    const clearBtn = $("clearFiltersBtn");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        clearAllFilters();
+      });
+    }
+    const presetSelect = $("presetFilter");
+    const savePresetBtn = $("savePresetBtn");
+    const deletePresetBtn = $("deletePresetBtn");
+    if (presetSelect) {
+      presetSelect.addEventListener("change", () => {
+        const name = presetSelect.value;
+        if (name) loadPreset(name);
+        presetSelect.value = "";
+      });
+    }
+    if (savePresetBtn) {
+      savePresetBtn.addEventListener("click", () => {
+        const name = prompt("Preset name:");
+        if (name && name.trim()) savePreset(name.trim());
+      });
+    }
+    if (deletePresetBtn) {
+      deletePresetBtn.addEventListener("click", () => {
+        const name = prompt("Preset name to delete:");
+        if (name && name.trim()) deletePreset(name.trim());
+      });
+    }
     if (state_default.myCallsign) {
       fetchLicenseClass(state_default.myCallsign);
     }
   }
   function spotId(spot) {
     return SOURCE_DEFS[state_default.currentSource].spotId(spot);
+  }
+  function saveCurrentFilters() {
+    const source = state_default.currentSource;
+    const filterState = {
+      bands: [...state_default.activeBands],
+      modes: [...state_default.activeModes],
+      maxDistance: state_default.activeMaxDistance,
+      distanceUnit: state_default.distanceUnit,
+      maxAge: state_default.activeMaxAge,
+      country: state_default.activeCountry,
+      state: state_default.activeState,
+      grid: state_default.activeGrid,
+      continent: state_default.activeContinent,
+      privilegeFilter: state_default.privilegeFilterEnabled
+    };
+    localStorage.setItem(`hamtab_filter_${source}`, JSON.stringify(filterState));
+  }
+  function loadFiltersForSource(source) {
+    try {
+      const saved2 = JSON.parse(localStorage.getItem(`hamtab_filter_${source}`));
+      if (saved2) {
+        state_default.activeBands = new Set(saved2.bands || []);
+        state_default.activeModes = new Set(saved2.modes || []);
+        state_default.activeMaxDistance = saved2.maxDistance ?? null;
+        state_default.activeMaxAge = saved2.maxAge ?? null;
+        state_default.activeCountry = saved2.country ?? null;
+        state_default.activeState = saved2.state ?? null;
+        state_default.activeGrid = saved2.grid ?? null;
+        state_default.activeContinent = saved2.continent ?? null;
+        state_default.privilegeFilterEnabled = saved2.privilegeFilter ?? false;
+        return;
+      }
+    } catch (e) {
+    }
+    state_default.activeBands = /* @__PURE__ */ new Set();
+    state_default.activeModes = /* @__PURE__ */ new Set();
+    state_default.activeMaxDistance = null;
+    state_default.activeMaxAge = null;
+    state_default.activeCountry = null;
+    state_default.activeState = null;
+    state_default.activeGrid = null;
+    state_default.activeContinent = null;
+    state_default.privilegeFilterEnabled = false;
+  }
+  function updateAllFilterUI() {
+    updateBandFilterButtons();
+    updateModeFilterButtons();
+    updateCountryFilter();
+    updateStateFilter();
+    updateGridFilter();
+    updateContinentFilter();
+    const distanceInput = $("distanceFilter");
+    if (distanceInput) {
+      distanceInput.value = state_default.activeMaxDistance !== null ? state_default.activeMaxDistance : "";
+    }
+    const distanceUnit = $("distanceUnit");
+    if (distanceUnit) {
+      distanceUnit.value = state_default.distanceUnit;
+    }
+    const ageFilter = $("ageFilter");
+    if (ageFilter) {
+      ageFilter.value = state_default.activeMaxAge !== null ? String(state_default.activeMaxAge) : "";
+    }
+    const privFilterCheckbox = $("privFilter");
+    if (privFilterCheckbox) {
+      privFilterCheckbox.checked = state_default.privilegeFilterEnabled;
+    }
+  }
+  function clearAllFilters() {
+    state_default.activeBands.clear();
+    state_default.activeModes.clear();
+    state_default.activeMaxDistance = null;
+    state_default.activeMaxAge = null;
+    state_default.activeCountry = null;
+    state_default.activeState = null;
+    state_default.activeGrid = null;
+    state_default.activeContinent = null;
+    state_default.privilegeFilterEnabled = false;
+    saveCurrentFilters();
+    applyFilter();
+    renderSpots();
+    renderMarkers();
+    updateAllFilterUI();
+  }
+  function updatePresetDropdown() {
+    const presetSelect = $("presetFilter");
+    if (!presetSelect) return;
+    const source = state_default.currentSource;
+    const presets = state_default.filterPresets[source] || {};
+    const names = Object.keys(presets).sort();
+    presetSelect.innerHTML = '<option value="">Load Preset...</option>';
+    names.forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      presetSelect.appendChild(opt);
+    });
+  }
+  function savePreset(name) {
+    const source = state_default.currentSource;
+    const preset = {
+      bands: [...state_default.activeBands],
+      modes: [...state_default.activeModes],
+      maxDistance: state_default.activeMaxDistance,
+      distanceUnit: state_default.distanceUnit,
+      maxAge: state_default.activeMaxAge,
+      country: state_default.activeCountry,
+      state: state_default.activeState,
+      grid: state_default.activeGrid,
+      continent: state_default.activeContinent,
+      privilegeFilter: state_default.privilegeFilterEnabled
+    };
+    if (!state_default.filterPresets[source]) state_default.filterPresets[source] = {};
+    state_default.filterPresets[source][name] = preset;
+    localStorage.setItem("hamtab_filter_presets", JSON.stringify(state_default.filterPresets));
+    updatePresetDropdown();
+  }
+  function loadPreset(name) {
+    const source = state_default.currentSource;
+    const preset = state_default.filterPresets[source]?.[name];
+    if (!preset) return;
+    state_default.activeBands = new Set(preset.bands || []);
+    state_default.activeModes = new Set(preset.modes || []);
+    state_default.activeMaxDistance = preset.maxDistance ?? null;
+    state_default.activeMaxAge = preset.maxAge ?? null;
+    state_default.activeCountry = preset.country ?? null;
+    state_default.activeState = preset.state ?? null;
+    state_default.activeGrid = preset.grid ?? null;
+    state_default.activeContinent = preset.continent ?? null;
+    state_default.privilegeFilterEnabled = preset.privilegeFilter ?? false;
+    saveCurrentFilters();
+    applyFilter();
+    renderSpots();
+    renderMarkers();
+    updateAllFilterUI();
+  }
+  function deletePreset(name) {
+    const source = state_default.currentSource;
+    if (state_default.filterPresets[source]?.[name]) {
+      delete state_default.filterPresets[source][name];
+      localStorage.setItem("hamtab_filter_presets", JSON.stringify(state_default.filterPresets));
+      updatePresetDropdown();
+    }
+  }
+  function updateDistanceAgeVisibility() {
+    const allowed = SOURCE_DEFS[state_default.currentSource].filters;
+    const distWrap = $("distanceFilterWrap");
+    const ageWrap = $("ageFilterWrap");
+    const presetWrap = $("presetFilterWrap");
+    if (distWrap) distWrap.style.display = allowed.includes("distance") ? "" : "none";
+    if (ageWrap) ageWrap.style.display = allowed.includes("age") ? "" : "none";
+    if (presetWrap) presetWrap.style.display = "";
   }
   var init_filters = __esm({
     "src/filters.js"() {
@@ -1412,6 +2098,7 @@
       init_utils();
       init_spots();
       init_markers();
+      init_geo();
     }
   });
 
@@ -1458,18 +2145,11 @@
     if (s.includes("storm") || s.includes("major")) return "var(--red)";
     return "";
   }
-  function condClass(cond) {
-    const c = (cond || "").toLowerCase();
-    if (c === "good") return "cond-good";
-    if (c === "fair") return "cond-fair";
-    if (c === "poor") return "cond-poor";
-    return "";
-  }
   function loadSolarFieldVisibility() {
     const { SOLAR_FIELD_DEFS: SOLAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
     try {
-      const saved = JSON.parse(localStorage.getItem(SOLAR_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
+      const saved2 = JSON.parse(localStorage.getItem(SOLAR_VIS_KEY));
+      if (saved2 && typeof saved2 === "object") return saved2;
     } catch (e) {
     }
     const vis = {};
@@ -1484,8 +2164,8 @@
     const canvas = $("solarCanvas");
     const playBtn = $("solarPlayBtn");
     if (!select || !canvas) return;
-    const saved = localStorage.getItem("hamtab_sdo_type");
-    if (saved) select.value = saved;
+    const saved2 = localStorage.getItem("hamtab_sdo_type");
+    if (saved2) select.value = saved2;
     select.addEventListener("change", () => {
       localStorage.setItem("hamtab_sdo_type", select.value);
       solarFrames = [];
@@ -1620,6 +2300,8 @@
       state_default.lastSolarData = data;
       renderSolar(data);
       loadSolarImage();
+      const { renderPropagationWidget: renderPropagationWidget2 } = await Promise.resolve().then(() => (init_band_conditions(), band_conditions_exports));
+      renderPropagationWidget2();
     } catch (err) {
       console.error("Failed to fetch solar:", err);
     }
@@ -1646,38 +2328,6 @@
       div.appendChild(labelDiv);
       div.appendChild(valueDiv);
       solarIndices.appendChild(div);
-    });
-    const headerBandsRow = $("headerBandsRow");
-    headerBandsRow.innerHTML = "";
-    const bandMap = {};
-    bands.forEach((b) => {
-      if (!bandMap[b.band]) bandMap[b.band] = {};
-      bandMap[b.band][b.time] = b.condition;
-    });
-    const bandOrder = ["80m-40m", "30m-20m", "17m-15m", "12m-10m"];
-    bandOrder.forEach((band) => {
-      if (!bandMap[band]) return;
-      const day = bandMap[band]["day"] || "-";
-      const night = bandMap[band]["night"] || "-";
-      const item = document.createElement("div");
-      item.className = "header-band-item";
-      const nameSpan = document.createElement("span");
-      nameSpan.className = "header-band-name";
-      nameSpan.textContent = band;
-      const daySpan = document.createElement("span");
-      daySpan.className = "header-band-day " + condClass(day);
-      daySpan.textContent = day;
-      const sep = document.createElement("span");
-      sep.textContent = "/";
-      sep.style.color = "var(--text-dim)";
-      const nightSpan = document.createElement("span");
-      nightSpan.className = "header-band-night " + condClass(night);
-      nightSpan.textContent = night;
-      item.appendChild(nameSpan);
-      item.appendChild(daySpan);
-      item.appendChild(sep);
-      item.appendChild(nightSpan);
-      headerBandsRow.appendChild(item);
     });
   }
   async function fetchPropagation() {
@@ -2155,8 +2805,8 @@
   var WIDGET_VIS_KEY = "hamtab_widget_vis";
   function loadWidgetVisibility() {
     try {
-      const saved = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
+      const saved2 = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
+      if (saved2 && typeof saved2 === "object") return saved2;
     } catch (e) {
     }
     const vis = {};
@@ -2187,7 +2837,7 @@
     const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
     const rightX = parseInt(solarEl.style.left) || 0;
     const rightW = parseInt(solarEl.style.width) || 0;
-    const rightBottomIds = ["widget-lunar", "widget-rst", "widget-spot-detail"];
+    const rightBottomIds = ["widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail"];
     const vis = state_default.widgetVisibility || {};
     const visible = rightBottomIds.filter((id) => vis[id] !== false);
     if (visible.length === 0) return;
@@ -2217,17 +2867,16 @@
     const rightW = Math.round(W * 0.25);
     const centerW = W - leftW - rightW - pad * 4;
     const rightHalf = Math.round((H - pad * 3) / 2);
-    const clockH = state_default.clockStyle === "analog" ? 280 : 130;
-    const clockW = Math.round((centerW - pad) / 2);
     const rightX = leftW + centerW + pad * 3;
+    const filtersH = 220;
+    const activationsH = H - filtersH - pad * 3;
     const layout = {
-      "widget-clock-local": { left: leftW + pad * 2, top: pad, width: clockW, height: clockH },
-      "widget-clock-utc": { left: leftW + pad * 2 + clockW + pad, top: pad, width: clockW, height: clockH },
-      "widget-activations": { left: pad, top: pad, width: leftW, height: H - pad * 2 },
-      "widget-map": { left: leftW + pad * 2, top: clockH + pad * 2, width: centerW, height: H - clockH - pad * 3 },
+      "widget-filters": { left: pad, top: pad, width: leftW, height: filtersH },
+      "widget-activations": { left: pad, top: filtersH + pad * 2, width: leftW, height: activationsH },
+      "widget-map": { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
       "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
     };
-    const rightBottomIds = ["widget-lunar", "widget-rst", "widget-spot-detail"];
+    const rightBottomIds = ["widget-propagation", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail"];
     const vis = state_default.widgetVisibility || {};
     const visibleBottom = rightBottomIds.filter((id) => vis[id] !== false);
     const bottomSpace = H - rightHalf - pad * 2;
@@ -2434,15 +3083,22 @@
   function initWidgets() {
     let layout;
     try {
-      const saved = localStorage.getItem(WIDGET_STORAGE_KEY);
-      if (saved) {
-        layout = JSON.parse(saved);
-        const { width: aW, height: aH } = getWidgetArea();
-        for (const id of Object.keys(layout)) {
-          const p = layout[id];
-          if (p.left > aW - 30 || p.top > aH - 30 || p.left + p.width < 30 || p.top + p.height < 10) {
-            layout = null;
-            break;
+      const saved2 = localStorage.getItem(WIDGET_STORAGE_KEY);
+      if (saved2) {
+        layout = JSON.parse(saved2);
+        if (layout["widget-clock-local"] || layout["widget-clock-utc"]) {
+          console.log("Clearing old layout with clock widgets");
+          localStorage.removeItem(WIDGET_STORAGE_KEY);
+          localStorage.removeItem(USER_LAYOUT_KEY);
+          layout = null;
+        } else {
+          const { width: aW, height: aH } = getWidgetArea();
+          for (const id of Object.keys(layout)) {
+            const p = layout[id];
+            if (p.left > aW - 30 || p.top > aH - 30 || p.left + p.width < 30 || p.top + p.height < 10) {
+              layout = null;
+              break;
+            }
           }
         }
       }
@@ -2497,9 +3153,15 @@
     const allowed = SOURCE_DEFS[state_default.currentSource].filters;
     $("bandFilters").style.display = allowed.includes("band") ? "" : "none";
     $("modeFilters").style.display = allowed.includes("mode") ? "" : "none";
+    const distWrap = $("distanceFilterWrap");
+    const ageWrap = $("ageFilterWrap");
+    if (distWrap) distWrap.style.display = allowed.includes("distance") ? "" : "none";
+    if (ageWrap) ageWrap.style.display = allowed.includes("age") ? "" : "none";
     $("countryFilter").style.display = allowed.includes("country") ? "" : "none";
     $("stateFilter").style.display = allowed.includes("state") ? "" : "none";
     $("gridFilter").style.display = allowed.includes("grid") ? "" : "none";
+    const continentFilter = $("continentFilter");
+    if (continentFilter) continentFilter.style.display = allowed.includes("continent") ? "" : "none";
     const privLabel = document.querySelector(".priv-filter-label");
     if (privLabel) {
       if (!allowed.includes("privilege")) {
@@ -2519,30 +3181,23 @@
     });
     updateTableColumns();
     updateFilterVisibility();
-    state_default.activeBand = null;
-    state_default.activeMode = null;
-    state_default.activeCountry = null;
-    state_default.activeState = null;
-    state_default.activeGrid = null;
-    const privFilterCheckbox = $("privFilter");
-    if (privFilterCheckbox) {
-      state_default.privilegeFilterEnabled = false;
-      privFilterCheckbox.checked = false;
-    }
+    loadFiltersForSource(source);
     const countryFilter = $("countryFilter");
-    if (countryFilter) countryFilter.value = "";
+    if (countryFilter) countryFilter.value = state_default.activeCountry || "";
     const stateFilter = $("stateFilter");
-    if (stateFilter) stateFilter.value = "";
+    if (stateFilter) stateFilter.value = state_default.activeState || "";
     const gridFilter = $("gridFilter");
-    if (gridFilter) gridFilter.value = "";
+    if (gridFilter) gridFilter.value = state_default.activeGrid || "";
+    const continentFilter = $("continentFilter");
+    if (continentFilter) continentFilter.value = state_default.activeContinent || "";
+    const privFilterCheckbox = $("privFilter");
+    if (privFilterCheckbox) privFilterCheckbox.checked = state_default.privilegeFilterEnabled;
     applyFilter();
     renderSpots();
     renderMarkers();
-    updateBandFilterButtons();
-    updateModeFilterButtons();
-    updateCountryFilter();
-    updateStateFilter();
-    updateGridFilter();
+    updateAllFilterUI();
+    updatePresetDropdown();
+    updateDistanceAgeVisibility();
   }
   function initSourceListeners() {
     $("sourceTabs").querySelectorAll(".source-tab").forEach((btn) => {
@@ -2669,86 +3324,6 @@
   init_dom();
   init_utils();
   init_geo();
-  function drawAnalogClock(canvas, date) {
-    const size = Math.min(canvas.parentElement.clientWidth, canvas.parentElement.clientHeight - 24) - 4;
-    if (size < 20) return;
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext("2d");
-    const r = size / 2;
-    ctx.clearRect(0, 0, size, size);
-    ctx.save();
-    ctx.translate(r, r);
-    ctx.beginPath();
-    ctx.arc(0, 0, r - 2, 0, Math.PI * 2);
-    ctx.fillStyle = "#0f3460";
-    ctx.fill();
-    ctx.strokeStyle = "#2a3a5e";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    for (let i = 1; i <= 12; i++) {
-      const angle = i * Math.PI / 6 - Math.PI / 2;
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      ctx.beginPath();
-      ctx.moveTo(cos * (r - 12), sin * (r - 12));
-      ctx.lineTo(cos * (r - 5), sin * (r - 5));
-      ctx.strokeStyle = "#8899aa";
-      ctx.lineWidth = 2;
-      ctx.stroke();
-      ctx.fillStyle = "#e0e0e0";
-      ctx.font = `bold ${Math.round(r * 0.22)}px monospace`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(i.toString(), cos * (r - 22), sin * (r - 22));
-    }
-    for (let i = 0; i < 60; i++) {
-      if (i % 5 === 0) continue;
-      const angle = i * Math.PI / 30 - Math.PI / 2;
-      ctx.beginPath();
-      ctx.moveTo(Math.cos(angle) * (r - 8), Math.sin(angle) * (r - 8));
-      ctx.lineTo(Math.cos(angle) * (r - 5), Math.sin(angle) * (r - 5));
-      ctx.strokeStyle = "#2a3a5e";
-      ctx.lineWidth = 1;
-      ctx.stroke();
-    }
-    const h = date.getHours() % 12;
-    const m = date.getMinutes();
-    const s = date.getSeconds();
-    const hAngle = (h + m / 60) * Math.PI / 6 - Math.PI / 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(hAngle) * r * 0.5, Math.sin(hAngle) * r * 0.5);
-    ctx.strokeStyle = "#e0e0e0";
-    ctx.lineWidth = 4;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    const mAngle = (m + s / 60) * Math.PI / 30 - Math.PI / 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(mAngle) * r * 0.7, Math.sin(mAngle) * r * 0.7);
-    ctx.strokeStyle = "#e0e0e0";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    const sAngle = s * Math.PI / 30 - Math.PI / 2;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(Math.cos(sAngle) * r * 0.75, Math.sin(sAngle) * r * 0.75);
-    ctx.strokeStyle = "#e94560";
-    ctx.lineWidth = 1;
-    ctx.lineCap = "round";
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(0, 0, 3, 0, Math.PI * 2);
-    ctx.fillStyle = "#e94560";
-    ctx.fill();
-    ctx.restore();
-  }
-  function applyClockStyle() {
-    $("clockLocal").classList.toggle("analog", state_default.clockStyle === "analog");
-    $("clockUtc").classList.toggle("analog", state_default.clockStyle === "analog");
-  }
   function updateDayNight() {
     const now = /* @__PURE__ */ new Date();
     if (state_default.myLat !== null && state_default.myLon !== null) {
@@ -2760,21 +3335,10 @@
   }
   function updateClocks() {
     const now = /* @__PURE__ */ new Date();
-    const dateOpts = { weekday: "short", month: "short", day: "numeric", year: "numeric" };
-    const localIcon = state_default.lastLocalDay === true ? "\u2600\uFE0F" : state_default.lastLocalDay === false ? "\u{1F319}" : "";
-    const utcIcon = state_default.lastUtcDay === true ? "\u2600\uFE0F" : state_default.lastUtcDay === false ? "\u{1F319}" : "";
     const localTime = fmtTime(now);
     const utcTime = fmtTime(now, { timeZone: "UTC" });
-    $("clockLocalTime").innerHTML = (localIcon ? '<span class="daynight-emoji">' + localIcon + "</span> " : "") + esc(localTime);
-    $("clockUtcTime").innerHTML = (utcIcon ? '<span class="daynight-emoji">' + utcIcon + "</span> " : "") + esc(utcTime);
-    $("clockUtcDate").textContent = now.toLocaleDateString(void 0, Object.assign({ timeZone: "UTC" }, dateOpts));
-    if (state_default.clockStyle === "analog") {
-      drawAnalogClock($("clockLocalCanvas"), now);
-      const utcDate = new Date(now);
-      utcDate.setMinutes(utcDate.getMinutes() + utcDate.getTimezoneOffset());
-      drawAnalogClock($("clockUtcCanvas"), utcDate);
-    }
-    applyClockStyle();
+    $("clockLocalTime").textContent = localTime;
+    $("clockUtcTime").textContent = utcTime;
     updateDayNight();
   }
 
@@ -2848,8 +3412,9 @@
     });
   }
   function applyWeatherBackground(forecast, isDaytime2) {
-    const body = document.querySelector("#widget-clock-local .widget-body");
-    wxBgClasses.forEach((c) => body.classList.remove(c));
+    const headerClock = $("headerClockLocal");
+    if (!headerClock) return;
+    wxBgClasses.forEach((c) => headerClock.classList.remove(c));
     if (!forecast) return;
     const fc = forecast.toLowerCase();
     let cls = "";
@@ -2861,7 +3426,7 @@
       if (/partly|mostly sunny/.test(fc)) cls = isDaytime2 ? "wx-partly-cloudy-day" : "wx-partly-cloudy-night";
       else cls = "wx-cloudy";
     } else if (/sunny|clear/.test(fc)) cls = isDaytime2 ? "wx-clear-day" : "wx-clear-night";
-    if (cls) body.classList.add(cls);
+    if (cls) headerClock.classList.add(cls);
   }
   function fetchNwsAlerts() {
     if (state_default.myLat === null || state_default.myLon === null) return;
@@ -2915,73 +3480,6 @@
 
   // src/splash.js
   init_filters();
-
-  // src/settings-sync.js
-  var SYNC_KEYS = [
-    "hamtab_callsign",
-    "hamtab_lat",
-    "hamtab_lon",
-    "hamtab_time24",
-    "hamtab_spot_source",
-    "hamtab_privilege_filter",
-    "hamtab_license_class",
-    "hamtab_prop_metric",
-    "hamtab_map_center",
-    "hamtab_clock_style",
-    "hamtab_wx_station",
-    "hamtab_wx_apikey",
-    "hamtab_map_overlays",
-    "hamtab_widgets_user",
-    "hamtab_widget_visibility",
-    "hamtab_solar_fields",
-    "hamtab_lunar_fields",
-    "hamtab_spot_columns",
-    "hamtab_sdo_type"
-  ];
-  async function pullSettings() {
-    try {
-      const resp = await fetch("/api/settings");
-      if (!resp.ok) return;
-      const remote = await resp.json();
-      if (!remote || typeof remote !== "object") return;
-      let changed = false;
-      for (const key of SYNC_KEYS) {
-        if (key in remote) {
-          const local = localStorage.getItem(key);
-          const remoteVal = remote[key] === null ? null : String(remote[key]);
-          if (local !== remoteVal) {
-            if (remoteVal === null) {
-              localStorage.removeItem(key);
-            } else {
-              localStorage.setItem(key, remoteVal);
-            }
-            changed = true;
-          }
-        }
-      }
-      if (changed) location.reload();
-    } catch {
-    }
-  }
-  var pushTimer = null;
-  function pushSettings() {
-    clearTimeout(pushTimer);
-    pushTimer = setTimeout(() => {
-      const payload = {};
-      for (const key of SYNC_KEYS) {
-        const val = localStorage.getItem(key);
-        if (val !== null) payload[key] = val;
-      }
-      fetch("/api/settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      }).catch(() => {
-      });
-    }, 2e3);
-  }
-
-  // src/splash.js
   function updateOperatorDisplay2() {
     const opCall = $("opCall");
     const opLoc = $("opLoc");
@@ -3156,10 +3654,11 @@
     });
     $("splashWxStation").value = state_default.wxStation;
     $("splashWxApiKey").value = state_default.wxApiKey;
+    $("splashN2yoApiKey").value = state_default.n2yoApiKey;
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.6.0";
+    $("splashVersion").textContent = "0.11.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -3178,8 +3677,10 @@
     localStorage.setItem("hamtab_time24", String(state_default.use24h));
     state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
     state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
+    state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
     localStorage.setItem("hamtab_wx_station", state_default.wxStation);
     localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
+    localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
     fetchWeather();
     const widgetList = document.getElementById("splashWidgetList");
     widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
@@ -3187,7 +3688,15 @@
     });
     saveWidgetVisibility();
     applyWidgetVisibility();
-    pushSettings();
+    const intervalSelect = $("splashUpdateInterval");
+    const intervalVal = intervalSelect.value;
+    localStorage.setItem("hamtab_update_interval", intervalVal);
+    fetch("/api/update/interval", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
+    }).catch(() => {
+    });
     $("splashGridDropdown").classList.remove("open");
     $("splash").classList.add("hidden");
     updateOperatorDisplay2();
@@ -3428,38 +3937,6 @@
         renderAllMapOverlays();
       });
     }
-    $("clockLocalCfgBtn").addEventListener("mousedown", (e) => {
-      e.stopPropagation();
-    });
-    $("clockUtcCfgBtn").addEventListener("mousedown", (e) => {
-      e.stopPropagation();
-    });
-    function showClockCfg() {
-      if (state_default.clockStyle === "analog") $("clockStyleAnalog").checked = true;
-      else $("clockStyleDigital").checked = true;
-      $("clockCfgSplash").classList.remove("hidden");
-    }
-    function dismissClockCfg() {
-      state_default.clockStyle = document.querySelector('input[name="clockStyle"]:checked').value;
-      localStorage.setItem("hamtab_clock_style", state_default.clockStyle);
-      $("clockCfgSplash").classList.add("hidden");
-      applyClockStyle();
-      const def = getDefaultLayout();
-      ["widget-clock-local", "widget-clock-utc", "widget-map"].forEach((id) => {
-        const el = document.getElementById(id);
-        const pos = def[id];
-        if (el && pos) {
-          el.style.height = pos.height + "px";
-          el.style.top = pos.top + "px";
-        }
-      });
-      saveWidgets();
-      if (state_default.map) state_default.map.invalidateSize();
-      updateClocks();
-    }
-    $("clockLocalCfgBtn").addEventListener("click", showClockCfg);
-    $("clockUtcCfgBtn").addEventListener("click", showClockCfg);
-    $("clockCfgOk").addEventListener("click", dismissClockCfg);
     $("spotColCfgBtn").addEventListener("mousedown", (e) => {
       e.stopPropagation();
     });
@@ -3568,6 +4045,7 @@
         updateCountryFilter();
         updateStateFilter();
         updateGridFilter();
+        updateContinentFilter();
         $("lastUpdated").textContent = "Updated: " + fmtTime(/* @__PURE__ */ new Date());
       }
     } catch (err) {
@@ -3577,6 +4055,7 @@
   function refreshAll() {
     fetchSourceData("pota");
     fetchSourceData("sota");
+    fetchSourceData("dxc");
     fetchSolar();
     fetchLunar();
     fetchPropagation();
@@ -3630,7 +4109,55 @@
   init_dom();
   function initUpdateDisplay() {
     const el = $("platformLabel");
-    if (el) el.textContent = "v0.6.0";
+    if (el) el.textContent = "v0.11.0";
+  }
+
+  // src/settings-sync.js
+  var SYNC_KEYS = [
+    "hamtab_callsign",
+    "hamtab_lat",
+    "hamtab_lon",
+    "hamtab_time24",
+    "hamtab_spot_source",
+    "hamtab_privilege_filter",
+    "hamtab_license_class",
+    "hamtab_prop_metric",
+    "hamtab_map_center",
+    "hamtab_clock_style",
+    "hamtab_wx_station",
+    "hamtab_wx_apikey",
+    "hamtab_map_overlays",
+    "hamtab_widgets_user",
+    "hamtab_widget_visibility",
+    "hamtab_solar_fields",
+    "hamtab_lunar_fields",
+    "hamtab_spot_columns",
+    "hamtab_sdo_type"
+  ];
+  async function pullSettings() {
+    try {
+      const resp = await fetch("/api/settings");
+      if (!resp.ok) return;
+      const remote = await resp.json();
+      if (!remote || typeof remote !== "object") return;
+      let changed = false;
+      for (const key of SYNC_KEYS) {
+        if (key in remote) {
+          const local = localStorage.getItem(key);
+          const remoteVal = remote[key] === null ? null : String(remote[key]);
+          if (local !== remoteVal) {
+            if (remoteVal === null) {
+              localStorage.removeItem(key);
+            } else {
+              localStorage.setItem(key, remoteVal);
+            }
+            changed = true;
+          }
+        }
+      }
+      if (changed) location.reload();
+    } catch {
+    }
   }
 
   // src/fullscreen.js
@@ -3656,108 +4183,386 @@
   init_solar();
   init_spots();
 
-  // src/iss.js
+  // src/satellites.js
   init_state();
-  async function fetchISS() {
-    try {
-      const resp = await fetch("/api/iss");
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      updateISS(data);
-    } catch (err) {
-      console.error("Failed to fetch ISS:", err);
+  init_dom();
+  init_constants();
+  init_utils();
+  var EARTH_RADIUS_KM = 6371;
+  var SPEED_OF_LIGHT_KM_S = 299792.458;
+  var DEFAULT_SAT_ALT_KM = 400;
+  function initSatellites() {
+    initSatelliteListeners();
+    if (state_default.n2yoApiKey) {
+      fetchSatellitePositions();
     }
   }
-  function updateISS(data) {
-    if (!state_default.map) return;
-    const lat = data.latitude;
-    const lon = data.longitude;
-    const footprintKm = data.footprint || 0;
-    const radiusMeters = footprintKm / 2 * 1e3;
-    if (state_default.issMarker) {
-      state_default.issMarker.setLatLng([lat, lon]);
-    } else {
-      const icon = L.divIcon({
-        className: "iss-icon",
-        html: "ISS",
-        iconSize: [40, 20],
-        iconAnchor: [20, 10]
+  function initSatelliteListeners() {
+    const cfgBtn = $("satCfgBtn");
+    if (cfgBtn) {
+      cfgBtn.addEventListener("click", showSatelliteConfig);
+    }
+    const cfgOk = $("satCfgOk");
+    if (cfgOk) {
+      cfgOk.addEventListener("click", dismissSatelliteConfig);
+    }
+    const splash = $("satCfgSplash");
+    if (splash) {
+      splash.addEventListener("click", (e) => {
+        if (e.target === splash) dismissSatelliteConfig();
       });
-      state_default.issMarker = L.marker([lat, lon], { icon, zIndexOffset: 1e4 }).addTo(state_default.map);
-      state_default.issMarker.bindPopup("", { maxWidth: 280 });
-    }
-    state_default.issMarker.setPopupContent(
-      `<div class="iss-popup"><div class="iss-popup-title">ISS (ZARYA)</div><div class="iss-popup-row">Lat: ${lat.toFixed(2)}, Lon: ${lon.toFixed(2)}</div><div class="iss-popup-row">Alt: ${Math.round(data.altitude)} km &bull; Vel: ${Math.round(data.velocity)} km/h</div><div class="iss-popup-row">Visibility: ${data.visibility || "N/A"}</div><div class="iss-radio-header">Amateur Radio (ARISS)</div><table class="iss-freq-table"><tr><td>V/U Repeater &#8593;</td><td>145.990 MHz FM</td></tr><tr><td>V/U Repeater &#8595;</td><td>437.800 MHz FM</td></tr><tr><td>Voice Downlink</td><td>145.800 MHz FM</td></tr><tr><td>APRS / Packet</td><td>145.825 MHz</td></tr><tr><td>SSTV Events</td><td>145.800 MHz PD120</td></tr></table><div class="iss-radio-note">Repeater &amp; APRS typically active. SSTV during special events. Use &#177;10 kHz Doppler shift.</div></div>`
-    );
-    if (state_default.issCircle) {
-      state_default.issCircle.setLatLng([lat, lon]);
-      state_default.issCircle.setRadius(radiusMeters);
-    } else {
-      state_default.issCircle = L.circle([lat, lon], {
-        radius: radiusMeters,
-        color: "#00bcd4",
-        fillColor: "#00bcd4",
-        fillOpacity: 0.08,
-        weight: 1
-      }).addTo(state_default.map);
-    }
-    state_default.issTrail.push([lat, lon]);
-    if (state_default.issTrail.length > 20) state_default.issTrail.shift();
-    if (state_default.issTrailLine) state_default.map.removeLayer(state_default.issTrailLine);
-    if (state_default.issTrail.length > 1) {
-      const segs = [[]];
-      for (let i = 0; i < state_default.issTrail.length; i++) {
-        segs[segs.length - 1].push(state_default.issTrail[i]);
-        if (i < state_default.issTrail.length - 1) {
-          if (Math.abs(state_default.issTrail[i + 1][1] - state_default.issTrail[i][1]) > 180) {
-            segs.push([]);
-          }
-        }
-      }
-      state_default.issTrailLine = L.polyline(segs, {
-        color: "#00bcd4",
-        weight: 2,
-        opacity: 0.6,
-        dashArray: "4 6"
-      }).addTo(state_default.map);
     }
   }
-  async function fetchISSOrbit() {
+  async function fetchSatelliteList() {
+    if (!state_default.n2yoApiKey) return;
     try {
-      const resp = await fetch("/api/iss/orbit");
+      const url = `/api/satellites/list?apikey=${encodeURIComponent(state_default.n2yoApiKey)}`;
+      const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      renderISSOrbit(data);
+      state_default.satellites.available = data;
+      renderSatelliteSelectList();
     } catch (err) {
-      console.error("Failed to fetch ISS orbit:", err);
+      console.error("Failed to fetch satellite list:", err);
     }
   }
-  function renderISSOrbit(positions) {
+  async function fetchSatellitePositions() {
+    if (!state_default.n2yoApiKey || state_default.satellites.tracked.length === 0) return;
+    try {
+      const ids = state_default.satellites.tracked.join(",");
+      const lat = state_default.myLat ?? 0;
+      const lon = state_default.myLon ?? 0;
+      const url = `/api/satellites/positions?apikey=${encodeURIComponent(state_default.n2yoApiKey)}&ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.satellites.positions = data;
+      updateSatelliteMarkers();
+      renderSatelliteWidget();
+    } catch (err) {
+      console.error("Failed to fetch satellite positions:", err);
+    }
+  }
+  async function fetchSatellitePasses(satId) {
+    if (!state_default.n2yoApiKey || state_default.myLat === null || state_default.myLon === null) return;
+    try {
+      const url = `/api/satellites/passes?apikey=${encodeURIComponent(state_default.n2yoApiKey)}&id=${satId}&lat=${state_default.myLat}&lon=${state_default.myLon}&days=2&minEl=10`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.satellites.passes[satId] = {
+        ...data,
+        expires: Date.now() + 5 * 60 * 1e3
+        // 5 min cache
+      };
+      renderSatellitePasses(satId);
+    } catch (err) {
+      console.error("Failed to fetch satellite passes:", err);
+    }
+  }
+  function updateSatelliteMarkers() {
     if (!state_default.map) return;
-    if (state_default.issOrbitLine) state_default.map.removeLayer(state_default.issOrbitLine);
-    if (!positions || positions.length < 2) return;
-    const segments = [[]];
-    for (let i = 0; i < positions.length; i++) {
-      const p = positions[i];
-      segments[segments.length - 1].push([p.latitude, p.longitude]);
-      if (i < positions.length - 1) {
-        const lonDiff = Math.abs(positions[i + 1].longitude - p.longitude);
-        if (lonDiff > 180) {
-          segments.push([]);
-        }
+    const positions = state_default.satellites.positions;
+    for (const satId of Object.keys(state_default.satellites.markers)) {
+      if (!positions[satId]) {
+        state_default.map.removeLayer(state_default.satellites.markers[satId]);
+        delete state_default.satellites.markers[satId];
       }
     }
-    state_default.issOrbitLine = L.polyline(segments, {
-      color: "#00bcd4",
-      weight: 1.5,
-      opacity: 0.35,
-      dashArray: "8 8",
-      interactive: false
-    }).addTo(state_default.map);
+    for (const satId of Object.keys(state_default.satellites.circles)) {
+      if (!positions[satId]) {
+        state_default.map.removeLayer(state_default.satellites.circles[satId]);
+        delete state_default.satellites.circles[satId];
+      }
+    }
+    for (const [satId, pos] of Object.entries(positions)) {
+      const satInfo = SAT_FREQUENCIES[satId] || { name: pos.name || `SAT ${satId}` };
+      const name = satInfo.name || pos.name || `SAT ${satId}`;
+      const isAboveHorizon = pos.elevation > 0;
+      const altKm = pos.alt || DEFAULT_SAT_ALT_KM;
+      const footprintRadiusKm = calculateFootprintRadius(altKm);
+      const radiusMeters = footprintRadiusKm * 1e3;
+      const isISS = satId === "25544" || satId === 25544;
+      if (state_default.satellites.markers[satId]) {
+        state_default.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
+      } else {
+        let iconClass;
+        if (isISS) {
+          iconClass = "iss-icon";
+        } else {
+          iconClass = isAboveHorizon ? "sat-icon" : "sat-icon below-horizon";
+        }
+        const shortName = isISS ? "ISS" : esc(name.split(" ")[0].split("(")[0].trim());
+        const icon = L.divIcon({
+          className: iconClass,
+          html: shortName,
+          iconSize: isISS ? [40, 20] : [50, 20],
+          iconAnchor: isISS ? [20, 10] : [25, 10]
+        });
+        state_default.satellites.markers[satId] = L.marker([pos.lat, pos.lon], {
+          icon,
+          zIndexOffset: isISS ? 1e4 : isAboveHorizon ? 9e3 : 8e3
+        }).addTo(state_default.map);
+        state_default.satellites.markers[satId].bindPopup("", { maxWidth: 300 });
+      }
+      state_default.satellites.markers[satId].setPopupContent(buildSatellitePopup(satId, pos, satInfo));
+      const markerEl = state_default.satellites.markers[satId].getElement();
+      if (markerEl) {
+        const iconEl = markerEl.querySelector(".sat-icon");
+        if (iconEl) {
+          iconEl.classList.toggle("below-horizon", !isAboveHorizon);
+        }
+      }
+      if (state_default.satellites.circles[satId]) {
+        state_default.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
+        state_default.satellites.circles[satId].setRadius(radiusMeters);
+      } else {
+        const color = satId === "25544" ? "#00bcd4" : "#4caf50";
+        state_default.satellites.circles[satId] = L.circle([pos.lat, pos.lon], {
+          radius: radiusMeters,
+          color,
+          fillColor: color,
+          fillOpacity: 0.06,
+          weight: 1,
+          interactive: false
+        }).addTo(state_default.map);
+      }
+    }
+  }
+  function buildSatellitePopup(satId, pos, satInfo) {
+    const name = satInfo.name || pos.name || `SAT ${satId}`;
+    const isAbove = pos.elevation > 0;
+    const statusText = isAbove ? "Above Horizon" : "Below Horizon";
+    const statusColor = isAbove ? "var(--green)" : "var(--text-dim)";
+    const isISS = satId === "25544" || satId === 25544;
+    const popupClass = isISS ? "iss-popup" : "sat-popup";
+    const titleClass = isISS ? "iss-popup-title" : "sat-popup-title";
+    const rowClass = isISS ? "iss-popup-row" : "sat-popup-row";
+    const headerClass = isISS ? "iss-radio-header" : "sat-radio-header";
+    const tableClass = isISS ? "iss-freq-table" : "sat-freq-table";
+    let html = `<div class="${popupClass}">`;
+    html += `<div class="${titleClass}">${esc(name)}</div>`;
+    html += `<div class="${rowClass}">Lat: ${pos.lat.toFixed(2)}, Lon: ${pos.lon.toFixed(2)}</div>`;
+    html += `<div class="${rowClass}">Alt: ${Math.round(pos.alt)} km</div>`;
+    html += `<div class="${rowClass}">Az: ${pos.azimuth.toFixed(1)}&deg; &bull; El: ${pos.elevation.toFixed(1)}&deg;</div>`;
+    html += `<div class="${rowClass}" style="color:${statusColor}">${statusText}</div>`;
+    if (satInfo.uplinks || satInfo.downlinks) {
+      html += `<div class="${headerClass}">${isISS ? "Amateur Radio (ARISS)" : "Amateur Radio Frequencies"}</div>`;
+      html += `<table class="${tableClass}">`;
+      if (satInfo.uplinks) {
+        for (const ul of satInfo.uplinks) {
+          const doppler = calculateDopplerShift(ul.freq, pos);
+          const dopplerStr = doppler !== null ? ` (${doppler > 0 ? "+" : ""}${doppler.toFixed(1)} kHz)` : "";
+          html += `<tr><td>&#8593; ${esc(ul.desc || ul.mode)}</td><td>${ul.freq.toFixed(3)} MHz${dopplerStr}</td></tr>`;
+        }
+      }
+      if (satInfo.downlinks) {
+        for (const dl of satInfo.downlinks) {
+          const doppler = calculateDopplerShift(dl.freq, pos);
+          const dopplerStr = doppler !== null ? ` (${doppler > 0 ? "+" : ""}${doppler.toFixed(1)} kHz)` : "";
+          html += `<tr><td>&#8595; ${esc(dl.desc || dl.mode)}</td><td>${dl.freq.toFixed(3)} MHz${dopplerStr}</td></tr>`;
+        }
+      }
+      html += `</table>`;
+      if (isISS) {
+        html += `<div class="iss-radio-note">Repeater &amp; APRS typically active. SSTV during special events. Doppler shown above.</div>`;
+      }
+    }
+    html += `</div>`;
+    return html;
+  }
+  function calculateFootprintRadius(altitudeKm) {
+    const ratio = EARTH_RADIUS_KM / (EARTH_RADIUS_KM + altitudeKm);
+    const angleRad = Math.acos(ratio);
+    return EARTH_RADIUS_KM * angleRad;
+  }
+  function calculateDopplerShift(freqMHz, pos) {
+    if (pos.elevation === void 0 || pos.elevation === null) return null;
+    const orbitalVelocityKmS = 7.8;
+    const elevRad = pos.elevation * Math.PI / 180;
+    const radialVelocity = orbitalVelocityKmS * Math.cos(elevRad);
+    const dopplerMHz = freqMHz * (radialVelocity / SPEED_OF_LIGHT_KM_S);
+    return dopplerMHz * 1e3;
+  }
+  function renderSatelliteWidget() {
+    const satList = $("satList");
+    if (!satList) return;
+    const positions = state_default.satellites.positions;
+    const tracked = state_default.satellites.tracked;
+    if (!state_default.n2yoApiKey) {
+      satList.innerHTML = '<div class="sat-no-key">Configure N2YO API key in settings</div>';
+      return;
+    }
+    if (tracked.length === 0 || Object.keys(positions).length === 0) {
+      satList.innerHTML = '<div class="sat-no-data">No satellite data</div>';
+      return;
+    }
+    let html = "";
+    for (const satId of tracked) {
+      const pos = positions[satId];
+      if (!pos) continue;
+      const satInfo = SAT_FREQUENCIES[satId] || {};
+      const name = satInfo.name || pos.name || `SAT ${satId}`;
+      const shortName = name.split(" ")[0].split("(")[0].trim();
+      const isAbove = pos.elevation > 0;
+      const isSelected = state_default.satellites.selectedSatId === parseInt(satId, 10);
+      let dopplerStr = "";
+      if (satInfo.downlinks && satInfo.downlinks.length > 0) {
+        const doppler = calculateDopplerShift(satInfo.downlinks[0].freq, pos);
+        if (doppler !== null) {
+          dopplerStr = `${doppler > 0 ? "+" : ""}${doppler.toFixed(1)}`;
+        }
+      }
+      const rowClass = `sat-row${isSelected ? " selected" : ""}${isAbove ? "" : " below-horizon"}`;
+      html += `<div class="${rowClass}" data-sat-id="${satId}">`;
+      html += `<span class="sat-name">${esc(shortName)}</span>`;
+      html += `<span class="sat-azel">Az ${pos.azimuth.toFixed(0)}&deg; El ${pos.elevation.toFixed(0)}&deg;</span>`;
+      if (dopplerStr) {
+        html += `<span class="sat-doppler">${dopplerStr} kHz</span>`;
+      }
+      html += `</div>`;
+    }
+    satList.innerHTML = html;
+    satList.querySelectorAll(".sat-row").forEach((row) => {
+      row.addEventListener("click", () => {
+        const satId = parseInt(row.dataset.satId, 10);
+        selectSatellite(satId);
+      });
+    });
+  }
+  function selectSatellite(satId) {
+    state_default.satellites.selectedSatId = satId;
+    const satList = $("satList");
+    if (satList) {
+      satList.querySelectorAll(".sat-row").forEach((row) => {
+        row.classList.toggle("selected", parseInt(row.dataset.satId, 10) === satId);
+      });
+    }
+    const pos = state_default.satellites.positions[satId];
+    if (pos && state_default.map) {
+      state_default.map.panTo([pos.lat, pos.lon]);
+      if (state_default.satellites.markers[satId]) {
+        state_default.satellites.markers[satId].openPopup();
+      }
+    }
+    const cached = state_default.satellites.passes[satId];
+    if (!cached || Date.now() > cached.expires) {
+      fetchSatellitePasses(satId);
+    } else {
+      renderSatellitePasses(satId);
+    }
+  }
+  function renderSatellitePasses(satId) {
+    const passesDiv = $("satPasses");
+    if (!passesDiv) return;
+    const cached = state_default.satellites.passes[satId];
+    if (!cached || !cached.passes || cached.passes.length === 0) {
+      passesDiv.innerHTML = '<div class="sat-no-passes">No upcoming passes</div>';
+      return;
+    }
+    let html = `<div class="sat-passes-title">Upcoming Passes</div>`;
+    for (const pass of cached.passes.slice(0, 5)) {
+      const startDate = new Date(pass.startUTC * 1e3);
+      const maxDate = new Date(pass.maxUTC * 1e3);
+      const timeStr = formatPassTime(startDate);
+      const durationMin = Math.round((pass.endUTC - pass.startUTC) / 60);
+      html += `<div class="pass-item">`;
+      html += `<div class="pass-time">${timeStr}</div>`;
+      html += `<div class="pass-details">Max El: ${pass.maxEl}&deg; &bull; ${durationMin} min</div>`;
+      html += `<div class="pass-azimuth">${pass.startAzCompass} &rarr; ${pass.maxAzCompass} &rarr; ${pass.endAzCompass}</div>`;
+      html += `</div>`;
+    }
+    passesDiv.innerHTML = html;
+  }
+  function formatPassTime(date) {
+    const now = /* @__PURE__ */ new Date();
+    const diffMs = date - now;
+    const diffMin = Math.round(diffMs / 6e4);
+    if (diffMin < 60) {
+      return `In ${diffMin} min`;
+    } else if (diffMin < 1440) {
+      const hours = Math.floor(diffMin / 60);
+      const mins = diffMin % 60;
+      return `In ${hours}h ${mins}m`;
+    } else {
+      return date.toLocaleString(void 0, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+  }
+  function showSatelliteConfig() {
+    const splash = $("satCfgSplash");
+    if (!splash) return;
+    const apiKeyInput = $("satApiKey");
+    if (apiKeyInput) {
+      apiKeyInput.value = state_default.n2yoApiKey;
+    }
+    if (state_default.n2yoApiKey && state_default.satellites.available.length === 0) {
+      fetchSatelliteList();
+    }
+    renderSatelliteSelectList();
+    splash.classList.remove("hidden");
+  }
+  function dismissSatelliteConfig() {
+    const splash = $("satCfgSplash");
+    if (!splash) return;
+    const apiKeyInput = $("satApiKey");
+    if (apiKeyInput) {
+      state_default.n2yoApiKey = apiKeyInput.value.trim();
+      localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
+      if (state_default.n2yoApiKey) {
+        fetch("/api/config/env", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ N2YO_API_KEY: state_default.n2yoApiKey })
+        }).catch(() => {
+        });
+      }
+    }
+    const selectList = $("satSelectList");
+    if (selectList) {
+      const tracked = [];
+      selectList.querySelectorAll('input[type="checkbox"]:checked').forEach((cb) => {
+        const id = parseInt(cb.dataset.satId, 10);
+        if (!isNaN(id)) tracked.push(id);
+      });
+      state_default.satellites.tracked = tracked.length > 0 ? tracked : [25544];
+      localStorage.setItem("hamtab_sat_tracked", JSON.stringify(state_default.satellites.tracked));
+    }
+    splash.classList.add("hidden");
+    if (state_default.n2yoApiKey) {
+      fetchSatellitePositions();
+    }
+  }
+  function renderSatelliteSelectList() {
+    const selectList = $("satSelectList");
+    if (!selectList) return;
+    const allSats = /* @__PURE__ */ new Map();
+    for (const [id, info] of Object.entries(SAT_FREQUENCIES)) {
+      allSats.set(parseInt(id, 10), info.name);
+    }
+    for (const sat of state_default.satellites.available) {
+      if (!allSats.has(sat.satId)) {
+        allSats.set(sat.satId, sat.name);
+      }
+    }
+    let html = "";
+    for (const [satId, name] of allSats) {
+      const isTracked = state_default.satellites.tracked.includes(satId);
+      html += `<label class="sat-select-item">`;
+      html += `<input type="checkbox" data-sat-id="${satId}" ${isTracked ? "checked" : ""} />`;
+      html += `${esc(name)} (${satId})`;
+      html += `</label>`;
+    }
+    selectList.innerHTML = html;
   }
 
   // src/main.js
   init_spot_detail();
+  init_band_conditions();
   migrate();
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
@@ -3767,10 +4572,8 @@
   pullSettings();
   updateGrayLine();
   setInterval(updateGrayLine, 6e4);
-  setInterval(fetchISS, 5e3);
-  fetchISS();
-  fetchISSOrbit();
-  setInterval(fetchISSOrbit, 3e5);
+  initSatellites();
+  setInterval(fetchSatellitePositions, 1e4);
   updateClocks();
   setInterval(updateClocks, 1e3);
   setInterval(renderSpots, 3e4);
@@ -3785,6 +4588,7 @@
   initWeatherListeners();
   initPropListeners();
   initSolarImage();
+  initDayNightToggle();
   initSpotDetail();
   function initApp() {
     if (state_default.appInitialized) return;

@@ -1222,38 +1222,44 @@ header {
   margin-top: 2px;
 }
 
-/* ---- Per-Band Conditions ---- */
+/* ---- Propagation Widget ---- */
 
-.band-conditions-section {
-  border-top: 1px solid var(--border);
-  margin-top: 10px;
-  padding: 10px;
-}
-
-.band-conditions-header {
+.prop-summary {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
+  justify-content: space-around;
+  padding: 10px;
+  background: var(--surface2);
+  border-radius: 6px;
+  margin: 10px;
 }
 
-.band-conditions-title {
-  font-size: 0.75rem;
-  font-weight: 600;
+.prop-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.prop-summary-label {
+  font-size: 0.65rem;
+  color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  color: var(--text-dim);
 }
 
-.band-conditions-muf {
-  font-size: 0.7rem;
-  color: var(--text-dim);
+.prop-summary-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
 }
+
+/* ---- Per-Band Conditions ---- */
 
 .band-conditions-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
+  padding: 10px;
 }
 
 .band-card {
@@ -1339,6 +1345,69 @@ header {
 
 .band-unknown .band-reliability {
   color: var(--text-dim);
+}
+
+/* ---- HamQSL Band Conditions ---- */
+
+.hamqsl-bands-section {
+  border-top: 1px solid var(--border);
+  margin-top: 10px;
+  padding: 10px;
+}
+
+.hamqsl-bands-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.hamqsl-bands-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.hamqsl-band-card {
+  background: var(--surface2);
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.hamqsl-band-name {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.hamqsl-band-conditions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.hamqsl-cond-item {
+  flex: 1;
+  text-align: center;
+}
+
+.hamqsl-cond-time {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  display: block;
+  margin-bottom: 2px;
+}
+
+.hamqsl-cond-value {
+  font-size: 0.75rem;
+  font-weight: 600;
+  display: block;
 }
 
 /* ---- Header band conditions strip ---- */

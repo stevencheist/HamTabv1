@@ -2,6 +2,8 @@
 // Calculate band-specific propagation reliability based on solar indices
 
 import state from './state.js';
+import { $ } from './dom.js';
+import { esc } from './utils.js';
 
 // HF amateur bands (MHz)
 const HF_BANDS = [
@@ -221,4 +223,136 @@ export function conditionLabel(condition) {
     'unknown': 'Unknown',
   };
   return map[condition] || 'Unknown';
+}
+
+// --- UI Rendering ---
+
+/**
+ * Helper to get condition class for HamQSL band conditions
+ */
+function hamqslCondClass(cond) {
+  const c = (cond || '').toLowerCase();
+  if (c === 'good') return 'cond-good';
+  if (c === 'fair') return 'cond-fair';
+  if (c === 'poor') return 'cond-poor';
+  return '';
+}
+
+/**
+ * Render the propagation widget with band conditions
+ */
+export function renderPropagationWidget() {
+  const grid = $('bandConditionsGrid');
+  const mufValue = $('propMufValue');
+  const sfiValue = $('propSfiValue');
+  const kindexValue = $('propKindexValue');
+  const hamqslGrid = $('hamqslBandsGrid');
+
+  if (!grid) return;
+
+  // Calculate per-band conditions
+  const conditions = calculateBandConditions();
+
+  // Update summary values
+  if (mufValue) {
+    const muf = conditions[0]?.muf || 0;
+    mufValue.textContent = muf > 0 ? `${muf} MHz` : '--';
+  }
+
+  if (state.lastSolarData && state.lastSolarData.indices) {
+    const { indices } = state.lastSolarData;
+    if (sfiValue) sfiValue.textContent = indices.sfi || '--';
+    if (kindexValue) {
+      const kindex = indices.kindex || '--';
+      kindexValue.textContent = kindex;
+      // Color-code K-index
+      if (kindex !== '--') {
+        const k = parseInt(kindex);
+        if (k <= 2) kindexValue.style.color = 'var(--green)';
+        else if (k <= 4) kindexValue.style.color = 'var(--yellow)';
+        else kindexValue.style.color = 'var(--red)';
+      }
+    }
+  }
+
+  // Render per-band prediction cards
+  grid.innerHTML = '';
+  conditions.forEach(band => {
+    const card = document.createElement('div');
+    card.className = `band-card ${conditionColorClass(band.condition)}`;
+
+    const name = document.createElement('span');
+    name.className = 'band-name';
+    name.textContent = band.label;
+
+    const reliability = document.createElement('span');
+    reliability.className = 'band-reliability';
+    reliability.textContent = `${band.reliability}%`;
+
+    const condLabel = document.createElement('span');
+    condLabel.className = 'band-condition-label';
+    condLabel.textContent = conditionLabel(band.condition);
+
+    card.appendChild(name);
+    card.appendChild(reliability);
+    card.appendChild(condLabel);
+    grid.appendChild(card);
+  });
+
+  // Render HamQSL band conditions (day/night from HamQSL data)
+  if (hamqslGrid && state.lastSolarData && state.lastSolarData.bands) {
+    const { bands } = state.lastSolarData;
+    const bandMap = {};
+    bands.forEach(b => {
+      if (!bandMap[b.band]) bandMap[b.band] = {};
+      bandMap[b.band][b.time] = b.condition;
+    });
+
+    hamqslGrid.innerHTML = '';
+    const bandOrder = ['80m-40m', '30m-20m', '17m-15m', '12m-10m'];
+    bandOrder.forEach(band => {
+      if (!bandMap[band]) return;
+      const day = bandMap[band]['day'] || '-';
+      const night = bandMap[band]['night'] || '-';
+
+      const card = document.createElement('div');
+      card.className = 'hamqsl-band-card';
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'hamqsl-band-name';
+      nameSpan.textContent = band;
+
+      const conditionsDiv = document.createElement('div');
+      conditionsDiv.className = 'hamqsl-band-conditions';
+
+      const dayItem = document.createElement('div');
+      dayItem.className = 'hamqsl-cond-item';
+      const dayTime = document.createElement('span');
+      dayTime.className = 'hamqsl-cond-time';
+      dayTime.textContent = 'Day';
+      const dayValue = document.createElement('span');
+      dayValue.className = `hamqsl-cond-value ${hamqslCondClass(day)}`;
+      dayValue.textContent = day;
+      dayItem.appendChild(dayTime);
+      dayItem.appendChild(dayValue);
+
+      const nightItem = document.createElement('div');
+      nightItem.className = 'hamqsl-cond-item';
+      const nightTime = document.createElement('span');
+      nightTime.className = 'hamqsl-cond-time';
+      nightTime.textContent = 'Night';
+      const nightValue = document.createElement('span');
+      nightValue.className = `hamqsl-cond-value ${hamqslCondClass(night)}`;
+      nightValue.textContent = night;
+      nightItem.appendChild(nightTime);
+      nightItem.appendChild(nightValue);
+
+      conditionsDiv.appendChild(dayItem);
+      conditionsDiv.appendChild(nightItem);
+
+      card.appendChild(nameSpan);
+      card.appendChild(conditionsDiv);
+      hamqslGrid.appendChild(card);
+    });
+  }
 }

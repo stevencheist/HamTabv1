@@ -1,0 +1,209 @@
+# Configuration
+
+All HamTab settings are accessed via the Config panel (gear icon in the top-right corner).
+
+## Personal Information
+
+### Callsign
+Your amateur radio callsign. Used for:
+- Live Spots widget (showing who receives your signal)
+- DX Detail distance/bearing calculations
+- Map marker label at your QTH
+
+<div class="tip">Your callsign is stored locally and never transmitted to HamTab servers.</div>
+
+### Location (QTH)
+
+#### GPS
+Click "Use GPS" to automatically detect your location.
+- Requires HTTPS and browser permission
+- Most accurate option
+- May not work with self-signed certificates
+
+#### Grid Square
+Enter your 4 or 6-character Maidenhead grid (e.g., `FN31` or `FN31pr`).
+- Good balance of accuracy and privacy
+- Standard for amateur radio location sharing
+
+#### Manual Coordinates
+Enter decimal degrees:
+- **Latitude**: Positive = North, Negative = South
+- **Longitude**: Positive = East, Negative = West
+- Example: `41.7128, -73.0060`
+
+### Time Format
+- **Local** — Times in your browser's timezone
+- **UTC** — Times in Coordinated Universal Time
+
+<div class="tip">UTC is standard in amateur radio. Using UTC eliminates confusion when logging contacts with stations in different timezones.</div>
+
+---
+
+## API Keys
+
+### N2YO API Key
+Required for satellite tracking.
+
+1. Visit [n2yo.com/api](https://www.n2yo.com/api/)
+2. Create a free account
+3. Generate an API key
+4. Paste into Config
+
+Without this key, the Satellites widget is disabled.
+
+### Weather Underground API Key
+Optional, for enhanced weather data.
+
+1. Visit [wunderground.com/member/api-keys](https://www.wunderground.com/member/api-keys)
+2. Create account and generate key
+3. Paste into Config
+
+If not provided, weather data comes from National Weather Service (US only).
+
+---
+
+## Display Preferences
+
+### Units
+- **Distance**: Miles or Kilometers
+- **Temperature**: Fahrenheit or Celsius
+
+### Map Center Mode
+- **QTH** — Map stays centered on your location
+- **Spot** — Map centers on selected spot
+
+---
+
+## Widget Visibility
+
+Check or uncheck widgets to show or hide them:
+
+- [ ] Filters
+- [ ] On the Air
+- [ ] HamMap
+- [ ] Solar
+- [ ] Band Conditions
+- [ ] HF Propagation
+- [ ] Live Spots
+- [ ] Lunar / EME
+- [ ] Satellites
+- [ ] Reference
+- [ ] DX Detail
+
+Hidden widgets can be re-enabled anytime.
+
+---
+
+## Widget-Specific Settings
+
+Many widgets have their own configuration. Access via the gear icon in each widget's title bar.
+
+### Solar Widget Settings
+Show/hide individual fields:
+- Solar Flux, Sunspots, A-Index, K-Index (default: shown)
+- X-Ray, Signal Noise (default: shown)
+- Solar Wind, Bz, Proton Flux, etc. (default: hidden)
+
+### Lunar Widget Settings
+Show/hide individual fields:
+- Phase, Illumination, Declination, Distance, Path Loss (default: shown)
+- Elongation, Ecliptic coordinates, Right Ascension (default: hidden)
+
+### On the Air Column Settings
+Per-source column visibility for POTA, SOTA, DXC, PSK tables.
+
+### Live Spots Display Mode
+- **Count** — Show number of stations receiving you
+- **Distance** — Show distance to farthest receiver
+
+### Satellite Selection
+Add or remove satellites from tracking.
+
+---
+
+## Layout Management
+
+### Automatic Layout Save
+Widget positions and sizes are automatically saved to localStorage. When you reload, your layout is restored.
+
+### Reset Layout
+To reset to default layout:
+1. Open browser developer tools (F12)
+2. Go to Application → Local Storage
+3. Delete keys starting with `hamtab_`
+4. Reload the page
+
+---
+
+## Config Export/Import
+
+### Exporting Configuration
+1. Open Config
+2. Click **Export Config**
+3. Save the JSON file
+
+Exported data includes:
+- Callsign and location
+- API keys
+- All preferences
+- Filter presets
+- Widget visibility
+- Layout positions
+
+### Importing Configuration
+1. Open Config
+2. Click **Import Config**
+3. Select a previously exported JSON file
+4. Settings are applied immediately
+
+<div class="important">Exported configs contain your API keys. Store them securely and don't share publicly.</div>
+
+---
+
+## localStorage Keys
+
+HamTab stores all data in browser localStorage with the `hamtab_` prefix:
+
+| Key | Content |
+|-----|---------|
+| `hamtab_callsign` | Your callsign |
+| `hamtab_lat` | Latitude |
+| `hamtab_lon` | Longitude |
+| `hamtab_grid` | Grid square |
+| `hamtab_utc` | Time format preference |
+| `hamtab_n2yo_key` | N2YO API key |
+| `hamtab_wu_key` | Weather Underground key |
+| `hamtab_widgets` | Widget visibility |
+| `hamtab_widgets_user` | Widget positions/sizes |
+| `hamtab_filter_presets` | Saved filter presets |
+| `hamtab_solar_fields` | Solar field visibility |
+| `hamtab_lunar_fields` | Lunar field visibility |
+| `hamtab_tracked_sats` | Tracked satellite IDs |
+
+### Clearing All Data
+To completely reset HamTab:
+1. Open browser developer tools
+2. Console: `localStorage.clear()`
+3. Reload the page
+
+Or use your browser's "Clear site data" feature.
+
+---
+
+## Privacy
+
+### Data Stored Locally
+All personal data stays in your browser:
+- Callsign
+- Location
+- API keys
+- Preferences
+
+### Data Never Transmitted
+HamTab never sends your personal information to its servers. External API calls are proxied, protecting your IP address.
+
+### GDPR Compliance
+- No tracking or analytics
+- No cookies (localStorage only)
+- You control all your data
+- Export/delete anytime

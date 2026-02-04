@@ -5,6 +5,7 @@
   "main": "server.js",
   "scripts": {
     "build": "node esbuild.mjs",
+    "build:docs": "node docs/user-guide/build.mjs",
     "dev": "node esbuild.mjs --watch",
     "start": "node esbuild.mjs && node server.js",
     "start:direct": "node server.js"
@@ -18,6 +19,8 @@
     "helmet": "^8.1.0"
   },
   "devDependencies": {
-    "esbuild": "^0.27.2"
+    "esbuild": "^0.27.2",
+    "marked": "^15.0.0",
+    "puppeteer": "^24.0.0"
   }
 }

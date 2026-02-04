@@ -763,7 +763,7 @@ HamTab supports two deployment modes with a shared codebase on `main` and mode-s
 ### User Documentation
 - ✅ CLAUDE.md (developer guide)
 - ✅ Help system (in-app widget help)
-- ❌ User guide (comprehensive manual)
+- 📅 User guide PDF (comprehensive manual) — In progress
 - ❌ FAQ (common questions)
 - ❌ Installation guides (per platform)
 - ❌ Video tutorials (YouTube)

@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>HamTab User Guide v{{VERSION}}</title>
+  <style>
+    /* Base styles */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* Headings */
+    h1 {
+      color: #2c3e50;
+      border-bottom: 2px solid #3498db;
+      padding-bottom: 0.3em;
+      page-break-before: always;
+      margin-top: 0;
+    }
+    h1:first-of-type { page-break-before: avoid; }
+    h2 {
+      color: #34495e;
+      margin-top: 1.5em;
+      border-bottom: 1px solid #eee;
+      padding-bottom: 0.2em;
+    }
+    h3 {
+      color: #555;
+      margin-top: 1.2em;
+    }
+
+    /* Tables */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1em 0;
+      font-size: 0.95em;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px 10px;
+      text-align: left;
+    }
+    th {
+      background: #f8f9fa;
+      font-weight: 600;
+    }
+    tr:nth-child(even) { background: #fafafa; }
+
+    /* Code */
+    code {
+      background: #f4f4f4;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.9em;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 1em;
+      border-radius: 4px;
+      overflow-x: auto;
+    }
+    pre code {
+      padding: 0;
+      background: none;
+    }
+
+    /* Images */
+    img {
+      max-width: 100%;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      margin: 1em 0;
+    }
+
+    /* Cover page */
+    .cover {
+      text-align: center;
+      padding-top: 2.5in;
+      page-break-after: always;
+    }
+    .cover h1 {
+      border: none;
+      font-size: 2.5em;
+      color: #2c3e50;
+      margin-bottom: 0.5em;
+    }
+    .cover .subtitle {
+      font-size: 1.3em;
+      color: #666;
+      margin-bottom: 2em;
+    }
+    .cover .version {
+      font-size: 1.1em;
+      margin-top: 2em;
+    }
+    .cover .date {
+      color: #999;
+      margin-top: 0.5em;
+    }
+    .cover .logo {
+      font-size: 4em;
+      margin-bottom: 0.5em;
+    }
+
+    /* Table of Contents */
+    .toc {
+      page-break-after: always;
+    }
+    .toc h1 {
+      page-break-before: avoid;
+    }
+    .toc-entry {
+      margin: 0.4em 0;
+      line-height: 1.4;
+    }
+    .toc-level-1 {
+      font-weight: 600;
+      margin-top: 0.8em;
+    }
+    .toc-level-2 {
+      margin-left: 1.5em;
+      color: #555;
+    }
+
+    /* Callout boxes */
+    .tip {
+      background: #e8f4fd;
+      border-left: 4px solid #3498db;
+      padding: 1em;
+      margin: 1em 0;
+      border-radius: 0 4px 4px 0;
+    }
+    .tip::before {
+      content: "Tip: ";
+      font-weight: 600;
+      color: #2980b9;
+    }
+    .warning {
+      background: #fef3e2;
+      border-left: 4px solid #f39c12;
+      padding: 1em;
+      margin: 1em 0;
+      border-radius: 0 4px 4px 0;
+    }
+    .warning::before {
+      content: "Note: ";
+      font-weight: 600;
+      color: #d68910;
+    }
+    .important {
+      background: #fce4e4;
+      border-left: 4px solid #e74c3c;
+      padding: 1em;
+      margin: 1em 0;
+      border-radius: 0 4px 4px 0;
+    }
+    .important::before {
+      content: "Important: ";
+      font-weight: 600;
+      color: #c0392b;
+    }
+
+    /* Lists */
+    ul, ol {
+      margin: 0.5em 0;
+      padding-left: 1.5em;
+    }
+    li {
+      margin: 0.3em 0;
+    }
+
+    /* Links */
+    a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+
+    /* Keyboard shortcuts */
+    kbd {
+      background: #f7f7f7;
+      border: 1px solid #ccc;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-family: 'Consolas', monospace;
+      font-size: 0.85em;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.2);
+    }
+
+    /* Color indicator boxes */
+    .color-good { color: #27ae60; font-weight: 600; }
+    .color-fair { color: #f39c12; font-weight: 600; }
+    .color-poor { color: #e74c3c; font-weight: 600; }
+
+    /* Widget reference cards */
+    .widget-card {
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 1em;
+      margin: 1em 0;
+      page-break-inside: avoid;
+    }
+    .widget-card h3 {
+      margin-top: 0;
+      color: #2c3e50;
+    }
+
+    /* Print optimizations */
+    @media print {
+      body { font-size: 11pt; }
+      h1 { font-size: 18pt; }
+      h2 { font-size: 14pt; }
+      h3 { font-size: 12pt; }
+      .no-print { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="cover">
+    <div class="logo">📻</div>
+    <h1>HamTab User Guide</h1>
+    <p class="subtitle">Amateur Radio Dashboard for POTA, SOTA, DX & Propagation</p>
+    <p class="version"><strong>Version {{VERSION}}</strong></p>
+    <p class="date">Generated: {{DATE}}</p>
+  </div>
+
+  <div class="toc">
+    <h1 style="page-break-before:avoid;">Table of Contents</h1>
+    {{TOC}}
+  </div>
+
+  {{CONTENT}}
+</body>
+</html>

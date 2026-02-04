@@ -91,7 +91,7 @@ export function getDefaultLayout() {
   };
 
   // Stack visible right-column widgets below solar
-  const rightBottomIds = ['widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail'];
+  const rightBottomIds = ['widget-propagation', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail'];
   const vis = state.widgetVisibility || {};
   const visibleBottom = rightBottomIds.filter(id => vis[id] !== false);
   const bottomSpace = H - rightHalf - pad * 2;

@@ -1,7 +1,6 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
-import { calculateBandConditions, conditionColorClass, conditionLabel } from './band-conditions.js';
 
 // Color functions (exported for constants.js)
 export function aColor(val) {
@@ -251,6 +250,9 @@ export async function fetchSolar() {
     state.lastSolarData = data;
     renderSolar(data);
     loadSolarImage();
+    // Also update propagation widget since it depends on solar data
+    const { renderPropagationWidget } = await import('./band-conditions.js');
+    renderPropagationWidget();
   } catch (err) {
     console.error('Failed to fetch solar:', err);
   }
@@ -319,45 +321,6 @@ export function renderSolar(data) {
     item.appendChild(sep);
     item.appendChild(nightSpan);
     headerBandsRow.appendChild(item);
-  });
-
-  // Per-band propagation predictions
-  renderBandConditions();
-}
-
-function renderBandConditions() {
-  const grid = $('bandConditionsGrid');
-  const mufLabel = $('bandMufLabel');
-  if (!grid || !mufLabel) return;
-
-  const conditions = calculateBandConditions();
-
-  // Display MUF
-  const muf = conditions[0]?.muf || 0;
-  mufLabel.textContent = muf > 0 ? `MUF: ${muf} MHz` : '';
-
-  // Render band cards
-  grid.innerHTML = '';
-  conditions.forEach(band => {
-    const card = document.createElement('div');
-    card.className = `band-card ${conditionColorClass(band.condition)}`;
-
-    const name = document.createElement('span');
-    name.className = 'band-name';
-    name.textContent = band.label;
-
-    const reliability = document.createElement('span');
-    reliability.className = 'band-reliability';
-    reliability.textContent = `${band.reliability}%`;
-
-    const condLabel = document.createElement('span');
-    condLabel.className = 'band-condition-label';
-    condLabel.textContent = conditionLabel(band.condition);
-
-    card.appendChild(name);
-    card.appendChild(reliability);
-    card.appendChild(condLabel);
-    grid.appendChild(card);
   });
 }
 

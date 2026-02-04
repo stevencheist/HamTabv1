@@ -316,7 +316,7 @@
 
     <!-- Solar -->
     <div class="widget" id="widget-solar">
-      <div class="widget-header">Solar &amp; Propagation <button class="widget-cfg-btn" id="solarCfgBtn" title="Configure fields">&#9881;</button></div>
+      <div class="widget-header">Solar <button class="widget-cfg-btn" id="solarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
         <div class="solar-image-container">
           <select id="solarImageType">
@@ -331,12 +331,32 @@
           </div>
         </div>
         <div class="solar-indices" id="solarIndices"></div>
-        <div class="band-conditions-section">
-          <div class="band-conditions-header">
-            <span class="band-conditions-title">HF Band Conditions</span>
-            <span class="band-conditions-muf" id="bandMufLabel"></span>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Band Conditions / Propagation -->
+    <div class="widget" id="widget-propagation">
+      <div class="widget-header">Band Conditions</div>
+      <div class="widget-body">
+        <div class="prop-summary">
+          <div class="prop-summary-item">
+            <span class="prop-summary-label">MUF</span>
+            <span class="prop-summary-value" id="propMufValue">--</span>
           </div>
-          <div class="band-conditions-grid" id="bandConditionsGrid"></div>
+          <div class="prop-summary-item">
+            <span class="prop-summary-label">SFI</span>
+            <span class="prop-summary-value" id="propSfiValue">--</span>
+          </div>
+          <div class="prop-summary-item">
+            <span class="prop-summary-label">K-index</span>
+            <span class="prop-summary-value" id="propKindexValue">--</span>
+          </div>
+        </div>
+        <div class="band-conditions-grid" id="bandConditionsGrid"></div>
+        <div class="hamqsl-bands-section" id="hamqslBandsSection">
+          <div class="hamqsl-bands-title">HamQSL Band Conditions (Day/Night)</div>
+          <div class="hamqsl-bands-grid" id="hamqslBandsGrid"></div>
         </div>
       </div>
       <div class="widget-resize"></div>

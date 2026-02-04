@@ -466,6 +466,27 @@ header {
   background: var(--accent);
 }
 
+/* ---- Buy Me a Coffee button ---- */
+
+.coffee-btn {
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  border: 1px solid #ffdd00;
+  background: linear-gradient(135deg, #ffdd00 0%, #ffc800 100%);
+  color: #000;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.coffee-btn:hover {
+  background: linear-gradient(135deg, #ffe033 0%, #ffd633 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(255, 221, 0, 0.3);
+}
+
 /* ---- Update indicator ---- */
 
 .update-indicator {

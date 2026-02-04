@@ -7,6 +7,8 @@ export const WIDGET_DEFS = [
   { id: 'widget-map',         name: 'HamMap' },
   { id: 'widget-solar',       name: 'Solar' },
   { id: 'widget-propagation', name: 'Band Conditions' },
+  { id: 'widget-voacap',      name: 'HF Propagation' },
+  { id: 'widget-live-spots',  name: 'Live Spots' },
   { id: 'widget-lunar',       name: 'Lunar / EME' },
   { id: 'widget-satellites',  name: 'Satellites' },
   { id: 'widget-rst',          name: 'Reference' },
@@ -350,6 +352,32 @@ export const WIDGET_HELP = {
       { heading: 'Distance & Bearing', content: 'Great-circle distance and heading from your QTH to the spot.' },
       { heading: 'Frequency & Mode', content: 'Operating frequency and mode from the spot data.' },
       { heading: 'Selection', content: 'Click a row in On the Air or a map marker to populate this widget.' },
+    ],
+  },
+  'widget-live-spots': {
+    title: 'Live Spots',
+    description: 'Shows where YOUR signal is being received via PSKReporter.',
+    sections: [
+      { heading: 'Requirements', content: 'Enter your callsign in Config. Works best when you\'re actively transmitting on digital modes (FT8, FT4, etc.).' },
+      { heading: 'Band Cards', content: 'Click a band card to toggle display of RX stations on the map. Shows count or farthest distance.' },
+      { heading: 'Display Mode', content: 'Click gear icon to switch between count and distance display. Distance shows your farthest reach per band.' },
+      { heading: 'Map Overlay', content: 'Active bands show geodesic paths from your QTH to each receiving station.' },
+    ],
+    links: [
+      { label: 'PSKReporter', url: 'https://pskreporter.info/' },
+    ],
+  },
+  'widget-voacap': {
+    title: 'HF Propagation',
+    description: '24-hour propagation prediction matrix showing band reliability by hour.',
+    sections: [
+      { heading: 'Matrix', content: 'Rows are HF bands, columns are hours (UTC). Color intensity shows predicted reliability.' },
+      { heading: 'Current Hour', content: 'The current UTC hour is highlighted with a border.' },
+      { heading: 'Color Scale', content: 'Black = closed, Red = poor, Yellow = fair, Green = good. Based on MUF and solar conditions.' },
+      { heading: 'Map Overlay', content: 'Click a band row to show/hide propagation circles on the map.' },
+    ],
+    links: [
+      { label: 'NOAA SWPC Propagation', url: 'https://www.swpc.noaa.gov/communities/radio-communications' },
     ],
   },
 };

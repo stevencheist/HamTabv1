@@ -41,6 +41,11 @@ export function renderSpots() {
     const sid = spotId(spot);
     tr.dataset.spotId = sid;
     if (sid === state.selectedSpotId) tr.classList.add('selected');
+    // Highlight spots where user's callsign is the activator
+    const spotCall = (spot.activator || spot.callsign || '').toUpperCase();
+    if (state.myCallsign && spotCall === state.myCallsign.toUpperCase()) {
+      tr.classList.add('my-spot');
+    }
 
     cols.forEach(col => {
       const td = document.createElement('td');

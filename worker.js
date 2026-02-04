@@ -11,9 +11,28 @@ export class HamTab extends DurableObject {
     try {
       const container = this.ctx.container;
 
+      // Debug: check running state before start
+      const runningBefore = container.running;
+
       // Start the container if not running
       if (!container.running) {
-        await container.start();
+        const startResult = await container.start();
+      }
+
+      // Debug: check running state after start
+      const runningAfter = container.running;
+
+      // If still not running, return debug info
+      if (!container.running) {
+        return new Response(JSON.stringify({
+          debug: true,
+          runningBefore,
+          runningAfter,
+          message: 'Container did not start',
+        }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' },
+        });
       }
 
       // Get the port and proxy the request

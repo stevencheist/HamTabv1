@@ -4177,7 +4177,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.12.0";
+    $("splashVersion").textContent = "0.13.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

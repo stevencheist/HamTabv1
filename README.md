@@ -30,6 +30,8 @@ A real-time amateur radio dashboard for [Parks on the Air (POTA)](https://pota.a
 
 ## Installation
 
+> **Important:** HamTab uses the `lanmode` branch for self-hosted installations. The `main` branch contains shared code only — it does not include the install scripts, self-signed TLS, or update checker. Always checkout `lanmode` after cloning.
+
 ### macOS
 
 **Prerequisites:** Node.js 18+ and Git.
@@ -52,6 +54,7 @@ xcode-select --install
 ```bash
 git clone https://github.com/stevencheist/HamTabv1.git
 cd HamTabv1
+git checkout lanmode
 npm install
 npm start
 ```
@@ -82,6 +85,7 @@ sudo apt-get install -y git
 ```bash
 git clone https://github.com/stevencheist/HamTabv1.git
 cd HamTabv1
+git checkout lanmode
 npm install
 npm start
 ```
@@ -94,6 +98,7 @@ npm start
 sudo dnf install nodejs git
 git clone https://github.com/stevencheist/HamTabv1.git
 cd HamTabv1
+git checkout lanmode
 npm install
 npm start
 ```
@@ -102,18 +107,20 @@ npm start
 
 ### Linux / Raspberry Pi (Automated Install)
 
-The included install script handles everything: installs Node.js if needed, copies the app to `/opt/hamtab`, configures Weather Underground, and optionally sets up a systemd service for boot-start with automatic crash recovery. Works on any systemd-based Linux distribution including Raspberry Pi OS, Debian, Ubuntu, and Fedora.
+The included install script handles everything: installs Node.js if needed, copies the app to `/opt/hamtab`, configures ports and Weather Underground, and optionally sets up a systemd service for boot-start with automatic crash recovery. Works on any systemd-based Linux distribution including Raspberry Pi OS, Debian, Ubuntu, and Fedora.
 
 ```bash
 git clone https://github.com/stevencheist/HamTabv1.git
 cd HamTabv1
+git checkout lanmode
 sudo bash install.sh
 ```
 
 The installer will prompt you to:
 
-1. **Weather Underground** — Choose whether to use WU for weather data, and enter your API key (or add it later via the Config screen in the browser)
-2. **Start on boot** — If yes, installs a systemd service that starts HamTab automatically and restarts on failure
+1. **Ports** — Choose HTTP and HTTPS ports (defaults: 3000 and 3443)
+2. **Weather Underground** — Choose whether to use WU for weather data, and enter your API key (or add it later via the Config screen in the browser)
+3. **Start on boot** — If yes, installs a systemd service that starts HamTab automatically and restarts on failure
 
 After install, the app runs from `/opt/hamtab`. Manage it with:
 
@@ -131,6 +138,14 @@ cd ~/HamTabv1
 git pull
 sudo bash install.sh
 ```
+
+**Uninstall:**
+
+```bash
+sudo bash /opt/hamtab/uninstall.sh
+```
+
+This stops the service, offers to back up your `.env` file, and removes the install directory.
 
 > **Note:** The WU API key can also be set from the Config splash screen in the browser — it saves directly to the server's `.env` file so all LAN clients share it.
 
@@ -152,6 +167,7 @@ sudo bash install.sh
 ```powershell
 git clone https://github.com/stevencheist/HamTabv1.git
 cd HamTabv1
+git checkout lanmode
 npm install
 npm start
 ```
@@ -165,14 +181,16 @@ To run HamTab as a Windows service that starts automatically on boot, use the in
 ```powershell
 git clone https://github.com/stevencheist/HamTabv1.git
 cd HamTabv1
+git checkout lanmode
 powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
 The installer will:
 1. Download NSSM if not already present (saved to `tools\nssm\`)
-2. Prompt for a Weather Underground API key (optional)
-3. Run `npm install` and `npm run build`
-4. Register and start the HamTab service
+2. Prompt for HTTP and HTTPS ports (defaults: 3000 and 3443)
+3. Prompt for a Weather Underground API key (optional)
+4. Run `npm install` and `npm run build`
+5. Register and start the HamTab service
 
 **Management commands:**
 
@@ -185,7 +203,11 @@ The installer will:
 
 **Logs:** `logs\hamtab.log`
 
-**Uninstall:** `.\tools\nssm\nssm.exe remove HamTab confirm`
+**Uninstall:**
+
+```powershell
+powershell -ExecutionPolicy Bypass -File uninstall.ps1
+```
 
 ### Windows (WSL2)
 
@@ -195,8 +217,10 @@ If running inside WSL2, follow the Linux instructions above to install inside yo
 
 On first startup the server auto-generates a self-signed TLS certificate (saved to `certs/`). Two servers start:
 
-- **HTTP** on port 3000 — for localhost/desktop use
-- **HTTPS** on port 3443 — for LAN/mobile access (required for GPS geolocation)
+- **HTTP** on port 3000 (default) — for localhost/desktop use
+- **HTTPS** on port 3443 (default) — for LAN/mobile access (required for GPS geolocation)
+
+These ports are configurable during install or by editing the `.env` file (`PORT` and `HTTPS_PORT`).
 
 Open **http://localhost:3000** and you'll be prompted to configure your callsign and location.
 

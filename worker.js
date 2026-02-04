@@ -8,18 +8,32 @@ export class HamTab extends DurableObject {
   sleepAfter = '5m';
 
   async fetch(request) {
-    // Check what's on container
-    const container = this.ctx.container;
-    const containerKeys = Object.keys(container);
-    const containerProto = Object.getOwnPropertyNames(Object.getPrototypeOf(container));
+    try {
+      const container = this.ctx.container;
 
-    return new Response(JSON.stringify({
-      containerKeys,
-      containerProto,
-      hasGetTcpPort: typeof container.getTcpPort === 'function',
-    }), {
-      headers: { 'Content-Type': 'application/json' },
-    });
+      // Check if container is running
+      const isRunning = container.running;
+
+      // Get the port and try to fetch
+      const port = container.getTcpPort(this.defaultPort);
+      const url = new URL(request.url);
+
+      const resp = await port.fetch(`http://container${url.pathname}${url.search}`, {
+        method: request.method,
+        headers: request.headers,
+        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
+      });
+      return resp;
+    } catch (err) {
+      return new Response(JSON.stringify({
+        error: err.message,
+        name: err.name,
+        stack: err.stack,
+      }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
   }
 }
 

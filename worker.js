@@ -8,20 +8,10 @@ export class HamTab extends DurableObject {
   sleepAfter = '5m';
 
   async fetch(request) {
-    try {
-      const url = new URL(request.url);
-      const containerUrl = `http://localhost:${this.defaultPort}${url.pathname}${url.search}`;
-      return fetch(containerUrl, {
-        method: request.method,
-        headers: request.headers,
-        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-      });
-    } catch (err) {
-      return new Response(JSON.stringify({ doError: err.message, stack: err.stack }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      });
-    }
+    // Test: return static response to verify DO works
+    return new Response(JSON.stringify({ do: 'working', url: request.url }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
 

@@ -8,9 +8,101 @@ export const WIDGET_DEFS = [
   { id: 'widget-map',         name: 'HamMap' },
   { id: 'widget-solar',       name: 'Solar & Propagation' },
   { id: 'widget-lunar',       name: 'Lunar / EME' },
+  { id: 'widget-satellites',  name: 'Satellites' },
   { id: 'widget-rst',          name: 'RST Reference' },
   { id: 'widget-spot-detail', name: 'DX Detail' },
 ];
+
+// Amateur radio satellite frequencies (NORAD ID → frequencies)
+// Sources: AMSAT, ARISS, JE9PEL satellite list
+export const SAT_FREQUENCIES = {
+  25544: {
+    name: 'ISS (ZARYA)',
+    uplinks: [
+      { freq: 145.990, mode: 'FM', desc: 'V/U Repeater' },
+    ],
+    downlinks: [
+      { freq: 437.800, mode: 'FM', desc: 'V/U Repeater' },
+      { freq: 145.800, mode: 'FM', desc: 'Voice/SSTV' },
+      { freq: 145.825, mode: 'APRS', desc: 'Packet' },
+    ],
+  },
+  43770: {
+    name: 'AO-91 (RadFxSat)',
+    uplinks: [
+      { freq: 435.250, mode: 'FM', desc: '67 Hz CTCSS' },
+    ],
+    downlinks: [
+      { freq: 145.960, mode: 'FM', desc: 'FM Voice' },
+    ],
+  },
+  43137: {
+    name: 'AO-92 (Fox-1D)',
+    uplinks: [
+      { freq: 435.350, mode: 'FM', desc: '67 Hz CTCSS' },
+    ],
+    downlinks: [
+      { freq: 145.880, mode: 'FM', desc: 'FM Voice' },
+    ],
+  },
+  27607: {
+    name: 'SO-50 (SaudiSat-1C)',
+    uplinks: [
+      { freq: 145.850, mode: 'FM', desc: '67 Hz arm, 74.4 Hz TX' },
+    ],
+    downlinks: [
+      { freq: 436.795, mode: 'FM', desc: 'FM Voice' },
+    ],
+  },
+  44909: {
+    name: 'CAS-4A (ZHUHAI-1 01)',
+    uplinks: [
+      { freq: 435.210, mode: 'SSB/CW', desc: 'Linear Transponder' },
+    ],
+    downlinks: [
+      { freq: 145.855, mode: 'SSB/CW', desc: 'Linear Transponder' },
+    ],
+  },
+  44910: {
+    name: 'CAS-4B (ZHUHAI-1 02)',
+    uplinks: [
+      { freq: 435.280, mode: 'SSB/CW', desc: 'Linear Transponder' },
+    ],
+    downlinks: [
+      { freq: 145.925, mode: 'SSB/CW', desc: 'Linear Transponder' },
+    ],
+  },
+  47960: {
+    name: 'RS-44 (DOSAAF-85)',
+    uplinks: [
+      { freq: 145.935, mode: 'SSB/CW', desc: 'Linear Transponder' },
+    ],
+    downlinks: [
+      { freq: 435.610, mode: 'SSB/CW', desc: 'Linear Transponder' },
+    ],
+  },
+  54684: {
+    name: 'TEVEL-1',
+    uplinks: [
+      { freq: 145.970, mode: 'FM', desc: 'FM Transponder' },
+    ],
+    downlinks: [
+      { freq: 436.400, mode: 'FM', desc: 'FM Transponder' },
+    ],
+  },
+  54685: {
+    name: 'TEVEL-2',
+    uplinks: [
+      { freq: 145.970, mode: 'FM', desc: 'FM Transponder' },
+    ],
+    downlinks: [
+      { freq: 436.400, mode: 'FM', desc: 'FM Transponder' },
+    ],
+  },
+};
+
+// Default tracked satellites (NORAD IDs)
+export const DEFAULT_TRACKED_SATS = [25544]; // ISS by default
 
 export const SOURCE_DEFS = {
   pota: {
@@ -25,7 +117,7 @@ export const SOURCE_DEFS = {
       { key: 'spotTime',   label: 'Time',     class: '' },
       { key: 'age',        label: 'Age',      class: '' },
     ],
-    filters: ['band', 'mode', 'country', 'state', 'grid', 'privilege'],
+    filters: ['band', 'mode', 'distance', 'age', 'country', 'state', 'grid', 'privilege'],
     hasMap: true,
     spotId: (s) => `${s.activator || s.callsign}-${s.reference}-${s.frequency}`,
     sortKey: 'spotTime',
@@ -42,9 +134,27 @@ export const SOURCE_DEFS = {
       { key: 'spotTime',   label: 'Time',     class: '' },
       { key: 'age',        label: 'Age',      class: '' },
     ],
-    filters: ['band', 'mode'],
+    filters: ['band', 'mode', 'distance', 'age'],
     hasMap: true,
     spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
+    sortKey: 'spotTime',
+  },
+  dxc: {
+    label: 'DXC',
+    endpoint: '/api/spots/dxc',
+    columns: [
+      { key: 'callsign',  label: 'DX Station', class: 'callsign' },
+      { key: 'frequency', label: 'Freq',       class: 'freq' },
+      { key: 'mode',      label: 'Mode',       class: 'mode' },
+      { key: 'spotter',   label: 'Spotter',    class: '' },
+      { key: 'name',      label: 'Country',    class: '' },
+      { key: 'continent', label: 'Cont',       class: '' },
+      { key: 'spotTime',  label: 'Time',       class: '' },
+      { key: 'age',       label: 'Age',        class: '' },
+    ],
+    filters: ['band', 'mode', 'distance', 'age', 'continent'],
+    hasMap: true,
+    spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
     sortKey: 'spotTime',
   },
 };

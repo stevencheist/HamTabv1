@@ -30,7 +30,7 @@ import { initWeatherListeners, fetchWeather, startNwsPolling } from './weather.j
 import { initPropListeners, updateGrayLine, initSolarImage } from './solar.js';
 import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
-import { fetchISS, fetchISSOrbit } from './iss.js';
+import { initSatellites, fetchSatellitePositions } from './satellites.js';
 import { initSpotDetail } from './spot-detail.js';
 
 // Initialize map
@@ -40,11 +40,9 @@ initMap();
 updateGrayLine();
 setInterval(updateGrayLine, 60000);
 
-// ISS tracking
-setInterval(fetchISS, 5000); // 5 s — ISS position refresh (matches API update cadence)
-fetchISS();
-fetchISSOrbit();
-setInterval(fetchISSOrbit, 300000); // 5 min — full orbit path refresh (TLE changes infrequently)
+// Satellite tracking (multi-satellite via N2YO)
+initSatellites();
+setInterval(fetchSatellitePositions, 10000); // 10 s — satellite position refresh
 
 // Clocks
 updateClocks();

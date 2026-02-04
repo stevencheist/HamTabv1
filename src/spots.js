@@ -67,6 +67,17 @@ export function renderSpots() {
           a.addEventListener('click', e => e.stopPropagation());
           td.appendChild(a);
         }
+      } else if (col.key === 'spotter' && state.currentSource === 'dxc') {
+        const spotter = spot.spotter || '';
+        if (spotter) {
+          const a = document.createElement('a');
+          a.textContent = spotter;
+          a.href = `https://www.qrz.com/db/${encodeURIComponent(spotter)}`;
+          a.target = '_blank';
+          a.rel = 'noopener';
+          a.addEventListener('click', e => e.stopPropagation());
+          td.appendChild(a);
+        }
       } else if (col.key === 'name') {
         const val = spot[col.key] || '';
         td.textContent = val;

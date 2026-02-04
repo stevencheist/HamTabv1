@@ -163,6 +163,15 @@ Stay on `main` for most work. Use simple commands to manage branches:
 - **hostedmode** — Cloudflare-specific fixes (wrangler.jsonc, worker.js, Dockerfile, CI/CD)
 - **lanmode** — Self-hosted fixes (install scripts, update checker, CORS config)
 
+## Feature Tracking
+
+When working on multiple related features or a feature set with more than one task:
+
+- **Create a tracking document** — Use a `.md` file in the repo root (e.g. `FEATURE_NAME.md`) to track progress
+- **Document scope** — List all items to be implemented, their status (✅/🟡/❌), and any notes
+- **Update as you go** — Mark items complete as work progresses
+- **Single-item tasks** — Don't create tracking files for one-off changes; use commit messages and PR descriptions instead
+
 ## GitHub Issue Communication
 
 When commenting on issues or asking questions of users:

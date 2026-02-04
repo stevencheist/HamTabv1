@@ -204,6 +204,7 @@ export function showSplash() {
 
   $('splashWxStation').value = state.wxStation;
   $('splashWxApiKey').value = state.wxApiKey;
+  $('splashN2yoApiKey').value = state.n2yoApiKey;
 
   const intervalSelect = $('splashUpdateInterval');
   const savedInterval = localStorage.getItem('hamtab_update_interval') || '60';
@@ -238,15 +239,20 @@ function dismissSplash() {
 
   state.wxStation = ($('splashWxStation').value || '').trim().toUpperCase();
   state.wxApiKey = ($('splashWxApiKey').value || '').trim();
+  state.n2yoApiKey = ($('splashN2yoApiKey').value || '').trim();
   localStorage.setItem('hamtab_wx_station', state.wxStation);
   localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
+  localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
 
-  // Persist WU API key to server .env so all clients share it
-  if (state.wxApiKey) {
+  // Persist API keys to server .env so all clients share them
+  const envUpdates = {};
+  if (state.wxApiKey) envUpdates.WU_API_KEY = state.wxApiKey;
+  if (state.n2yoApiKey) envUpdates.N2YO_API_KEY = state.n2yoApiKey;
+  if (Object.keys(envUpdates).length > 0) {
     fetch('/api/config/env', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ WU_API_KEY: state.wxApiKey }),
+      body: JSON.stringify(envUpdates),
     }).catch(() => {});
   }
 

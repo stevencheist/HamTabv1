@@ -4,6 +4,7 @@ import { SOURCE_DEFS, US_PRIVILEGES } from './constants.js';
 import { cacheCallsign } from './utils.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
+import { distanceMi } from './geo.js';
 
 export function freqToBand(freqStr) {
   let freq = parseFloat(freqStr);
@@ -60,6 +61,29 @@ export function filterByPrivileges(spot) {
   return false;
 }
 
+// Distance filter — spots without coords pass through (include them)
+export function filterByDistance(spot) {
+  if (state.activeMaxDistance === null) return true;
+  if (state.myLat === null || state.myLon === null) return true;
+  if (spot.latitude == null || spot.longitude == null) return true;
+
+  const dist = distanceMi(state.myLat, state.myLon, spot.latitude, spot.longitude);
+  // Convert threshold if user selected km
+  const thresholdMi = state.distanceUnit === 'km'
+    ? state.activeMaxDistance * 0.621371
+    : state.activeMaxDistance;
+  return dist <= thresholdMi;
+}
+
+// Age filter — spots without spotTime pass through
+export function filterByAge(spot) {
+  if (state.activeMaxAge === null) return true;
+  if (!spot.spotTime) return true;
+  const ageMs = Date.now() - new Date(spot.spotTime).getTime();
+  const ageMin = ageMs / 60000; // ms to minutes
+  return ageMin <= state.activeMaxAge;
+}
+
 function getCountryPrefix(ref) {
   if (!ref) return '';
   return ref.split('-')[0];
@@ -74,11 +98,24 @@ function getUSState(locationDesc) {
 export function applyFilter() {
   const allowed = SOURCE_DEFS[state.currentSource].filters;
   state.sourceFiltered[state.currentSource] = (state.sourceData[state.currentSource] || []).filter(s => {
-    if (allowed.includes('band') && state.activeBand && freqToBand(s.frequency) !== state.activeBand) return false;
-    if (allowed.includes('mode') && state.activeMode && (s.mode || '').toUpperCase() !== state.activeMode) return false;
+    // Band: multi-select — empty Set = all bands pass
+    if (allowed.includes('band') && state.activeBands.size > 0) {
+      const spotBand = freqToBand(s.frequency);
+      if (!spotBand || !state.activeBands.has(spotBand)) return false;
+    }
+    // Mode: multi-select — empty Set = all modes pass
+    if (allowed.includes('mode') && state.activeModes.size > 0) {
+      if (!state.activeModes.has((s.mode || '').toUpperCase())) return false;
+    }
+    // Distance filter
+    if (allowed.includes('distance') && !filterByDistance(s)) return false;
+    // Age filter
+    if (allowed.includes('age') && !filterByAge(s)) return false;
+    // Dropdowns (single-select)
     if (allowed.includes('country') && state.activeCountry && getCountryPrefix(s.reference) !== state.activeCountry) return false;
     if (allowed.includes('state') && state.activeState && getUSState(s.locationDesc) !== state.activeState) return false;
     if (allowed.includes('grid') && state.activeGrid && (s.grid4 || '') !== state.activeGrid) return false;
+    if (allowed.includes('continent') && state.activeContinent && (s.continent || '') !== state.activeContinent) return false;
     if (allowed.includes('privilege') && state.privilegeFilterEnabled && !filterByPrivileges(s)) return false;
     return true;
   });
@@ -101,9 +138,10 @@ export function updateBandFilterButtons() {
 
   const allBtn = document.createElement('button');
   allBtn.textContent = 'All';
-  allBtn.className = state.activeBand === null ? 'active' : '';
+  allBtn.className = state.activeBands.size === 0 ? 'active' : '';
   allBtn.addEventListener('click', () => {
-    state.activeBand = null;
+    state.activeBands.clear();
+    saveCurrentFilters();
     applyFilter();
     renderSpots();
     renderMarkers();
@@ -114,9 +152,15 @@ export function updateBandFilterButtons() {
   bands.forEach(band => {
     const btn = document.createElement('button');
     btn.textContent = band;
-    btn.className = state.activeBand === band ? 'active' : '';
+    btn.className = state.activeBands.has(band) ? 'active' : '';
     btn.addEventListener('click', () => {
-      state.activeBand = band;
+      // Toggle band in Set
+      if (state.activeBands.has(band)) {
+        state.activeBands.delete(band);
+      } else {
+        state.activeBands.add(band);
+      }
+      saveCurrentFilters();
       applyFilter();
       renderSpots();
       renderMarkers();
@@ -141,9 +185,10 @@ export function updateModeFilterButtons() {
 
   const allBtn = document.createElement('button');
   allBtn.textContent = 'All';
-  allBtn.className = state.activeMode === null ? 'active' : '';
+  allBtn.className = state.activeModes.size === 0 ? 'active' : '';
   allBtn.addEventListener('click', () => {
-    state.activeMode = null;
+    state.activeModes.clear();
+    saveCurrentFilters();
     applyFilter();
     renderSpots();
     renderMarkers();
@@ -154,9 +199,15 @@ export function updateModeFilterButtons() {
   modes.forEach(mode => {
     const btn = document.createElement('button');
     btn.textContent = mode;
-    btn.className = state.activeMode === mode ? 'active' : '';
+    btn.className = state.activeModes.has(mode) ? 'active' : '';
     btn.addEventListener('click', () => {
-      state.activeMode = mode;
+      // Toggle mode in Set
+      if (state.activeModes.has(mode)) {
+        state.activeModes.delete(mode);
+      } else {
+        state.activeModes.add(mode);
+      }
+      saveCurrentFilters();
       applyFilter();
       renderSpots();
       renderMarkers();
@@ -234,6 +285,32 @@ export function updateGridFilter() {
   });
 }
 
+export function getAvailableContinents() {
+  const contSet = new Set();
+  (state.sourceData[state.currentSource] || []).forEach(s => {
+    if (s.continent) contSet.add(s.continent);
+  });
+  // Sort by standard continent code order
+  const order = ['AF', 'AN', 'AS', 'EU', 'NA', 'OC', 'SA'];
+  return order.filter(c => contSet.has(c));
+}
+
+export function updateContinentFilter() {
+  const continents = getAvailableContinents();
+  const current = state.activeContinent;
+  const continentFilter = $('continentFilter');
+  if (!continentFilter) return;
+  continentFilter.innerHTML = '<option value="">All Continents</option>';
+  const labels = { AF: 'Africa', AN: 'Antarctica', AS: 'Asia', EU: 'Europe', NA: 'N. America', OC: 'Oceania', SA: 'S. America' };
+  continents.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = `${c} - ${labels[c] || c}`;
+    if (c === current) opt.selected = true;
+    continentFilter.appendChild(opt);
+  });
+}
+
 export function updatePrivFilterVisibility() {
   const label = document.querySelector('.priv-filter-label');
   if (!label) return;
@@ -307,9 +384,11 @@ export function initFilterListeners() {
   const countryFilter = $('countryFilter');
   const stateFilter = $('stateFilter');
   const gridFilter = $('gridFilter');
+  const continentFilter = $('continentFilter');
 
   countryFilter.addEventListener('change', () => {
     state.activeCountry = countryFilter.value || null;
+    saveCurrentFilters();
     applyFilter();
     renderSpots();
     renderMarkers();
@@ -317,6 +396,7 @@ export function initFilterListeners() {
 
   stateFilter.addEventListener('change', () => {
     state.activeState = stateFilter.value || null;
+    saveCurrentFilters();
     applyFilter();
     renderSpots();
     renderMarkers();
@@ -324,10 +404,21 @@ export function initFilterListeners() {
 
   gridFilter.addEventListener('change', () => {
     state.activeGrid = gridFilter.value || null;
+    saveCurrentFilters();
     applyFilter();
     renderSpots();
     renderMarkers();
   });
+
+  if (continentFilter) {
+    continentFilter.addEventListener('change', () => {
+      state.activeContinent = continentFilter.value || null;
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+  }
 
   const privFilterCheckbox = $('privFilter');
   privFilterCheckbox.checked = state.privilegeFilterEnabled;
@@ -336,10 +427,85 @@ export function initFilterListeners() {
   privFilterCheckbox.addEventListener('change', () => {
     state.privilegeFilterEnabled = privFilterCheckbox.checked;
     localStorage.setItem('hamtab_privilege_filter', String(state.privilegeFilterEnabled));
+    saveCurrentFilters();
     applyFilter();
     renderSpots();
     renderMarkers();
   });
+
+  // Distance filter
+  const distanceInput = $('distanceFilter');
+  const distanceUnit = $('distanceUnit');
+  if (distanceInput) {
+    distanceInput.addEventListener('input', () => {
+      const val = distanceInput.value.trim();
+      state.activeMaxDistance = val === '' ? null : parseFloat(val);
+      if (isNaN(state.activeMaxDistance)) state.activeMaxDistance = null;
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+  }
+  if (distanceUnit) {
+    distanceUnit.value = state.distanceUnit;
+    distanceUnit.addEventListener('change', () => {
+      state.distanceUnit = distanceUnit.value;
+      localStorage.setItem('hamtab_distance_unit', state.distanceUnit);
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+  }
+
+  // Age filter
+  const ageFilter = $('ageFilter');
+  if (ageFilter) {
+    ageFilter.addEventListener('change', () => {
+      const val = ageFilter.value;
+      state.activeMaxAge = val === '' ? null : parseInt(val, 10);
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+  }
+
+  // Clear all filters button
+  const clearBtn = $('clearFiltersBtn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      clearAllFilters();
+    });
+  }
+
+  // Preset controls
+  const presetSelect = $('presetFilter');
+  const savePresetBtn = $('savePresetBtn');
+  const deletePresetBtn = $('deletePresetBtn');
+
+  if (presetSelect) {
+    presetSelect.addEventListener('change', () => {
+      const name = presetSelect.value;
+      if (name) loadPreset(name);
+      presetSelect.value = ''; // reset dropdown
+    });
+  }
+
+  if (savePresetBtn) {
+    savePresetBtn.addEventListener('click', () => {
+      const name = prompt('Preset name:');
+      if (name && name.trim()) savePreset(name.trim());
+    });
+  }
+
+  if (deletePresetBtn) {
+    deletePresetBtn.addEventListener('click', () => {
+      const name = prompt('Preset name to delete:');
+      if (name && name.trim()) deletePreset(name.trim());
+    });
+  }
 
   if (state.myCallsign) {
     fetchLicenseClass(state.myCallsign);
@@ -348,4 +514,190 @@ export function initFilterListeners() {
 
 export function spotId(spot) {
   return SOURCE_DEFS[state.currentSource].spotId(spot);
+}
+
+// --- Filter Persistence ---
+
+// Save current filter state for the active source to localStorage
+export function saveCurrentFilters() {
+  const source = state.currentSource;
+  const filterState = {
+    bands: [...state.activeBands],
+    modes: [...state.activeModes],
+    maxDistance: state.activeMaxDistance,
+    distanceUnit: state.distanceUnit,
+    maxAge: state.activeMaxAge,
+    country: state.activeCountry,
+    state: state.activeState,
+    grid: state.activeGrid,
+    continent: state.activeContinent,
+    privilegeFilter: state.privilegeFilterEnabled,
+  };
+  localStorage.setItem(`hamtab_filter_${source}`, JSON.stringify(filterState));
+}
+
+// Load persisted filters for a source and apply to state
+export function loadFiltersForSource(source) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(`hamtab_filter_${source}`));
+    if (saved) {
+      state.activeBands = new Set(saved.bands || []);
+      state.activeModes = new Set(saved.modes || []);
+      state.activeMaxDistance = saved.maxDistance ?? null;
+      state.activeMaxAge = saved.maxAge ?? null;
+      state.activeCountry = saved.country ?? null;
+      state.activeState = saved.state ?? null;
+      state.activeGrid = saved.grid ?? null;
+      state.activeContinent = saved.continent ?? null;
+      state.privilegeFilterEnabled = saved.privilegeFilter ?? false;
+      return;
+    }
+  } catch (e) {}
+  // No saved filters — reset to defaults
+  state.activeBands = new Set();
+  state.activeModes = new Set();
+  state.activeMaxDistance = null;
+  state.activeMaxAge = null;
+  state.activeCountry = null;
+  state.activeState = null;
+  state.activeGrid = null;
+  state.activeContinent = null;
+  state.privilegeFilterEnabled = false;
+}
+
+// Update all filter UI elements to match current state
+export function updateAllFilterUI() {
+  updateBandFilterButtons();
+  updateModeFilterButtons();
+  updateCountryFilter();
+  updateStateFilter();
+  updateGridFilter();
+  updateContinentFilter();
+
+  // Distance
+  const distanceInput = $('distanceFilter');
+  if (distanceInput) {
+    distanceInput.value = state.activeMaxDistance !== null ? state.activeMaxDistance : '';
+  }
+  const distanceUnit = $('distanceUnit');
+  if (distanceUnit) {
+    distanceUnit.value = state.distanceUnit;
+  }
+
+  // Age
+  const ageFilter = $('ageFilter');
+  if (ageFilter) {
+    ageFilter.value = state.activeMaxAge !== null ? String(state.activeMaxAge) : '';
+  }
+
+  // Privilege checkbox
+  const privFilterCheckbox = $('privFilter');
+  if (privFilterCheckbox) {
+    privFilterCheckbox.checked = state.privilegeFilterEnabled;
+  }
+}
+
+// Clear all filters and update UI
+export function clearAllFilters() {
+  state.activeBands.clear();
+  state.activeModes.clear();
+  state.activeMaxDistance = null;
+  state.activeMaxAge = null;
+  state.activeCountry = null;
+  state.activeState = null;
+  state.activeGrid = null;
+  state.activeContinent = null;
+  state.privilegeFilterEnabled = false;
+
+  saveCurrentFilters();
+  applyFilter();
+  renderSpots();
+  renderMarkers();
+  updateAllFilterUI();
+}
+
+// --- Filter Presets ---
+
+// Update the preset dropdown to show available presets for current source
+export function updatePresetDropdown() {
+  const presetSelect = $('presetFilter');
+  if (!presetSelect) return;
+
+  const source = state.currentSource;
+  const presets = state.filterPresets[source] || {};
+  const names = Object.keys(presets).sort();
+
+  presetSelect.innerHTML = '<option value="">Load Preset...</option>';
+  names.forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    presetSelect.appendChild(opt);
+  });
+}
+
+// Save current filters as a named preset
+export function savePreset(name) {
+  const source = state.currentSource;
+  const preset = {
+    bands: [...state.activeBands],
+    modes: [...state.activeModes],
+    maxDistance: state.activeMaxDistance,
+    distanceUnit: state.distanceUnit,
+    maxAge: state.activeMaxAge,
+    country: state.activeCountry,
+    state: state.activeState,
+    grid: state.activeGrid,
+    continent: state.activeContinent,
+    privilegeFilter: state.privilegeFilterEnabled,
+  };
+  if (!state.filterPresets[source]) state.filterPresets[source] = {};
+  state.filterPresets[source][name] = preset;
+  localStorage.setItem('hamtab_filter_presets', JSON.stringify(state.filterPresets));
+  updatePresetDropdown();
+}
+
+// Load a named preset and apply it
+export function loadPreset(name) {
+  const source = state.currentSource;
+  const preset = state.filterPresets[source]?.[name];
+  if (!preset) return;
+
+  state.activeBands = new Set(preset.bands || []);
+  state.activeModes = new Set(preset.modes || []);
+  state.activeMaxDistance = preset.maxDistance ?? null;
+  state.activeMaxAge = preset.maxAge ?? null;
+  state.activeCountry = preset.country ?? null;
+  state.activeState = preset.state ?? null;
+  state.activeGrid = preset.grid ?? null;
+  state.activeContinent = preset.continent ?? null;
+  state.privilegeFilterEnabled = preset.privilegeFilter ?? false;
+
+  saveCurrentFilters();
+  applyFilter();
+  renderSpots();
+  renderMarkers();
+  updateAllFilterUI();
+}
+
+// Delete a named preset
+export function deletePreset(name) {
+  const source = state.currentSource;
+  if (state.filterPresets[source]?.[name]) {
+    delete state.filterPresets[source][name];
+    localStorage.setItem('hamtab_filter_presets', JSON.stringify(state.filterPresets));
+    updatePresetDropdown();
+  }
+}
+
+// Update visibility of distance/age filter controls based on source
+export function updateDistanceAgeVisibility() {
+  const allowed = SOURCE_DEFS[state.currentSource].filters;
+  const distWrap = $('distanceFilterWrap');
+  const ageWrap = $('ageFilterWrap');
+  const presetWrap = $('presetFilterWrap');
+
+  if (distWrap) distWrap.style.display = allowed.includes('distance') ? '' : 'none';
+  if (ageWrap) ageWrap.style.display = allowed.includes('age') ? '' : 'none';
+  if (presetWrap) presetWrap.style.display = '';
 }

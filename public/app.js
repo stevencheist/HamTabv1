@@ -3089,12 +3089,19 @@
       const saved2 = localStorage.getItem(WIDGET_STORAGE_KEY);
       if (saved2) {
         layout = JSON.parse(saved2);
-        const { width: aW, height: aH } = getWidgetArea();
-        for (const id of Object.keys(layout)) {
-          const p = layout[id];
-          if (p.left > aW - 30 || p.top > aH - 30 || p.left + p.width < 30 || p.top + p.height < 10) {
-            layout = null;
-            break;
+        if (layout["widget-clock-local"] || layout["widget-clock-utc"]) {
+          console.log("Clearing old layout with clock widgets");
+          localStorage.removeItem(WIDGET_STORAGE_KEY);
+          localStorage.removeItem(USER_LAYOUT_KEY);
+          layout = null;
+        } else {
+          const { width: aW, height: aH } = getWidgetArea();
+          for (const id of Object.keys(layout)) {
+            const p = layout[id];
+            if (p.left > aW - 30 || p.top > aH - 30 || p.left + p.width < 30 || p.top + p.height < 10) {
+              layout = null;
+              break;
+            }
           }
         }
       }
@@ -3345,7 +3352,6 @@
   init_state();
   init_dom();
   init_utils();
-  var wxBgClasses = ["wx-clear-day", "wx-clear-night", "wx-partly-cloudy-day", "wx-partly-cloudy-night", "wx-cloudy", "wx-rain", "wx-thunderstorm", "wx-snow", "wx-fog"];
   function useWU() {
     return state_default.wxStation && state_default.wxApiKey;
   }
@@ -3408,20 +3414,6 @@
     });
   }
   function applyWeatherBackground(forecast, isDaytime2) {
-    const body = document.querySelector("#widget-clock-local .widget-body");
-    wxBgClasses.forEach((c) => body.classList.remove(c));
-    if (!forecast) return;
-    const fc = forecast.toLowerCase();
-    let cls = "";
-    if (/thunder|t-storm/.test(fc)) cls = "wx-thunderstorm";
-    else if (/snow|flurr|blizzard|sleet|ice/.test(fc)) cls = "wx-snow";
-    else if (/rain|drizzle|shower/.test(fc)) cls = "wx-rain";
-    else if (/fog|haze|mist/.test(fc)) cls = "wx-fog";
-    else if (/cloudy|overcast/.test(fc)) {
-      if (/partly|mostly sunny/.test(fc)) cls = isDaytime2 ? "wx-partly-cloudy-day" : "wx-partly-cloudy-night";
-      else cls = "wx-cloudy";
-    } else if (/sunny|clear/.test(fc)) cls = isDaytime2 ? "wx-clear-day" : "wx-clear-night";
-    if (cls) body.classList.add(cls);
   }
   function fetchNwsAlerts() {
     if (state_default.myLat === null || state_default.myLon === null) return;

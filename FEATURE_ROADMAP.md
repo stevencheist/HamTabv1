@@ -160,7 +160,7 @@ This document tracks advanced features and enhancements planned for HamTabV1.
 1. ✅ **DX Cluster integration** — Multi-source spot management (implemented in `src/source.js`)
 2. ✅ **Enhanced satellite tracking** — Multi-satellite tracking with N2YO API, Doppler, passes (implemented in `src/satellites.js`)
 3. ✅ **Richer filter system** — 9-category filtering with presets and persistence (implemented in `src/filters.js`)
-4. ❌ **Per-band propagation predictions** — Open/marginal/closed indicators with reliability %
+4. ✅ **Per-band propagation predictions** — Individual band reliability with MUF-based calculations (implemented in `src/band-conditions.js`)
 
 ### High Value, Higher Effort
 5. ❌ **PSKReporter integration** — Digital mode reception reports (MQTT real-time + HTTP fallback)

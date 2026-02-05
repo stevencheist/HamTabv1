@@ -35,6 +35,24 @@ function findPython() {
     : ['python3.13', 'python3.12', 'python3.11', 'python3', 'python'];
 }
 
+function buildPythonEnv(pythonCmd) {
+  // Ensure user site-packages are in PYTHONPATH for pip --user installs.
+  // Only add the path matching the Python version to avoid ABI conflicts.
+  const env = { ...process.env };
+  const home = process.env.HOME || process.env.USERPROFILE || '';
+  if (home && process.platform !== 'win32') {
+    // Extract version from command (e.g., "python3.11" → "3.11")
+    const versionMatch = pythonCmd.match(/python(\d+\.\d+)/);
+    if (versionMatch) {
+      const userSitePath = `${home}/.local/lib/python${versionMatch[1]}/site-packages`;
+      env.PYTHONPATH = env.PYTHONPATH
+        ? `${userSitePath}:${env.PYTHONPATH}`
+        : userSitePath;
+    }
+  }
+  return env;
+}
+
 // --- Child process management ---
 
 function spawnWorker() {
@@ -69,9 +87,11 @@ function spawnWorker() {
     let proc;
 
     try {
+      // Explicitly pass environment with PYTHONPATH for user site-packages.
       proc = spawn(pythonCmd, [workerPath], {
         stdio: ['pipe', 'pipe', 'pipe'],
         detached: false,
+        env: buildPythonEnv(pythonCmd),
       });
     } catch (err) {
       return tryCandidate(idx + 1);
@@ -92,6 +112,10 @@ function spawnWorker() {
         settled = true;
         return tryCandidate(idx + 1);
       }
+
+      // Only clean up if this proc is still the active child.
+      // Failed candidates (python3.13, etc.) may close after we've moved on.
+      if (child !== proc) return;
 
       // Post-init crash — clean up and maybe respawn
       available = false;

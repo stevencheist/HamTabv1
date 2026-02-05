@@ -2,6 +2,7 @@ import { $ } from './dom.js';
 import { REFERENCE_TABS, DEFAULT_REFERENCE_TAB } from './constants.js';
 import { esc } from './utils.js';
 import state from './state.js';
+import { renderBandRefTab } from './bandref.js';
 
 // --- Reference Tab Switching ---
 
@@ -28,6 +29,12 @@ export function switchReferenceTab(tab) {
 function renderReferenceContent(tab) {
   const refData = REFERENCE_TABS[tab];
   if (!refData) return;
+
+  // Custom tabs delegate to their own renderer
+  if (refData.custom) {
+    if (tab === 'bands') renderBandRefTab();
+    return;
+  }
 
   const content = refData.content;
   let html = '';

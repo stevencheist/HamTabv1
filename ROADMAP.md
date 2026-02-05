@@ -297,7 +297,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P8.0: Layout & Responsiveness (Priority)
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| Operator info visibility | ❌ | HIGH | 🌐 | Callsign, name, license, location, and control buttons larger and bolder |
+| Operator info visibility | ✅ | HIGH | 🌐 | Callsign, name, license, location, and control buttons larger and bolder |
 | Widget non-overlapping layout | ❌ | HIGH | 🌐 | Widgets should not overlap; auto-size and snap together |
 | Proportional widget resize | ❌ | HIGH | 🌐 | Widgets resize proportionately to maintain layout on window change |
 | Responsive modals | ❌ | HIGH | 🌐 | Modals resize to fit within viewport at any zoom level |

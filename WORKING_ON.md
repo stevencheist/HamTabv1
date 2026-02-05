@@ -21,6 +21,7 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Steven + Claude | Operator info visibility — responsive scaling header | main | 2026-02-04 |
 | Francisco + Claude | VOACAP integration via dvoacap-python | main | 2026-02-04 |
 | Francisco + Claude | REL heatmap overlay for VOACAP widget | main | 2026-02-04 |
 | Francisco + Claude | VOACAP DE→DX widget redesign | main | 2026-02-04 |

@@ -175,9 +175,10 @@ main ──────────────────────── SH
 
 ### Documentation Edits
 
-- **CLAUDE.md** — All changes go to `main` only, then merge out
-- **BRANCH_STRATEGY.md** — All changes go to `main` only, then merge out
-- **ROADMAP.md** — All changes go to `main` only, then merge out
+- **CLAUDE.md**, **BRANCH_STRATEGY.md**, **ROADMAP.md** — Edit on `main` only
+- **Do NOT sync docs-only changes** to deployment branches
+- Deployment branches are for runtime code — documentation doesn't affect them
+- Only run "sync branches" when there's actual code to deploy
 - Never edit documentation directly on deployment branches
 
 ## Code Quality
@@ -282,9 +283,13 @@ Stay on `main` for most work. Use simple commands to manage branches:
 
 **Workflow:**
 1. Develop features on `main` (90% of work happens here)
-2. Say "sync branches" to propagate changes to deployment branches
+2. Say "sync branches" to deploy code changes to deployment branches
 3. Switch to `lanmode` or `hostedmode` only for branch-specific fixes
 4. Start sessions with "status" or "pull and status" to see current state
+
+**When to sync:**
+- ✅ After committing **code changes** (features, bug fixes)
+- ❌ NOT for docs-only changes (CLAUDE.md, ROADMAP.md, etc.)
 
 **Sync branches does:**
 1. Push `main`

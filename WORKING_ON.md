@@ -13,7 +13,7 @@ Clear your entry when done.
 
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
-| | | | |
+| Steven + Claude | Config modal redesign — tabs, scrollable, responsive (#96) | main | 2026-02-04 |
 
 ## Recently Completed
 

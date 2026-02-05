@@ -56,6 +56,10 @@ const state = {
   // Spot column visibility — which columns are shown in the On the Air table
   spotColumnVisibility: null, // loaded in spots.js
 
+  // Spot table sorting
+  spotSortColumn: null, // current sort column key (null = default spotTime)
+  spotSortDirection: 'desc', // 'asc' or 'desc'
+
   // Cached data for re-render
   lastSolarData: null,
   lastLunarData: null,

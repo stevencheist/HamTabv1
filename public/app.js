@@ -78,6 +78,11 @@
         // Spot column visibility — which columns are shown in the On the Air table
         spotColumnVisibility: null,
         // loaded in spots.js
+        // Spot table sorting
+        spotSortColumn: null,
+        // current sort column key (null = default spotTime)
+        spotSortDirection: "desc",
+        // 'asc' or 'desc'
         // Cached data for re-render
         lastSolarData: null,
         lastLunarData: null,
@@ -569,13 +574,13 @@
           label: "POTA",
           endpoint: "/api/spots",
           columns: [
-            { key: "callsign", label: "Callsign", class: "callsign" },
-            { key: "frequency", label: "Freq", class: "freq" },
-            { key: "mode", label: "Mode", class: "mode" },
+            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
             { key: "reference", label: "Park (link)", class: "" },
             { key: "name", label: "Name", class: "" },
-            { key: "spotTime", label: "Time", class: "" },
-            { key: "age", label: "Age", class: "" }
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
           ],
           filters: ["band", "mode", "distance", "age", "country", "state", "grid", "privilege"],
           hasMap: true,
@@ -586,13 +591,13 @@
           label: "SOTA",
           endpoint: "/api/spots/sota",
           columns: [
-            { key: "callsign", label: "Callsign", class: "callsign" },
-            { key: "frequency", label: "Freq", class: "freq" },
-            { key: "mode", label: "Mode", class: "mode" },
+            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
             { key: "reference", label: "Summit (link)", class: "" },
             { key: "name", label: "Details", class: "" },
-            { key: "spotTime", label: "Time", class: "" },
-            { key: "age", label: "Age", class: "" }
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
           ],
           filters: ["band", "mode", "distance", "age"],
           hasMap: true,
@@ -603,14 +608,14 @@
           label: "DXC",
           endpoint: "/api/spots/dxc",
           columns: [
-            { key: "callsign", label: "DX Station", class: "callsign" },
-            { key: "frequency", label: "Freq", class: "freq" },
-            { key: "mode", label: "Mode", class: "mode" },
+            { key: "callsign", label: "DX Station", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
             { key: "spotter", label: "Spotter", class: "" },
             { key: "name", label: "Country", class: "" },
             { key: "continent", label: "Cont", class: "" },
-            { key: "spotTime", label: "Time", class: "" },
-            { key: "age", label: "Age", class: "" }
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
           ],
           filters: ["band", "mode", "distance", "age", "continent"],
           hasMap: true,
@@ -621,15 +626,15 @@
           label: "PSK",
           endpoint: "/api/spots/psk",
           columns: [
-            { key: "callsign", label: "TX Call", class: "callsign" },
-            { key: "frequency", label: "Freq", class: "freq" },
-            { key: "mode", label: "Mode", class: "mode" },
+            { key: "callsign", label: "TX Call", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
             { key: "reporter", label: "RX Call", class: "" },
             { key: "snr", label: "SNR", class: "" },
             { key: "senderLocator", label: "TX Grid", class: "" },
             { key: "reporterLocator", label: "RX Grid", class: "" },
-            { key: "spotTime", label: "Time", class: "" },
-            { key: "age", label: "Age", class: "" }
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
           ],
           filters: ["band", "mode", "distance", "age"],
           hasMap: true,
@@ -1924,15 +1929,55 @@
   function saveSpotColumnVisibility() {
     localStorage.setItem(SPOT_COL_VIS_KEY, JSON.stringify(state_default.spotColumnVisibility));
   }
+  function toggleSort(colKey) {
+    if (state_default.spotSortColumn === colKey) {
+      state_default.spotSortDirection = state_default.spotSortDirection === "asc" ? "desc" : "asc";
+    } else {
+      state_default.spotSortColumn = colKey;
+      state_default.spotSortDirection = colKey === "spotTime" || colKey === "age" ? "desc" : "asc";
+    }
+    saveCurrentFilters();
+    renderSpots();
+  }
+  function renderSpotsHeader() {
+    const cols = SOURCE_DEFS[state_default.currentSource].columns.filter((c) => state_default.spotColumnVisibility[c.key] !== false);
+    const thead = $("spotsHead");
+    thead.innerHTML = "";
+    const tr = document.createElement("tr");
+    cols.forEach((col) => {
+      const th = document.createElement("th");
+      th.textContent = col.label;
+      if (col.sortable) {
+        th.classList.add("sortable");
+        th.addEventListener("click", () => toggleSort(col.key));
+        const effectiveCol = state_default.spotSortColumn || SOURCE_DEFS[state_default.currentSource].sortKey;
+        if (effectiveCol === col.key || col.key === "age" && effectiveCol === "spotTime" && !state_default.spotSortColumn) {
+          th.classList.add(state_default.spotSortDirection === "asc" ? "sort-asc" : "sort-desc");
+        }
+      }
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+  }
   function renderSpots() {
     const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
     const spotsBody = $("spotsBody");
     spotsBody.innerHTML = "";
     $("spotCount").textContent = `(${filtered.length})`;
+    renderSpotsHeader();
     const cols = SOURCE_DEFS[state_default.currentSource].columns.filter((c) => state_default.spotColumnVisibility[c.key] !== false);
-    const sortKey = SOURCE_DEFS[state_default.currentSource].sortKey;
+    const sortCol = state_default.spotSortColumn || SOURCE_DEFS[state_default.currentSource].sortKey;
+    const dir = state_default.spotSortDirection === "asc" ? 1 : -1;
     const sorted = [...filtered].sort((a, b) => {
-      return new Date(b[sortKey]) - new Date(a[sortKey]);
+      if (sortCol === "spotTime" || sortCol === "age") {
+        return dir * (new Date(a.spotTime) - new Date(b.spotTime));
+      } else if (sortCol === "frequency") {
+        return dir * ((parseFloat(a.frequency) || 0) - (parseFloat(b.frequency) || 0));
+      } else {
+        const aVal = (a[sortCol] || a.activator || "").toString().toLowerCase();
+        const bVal = (b[sortCol] || b.activator || "").toString().toLowerCase();
+        return dir * aVal.localeCompare(bVal);
+      }
     });
     sorted.forEach((spot) => {
       const tr = document.createElement("tr");
@@ -2494,7 +2539,9 @@
       state: state_default.activeState,
       grid: state_default.activeGrid,
       continent: state_default.activeContinent,
-      privilegeFilter: state_default.privilegeFilterEnabled
+      privilegeFilter: state_default.privilegeFilterEnabled,
+      sortColumn: state_default.spotSortColumn,
+      sortDirection: state_default.spotSortDirection
     };
     localStorage.setItem(`hamtab_filter_${source}`, JSON.stringify(filterState));
   }
@@ -2511,6 +2558,8 @@
         state_default.activeGrid = saved2.grid ?? null;
         state_default.activeContinent = saved2.continent ?? null;
         state_default.privilegeFilterEnabled = saved2.privilegeFilter ?? false;
+        state_default.spotSortColumn = saved2.sortColumn ?? null;
+        state_default.spotSortDirection = saved2.sortDirection ?? "desc";
         return;
       }
     } catch (e) {
@@ -2524,6 +2573,8 @@
     state_default.activeGrid = null;
     state_default.activeContinent = null;
     state_default.privilegeFilterEnabled = false;
+    state_default.spotSortColumn = null;
+    state_default.spotSortDirection = "desc";
   }
   function updateAllFilterUI() {
     updateBandFilterButtons();
@@ -2591,7 +2642,9 @@
       state: state_default.activeState,
       grid: state_default.activeGrid,
       continent: state_default.activeContinent,
-      privilegeFilter: state_default.privilegeFilterEnabled
+      privilegeFilter: state_default.privilegeFilterEnabled,
+      sortColumn: state_default.spotSortColumn,
+      sortDirection: state_default.spotSortDirection
     };
     if (!state_default.filterPresets[source]) state_default.filterPresets[source] = {};
     state_default.filterPresets[source][name] = preset;
@@ -2611,6 +2664,8 @@
     state_default.activeGrid = preset.grid ?? null;
     state_default.activeContinent = preset.continent ?? null;
     state_default.privilegeFilterEnabled = preset.privilegeFilter ?? false;
+    state_default.spotSortColumn = preset.sortColumn ?? null;
+    state_default.spotSortDirection = preset.sortDirection ?? "desc";
     saveCurrentFilters();
     applyFilter();
     renderSpots();

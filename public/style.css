@@ -749,6 +749,25 @@ header {
   color: var(--accent);
 }
 
+.widget-close-btn {
+  float: right;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.9rem;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  opacity: 0.4;
+  transition: opacity 0.15s, color 0.15s;
+  margin-left: 4px;
+}
+
+.widget-close-btn:hover {
+  opacity: 1;
+  color: #e55;
+}
+
 .solar-cfg-box .splash-widget-list,
 .lunar-cfg-box .splash-widget-list {
   max-height: 400px;

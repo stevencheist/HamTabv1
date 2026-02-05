@@ -381,7 +381,22 @@ export function initWidgets() {
   document.querySelectorAll('.widget').forEach(widget => {
     const header = widget.querySelector('.widget-header');
     const resizer = widget.querySelector('.widget-resize');
-    if (header) setupDrag(widget, header);
+    if (header) {
+      setupDrag(widget, header);
+
+      // Inject close button (× at far right of header)
+      const closeBtn = document.createElement('button');
+      closeBtn.className = 'widget-close-btn';
+      closeBtn.title = 'Hide widget';
+      closeBtn.textContent = '\u00D7'; // ×
+      closeBtn.addEventListener('mousedown', e => e.stopPropagation()); // don't trigger drag
+      closeBtn.addEventListener('click', () => {
+        state.widgetVisibility[widget.id] = false;
+        saveWidgetVisibility();
+        applyWidgetVisibility();
+      });
+      header.insertBefore(closeBtn, header.firstChild);
+    }
     if (resizer) setupResize(widget, resizer);
     widget.addEventListener('mousedown', () => bringToFront(widget));
   });

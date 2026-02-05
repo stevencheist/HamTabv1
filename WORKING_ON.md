@@ -17,13 +17,7 @@ Clear your entry when done.
 
 ## Next Up
 
-**Feedback relay for lanmode (Issue #97)**
-- Problem: Lanmode users can't submit feedback because `GITHUB_FEEDBACK_TOKEN` isn't configured
-- Solution: Relay feedback through hamtab.net, fallback to GitHub issues link if unavailable
-- Steps:
-  1. Check if hostedmode `/api/feedback` is accessible without Cloudflare Access
-  2. Add relay logic to lanmode server.js (when no local token, POST to hamtab.net)
-  3. Add fallback UI to feedback.js (show GitHub link modal if relay fails)
+(No items queued)
 
 
 ## Recently Completed
@@ -32,6 +26,7 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Steven + Claude | Feedback relay through hamtab.net for lanmode (#97) | main | 2026-02-05 |
 | Steven + Claude | VOACAP lanmode fixes — Python env, race condition, PYTHONPATH | main | 2026-02-05 |
 | Steven + Claude | VOACAP SNR thresholds reverted to ITU standard (CW:39, SSB:73, FT8:2) | main | 2026-02-05 |
 | Steven + Claude | Settings sync — add GPS coordinates to hostedmode KV sync | hostedmode | 2026-02-05 |

@@ -21,6 +21,8 @@ let shuttingDown = false;
 let lineBuffer = '';
 let fullyInitialized = false; // true once a working Python was confirmed
 let firstSpawnTime = 0;       // timestamp of first init() call — for respawn window
+let lastError = null;         // last error message from spawn/worker for diagnostics
+let spawnAttempts = 0;        // number of spawn attempts for diagnostics
 
 // --- Python executable detection ---
 
@@ -34,6 +36,7 @@ function findPython() {
 // --- Child process management ---
 
 function spawnWorker() {
+  spawnAttempts++;
   const workerPath = path.join(__dirname, 'voacap-worker.py');
   const pythonCandidates = findPython();
 
@@ -99,14 +102,15 @@ function spawnWorker() {
       }
     });
 
-    // Buffer stderr and only log once settled (suppresses Windows Store noise during candidate search)
+    // Buffer stderr — log on process end for diagnostics
     let stderrBuf = '';
     proc.stderr.on('data', (data) => { stderrBuf += data.toString(); });
     proc.stderr.on('end', () => {
       const msg = stderrBuf.trim();
-      // Only log stderr if it's from a confirmed-working worker (not during candidate search)
-      if (msg && settled && fullyInitialized) {
-        console.error(`[VOACAP] Worker stderr: ${msg}`);
+      if (msg) {
+        // Always log stderr so we can diagnose container startup failures
+        console.error(`[VOACAP] Worker stderr (${pythonCmd}): ${msg}`);
+        lastError = msg;
       }
     });
 
@@ -183,6 +187,10 @@ function handleResponse(line) {
     clearTimeout(timer);
     pending.delete(id);
     resolve(resp);
+  } else if (resp.ok === false && resp.error) {
+    // Unsolicited error (e.g. import failure during init_engine) — capture for diagnostics
+    console.error(`[VOACAP] Worker error: ${resp.error}`);
+    lastError = resp.error;
   }
 }
 
@@ -262,4 +270,15 @@ function shutdown() {
   }
 }
 
-module.exports = { init, predict, predictMatrix, isAvailable, shutdown };
+function getStatus() {
+  return {
+    available,
+    fullyInitialized,
+    spawnAttempts,
+    lastError,
+    uptime: firstSpawnTime ? Math.round((Date.now() - firstSpawnTime) / 1000) : 0,
+    childRunning: child != null && !child.killed,
+  };
+}
+
+module.exports = { init, predict, predictMatrix, isAvailable, getStatus, shutdown };

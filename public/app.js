@@ -173,6 +173,15 @@
         // takeoff angle degrees: '3','5','10','15'
         voacapPath: localStorage.getItem("hamtab_voacap_path") || "SP",
         // 'SP' (short path), 'LP' (long path)
+        // VOACAP server data
+        voacapServerData: null,
+        // latest /api/voacap response (matrix from server)
+        voacapEngine: "simplified",
+        // 'dvoacap' or 'simplified' — which engine produced the data
+        voacapTarget: localStorage.getItem("hamtab_voacap_target") || "overview",
+        // 'overview' or 'spot'
+        voacapLastFetch: 0,
+        // timestamp of last successful /api/voacap fetch
         // Heatmap overlay (REL mode for VOACAP)
         heatmapOverlayMode: localStorage.getItem("hamtab_heatmap_mode") || "circles",
         // 'circles' or 'heatmap'
@@ -900,8 +909,10 @@
           sections: [
             { heading: "Reading the Grid", content: 'Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Colors show predicted reliability: black = closed, red = poor, yellow = fair, green = good/excellent.' },
             { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows significantly more green because of its ~40dB SNR advantage over SSB." },
+            { heading: "Overview vs Spot", content: `Click OVW/SPOT to toggle target mode. "OVW" (overview) shows the best predicted reliability to representative worldwide targets (Europe, Asia, South America, etc.). "SPOT" calculates predictions specifically to the station you've selected in the On the Air table, so you can see exactly when a band will open to that DX.` },
+            { heading: "Engine Badge", content: 'The green "VOACAP" or gray "SIM" badge shows which prediction engine is active. VOACAP uses the real Voice of America Coverage Analysis Program \u2014 a professional ionospheric model used by broadcasters and militaries worldwide. SIM uses a simplified local model based on solar flux and geomagnetic indices. Both update automatically; VOACAP is available when the server has Python + dvoacap installed.' },
             { heading: "Map Overlay", content: "Click any band row to show propagation on the map. Two modes are available \u2014 click the \u25CB/REL toggle in the param bar to switch. Circle mode (\u25CB) draws concentric range rings from your QTH. REL heatmap mode paints the entire map with a color gradient showing predicted reliability to every point: green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels." },
-            { heading: "Calculation Model", content: "Uses a local model based on solar flux (SFI), geomagnetic indices (K/A), and your location for solar zenith calculations. When your QTH is set, day/night transitions are calculated from actual sunrise/sunset at your location rather than a fixed UTC estimate." }
+            { heading: "About the Data", content: "Predictions are monthly median values based on the current smoothed sunspot number (SSN) from NOAA. They represent typical conditions for this month, not real-time ionospheric state. Use them for planning which bands to try at different times of day, rather than as guarantees of what's open right now." }
           ],
           links: [
             { label: "NOAA Space Weather & Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
@@ -1495,6 +1506,8 @@
   var voacap_exports = {};
   __export(voacap_exports, {
     clearVoacapOverlay: () => clearVoacapOverlay,
+    fetchVoacapMatrix: () => fetchVoacapMatrix,
+    fetchVoacapMatrixThrottled: () => fetchVoacapMatrixThrottled,
     getVoacapOpts: () => getVoacapOpts,
     initVoacapListeners: () => initVoacapListeners,
     renderVoacapMatrix: () => renderVoacapMatrix,
@@ -1532,6 +1545,14 @@
       }
       return;
     }
+    if (name === "target") {
+      const current2 = state_default.voacapTarget;
+      const next2 = current2 === "overview" ? "spot" : "overview";
+      state_default.voacapTarget = next2;
+      localStorage.setItem("hamtab_voacap_target", next2);
+      fetchVoacapMatrix();
+      return;
+    }
     let options, key, stateKey;
     if (name === "power") {
       options = POWER_OPTIONS;
@@ -1555,7 +1576,7 @@
     const next = options[(idx + 1) % options.length];
     state_default[stateKey] = next;
     localStorage.setItem(key, next);
-    renderVoacapMatrix();
+    fetchVoacapMatrix();
     if (state_default.hfPropOverlayBand) {
       clearBandOverlay();
       clearHeatmap();
@@ -1576,11 +1597,69 @@
       longPath: state_default.voacapPath === "LP"
     };
   }
+  async function fetchVoacapMatrix() {
+    if (state_default.myLat == null || state_default.myLon == null) {
+      renderVoacapMatrix();
+      return;
+    }
+    const params = new URLSearchParams({
+      txLat: state_default.myLat,
+      txLon: state_default.myLon,
+      power: state_default.voacapPower,
+      mode: state_default.voacapMode,
+      toa: state_default.voacapToa,
+      path: state_default.voacapPath
+    });
+    if (state_default.voacapTarget === "spot" && state_default.selectedSpotId) {
+      const spot = findSelectedSpot();
+      if (spot && spot.lat != null && spot.lon != null) {
+        params.set("rxLat", spot.lat);
+        params.set("rxLon", spot.lon);
+      }
+    }
+    try {
+      const resp = await fetch(`/api/voacap?${params}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.voacapServerData = data;
+      state_default.voacapEngine = data.engine || "simplified";
+      state_default.voacapLastFetch = Date.now();
+    } catch (err) {
+      if (state_default.debug) console.error("VOACAP fetch error:", err);
+    }
+    renderVoacapMatrix();
+  }
+  function fetchVoacapMatrixThrottled() {
+    if (Date.now() - state_default.voacapLastFetch < FETCH_THROTTLE_MS) return;
+    fetchVoacapMatrix();
+  }
+  function findSelectedSpot() {
+    if (!state_default.selectedSpotId) return null;
+    const source = state_default.currentSource;
+    const spots = state_default.sourceData[source] || [];
+    return spots.find((s) => {
+      if (source === "pota") return s.spotId === state_default.selectedSpotId;
+      if (source === "sota") return s.id === state_default.selectedSpotId;
+      return s.id === state_default.selectedSpotId || s.spotId === state_default.selectedSpotId;
+    });
+  }
+  function getActiveMatrix() {
+    if (state_default.voacapServerData && state_default.voacapServerData.matrix) {
+      return state_default.voacapServerData.matrix;
+    }
+    const opts = getVoacapOpts();
+    return calculate24HourMatrix(opts);
+  }
+  function getBandReliability(hourData, bandName) {
+    const bandVal = hourData.bands[bandName];
+    if (bandVal == null) return 0;
+    if (typeof bandVal === "object") return bandVal.rel || 0;
+    return bandVal;
+  }
   function renderVoacapMatrix() {
     const container = $("voacapMatrix");
     if (!container) return;
-    const opts = getVoacapOpts();
-    const matrix = calculate24HourMatrix(opts);
+    const matrix = getActiveMatrix();
     const hasData = matrix.some((entry) => Object.keys(entry.bands).length > 0);
     if (!hasData) {
       container.innerHTML = '<div class="voacap-no-data">Waiting for solar data...</div>';
@@ -1601,7 +1680,7 @@
       for (let i = 0; i < 24; i++) {
         const h = hourOrder[i];
         const hourData = matrix[h];
-        const reliability = hourData.bands[band.name] || 0;
+        const reliability = getBandReliability(hourData, band.name);
         const color = getReliabilityColor(reliability);
         const isNow = i === 0;
         const nowClass = isNow ? "voacap-cell-now" : "";
@@ -1620,16 +1699,23 @@
     }
     html += "</tr>";
     html += "</tbody></table>";
-    const sn = state_default.lastSolarData?.indices?.sunspots || "--";
+    const engineLabel = state_default.voacapEngine === "dvoacap" ? "VOACAP" : "SIM";
+    const engineClass = state_default.voacapEngine === "dvoacap" ? "voacap-engine-real" : "voacap-engine-sim";
+    const engineTitle = state_default.voacapEngine === "dvoacap" ? "Using real VOACAP propagation model" : "Using simplified propagation model";
+    const targetLabel = state_default.voacapTarget === "spot" ? "SPOT" : "OVW";
+    const targetTitle = state_default.voacapTarget === "spot" ? "Showing prediction to selected spot (click for overview)" : "Showing best worldwide prediction (click for spot mode)";
+    const ssnDisplay = state_default.voacapServerData?.ssn ? Math.round(state_default.voacapServerData.ssn) : state_default.lastSolarData?.indices?.sunspots || "--";
     const overlayLabel = state_default.heatmapOverlayMode === "heatmap" ? "REL" : "\u25CB";
     const overlayTitle = state_default.heatmapOverlayMode === "heatmap" ? "Overlay: REL heatmap (click for circles)" : "Overlay: circles (click for REL heatmap)";
     html += `<div class="voacap-params">`;
+    html += `<span class="voacap-engine-badge ${engineClass}" title="${engineTitle}">${engineLabel}</span>`;
+    html += `<span class="voacap-param" data-param="target" title="${targetTitle}">${targetLabel}</span>`;
     html += `<span class="voacap-param" data-param="overlay" title="${overlayTitle}">${overlayLabel}</span>`;
     html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state_default.voacapPower] || state_default.voacapPower}</span>`;
     html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state_default.voacapMode}</span>`;
     html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
     html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
-    html += `<span class="voacap-param-static" title="Sunspot number">S=${sn}</span>`;
+    html += `<span class="voacap-param-static" title="Smoothed sunspot number">S=${ssnDisplay}</span>`;
     html += `</div>`;
     container.innerHTML = html;
   }
@@ -1659,11 +1745,10 @@
   function drawBandOverlay(band) {
     if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
     const L2 = window.L;
-    const opts = getVoacapOpts();
-    const matrix = calculate24HourMatrix(opts);
+    const matrix = getActiveMatrix();
     const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
     const hourData = matrix[nowHour];
-    const reliability = hourData.bands[band] || 0;
+    const reliability = getBandReliability(hourData, band);
     const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
     if (!bandDef) return;
     const baseRadius = 500;
@@ -1715,7 +1800,7 @@
     clearHeatmap();
     state_default.hfPropOverlayBand = null;
   }
-  var bandOverlayCircles, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
+  var bandOverlayCircles, FETCH_THROTTLE_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
   var init_voacap = __esm({
     "src/voacap.js"() {
       init_state();
@@ -1723,6 +1808,7 @@
       init_band_conditions();
       init_rel_heatmap();
       bandOverlayCircles = [];
+      FETCH_THROTTLE_MS = 5 * 60 * 1e3;
       POWER_OPTIONS = ["5", "100", "1000"];
       POWER_LABELS = { "5": "5W", "100": "100W", "1000": "1kW" };
       MODE_OPTIONS = ["CW", "SSB", "FT8"];
@@ -4639,7 +4725,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.18.0";
+    $("splashVersion").textContent = "0.19.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -5026,6 +5112,7 @@
   init_markers();
   init_solar();
   init_lunar();
+  init_voacap();
   async function fetchSourceData(source) {
     const def = SOURCE_DEFS[source];
     if (!def) return;
@@ -5064,6 +5151,7 @@
     fetchSolar();
     fetchLunar();
     fetchPropagation();
+    fetchVoacapMatrixThrottled();
     resetCountdown();
   }
   function resetCountdown() {
@@ -6141,10 +6229,11 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     fetchWeather();
     startNwsPolling();
     fetchLiveSpots();
-    renderVoacapMatrix();
+    fetchVoacapMatrix();
   }
   setInterval(fetchLiveSpots, 5 * 60 * 1e3);
   setInterval(renderVoacapMatrix, 60 * 1e3);
+  setInterval(fetchVoacapMatrixThrottled, 60 * 1e3);
   setInitApp(initApp);
   initWidgets();
   switchSource(state_default.currentSource);

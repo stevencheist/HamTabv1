@@ -1725,14 +1725,11 @@ app.get('/api/voacap', async (req, res) => {
     const ssn = ssnData.ssn;
     const month = ssnData.month;
 
-    // Mode → required SNR and bandwidth for reliability calculation.
-    // Standard VOACAP uses ITU thresholds (73 dB SSB, 39 dB CW), but these produce
-    // near-zero reliability for typical amateur conditions. Using practical thresholds
-    // that better reflect real-world HF communication capabilities.
+    // Mode → required SNR and bandwidth (ITU standard thresholds)
     const modeMap = {
-      CW:  { snr: 10, bw: 500 },   // CW readable at ~10 dB
-      SSB: { snr: 73, bw: 2700 },  // ITU standard for SSB circuit reliability
-      FT8: { snr: -10, bw: 50 },   // FT8 decodes at -10 to -20 dB
+      CW:  { snr: 39, bw: 500 },
+      SSB: { snr: 73, bw: 2700 },
+      FT8: { snr: 2,  bw: 50 },
     };
     const { snr: requiredSnr, bw: bandwidthHz } = modeMap[mode] || modeMap.SSB;
 

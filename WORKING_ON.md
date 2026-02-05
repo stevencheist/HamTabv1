@@ -20,6 +20,7 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Francisco + Claude | VOACAP DE→DX widget redesign | main | 2026-02-04 |
 | Steven + Claude | Lanmode auto-update system | lanmode | 2026-02-04 |
 | Steven + Claude | Config modal redesign — tabs, scrollable, responsive (#96) | main | 2026-02-04 |
 | Steven + Claude | Widget close buttons (x to hide) | main | 2026-02-04 |

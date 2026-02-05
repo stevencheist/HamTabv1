@@ -839,35 +839,28 @@ header {
   overflow-y: auto;
 }
 
-/* ---- Band reference popup ---- */
+/* ---- Band reference (inside Reference widget) ---- */
 
-.band-ref-box {
-  max-width: 520px;
-  max-height: 80vh;
-  overflow-y: auto;
-  text-align: left;
-}
-
-.band-ref-filter {
+.band-ref-inline-filter {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 0.82rem;
+  font-size: 0.78rem;
   color: var(--text);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   cursor: pointer;
 }
 
-.band-ref-filter input[type="checkbox"] {
+.band-ref-inline-filter input[type="checkbox"] {
   width: auto;
   margin-bottom: 0;
   cursor: pointer;
 }
 
-.band-ref-box h3 {
-  font-size: 0.9rem;
+#referenceContent h3 {
+  font-size: 0.85rem;
   color: var(--yellow);
-  margin: 10px 0 4px;
+  margin: 8px 0 4px;
 }
 
 .band-ref-table {

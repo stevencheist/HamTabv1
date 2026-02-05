@@ -4201,6 +4201,8 @@
   function showSplash() {
     const splash = $("splash");
     splash.classList.remove("hidden");
+    splash.querySelectorAll(".config-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === "station"));
+    splash.querySelectorAll(".config-panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === "station"));
     $("splashCallsign").value = state_default.myCallsign;
     if (state_default.myLat !== null && state_default.myLon !== null) {
       $("splashLat").value = state_default.myLat.toFixed(2);
@@ -4247,7 +4249,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.15.0";
+    $("splashVersion").textContent = "0.16.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -4322,6 +4324,14 @@
     }
   }
   function initSplashListeners() {
+    document.querySelectorAll(".config-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".config-tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".config-panel").forEach((p) => p.classList.remove("active"));
+        tab.classList.add("active");
+        document.querySelector(`.config-panel[data-panel="${tab.dataset.tab}"]`).classList.add("active");
+      });
+    });
     $("splashOk").addEventListener("click", dismissSplash);
     $("splashCallsign").addEventListener("keydown", (e) => {
       if (e.key === "Enter") dismissSplash();

@@ -3277,3 +3277,471 @@ header {
   }
 }
 
+/* ---- Theme: LCARS (Star Trek TNG) ---- */
+/* Shape, font, and layout overrides applied via body.theme-lcars class.
+   Colors are handled by CSS variable swapping in themes.js. */
+
+.theme-lcars {
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+/* Widget shape — rounded pill-style corners */
+.theme-lcars .widget {
+  border-radius: 16px;
+  border-width: 2px;
+}
+
+.theme-lcars .widget-header {
+  font-family: 'Arial Narrow', Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 0.82rem;
+  padding: 5px 14px;
+  border-radius: 14px 14px 0 0;
+}
+
+.theme-lcars .widget-body {
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+/* Header bar — LCARS elbow/bar feel */
+.theme-lcars header {
+  border-bottom-width: 3px;
+  letter-spacing: 1px;
+}
+
+.theme-lcars .op-call a {
+  letter-spacing: 2px;
+}
+
+/* Clock panels — more angular, monospace numbers */
+.theme-lcars .header-clock {
+  border-radius: 0 0 16px 16px;
+  letter-spacing: 1px;
+}
+
+.theme-lcars .header-clock-time {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 2px;
+}
+
+/* Buttons — pill shaped */
+.theme-lcars .op-btn,
+.theme-lcars #refreshBtn,
+.theme-lcars #resetLayoutBtn,
+.theme-lcars #fullscreenBtn,
+.theme-lcars .feedback-btn,
+.theme-lcars .coffee-btn {
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+/* Source tabs — rounded top */
+.theme-lcars .source-tab {
+  border-radius: 10px 10px 0 0;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars .source-tab.active {
+  background: var(--accent);
+  color: #000;
+}
+
+/* Band/mode filter buttons */
+.theme-lcars .band-btn,
+.theme-lcars .mode-btn {
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars .band-btn.active,
+.theme-lcars .mode-btn.active {
+  color: #000;
+}
+
+/* Spot table */
+.theme-lcars #spotsTable th {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+  font-size: 0.7rem;
+}
+
+.theme-lcars #spotsTable td {
+  font-family: 'Arial Narrow', Arial, sans-serif;
+  letter-spacing: 0.5px;
+}
+
+/* Solar indices */
+.theme-lcars .solar-card-label {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+/* Propagation widget */
+.theme-lcars .toggle-btn {
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars .prop-metric-btn {
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars .map-center-btn {
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+/* Reference tabs */
+.theme-lcars .reference-tab {
+  border-radius: 8px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+/* Config/splash modal */
+.theme-lcars .splash-box {
+  border-radius: 20px;
+  border-width: 2px;
+}
+
+.theme-lcars .splash-box h2 {
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars .config-tab {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars #splashOk,
+.theme-lcars #solarCfgOk,
+.theme-lcars #lunarCfgOk,
+.theme-lcars #spotColCfgOk,
+.theme-lcars #mapOverlayCfgOk,
+.theme-lcars #liveSpotsCfgOk,
+.theme-lcars #satCfgOk,
+.theme-lcars #helpOk,
+.theme-lcars #wxAlertClose,
+.theme-lcars #feedbackCancel,
+.theme-lcars #feedbackSubmit {
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+/* Presets and dropdowns */
+.theme-lcars select {
+  border-radius: 10px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+  letter-spacing: 1px;
+}
+
+.theme-lcars input[type="text"],
+.theme-lcars input[type="number"],
+.theme-lcars input[type="email"],
+.theme-lcars textarea {
+  border-radius: 10px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+/* Filter preset buttons */
+.theme-lcars #savePresetBtn,
+.theme-lcars #deletePresetBtn,
+.theme-lcars #clearFiltersBtn {
+  border-radius: 10px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+/* Widget help and config buttons */
+.theme-lcars .widget-help-btn {
+  border-radius: 50%;
+  font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars .widget-cfg-btn {
+  border-radius: 50%;
+}
+
+/* LCARS decorative bar under header — via pseudo-element */
+.theme-lcars header::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg,
+    var(--border) 0%, var(--border) 15%,
+    transparent 15%, transparent 18%,
+    var(--accent) 18%, var(--accent) 55%,
+    transparent 55%, transparent 58%,
+    var(--text-dim) 58%, var(--text-dim) 100%);
+}
+
+/* Ensure header has relative positioning for the pseudo-element */
+.theme-lcars header {
+  position: relative;
+}
+
+/* ---- Theme: HamClock ---- */
+/* Monospace terminal feel, green-on-black, tighter spacing.
+   Colors are handled by CSS variable swapping in themes.js. */
+
+.theme-hamclock {
+  font-family: 'Courier New', 'Lucida Console', monospace;
+}
+
+/* Widget — sharp corners, thin borders, terminal feel */
+.theme-hamclock .widget {
+  border-radius: 2px;
+  border-width: 1px;
+}
+
+.theme-hamclock .widget-header {
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 0.74rem;
+  padding: 3px 8px;
+  border-radius: 1px 1px 0 0;
+}
+
+.theme-hamclock .widget-body {
+  font-family: 'Courier New', 'Lucida Console', monospace;
+}
+
+/* Header — minimal, terminal-like */
+.theme-hamclock header {
+  padding: 4px 12px;
+}
+
+.theme-hamclock .op-call a {
+  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Clock — monospace, smaller, denser */
+.theme-hamclock .header-clock {
+  border-radius: 3px;
+  padding: 8px 20px;
+}
+
+.theme-hamclock .header-clock-time {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 2px;
+}
+
+.theme-hamclock .header-clock-label {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Buttons — squared off, utilitarian */
+.theme-hamclock .op-btn,
+.theme-hamclock #refreshBtn,
+.theme-hamclock #resetLayoutBtn,
+.theme-hamclock #fullscreenBtn,
+.theme-hamclock .feedback-btn,
+.theme-hamclock .coffee-btn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Source tabs — very square */
+.theme-hamclock .source-tab {
+  border-radius: 2px 2px 0 0;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.theme-hamclock .source-tab.active {
+  background: var(--accent);
+  color: #000;
+}
+
+/* Band/mode buttons */
+.theme-hamclock .band-btn,
+.theme-hamclock .mode-btn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+.theme-hamclock .band-btn.active,
+.theme-hamclock .mode-btn.active {
+  color: #000;
+}
+
+/* Spot table — monospace data */
+.theme-hamclock #spotsTable th {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.68rem;
+}
+
+.theme-hamclock #spotsTable td {
+  font-family: 'Courier New', monospace;
+  font-size: 0.72rem;
+}
+
+/* Solar card labels */
+.theme-hamclock .solar-card-label {
+  text-transform: uppercase;
+  font-family: 'Courier New', monospace;
+}
+
+/* Toggle/control buttons */
+.theme-hamclock .toggle-btn,
+.theme-hamclock .prop-metric-btn,
+.theme-hamclock .map-center-btn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+/* Reference tabs */
+.theme-hamclock .reference-tab {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+/* Modal */
+.theme-hamclock .splash-box {
+  border-radius: 4px;
+}
+
+.theme-hamclock .splash-box h2 {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.theme-hamclock .config-tab {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+.theme-hamclock #splashOk,
+.theme-hamclock #solarCfgOk,
+.theme-hamclock #lunarCfgOk,
+.theme-hamclock #spotColCfgOk,
+.theme-hamclock #mapOverlayCfgOk,
+.theme-hamclock #liveSpotsCfgOk,
+.theme-hamclock #satCfgOk,
+.theme-hamclock #helpOk,
+.theme-hamclock #wxAlertClose,
+.theme-hamclock #feedbackCancel,
+.theme-hamclock #feedbackSubmit {
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Inputs */
+.theme-hamclock select {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+.theme-hamclock input[type="text"],
+.theme-hamclock input[type="number"],
+.theme-hamclock input[type="email"],
+.theme-hamclock textarea {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Filter buttons */
+.theme-hamclock #savePresetBtn,
+.theme-hamclock #deletePresetBtn,
+.theme-hamclock #clearFiltersBtn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+/* ---- Theme Selector (Config Modal Appearance Tab) ---- */
+
+.theme-selector {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.theme-swatch {
+  width: 100px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  padding: 8px;
+  text-align: center;
+  transition: border-color 0.15s, transform 0.15s;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.theme-swatch:hover {
+  transform: translateY(-2px);
+  border-color: var(--text-dim);
+}
+
+.theme-swatch.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(233, 69, 96, 0.25);
+}
+
+.theme-swatch-colors {
+  display: flex;
+  gap: 2px;
+  height: 32px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+
+.theme-swatch-colors span {
+  flex: 1;
+}
+
+.theme-swatch-name {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.theme-swatch-desc {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+

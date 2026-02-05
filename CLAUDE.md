@@ -140,35 +140,46 @@ main ──────────────────────── SH
 
 - **After committing to `main`:**
   ```bash
-  # 1. Push main first
+  # 1. Pull main first (in case remote advanced while you worked)
+  git pull origin main --no-edit
+
+  # 2. Push main
   git push origin main
 
-  # 2. Fetch all remote state
+  # 3. Fetch all remote state
   git fetch --all
 
-  # 3. Sync lanmode (pull remote, merge main, push)
+  # 4. Sync lanmode (pull remote, merge main, push)
   git checkout lanmode
   git pull origin lanmode
   git merge main -m "Merge main into lanmode"
   git push origin lanmode
 
-  # 4. Sync hostedmode (pull remote, merge main, push)
+  # 5. Sync hostedmode (pull remote, merge main, push)
   git checkout hostedmode
   git pull origin hostedmode
   git merge main -m "Merge main into hostedmode"
   git push origin hostedmode
 
-  # 5. Return to main
+  # 6. Return to main and sync
   git checkout main
+  git pull origin main
   ```
 
 - **Why this order matters:**
+  - `git pull` before push prevents rejected pushes when remote advanced
   - `git fetch --all` shows remote state before we touch anything
   - `git pull` before merge ensures we have CI/CD commits, other developer changes, etc.
   - Merging into a stale local branch then pushing will fail or cause conflicts
   - hostedmode especially drifts due to CI/CD commits
+  - Final `git pull` on main syncs any WORKING_ON.md updates from the other dev
 
-- **If merge conflicts occur:**
+- **If merge conflicts occur on main pull:**
+  - `package-lock.json` conflicts are common and benign — resolve with `npm install --package-lock-only`
+  - Version collision (both devs bumped to same version) — bump again after merge, rebuild
+  - Code conflicts — review carefully, may indicate overlapping work
+
+- **If merge conflicts occur on deployment branches:**
   - ⚠️ **STOP!** This indicates mode-specific code on `main`
   - Review BRANCH_STRATEGY.md conflict resolution protocol
   - Fix the issue, don't force the merge
@@ -196,6 +207,7 @@ main ──────────────────────── SH
 - Version lives in `package.json` and is injected at build time via esbuild `define`
 - Bump `version` in `package.json` on every push: patch for fixes, minor for features
 - Rebuild (`npm run build`) after bumping to update the client bundle
+- **Version collision** — If pulling main brings in a version bump that matches yours (both devs independently bumped to same version), bump again after merge and rebuild. This is expected when multiple devs work in parallel.
 
 **Lanmode updates:**
 - Auto-update: clicking the green update dot downloads the lanmode branch zip, extracts, copies files (preserving `.env`, `certs`, `node_modules`), runs `npm install --production` + `npm run build`, and restarts the server
@@ -302,9 +314,11 @@ Stay on `main` for most work. Use simple commands to manage branches:
 
 ### Release Work Protocol (after finishing a feature or task)
 
-1. Move your row from "Active Work" to "Recently Completed" in `WORKING_ON.md`
-2. Include this change in your final feature commit (no separate commit needed)
-3. Push as normal
+1. **Pull before committing** — `git pull origin main --no-edit` to get any changes pushed while you worked
+2. If pull brought in changes, check for version collision (both bumped to same version) — bump again if needed
+3. Move your row from "Active Work" to "Recently Completed" in `WORKING_ON.md`
+4. Include this change in your final feature commit (no separate commit needed)
+5. Push as normal
 
 ### Workflow
 

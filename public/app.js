@@ -3713,6 +3713,118 @@
     localStorage.setItem("hamtab_migrated", "1");
   }
 
+  // src/themes.js
+  var STORAGE_KEY = "hamtab_theme";
+  var THEMES = {
+    default: {
+      id: "default",
+      name: "Default",
+      description: "Modern dark theme",
+      bodyClass: "",
+      vars: {
+        "--bg": "#1a1a2e",
+        "--surface": "#16213e",
+        "--surface2": "#0f3460",
+        "--surface3": "#1a4a7a",
+        "--accent": "#e94560",
+        "--text": "#e0e0e0",
+        "--text-dim": "#8899aa",
+        "--green": "#00c853",
+        "--yellow": "#ffd600",
+        "--red": "#ff1744",
+        "--orange": "#ff9100",
+        "--border": "#2a3a5e",
+        "--bg-secondary": "#1a1a2e",
+        "--bg-tertiary": "#252540"
+      }
+    },
+    lcars: {
+      id: "lcars",
+      name: "LCARS",
+      description: "Star Trek TNG inspired",
+      bodyClass: "theme-lcars",
+      vars: {
+        "--bg": "#000000",
+        "--surface": "#0a0a14",
+        "--surface2": "#9999ff",
+        "--surface3": "#cc99cc",
+        "--accent": "#ff9966",
+        "--text": "#ff9966",
+        "--text-dim": "#cc99cc",
+        "--green": "#66cc66",
+        "--yellow": "#ffcc00",
+        "--red": "#cc6666",
+        "--orange": "#ff9966",
+        "--border": "#9999ff",
+        "--bg-secondary": "#0a0a14",
+        "--bg-tertiary": "#111122"
+      }
+    },
+    hamclock: {
+      id: "hamclock",
+      name: "HamClock",
+      description: "Classic HamClock style",
+      bodyClass: "theme-hamclock",
+      vars: {
+        "--bg": "#000000",
+        "--surface": "#0a1a0a",
+        "--surface2": "#0d2b0d",
+        "--surface3": "#143014",
+        "--accent": "#00cc66",
+        "--text": "#00ff88",
+        "--text-dim": "#338855",
+        "--green": "#00ff44",
+        "--yellow": "#cccc00",
+        "--red": "#ff3333",
+        "--orange": "#ff8800",
+        "--border": "#1a4a2a",
+        "--bg-secondary": "#0a1a0a",
+        "--bg-tertiary": "#0d200d"
+      }
+    }
+  };
+  var activeThemeId = localStorage.getItem(STORAGE_KEY) || "default";
+  function getThemeList() {
+    return Object.values(THEMES).map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description
+    }));
+  }
+  function getCurrentThemeId() {
+    return activeThemeId;
+  }
+  function applyTheme(themeId) {
+    const theme = THEMES[themeId];
+    if (!theme) return;
+    const root = document.documentElement;
+    for (const [prop, value] of Object.entries(theme.vars)) {
+      root.style.setProperty(prop, value);
+    }
+    for (const t of Object.values(THEMES)) {
+      if (t.bodyClass) document.body.classList.remove(t.bodyClass);
+    }
+    if (theme.bodyClass) document.body.classList.add(theme.bodyClass);
+    activeThemeId = themeId;
+    localStorage.setItem(STORAGE_KEY, themeId);
+  }
+  function initTheme() {
+    const savedId = localStorage.getItem(STORAGE_KEY) || "default";
+    const themeId = THEMES[savedId] ? savedId : "default";
+    applyTheme(themeId);
+  }
+  function getThemeSwatchColors(themeId) {
+    const theme = THEMES[themeId];
+    if (!theme) return [];
+    return [
+      theme.vars["--bg"],
+      theme.vars["--surface2"],
+      theme.vars["--accent"],
+      theme.vars["--text"],
+      theme.vars["--border"]
+    ];
+  }
+
   // src/main.js
   init_state();
   init_dom();
@@ -4852,7 +4964,41 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.21.4";
+    const themeSelector = document.getElementById("themeSelector");
+    if (themeSelector) {
+      themeSelector.innerHTML = "";
+      const themes = getThemeList();
+      const currentId = getCurrentThemeId();
+      themes.forEach((t) => {
+        const swatch = document.createElement("div");
+        swatch.className = "theme-swatch" + (t.id === currentId ? " active" : "");
+        swatch.dataset.themeId = t.id;
+        const colors = getThemeSwatchColors(t.id);
+        const colorsDiv = document.createElement("div");
+        colorsDiv.className = "theme-swatch-colors";
+        colors.forEach((c) => {
+          const span = document.createElement("span");
+          span.style.background = c;
+          colorsDiv.appendChild(span);
+        });
+        swatch.appendChild(colorsDiv);
+        const nameDiv = document.createElement("div");
+        nameDiv.className = "theme-swatch-name";
+        nameDiv.textContent = t.name;
+        swatch.appendChild(nameDiv);
+        const descDiv = document.createElement("div");
+        descDiv.className = "theme-swatch-desc";
+        descDiv.textContent = t.description;
+        swatch.appendChild(descDiv);
+        swatch.addEventListener("click", () => {
+          applyTheme(t.id);
+          themeSelector.querySelectorAll(".theme-swatch").forEach((s) => s.classList.remove("active"));
+          swatch.classList.add("active");
+        });
+        themeSelector.appendChild(swatch);
+      });
+    }
+    $("splashVersion").textContent = "0.22.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -6372,6 +6518,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   init_voacap();
   init_rel_heatmap();
   migrate();
+  initTheme();
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
   state_default.widgetVisibility = loadWidgetVisibility();

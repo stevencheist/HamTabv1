@@ -56,6 +56,58 @@ html, body {
   min-width: 300px;
 }
 
+/* -- Config modal tab layout -- */
+
+.config-box {
+  max-height: 80vh;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+}
+
+.config-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+  gap: 4px;
+}
+
+.config-box .config-tab {
+  background: transparent;
+  color: var(--text-dim);
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 6px 16px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.config-box .config-tab:hover {
+  color: var(--text);
+  opacity: 1;
+}
+
+.config-box .config-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.config-panels {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.config-panel {
+  display: none;
+}
+
+.config-panel.active {
+  display: block;
+}
+
 .splash-box h2 {
   color: var(--accent);
   font-size: 1.4rem;

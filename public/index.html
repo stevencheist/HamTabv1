@@ -116,99 +116,127 @@
 
   <!-- Splash screen -->
   <div class="splash-overlay" id="splash">
-    <div class="splash-box">
+    <div class="splash-box config-box">
       <h2>HamTab Configuration</h2>
-      <label for="splashCallsign">Your Callsign</label>
-      <input type="text" id="splashCallsign" placeholder="e.g. W1AW" autocomplete="off" spellcheck="false" />
 
-      <div class="splash-divider"></div>
-
-      <div class="splash-loc-header">
-        <span class="splash-loc-title">Location Override</span>
-        <button type="button" class="splash-gps-btn" id="splashGpsBtn">Use GPS</button>
+      <div class="config-tabs">
+        <button type="button" class="config-tab active" data-tab="station">Station</button>
+        <button type="button" class="config-tab" data-tab="display">Display</button>
+        <button type="button" class="config-tab" data-tab="services">Services</button>
       </div>
 
-      <div class="splash-loc-fields">
-        <div class="splash-loc-row">
-          <div class="splash-field">
-            <label for="splashLat">Lat</label>
-            <input type="text" id="splashLat" placeholder="e.g. 41.71" autocomplete="off" spellcheck="false" />
+      <div class="config-panels">
+        <!-- Tab 1: Station -->
+        <div class="config-panel active" data-panel="station">
+          <label for="splashCallsign">Your Callsign</label>
+          <input type="text" id="splashCallsign" placeholder="e.g. W1AW" autocomplete="off" spellcheck="false" />
+
+          <div class="splash-divider"></div>
+
+          <div class="splash-loc-header">
+            <span class="splash-loc-title">Location Override</span>
+            <button type="button" class="splash-gps-btn" id="splashGpsBtn">Use GPS</button>
           </div>
-          <div class="splash-field">
-            <label for="splashLon">Lon</label>
-            <input type="text" id="splashLon" placeholder="e.g. -72.73" autocomplete="off" spellcheck="false" />
+
+          <div class="splash-loc-fields">
+            <div class="splash-loc-row">
+              <div class="splash-field">
+                <label for="splashLat">Lat</label>
+                <input type="text" id="splashLat" placeholder="e.g. 41.71" autocomplete="off" spellcheck="false" />
+              </div>
+              <div class="splash-field">
+                <label for="splashLon">Lon</label>
+                <input type="text" id="splashLon" placeholder="e.g. -72.73" autocomplete="off" spellcheck="false" />
+              </div>
+            </div>
+          </div>
+
+          <div class="splash-grid-wrap">
+            <label for="splashGrid">Grid Square</label>
+            <input type="text" id="splashGrid" placeholder="e.g. FN31" autocomplete="off" spellcheck="false" />
+            <div class="splash-grid-dropdown" id="splashGridDropdown"></div>
+          </div>
+
+          <div class="splash-loc-status" id="splashLocStatus"></div>
+
+          <div class="splash-divider"></div>
+          <div class="splash-time-format">
+            <span class="splash-loc-title">Time Format</span>
+            <div class="splash-time-options">
+              <label><input type="radio" name="timeFormat" value="12" id="timeFmt12"> 12-hour</label>
+              <label><input type="radio" name="timeFormat" value="24" id="timeFmt24"> 24-hour</label>
+            </div>
+          </div>
+
+          <div class="splash-divider"></div>
+          <div class="splash-units-section">
+            <span class="splash-loc-title">Units</span>
+            <div class="splash-units-row">
+              <span class="splash-units-label">Distance:</span>
+              <div class="splash-units-options">
+                <label><input type="radio" name="distanceUnit" value="mi" id="distUnitMi"> mi</label>
+                <label><input type="radio" name="distanceUnit" value="km" id="distUnitKm"> km</label>
+              </div>
+            </div>
+            <div class="splash-units-row">
+              <span class="splash-units-label">Temperature:</span>
+              <div class="splash-units-options">
+                <label><input type="radio" name="tempUnit" value="F" id="tempUnitF"> °F</label>
+                <label><input type="radio" name="tempUnit" value="C" id="tempUnitC"> °C</label>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="splash-grid-wrap">
-        <label for="splashGrid">Grid Square</label>
-        <input type="text" id="splashGrid" placeholder="e.g. FN31" autocomplete="off" spellcheck="false" />
-        <div class="splash-grid-dropdown" id="splashGridDropdown"></div>
-      </div>
+        <!-- Tab 2: Display -->
+        <div class="config-panel" data-panel="display">
+          <div class="splash-widgets-section">
+            <span class="splash-loc-title">Widgets</span>
+            <div class="splash-widget-list" id="splashWidgetList"></div>
+          </div>
 
-      <div class="splash-loc-status" id="splashLocStatus"></div>
-
-      <div class="splash-divider"></div>
-      <div class="splash-time-format">
-        <span class="splash-loc-title">Time Format</span>
-        <div class="splash-time-options">
-          <label><input type="radio" name="timeFormat" value="12" id="timeFmt12"> 12-hour</label>
-          <label><input type="radio" name="timeFormat" value="24" id="timeFmt24"> 24-hour</label>
-        </div>
-      </div>
-
-      <div class="splash-divider"></div>
-      <div class="splash-units-section">
-        <span class="splash-loc-title">Units</span>
-        <div class="splash-units-row">
-          <span class="splash-units-label">Distance:</span>
-          <div class="splash-units-options">
-            <label><input type="radio" name="distanceUnit" value="mi" id="distUnitMi"> mi</label>
-            <label><input type="radio" name="distanceUnit" value="km" id="distUnitKm"> km</label>
+          <div class="splash-divider"></div>
+          <div class="splash-layout-section">
+            <span class="splash-loc-title">Layout</span>
+            <div class="splash-layout-actions">
+              <button type="button" class="splash-layout-btn" id="splashSaveLayout">Save as My Default</button>
+              <button type="button" class="splash-layout-btn" id="splashClearLayout">Reset to App Default</button>
+            </div>
+            <div class="splash-layout-status" id="splashLayoutStatus"></div>
           </div>
         </div>
-        <div class="splash-units-row">
-          <span class="splash-units-label">Temperature:</span>
-          <div class="splash-units-options">
-            <label><input type="radio" name="tempUnit" value="F" id="tempUnitF"> °F</label>
-            <label><input type="radio" name="tempUnit" value="C" id="tempUnitC"> °C</label>
+
+        <!-- Tab 3: Services -->
+        <div class="config-panel" data-panel="services">
+          <div class="splash-wx-section">
+            <span class="splash-loc-title">Weather Station (optional)</span>
+            <input type="text" id="splashWxStation" placeholder="e.g. KCTBRIDG45" autocomplete="off" spellcheck="false" style="text-transform:uppercase;margin-top:6px;" />
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;">Weather Underground station ID</div>
+            <label for="splashWxApiKey">WU API Key</label>
+            <input type="text" id="splashWxApiKey" placeholder="Weather Underground API key" autocomplete="off" spellcheck="false" style="text-transform:none;" />
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;"><a href="https://www.wunderground.com/member/api-keys" target="_blank" style="color:var(--accent);">Get a free API key</a></div>
+          </div>
+
+          <div class="splash-divider"></div>
+          <div class="splash-sat-section">
+            <span class="splash-loc-title">Satellite Tracking (optional)</span>
+            <label for="splashN2yoApiKey">N2YO API Key</label>
+            <input type="text" id="splashN2yoApiKey" placeholder="N2YO API key for satellite tracking" autocomplete="off" spellcheck="false" style="text-transform:none;" />
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;"><a href="https://www.n2yo.com/api/" target="_blank" style="color:var(--accent);">Get a free API key (1000 req/hr)</a></div>
+          </div>
+
+          <div class="splash-divider"></div>
+          <div class="splash-update-section">
+            <span class="splash-loc-title">Update Check Interval</span>
+            <select id="splashUpdateInterval">
+              <option value="60">60 seconds</option>
+              <option value="900">15 minutes</option>
+              <option value="3600">60 minutes</option>
+              <option value="21600">6 hours</option>
+              <option value="86400">24 hours</option>
+            </select>
           </div>
         </div>
-      </div>
-
-      <div class="splash-divider"></div>
-      <div class="splash-wx-section">
-        <span class="splash-loc-title">Weather Station (optional)</span>
-        <input type="text" id="splashWxStation" placeholder="e.g. KCTBRIDG45" autocomplete="off" spellcheck="false" style="text-transform:uppercase;margin-top:6px;" />
-        <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;">Weather Underground station ID</div>
-        <label for="splashWxApiKey">WU API Key</label>
-        <input type="text" id="splashWxApiKey" placeholder="Weather Underground API key" autocomplete="off" spellcheck="false" style="text-transform:none;" />
-        <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;"><a href="https://www.wunderground.com/member/api-keys" target="_blank" style="color:var(--accent);">Get a free API key</a></div>
-      </div>
-
-      <div class="splash-divider"></div>
-      <div class="splash-sat-section">
-        <span class="splash-loc-title">Satellite Tracking (optional)</span>
-        <label for="splashN2yoApiKey">N2YO API Key</label>
-        <input type="text" id="splashN2yoApiKey" placeholder="N2YO API key for satellite tracking" autocomplete="off" spellcheck="false" style="text-transform:none;" />
-        <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;"><a href="https://www.n2yo.com/api/" target="_blank" style="color:var(--accent);">Get a free API key (1000 req/hr)</a></div>
-      </div>
-
-      <div class="splash-divider"></div>
-      <div class="splash-widgets-section">
-        <span class="splash-loc-title">Widgets</span>
-        <div class="splash-widget-list" id="splashWidgetList"></div>
-      </div>
-
-      <div class="splash-divider"></div>
-      <div class="splash-layout-section">
-        <span class="splash-loc-title">Layout</span>
-        <div class="splash-layout-actions">
-          <button type="button" class="splash-layout-btn" id="splashSaveLayout">Save as My Default</button>
-          <button type="button" class="splash-layout-btn" id="splashClearLayout">Reset to App Default</button>
-        </div>
-        <div class="splash-layout-status" id="splashLayoutStatus"></div>
       </div>
 
       <div class="splash-version">Version: <span id="splashVersion"></span></div>

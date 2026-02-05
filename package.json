@@ -1,6 +1,6 @@
 {
   "name": "hamtab",
-  "version": "0.22.1",
+  "version": "0.21.5",
   "description": "HamTab — POTA + SOTA ham radio dashboard with map and solar data",
   "main": "server.js",
   "scripts": {
@@ -11,13 +11,16 @@
     "start:direct": "node server.js"
   },
   "dependencies": {
-    "@cloudflare/containers": "^0.1.0",
+    "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^4.21.0",
     "express-rate-limit": "^8.2.1",
     "fast-xml-parser": "^5.3.4",
     "helmet": "^8.1.0",
-    "satellite.js": "^6.0.2"
+    "satellite.js": "^6.0.2",
+    "selfsigned": "^2.4.1",
+    "swagger-ui-express": "^5.0.1",
+    "yamljs": "^0.3.0"
   },
   "devDependencies": {
     "esbuild": "^0.27.2",

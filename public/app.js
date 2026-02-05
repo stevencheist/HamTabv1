@@ -4998,7 +4998,7 @@
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.22.1";
+    $("splashVersion").textContent = "0.21.5";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -5439,7 +5439,7 @@
   init_dom();
   function initUpdateDisplay() {
     const el = $("platformLabel");
-    if (el) el.textContent = "v0.14.0";
+    if (el) el.textContent = "v0.21.5";
   }
 
   // src/settings-sync.js
@@ -5447,6 +5447,8 @@
     "hamtab_callsign",
     "hamtab_lat",
     "hamtab_lon",
+    "hamtab_gps_lat",
+    "hamtab_gps_lon",
     "hamtab_time24",
     "hamtab_spot_source",
     "hamtab_privilege_filter",

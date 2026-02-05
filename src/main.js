@@ -38,7 +38,7 @@ import { initHelpListeners } from './help.js';
 import { initReferenceListeners } from './reference.js';
 import { initFeedbackListeners } from './feedback.js';
 import { initLiveSpotsListeners, fetchLiveSpots, renderLiveSpotsOnMap } from './live-spots.js';
-import { initVoacapListeners, renderVoacapMatrix } from './voacap.js';
+import { initVoacapListeners, renderVoacapMatrix, fetchVoacapMatrix, fetchVoacapMatrixThrottled } from './voacap.js';
 import { initHeatmapListeners } from './rel-heatmap.js';
 
 // Initialize map
@@ -92,14 +92,15 @@ function initApp() {
   fetchWeather();
   startNwsPolling();
   fetchLiveSpots();
-  renderVoacapMatrix();
+  fetchVoacapMatrix();
 }
 
 // Live Spots refresh (5 min — PSKReporter rate limit)
 setInterval(fetchLiveSpots, 5 * 60 * 1000);
 
-// VOACAP matrix refresh (1 min — updates with solar data)
+// VOACAP matrix refresh — render every minute (for hour transitions), server fetch throttled to 5 min
 setInterval(renderVoacapMatrix, 60 * 1000);
+setInterval(fetchVoacapMatrixThrottled, 60 * 1000);
 
 setInitApp(initApp);
 

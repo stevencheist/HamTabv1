@@ -62,10 +62,10 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P1.2: Essential Features 🔥
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| Units toggle (metric/imperial) | ❌ | HIGH | 🌐 | Miles/km, F/C, in/hPa |
-| Long path display | ❌ | HIGH | 🌐 | Opposite direction great circle |
+| Units toggle (metric/imperial) | ✅ | HIGH | 🌐 | Miles/km, °F/°C in config modal |
+| Long path display | ✅ | HIGH | 🌐 | Dimmer dashed line shows long path |
 | Spot retention window | ❌ | MEDIUM | 🌐 | 5-30 minute configurable max age |
-| "My Spots" highlighting | ❌ | MEDIUM | 🌐 | When user callsign is spotted |
+| "My Spots" highlighting | ✅ | MEDIUM | 🌐 | Gold highlight when you're the activator |
 
 #### P1.3: Space Weather History 🔥
 | Feature | Status | Priority | Mode | Notes |
@@ -447,8 +447,8 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | UDP spot input (WSJT-X) | P4 | ❌ | CRITICAL |
 | Configurable port | P1 | ❌ | HIGH |
 | Uninstall script | P1 | ❌ | HIGH |
-| Units toggle | P1 | ❌ | HIGH |
-| Long path display | P1 | ❌ | HIGH |
+| Units toggle | P1 | ✅ | HIGH |
+| Long path display | P1 | ✅ | HIGH |
 | Space weather graphs | P1 | ❌ | HIGH |
 | Watch list modes | P2 | 🟡 | HIGH |
 | ADIF integration | P2 | ❌ | HIGH |
@@ -864,7 +864,7 @@ By June 2026, HamTab will provide a viable alternative for ~10,000 HamClock user
 
 **Next Actions:**
 1. Complete Phase 1.1 features ([#88](https://github.com/stevencheist/HamTabv1/issues/88), [#90](https://github.com/stevencheist/HamTabv1/issues/90))
-2. Implement units toggle and long path display (Phase 1.2)
+2. ~~Implement units toggle and long path display (Phase 1.2)~~ ✅ Done
 3. Add space weather history graphs (Phase 1.3)
 4. Begin VOACAP research and architecture planning (Phase 3)
 

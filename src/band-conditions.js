@@ -123,7 +123,7 @@ export function calculateMUF(sfi, dayFrac) {
  * @param {boolean} isDay - True if daytime
  * @returns {number} - Reliability percentage (0-100)
  */
-function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay, opts) {
+export function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay, opts) {
   // Usable frequency range is typically 50-90% of MUF
   const mufLower = muf * 0.5;  // 50% of MUF (minimum usable)
   const mufOptimal = muf * 0.85; // 85% of MUF (optimal)

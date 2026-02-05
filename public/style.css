@@ -3066,10 +3066,12 @@ header {
 }
 
 .voacap-table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 1px;
   table-layout: fixed;
   font-size: 0.55rem;
   width: 100%;
+  background: #0d1117; /* dark gap color between cells */
 }
 
 .voacap-table td {
@@ -3106,9 +3108,9 @@ header {
 }
 
 .voacap-cell {
-  height: 12px;
-  border: 0.5px solid rgba(255, 255, 255, 0.06);
+  height: 14px;
   transition: transform 0.1s;
+  border-radius: 1px;
 }
 
 .voacap-cell:hover {
@@ -3118,8 +3120,8 @@ header {
 }
 
 .voacap-cell-now {
-  border-top: 1.5px solid var(--accent);
-  border-bottom: 1.5px solid var(--accent);
+  outline: 1.5px solid var(--accent);
+  outline-offset: -1px;
 }
 
 /* Hour labels row at bottom */

@@ -14,6 +14,7 @@ Clear your entry when done.
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
 | Steven + Claude | Phase 8 layout — non-overlapping widgets, proportional resize, responsive modals | main | 2026-02-04 |
+| Francisco + Claude | Keyless ISS tracking + orbit path line (SGP4 via satellite.js) | main | 2026-02-04 |
 
 
 ## Recently Completed

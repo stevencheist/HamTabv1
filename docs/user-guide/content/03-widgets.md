@@ -1,6 +1,6 @@
 # Widgets Reference
 
-HamTab's interface is built from 11 configurable widgets. Each widget can be moved, resized, shown, or hidden to create your ideal layout.
+HamTab's interface is built from configurable widgets. Each widget can be moved, resized, shown, or hidden to create your ideal layout.
 
 ## Widget Management
 
@@ -224,24 +224,74 @@ Shows propagation for paths from your location to:
 
 ---
 
-## HF Propagation Widget
+## VOACAP DE→DX Widget
 
-24-hour propagation prediction matrix showing band reliability by hour.
+A dense 24-hour propagation prediction grid showing band reliability from your station (DE) to the world (DX). This widget uses the **VOACAP** (Voice of America Coverage Analysis Program) engine — a professional ionospheric model used by international broadcasters and militaries worldwide — to predict which bands will be open and when.
 
-### Reading the Matrix
-- **Rows** — HF bands (80m through 10m)
-- **Columns** — Hours (UTC)
-- **Colors** — Predicted reliability
-- **Border** — Current UTC hour
+### Prediction Engines
 
-### Color Scale
-- **Black** — Band closed
-- **Red** — Poor
-- **Yellow** — Fair
-- **Green** — Good
+HamTab uses two prediction engines, shown by the badge in the bottom-left corner of the widget:
+
+| Badge | Engine | Description |
+|-------|--------|-------------|
+| **VOACAP** (green) | Real VOACAP | Full ionospheric ray-tracing model via dvoacap-python. Computes multi-hop propagation paths, signal-to-noise ratios, and reliability percentages for each band/hour combination. Accounts for D-layer absorption, MUF, takeoff angle, transmit power, and operating mode. |
+| **SIM** (gray) | Simplified model | A lightweight approximation based on solar flux, geomagnetic indices, and time of day. Used as a fallback when the VOACAP engine is unavailable (e.g., on self-hosted installations without Python). |
+
+The engine switches automatically — no user action needed. When VOACAP is available, predictions are significantly more accurate because they model the actual ionospheric layers and propagation geometry between your location and target regions, rather than using statistical approximations.
+
+### Reading the Grid
+
+- **Rows** — HF bands from 10m (top) to 80m (bottom)
+- **Columns** — 24 UTC hours, starting from the current hour at the left edge
+- **Cell colors** — Predicted reliability percentage:
+
+| Color | Reliability |
+|-------|-------------|
+| Black/dark | 0–10% — Band closed |
+| Red | 10–30% — Poor |
+| Orange/Yellow | 30–60% — Fair |
+| Green | 60–100% — Good to excellent |
+
+Hover over any cell to see the exact reliability percentage, band, and UTC hour.
+
+### Interactive Parameters
+
+The bottom bar shows clickable settings. Click any value to cycle through options:
+
+| Parameter | Options | Effect |
+|-----------|---------|--------|
+| **Power** | 5W, 100W, 1kW | TX power — higher power improves reliability at margins |
+| **Mode** | CW, SSB, FT8 | Operating mode — FT8 shows significantly more green because of its ~40 dB SNR advantage over SSB |
+| **TOA** | 3°, 5°, 10°, 15° | Takeoff angle — lower angles favor long-distance DX, higher angles favor shorter paths |
+| **Path** | SP, LP | Short path or long path (the "other way around" the Earth) |
+| **S=** | (display only) | Current smoothed sunspot number from NOAA |
+
+### Overview vs Spot Mode
+
+Click **OVW/SPOT** in the parameter bar to toggle target mode:
+
+- **OVW** (Overview) — Shows the best predicted reliability across representative worldwide targets (Europe, East Asia, South America, North America). This tells you "what bands are open to anywhere in the world right now."
+- **SPOT** — Calculates predictions specifically to the station you've selected in the On the Air table. This tells you "when will this band open to *that particular DX station*."
+
+<div class="tip">Use Overview mode for general band planning, then switch to Spot mode when you see a specific station you want to work and want to know the best time/band.</div>
 
 ### Map Overlay
-Click a band row to toggle propagation circles on the map, showing estimated range for that band.
+
+Click any band row to show that band's propagation on the map. Two overlay modes are available — click the **○/REL** toggle in the parameter bar to switch:
+
+- **○ (Circles)** — Draws concentric range rings from your QTH, scaled by predicted reliability. Larger circles = better propagation. A small red circle means the band is closed.
+- **REL (Heatmap)** — Paints the entire map with a color gradient showing predicted reliability to every point on Earth. Green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels.
+
+Click the same band again to clear the overlay.
+
+### About the Predictions
+
+- Predictions are **monthly median values** based on the current smoothed sunspot number (SSN) from NOAA
+- They represent typical conditions for this month, not real-time ionospheric state
+- Use them for **planning** which bands to try at different times of day, rather than as guarantees of what's open right now
+- Real-time conditions vary due to solar flares, geomagnetic storms, and local ionospheric irregularities — check the Solar widget for current space weather
+
+<div class="warning">VOACAP predictions work best for bands 80m–10m. They do not cover VHF/UHF propagation (6m, 2m, 70cm), which depends on different mechanisms like sporadic-E, tropospheric ducting, and meteor scatter.</div>
 
 ---
 

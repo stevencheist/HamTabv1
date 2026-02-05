@@ -1641,7 +1641,8 @@
     renderVoacapMatrix();
   }
   function fetchVoacapMatrixThrottled() {
-    if (Date.now() - state_default.voacapLastFetch < FETCH_THROTTLE_MS) return;
+    const throttle = state_default.voacapEngine === "dvoacap" ? FETCH_THROTTLE_MS : FETCH_RETRY_MS;
+    if (Date.now() - state_default.voacapLastFetch < throttle) return;
     fetchVoacapMatrix();
   }
   function findSelectedSpot() {
@@ -1811,7 +1812,7 @@
     clearHeatmap();
     state_default.hfPropOverlayBand = null;
   }
-  var bandOverlayCircles, FETCH_THROTTLE_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
+  var bandOverlayCircles, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
   var init_voacap = __esm({
     "src/voacap.js"() {
       init_state();
@@ -1820,6 +1821,7 @@
       init_rel_heatmap();
       bandOverlayCircles = [];
       FETCH_THROTTLE_MS = 5 * 60 * 1e3;
+      FETCH_RETRY_MS = 30 * 1e3;
       POWER_OPTIONS = ["5", "100", "1000"];
       POWER_LABELS = { "5": "5W", "100": "100W", "1000": "1kW" };
       MODE_OPTIONS = ["CW", "SSB", "FT8"];
@@ -4736,7 +4738,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.20.1";
+    $("splashVersion").textContent = "0.20.2";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

@@ -197,10 +197,11 @@ main ──────────────────────── SH
 - Rebuild (`npm run build`) after bumping to update the client bundle
 
 **Lanmode updates:**
+- Auto-update: clicking the green update dot downloads the lanmode branch zip, extracts, copies files (preserving `.env`, `certs`, `node_modules`), runs `npm install --production` + `npm run build`, and restarts the server
 - Update detection compares local version against the latest GitHub Release tag (via `api.github.com`)
 - No git dependency — works with zip downloads, scp deploys, etc.
 - GitHub releases must be tagged (e.g. `v0.6.0`) for detection to work
-- Client shows version info and links to release page; no auto-download of code
+- systemd `Restart=on-failure` / NSSM handles process restart after `process.exit(0)`
 
 **Hostedmode updates:**
 - No in-app update system — deployments are fully automated via GitHub Actions CI/CD

@@ -116,6 +116,7 @@ const state = {
   // Update
   updateStatusPolling: null,
   updateReleaseUrl: null,
+  updateApplying: false, // true while an auto-update is in progress (prevents double-clicks)
 
   // Live Spots (PSKReporter "heard" data)
   liveSpots: {

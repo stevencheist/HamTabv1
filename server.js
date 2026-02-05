@@ -5,7 +5,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
-const { execSync } = require('child_process');
+const { execSync, exec } = require('child_process');
 const { URL } = require('url');
 const helmet = require('helmet');
 const cors = require('cors');
@@ -974,10 +974,288 @@ app.get('/api/callsign/:call', async (req, res) => {
   }
 });
 
-// --- Mode-Specific Endpoints ---
-// (Empty on main - populated on deployment branches)
-// Lanmode adds: /api/update/*, /api/restart
-// Hostedmode adds: /api/settings-sync (future)
+// --- Mode-Specific Endpoints (Lanmode) ---
+// Auto-update system: checks GitHub for new versions, downloads and applies updates
+
+// --- Update state ---
+const APP_DIR = __dirname;
+const currentVersion = require('./package.json').version;
+let updateAvailable = false;
+let latestVersion = null;
+let releaseUrl = null;
+let lastCheckTime = null;
+let checking = false;
+let updateInProgress = false;
+let updateCheckInterval = 3600; // seconds — default 1 hour
+let updateTimer = null;
+
+// Paths/dirs preserved during update (never overwritten)
+const PRESERVE_ON_UPDATE = new Set([
+  '.env', 'certs', 'node_modules', 'server.pid', 'logs',
+  '.git', '.claude', 'tools', 'WORKING_ON.md',
+]);
+
+// --- Platform detection ---
+function detectPlatform() {
+  const platform = os.platform();
+  if (platform === 'win32') return 'Windows';
+  // Check for Raspberry Pi
+  try {
+    const model = fs.readFileSync('/proc/device-tree/model', 'utf-8');
+    if (model.toLowerCase().includes('raspberry')) return 'Raspberry Pi';
+  } catch { /* not a Pi */ }
+  if (platform === 'linux') return 'Linux';
+  return platform;
+}
+
+// --- Semver compare ---
+// Returns -1 if a < b, 0 if equal, 1 if a > b
+function compareSemver(a, b) {
+  const pa = a.replace(/^v/, '').split('.').map(Number);
+  const pb = b.replace(/^v/, '').split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    const na = pa[i] || 0;
+    const nb = pb[i] || 0;
+    if (na < nb) return -1;
+    if (na > nb) return 1;
+  }
+  return 0;
+}
+
+// --- Check for updates via GitHub Releases API ---
+async function checkForUpdates() {
+  if (checking) return;
+  checking = true;
+  try {
+    const data = await fetchJSON('https://api.github.com/repos/stevencheist/HamTabv1/releases/latest');
+    lastCheckTime = Date.now();
+    const tag = data.tag_name || '';
+    const ver = tag.replace(/^v/, '');
+    if (ver && compareSemver(currentVersion, ver) < 0) {
+      updateAvailable = true;
+      latestVersion = ver;
+      releaseUrl = data.html_url || '';
+    } else {
+      updateAvailable = false;
+      latestVersion = ver || currentVersion;
+      releaseUrl = null;
+    }
+  } catch (err) {
+    console.error('Update check failed:', err.message);
+  } finally {
+    checking = false;
+  }
+}
+
+function startUpdateTimer() {
+  if (updateTimer) clearInterval(updateTimer);
+  updateTimer = setInterval(checkForUpdates, updateCheckInterval * 1000);
+}
+
+// --- Binary fetch (for zip download) ---
+// Same SSRF guards as secureFetch but returns a Buffer. 50 MB limit, 120s timeout.
+const MAX_BINARY_BYTES = 50 * 1024 * 1024; // 50 MB
+const BINARY_TIMEOUT_MS = 120000; // 120 seconds — generous for Raspberry Pi
+
+function secureFetchBinary(url, redirectCount = 0) {
+  return new Promise((resolve, reject) => {
+    if (redirectCount > MAX_REDIRECTS) {
+      return reject(new Error('Too many redirects'));
+    }
+
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:') {
+      return reject(new Error('Only HTTPS URLs are allowed'));
+    }
+
+    resolveHost(parsed.hostname).then((resolvedIP) => {
+      if (isPrivateIP(resolvedIP)) {
+        return reject(new Error('Requests to private addresses are blocked'));
+      }
+
+      const options = {
+        hostname: resolvedIP,
+        path: parsed.pathname + parsed.search,
+        port: parsed.port || 443,
+        headers: {
+          'User-Agent': 'HamTab/1.0',
+          'Host': parsed.hostname,
+        },
+        servername: parsed.hostname,
+      };
+
+      const req = https.get(options, (resp) => {
+        if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
+          resp.resume();
+          return secureFetchBinary(resp.headers.location, redirectCount + 1).then(resolve).catch(reject);
+        }
+        if (resp.statusCode < 200 || resp.statusCode >= 300) {
+          resp.resume();
+          return reject(new Error(`HTTP ${resp.statusCode}`));
+        }
+
+        const chunks = [];
+        let bytes = 0;
+        resp.on('data', (chunk) => {
+          bytes += chunk.length;
+          if (bytes > MAX_BINARY_BYTES) {
+            resp.destroy();
+            return reject(new Error('Response too large'));
+          }
+          chunks.push(chunk);
+        });
+        resp.on('end', () => resolve(Buffer.concat(chunks)));
+        resp.on('error', reject);
+      });
+
+      req.on('error', reject);
+      req.setTimeout(BINARY_TIMEOUT_MS, () => {
+        req.destroy();
+        reject(new Error('Request timed out'));
+      });
+    }).catch(reject);
+  });
+}
+
+// --- Recursive copy with preservation and path traversal guard ---
+function copyUpdateFiles(srcDir, destDir) {
+  const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (PRESERVE_ON_UPDATE.has(entry.name)) continue;
+
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+
+    // Path traversal guard — ensure destination stays within destDir
+    if (!destPath.startsWith(destDir + path.sep) && destPath !== destDir) {
+      console.error(`Path traversal blocked: ${destPath}`);
+      continue;
+    }
+
+    if (entry.isDirectory()) {
+      fs.mkdirSync(destPath, { recursive: true });
+      copyUpdateFiles(srcPath, destPath);
+    } else {
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+}
+
+// --- Run shell command as promise with timeout ---
+function runCommand(cmd, opts = {}) {
+  const timeout = opts.timeout || 120000; // 2 min default
+  return new Promise((resolve, reject) => {
+    exec(cmd, { cwd: APP_DIR, timeout }, (err, stdout, stderr) => {
+      if (err) return reject(new Error(`${cmd}: ${err.message}\n${stderr}`));
+      resolve(stdout);
+    });
+  });
+}
+
+// --- Update status endpoint ---
+app.get('/api/update/status', (req, res) => {
+  res.json({
+    available: updateAvailable,
+    currentVersion,
+    latestVersion: latestVersion || currentVersion,
+    releaseUrl,
+    lastCheck: lastCheckTime,
+    checking,
+    updating: updateInProgress,
+    platform: detectPlatform(),
+  });
+});
+
+// --- Set update check interval ---
+app.post('/api/update/interval', (req, res) => {
+  const seconds = parseInt(req.body && req.body.seconds, 10);
+  if (isNaN(seconds) || seconds < 60 || seconds > 86400) {
+    return res.status(400).json({ error: 'Interval must be 60-86400 seconds' });
+  }
+  updateCheckInterval = seconds;
+  startUpdateTimer();
+  res.json({ ok: true, interval: seconds });
+});
+
+// --- Apply update endpoint ---
+app.post('/api/update/apply', async (req, res) => {
+  if (updateInProgress) {
+    return res.status(409).json({ error: 'Update already in progress' });
+  }
+  if (!updateAvailable) {
+    return res.status(400).json({ error: 'No update available' });
+  }
+
+  updateInProgress = true;
+  const tmpDir = path.join(os.tmpdir(), `hamtab-update-${Date.now()}`);
+
+  try {
+    console.log(`Downloading lanmode branch zip...`);
+    const zipUrl = 'https://github.com/stevencheist/HamTabv1/archive/refs/heads/lanmode.zip';
+    const zipBuffer = await secureFetchBinary(zipUrl);
+
+    // Write zip to temp file
+    fs.mkdirSync(tmpDir, { recursive: true });
+    const zipPath = path.join(tmpDir, 'update.zip');
+    fs.writeFileSync(zipPath, zipBuffer);
+    console.log(`Downloaded ${zipBuffer.length} bytes to ${zipPath}`);
+
+    // Extract zip
+    const platform = os.platform();
+    if (platform === 'win32') {
+      await runCommand(
+        `powershell -NoProfile -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${tmpDir}' -Force"`,
+        { timeout: 60000 }
+      );
+    } else {
+      await runCommand(`unzip -o "${zipPath}" -d "${tmpDir}"`, { timeout: 60000 });
+    }
+
+    // Find extracted directory (GitHub zips create a subfolder like HamTabv1-lanmode/)
+    const extracted = fs.readdirSync(tmpDir).filter(
+      f => f !== 'update.zip' && fs.statSync(path.join(tmpDir, f)).isDirectory()
+    );
+    if (extracted.length === 0) {
+      throw new Error('No directory found in extracted zip');
+    }
+    const srcDir = path.join(tmpDir, extracted[0]);
+
+    // Validate: extracted dir must contain package.json
+    if (!fs.existsSync(path.join(srcDir, 'package.json'))) {
+      throw new Error('Extracted archive missing package.json — aborting');
+    }
+
+    console.log('Copying update files...');
+    copyUpdateFiles(srcDir, APP_DIR);
+
+    console.log('Running npm install --production...');
+    await runCommand('npm install --production', { timeout: 180000 }); // 3 min for Pi
+
+    console.log('Running npm run build...');
+    await runCommand('npm run build', { timeout: 60000 });
+
+    // Clean up temp
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+
+    console.log('Update applied successfully. Restarting...');
+    res.json({ updated: true, restarting: true });
+
+    // Exit after response is sent — systemd/NSSM will restart the process
+    setTimeout(() => process.exit(0), 1000);
+  } catch (err) {
+    console.error('Update failed:', err.message);
+    updateInProgress = false;
+    // Clean up temp on failure
+    try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    res.status(500).json({ error: `Update failed: ${err.message}` });
+  }
+});
+
+// --- Restart endpoint ---
+app.post('/api/restart', (req, res) => {
+  res.json({ restarting: true });
+  setTimeout(() => process.exit(0), 500);
+});
 
 // --- Configuration Endpoints ---
 app.post('/api/config/env', (req, res) => {
@@ -1771,4 +2049,8 @@ app.listen(PORT, HOST, () => {
 const tlsOptions = ensureCerts();
 https.createServer(tlsOptions, app).listen(HTTPS_PORT, HOST, () => {
   console.log(`HTTPS server running at https://${HOST}:${HTTPS_PORT}`);
+
+  // Start update checking after server is ready
+  checkForUpdates();
+  startUpdateTimer();
 });

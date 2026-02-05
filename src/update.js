@@ -71,10 +71,27 @@ export function sendUpdateInterval() {
 }
 
 export function initUpdateListeners() {
-  // Green dot opens release page in new tab
-  $('updateIndicator').addEventListener('click', () => {
-    if ($('updateDot').classList.contains('green') && state.updateReleaseUrl) {
-      window.open(state.updateReleaseUrl, '_blank', 'noopener');
+  // Green dot triggers auto-update
+  $('updateIndicator').addEventListener('click', async () => {
+    const dot = $('updateDot');
+    if (!dot.classList.contains('green') || state.updateApplying) return;
+
+    state.updateApplying = true;
+    dot.className = 'update-dot yellow';
+    $('updateLabel').textContent = 'Updating...';
+
+    try {
+      const resp = await fetch('/api/update/apply', { method: 'POST' });
+      const data = await resp.json();
+      if (!resp.ok) {
+        throw new Error(data.error || 'Update failed');
+      }
+      $('updateLabel').textContent = 'Restarting...';
+      pollForServer(60); // longer timeout — npm install + build adds time on Pi
+    } catch (err) {
+      dot.className = 'update-dot red';
+      $('updateLabel').textContent = err.message || 'Update failed';
+      state.updateApplying = false;
     }
   });
 

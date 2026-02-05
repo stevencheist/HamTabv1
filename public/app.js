@@ -142,6 +142,8 @@
         // Update
         updateStatusPolling: null,
         updateReleaseUrl: null,
+        updateApplying: false,
+        // true while an auto-update is in progress (prevents double-clicks)
         // Live Spots (PSKReporter "heard" data)
         liveSpots: {
           data: [],
@@ -4251,7 +4253,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.16.1";
+    $("splashVersion").textContent = "0.17.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -4728,7 +4730,7 @@
   init_utils();
   async function checkUpdateStatus() {
     const el = $("platformLabel");
-    if (el && !el.textContent) el.textContent = "v0.14.0";
+    if (el && !el.textContent) el.textContent = "v0.17.0";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
@@ -4784,9 +4786,24 @@
     }
   }
   function initUpdateListeners() {
-    $("updateIndicator").addEventListener("click", () => {
-      if ($("updateDot").classList.contains("green") && state_default.updateReleaseUrl) {
-        window.open(state_default.updateReleaseUrl, "_blank", "noopener");
+    $("updateIndicator").addEventListener("click", async () => {
+      const dot = $("updateDot");
+      if (!dot.classList.contains("green") || state_default.updateApplying) return;
+      state_default.updateApplying = true;
+      dot.className = "update-dot yellow";
+      $("updateLabel").textContent = "Updating...";
+      try {
+        const resp = await fetch("/api/update/apply", { method: "POST" });
+        const data = await resp.json();
+        if (!resp.ok) {
+          throw new Error(data.error || "Update failed");
+        }
+        $("updateLabel").textContent = "Restarting...";
+        pollForServer(60);
+      } catch (err) {
+        dot.className = "update-dot red";
+        $("updateLabel").textContent = err.message || "Update failed";
+        state_default.updateApplying = false;
       }
     });
     $("restartBtn").addEventListener("click", async (e) => {

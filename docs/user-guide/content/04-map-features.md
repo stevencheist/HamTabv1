@@ -87,8 +87,8 @@ Tracked satellites show their current position updated every few seconds. The sa
 ### Footprint Circles
 Each satellite displays its "footprint" — the circular area on Earth that can currently see (and potentially communicate with) the satellite. If you're inside the footprint circle, the satellite is above your horizon.
 
-### Orbital Track
-Some satellite views show the predicted ground track (orbital path) for the next orbit or pass.
+### ISS Orbit Path
+The ISS displays a dashed cyan line showing its predicted ground track for one full orbit (~92 minutes). The line starts slightly behind the ISS's current position (showing where it just was) and extends forward through the rest of the orbit. The path updates every 10 seconds and wraps correctly across the international date line.
 
 ## Live Spots Paths
 

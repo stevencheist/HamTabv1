@@ -153,7 +153,7 @@ Click the gear icon to toggle map overlays:
 When you select a spot, a curved line shows the great-circle path from your QTH to the spot's location. This is the shortest path a radio signal would travel.
 
 ### Satellite Footprints
-If satellites are tracked, their footprints (coverage areas) appear on the map in real-time. Click a satellite marker to select it.
+If satellites are tracked, their footprints (coverage areas) appear on the map in real-time. The ISS also shows a dashed cyan orbit path line. Click a satellite marker to select it.
 
 ---
 
@@ -296,13 +296,16 @@ Calculated for 144 MHz based on current lunar distance:
 
 Live tracking and pass predictions for amateur radio satellites.
 
-### Requirements
-N2YO API key must be configured (see Getting Started).
+### ISS Tracking (No API Key Needed)
+The ISS (International Space Station) is tracked automatically with no setup required. You'll see:
+- **ISS marker** on the map showing its current position
+- **Footprint circle** showing the area that can communicate with ISS
+- **Orbit path** — a dashed cyan line showing the predicted ground track for one full orbit
 
-### Tracked Satellites
-Default: ISS (International Space Station)
+The ISS has an amateur radio station onboard (ARISS) with voice repeater, APRS, and occasional SSTV transmissions.
 
-Click the gear icon to add or remove satellites from tracking.
+### Adding More Satellites
+To track additional satellites (AO-91, SO-50, etc.), you need a free API key from N2YO.com. Enter it in Config, then click the gear icon in the Satellites widget to add satellites.
 
 ### Satellite Information
 For each tracked satellite:

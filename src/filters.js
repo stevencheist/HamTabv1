@@ -532,6 +532,8 @@ export function saveCurrentFilters() {
     grid: state.activeGrid,
     continent: state.activeContinent,
     privilegeFilter: state.privilegeFilterEnabled,
+    sortColumn: state.spotSortColumn,
+    sortDirection: state.spotSortDirection,
   };
   localStorage.setItem(`hamtab_filter_${source}`, JSON.stringify(filterState));
 }
@@ -550,6 +552,8 @@ export function loadFiltersForSource(source) {
       state.activeGrid = saved.grid ?? null;
       state.activeContinent = saved.continent ?? null;
       state.privilegeFilterEnabled = saved.privilegeFilter ?? false;
+      state.spotSortColumn = saved.sortColumn ?? null;
+      state.spotSortDirection = saved.sortDirection ?? 'desc';
       return;
     }
   } catch (e) {}
@@ -563,6 +567,8 @@ export function loadFiltersForSource(source) {
   state.activeGrid = null;
   state.activeContinent = null;
   state.privilegeFilterEnabled = false;
+  state.spotSortColumn = null;
+  state.spotSortDirection = 'desc';
 }
 
 // Update all filter UI elements to match current state
@@ -650,6 +656,8 @@ export function savePreset(name) {
     grid: state.activeGrid,
     continent: state.activeContinent,
     privilegeFilter: state.privilegeFilterEnabled,
+    sortColumn: state.spotSortColumn,
+    sortDirection: state.spotSortDirection,
   };
   if (!state.filterPresets[source]) state.filterPresets[source] = {};
   state.filterPresets[source][name] = preset;
@@ -672,6 +680,8 @@ export function loadPreset(name) {
   state.activeGrid = preset.grid ?? null;
   state.activeContinent = preset.continent ?? null;
   state.privilegeFilterEnabled = preset.privilegeFilter ?? false;
+  state.spotSortColumn = preset.sortColumn ?? null;
+  state.spotSortDirection = preset.sortDirection ?? 'desc';
 
   saveCurrentFilters();
   applyFilter();

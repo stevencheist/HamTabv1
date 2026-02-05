@@ -10,7 +10,8 @@ let available = false;
 let requestId = 0;
 const pending = new Map(); // id → { resolve, reject, timer }
 
-const REQUEST_TIMEOUT_MS = 5000; // 5 seconds per prediction request
+const REQUEST_TIMEOUT_MS = 5000;  // 5 seconds per single prediction request
+const MATRIX_TIMEOUT_MS = 60000; // 60 seconds for batch matrix (24h × multiple targets)
 const RESPAWN_DELAY_MS = 3000;   // 3 seconds before respawn attempt
 let respawnTimer = null;
 let shuttingDown = false;
@@ -159,7 +160,7 @@ function handleResponse(line) {
   }
 }
 
-function sendRequest(obj) {
+function sendRequest(obj, timeoutMs) {
   return new Promise((resolve, reject) => {
     if (!child || !child.stdin.writable) {
       return reject(new Error('Worker not running'));
@@ -167,11 +168,12 @@ function sendRequest(obj) {
 
     const id = ++requestId;
     obj.id = id;
+    const timeout = timeoutMs || REQUEST_TIMEOUT_MS;
 
     const timer = setTimeout(() => {
       pending.delete(id);
       reject(new Error('Request timed out'));
-    }, REQUEST_TIMEOUT_MS);
+    }, timeout);
 
     pending.set(id, { resolve, reject, timer });
 
@@ -206,6 +208,13 @@ async function predict(params) {
   return sendRequest({ action: 'predict', params });
 }
 
+async function predictMatrix(params) {
+  if (!available) {
+    throw new Error('VOACAP engine not available');
+  }
+  return sendRequest({ action: 'predict_matrix', params }, MATRIX_TIMEOUT_MS);
+}
+
 function isAvailable() {
   return available;
 }
@@ -226,4 +235,4 @@ function shutdown() {
   }
 }
 
-module.exports = { init, predict, isAvailable, shutdown };
+module.exports = { init, predict, predictMatrix, isAvailable, shutdown };

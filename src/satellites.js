@@ -19,7 +19,10 @@ const DEFAULT_SAT_ALT_KM = 400;
 export function initSatellites() {
   initSatelliteListeners();
 
-  // Initial fetch if we have an API key
+  // ISS always uses free SGP4 endpoint (no API key needed)
+  fetchIssPosition();
+
+  // Other satellites need N2YO API key
   if (state.n2yoApiKey) {
     fetchSatellitePositions();
   }
@@ -47,6 +50,75 @@ function initSatelliteListeners() {
   }
 }
 
+// --- ISS Free Tracking (SGP4, no API key) ---
+
+export async function fetchIssPosition() {
+  try {
+    const lat = state.myLat ?? 0;
+    const lon = state.myLon ?? 0;
+    const resp = await fetch(`/api/iss/position?lat=${lat}&lon=${lon}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    // Store position in same shape as N2YO data
+    state.satellites.positions['25544'] = {
+      satId: 25544,
+      name: data.name,
+      lat: data.lat,
+      lon: data.lon,
+      alt: data.alt,
+      azimuth: data.azimuth,
+      elevation: data.elevation,
+      timestamp: data.timestamp,
+    };
+
+    // Store orbit path
+    state.satellites.issOrbitPath = data.orbitPath || [];
+
+    updateSatelliteMarkers();
+    updateIssOrbitLine();
+    renderSatelliteWidget();
+  } catch (err) {
+    if (state.debug) console.error('Failed to fetch ISS position:', err);
+  }
+}
+
+// Split orbit path at international date line crossings for proper Leaflet rendering
+function splitAtDateline(points) {
+  const segments = [[]];
+  for (let i = 0; i < points.length; i++) {
+    segments[segments.length - 1].push([points[i].lat, points[i].lon]);
+    if (i < points.length - 1) {
+      if (Math.abs(points[i + 1].lon - points[i].lon) > 180) {
+        segments.push([]); // start new segment after dateline crossing
+      }
+    }
+  }
+  return segments;
+}
+
+function updateIssOrbitLine() {
+  if (!state.map) return;
+
+  // Remove old orbit line
+  if (state.satellites.orbitLines['25544']) {
+    state.map.removeLayer(state.satellites.orbitLines['25544']);
+    delete state.satellites.orbitLines['25544'];
+  }
+
+  const path = state.satellites.issOrbitPath;
+  if (!path || path.length < 2) return;
+
+  const segments = splitAtDateline(path);
+  state.satellites.orbitLines['25544'] = L.polyline(segments, {
+    color: '#00bcd4',
+    weight: 1.5,
+    opacity: 0.5,
+    dashArray: '6 4',
+    interactive: false,
+  }).addTo(state.map);
+}
+
 // --- API Fetching ---
 
 export async function fetchSatelliteList() {
@@ -68,8 +140,12 @@ export async function fetchSatelliteList() {
 export async function fetchSatellitePositions() {
   if (!state.n2yoApiKey || state.satellites.tracked.length === 0) return;
 
+  // Filter out ISS — it uses the free SGP4 endpoint
+  const n2yoIds = state.satellites.tracked.filter(id => id !== 25544);
+  if (n2yoIds.length === 0) return; // only ISS tracked, already handled
+
   try {
-    const ids = state.satellites.tracked.join(',');
+    const ids = n2yoIds.join(',');
     const lat = state.myLat ?? 0;
     const lon = state.myLon ?? 0;
     const url = `/api/satellites/positions?apikey=${encodeURIComponent(state.n2yoApiKey)}&ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`;
@@ -78,7 +154,11 @@ export async function fetchSatellitePositions() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 
+    // Merge N2YO positions while preserving ISS position from free endpoint
+    const issPos = state.satellites.positions['25544'];
     state.satellites.positions = data;
+    if (issPos) state.satellites.positions['25544'] = issPos;
+
     updateSatelliteMarkers();
     renderSatelliteWidget();
   } catch (err) {
@@ -124,6 +204,12 @@ export function updateSatelliteMarkers() {
     if (!positions[satId]) {
       state.map.removeLayer(state.satellites.circles[satId]);
       delete state.satellites.circles[satId];
+    }
+  }
+  for (const satId of Object.keys(state.satellites.orbitLines)) {
+    if (!positions[satId]) {
+      state.map.removeLayer(state.satellites.orbitLines[satId]);
+      delete state.satellites.orbitLines[satId];
     }
   }
 
@@ -288,13 +374,12 @@ export function renderSatelliteWidget() {
   const positions = state.satellites.positions;
   const tracked = state.satellites.tracked;
 
-  if (!state.n2yoApiKey) {
-    satList.innerHTML = '<div class="sat-no-key">Configure N2YO API key in settings</div>';
-    return;
-  }
-
-  if (tracked.length === 0 || Object.keys(positions).length === 0) {
-    satList.innerHTML = '<div class="sat-no-data">No satellite data</div>';
+  if (Object.keys(positions).length === 0) {
+    if (!state.n2yoApiKey) {
+      satList.innerHTML = '<div class="sat-no-data">Loading ISS...</div>';
+    } else {
+      satList.innerHTML = '<div class="sat-no-data">No satellite data</div>';
+    }
     return;
   }
 
@@ -327,6 +412,11 @@ export function renderSatelliteWidget() {
       html += `<span class="sat-doppler">${dopplerStr} kHz</span>`;
     }
     html += `</div>`;
+  }
+
+  // Show hint if user has non-ISS satellites tracked but no N2YO key
+  if (!state.n2yoApiKey && tracked.some(id => id !== 25544)) {
+    html += '<div class="sat-no-key" style="font-size:0.85em;margin-top:4px">N2YO key needed for other satellites</div>';
   }
 
   satList.innerHTML = html;
@@ -474,6 +564,7 @@ function dismissSatelliteConfig() {
   splash.classList.add('hidden');
 
   // Refresh positions with new settings
+  fetchIssPosition(); // ISS always uses free endpoint
   if (state.n2yoApiKey) {
     fetchSatellitePositions();
   }

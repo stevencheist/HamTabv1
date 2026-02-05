@@ -22,6 +22,7 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Francisco + Claude | Keyless ISS tracking + orbit path line (SGP4 via satellite.js) | main | 2026-02-04 |
 | Francisco + Claude | Move band reference into Reference widget as Bands tab | main | 2026-02-04 |
 | Steven + Claude | Operator info visibility — responsive scaling header | main | 2026-02-04 |
 | Francisco + Claude | VOACAP integration via dvoacap-python | main | 2026-02-04 |

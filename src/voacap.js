@@ -10,8 +10,9 @@ import { renderHeatmapCanvas, clearHeatmap } from './rel-heatmap.js';
 // Store overlay circles on map
 let bandOverlayCircles = [];
 
-// Minimum interval between server fetches (5 min)
-const FETCH_THROTTLE_MS = 5 * 60 * 1000;
+// Minimum interval between server fetches
+const FETCH_THROTTLE_MS = 5 * 60 * 1000;      // 5 min when we have real VOACAP data
+const FETCH_RETRY_MS = 30 * 1000;              // 30s retry when server returned simplified
 
 // --- Parameter cycling constants ---
 
@@ -166,9 +167,10 @@ export async function fetchVoacapMatrix() {
   renderVoacapMatrix();
 }
 
-// Throttled fetch — only fetches if enough time has passed
+// Throttled fetch — retries sooner if last response was simplified (server still starting)
 export function fetchVoacapMatrixThrottled() {
-  if (Date.now() - state.voacapLastFetch < FETCH_THROTTLE_MS) return;
+  const throttle = state.voacapEngine === 'dvoacap' ? FETCH_THROTTLE_MS : FETCH_RETRY_MS;
+  if (Date.now() - state.voacapLastFetch < throttle) return;
   fetchVoacapMatrix();
 }
 

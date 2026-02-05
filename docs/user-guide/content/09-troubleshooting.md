@@ -212,6 +212,48 @@ If data seems outdated:
 
 ---
 
+## HF Propagation / VOACAP Issues
+
+### Propagation Widget Shows "Simplified Model"
+**Cause:** The VOACAP prediction engine (dvoacap-python) is not installed.
+
+**Solution (Linux/Raspberry Pi):**
+```bash
+pip3 install numpy
+pip3 install git+https://github.com/skyelaird/dvoacap-python.git
+```
+
+Then restart HamTab. Check the logs for "[VOACAP] dvoacap-python engine ready".
+
+**Solution (Windows):**
+```cmd
+pip install numpy
+pip install git+https://github.com/skyelaird/dvoacap-python.git
+```
+
+<div class="tip">The simplified model still provides useful propagation estimates. The full VOACAP engine is optional but gives more accurate predictions.</div>
+
+### VOACAP Engine Fails to Start
+**Possible causes:**
+- Python 3 not installed or not in PATH
+- numpy not installed
+- dvoacap-python installation failed
+
+**Diagnostic steps:**
+1. Check Python: `python3 --version` (Linux) or `python --version` (Windows)
+2. Check numpy: `python3 -c "import numpy; print('ok')"`
+3. Check dvoacap: `python3 -c "import dvoacap; print('ok')"`
+4. Check HamTab logs for `[VOACAP]` messages
+
+**Solutions:**
+- Install Python 3 from [python.org](https://www.python.org/downloads/) (Windows) or your package manager (Linux)
+- Reinstall dependencies: `pip3 install --force-reinstall numpy git+https://github.com/skyelaird/dvoacap-python.git`
+
+### Propagation Predictions Seem Slow
+**This is normal.** VOACAP calculations run on the server and can take 5-15 seconds for a full 24-hour matrix, especially on Raspberry Pi.
+
+---
+
 ## LAN Mode Specific Issues
 
 ### Certificate Warning
@@ -268,3 +310,4 @@ Use the in-app feedback form (if available) to report issues or suggestions. You
 | Layout messed up | Clear localStorage |
 | Page slow | Reduce satellites, disable overlays |
 | Certificate warning | Accept/proceed (LAN mode only) |
+| VOACAP not working | `pip3 install numpy git+https://github.com/skyelaird/dvoacap-python.git` |

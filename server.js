@@ -1754,6 +1754,7 @@ app.get('/api/voacap', async (req, res) => {
 
     let engine = 'simplified';
     let matrix;
+    let fallbackReason = null; // diagnostic: why we fell back to simplified
 
     if (voacap.isAvailable()) {
       // Batch predict: send all 24 hours × all targets in a single IPC call
@@ -1777,15 +1778,17 @@ app.get('/api/voacap', async (req, res) => {
           engine = 'dvoacap';
           matrix = result.matrix;
         } else {
-          console.error('[VOACAP] Matrix prediction failed:', result.error || 'unknown');
+          fallbackReason = `predictMatrix returned: ${result.error || 'ok=' + result.ok + ', hasMatrix=' + !!result.matrix}`;
+          console.error('[VOACAP] Matrix prediction failed:', fallbackReason);
           matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
         }
       } catch (err) {
+        fallbackReason = `predictMatrix threw: ${err.message}`;
         console.error(`[VOACAP] Matrix prediction error: ${err.message}`);
         matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
       }
     } else {
-      // Simplified fallback
+      fallbackReason = 'bridge not available';
       matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
     }
 
@@ -1795,6 +1798,7 @@ app.get('/api/voacap', async (req, res) => {
       month,
       matrix,
     };
+    if (fallbackReason) response.fallbackReason = fallbackReason;
 
     // Cache result — only cache dvoacap responses long-term.
     // Simplified responses use a short TTL so we re-check once the worker is ready.

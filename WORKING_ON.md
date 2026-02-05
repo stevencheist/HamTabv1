@@ -13,7 +13,7 @@ Clear your entry when done.
 
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
-| | | | |
+| Francisco + Claude | VOACAP real-time enhancements (P3.2) — K-index correction, effective SSN | main | 2026-02-05 |
 
 ## Next Up
 
@@ -32,14 +32,7 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
-| Steven + Claude | Phase 8 layout — non-overlapping widgets, responsive modals | main | 2026-02-04 |
-| Francisco + Claude | Keyless ISS tracking + orbit path line (SGP4 via satellite.js) | main | 2026-02-04 |
-| Francisco + Claude | Move band reference into Reference widget as Bands tab | main | 2026-02-04 |
-| Steven + Claude | Operator info visibility — responsive scaling header | main | 2026-02-04 |
-| Francisco + Claude | VOACAP integration via dvoacap-python | main | 2026-02-04 |
-| Francisco + Claude | REL heatmap overlay for VOACAP widget | main | 2026-02-04 |
-| Francisco + Claude | VOACAP DE→DX widget redesign | main | 2026-02-04 |
-| Steven + Claude | Config modal redesign — tabs, scrollable, responsive (#96) | main | 2026-02-04 |
-| Steven + Claude | Widget close buttons (x to hide) | main | 2026-02-04 |
-| Steven + Claude | Configurable ports + uninstall scripts | lanmode | 2026-02-04 |
-| Steven + Claude | README lanmode branch instructions | main | 2026-02-04 |
+| Steven + Claude | VOACAP lanmode fixes — Python env, race condition, PYTHONPATH | main | 2026-02-05 |
+| Steven + Claude | VOACAP SNR thresholds reverted to ITU standard (CW:39, SSB:73, FT8:2) | main | 2026-02-05 |
+| Steven + Claude | Settings sync — add GPS coordinates to hostedmode KV sync | hostedmode | 2026-02-05 |
+| Steven + Claude | VOACAP bridge diagnostics endpoint (/api/voacap/status) | main | 2026-02-05 |

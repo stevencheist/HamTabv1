@@ -13,7 +13,6 @@ Clear your entry when done.
 
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
-| Francisco + Claude | Move band reference into Reference widget as Bands tab | main | 2026-02-04 |
 | Steven + Claude | Phase 8 layout — non-overlapping widgets, proportional resize, responsive modals | main | 2026-02-04 |
 
 
@@ -23,6 +22,7 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Francisco + Claude | Move band reference into Reference widget as Bands tab | main | 2026-02-04 |
 | Steven + Claude | Operator info visibility — responsive scaling header | main | 2026-02-04 |
 | Francisco + Claude | VOACAP integration via dvoacap-python | main | 2026-02-04 |
 | Francisco + Claude | REL heatmap overlay for VOACAP widget | main | 2026-02-04 |

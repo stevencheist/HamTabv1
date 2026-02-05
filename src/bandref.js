@@ -3,15 +3,16 @@ import { $ } from './dom.js';
 import { US_PRIVILEGES } from './constants.js';
 import { freqToBand, isUSCallsign } from './filters.js';
 
-function renderBandRef() {
-  const bandRefMyPriv = $('bandRefMyPriv');
-  const myPrivOnly = bandRefMyPriv.checked;
-  const hasClass = isUSCallsign(state.myCallsign) && !!state.licenseClass;
+// --- Band Reference Tab (inside Reference widget) ---
 
-  bandRefMyPriv.disabled = !hasClass;
-  if (!hasClass) bandRefMyPriv.checked = false;
+// Renders US band privilege tables into #referenceContent
+export function renderBandRefTab() {
+  const hasClass = isUSCallsign(state.myCallsign) && !!state.licenseClass;
+  const savedPref = localStorage.getItem('hamtab_bandref_mypriv');
+  const myPrivOnly = hasClass && savedPref !== 'false'; // default checked when US callsign
 
   const MODE_LABELS = { all: 'All', cw: 'CW', cwdig: 'CW/Digital', phone: 'Phone' };
+  const CLASS_DISPLAY = { EXTRA: 'Extra', GENERAL: 'General', TECHNICIAN: 'Technician', NOVICE: 'Novice' };
 
   let classesToShow;
   if (myPrivOnly && hasClass) {
@@ -20,9 +21,8 @@ function renderBandRef() {
     classesToShow = ['EXTRA', 'GENERAL', 'TECHNICIAN', 'NOVICE'];
   }
 
-  const CLASS_DISPLAY = { EXTRA: 'Extra', GENERAL: 'General', TECHNICIAN: 'Technician', NOVICE: 'Novice' };
+  let html = `<label class="band-ref-inline-filter"><input type="checkbox" id="bandRefMyPriv" ${myPrivOnly ? 'checked' : ''} ${!hasClass ? 'disabled' : ''} /> My privileges only</label>`;
 
-  let html = '';
   for (const cls of classesToShow) {
     const privs = US_PRIVILEGES[cls];
     if (!privs) continue;
@@ -35,20 +35,14 @@ function renderBandRef() {
     html += '</tbody></table>';
   }
 
-  $('bandRefContent').innerHTML = html;
-}
+  $('referenceContent').innerHTML = html;
 
-export function initBandRefListeners() {
-  $('bandRefBtn').addEventListener('click', () => {
-    renderBandRef();
-    $('bandRefSplash').classList.remove('hidden');
-  });
-
-  $('bandRefOk').addEventListener('click', () => {
-    $('bandRefSplash').classList.add('hidden');
-  });
-
-  $('bandRefMyPriv').addEventListener('change', () => {
-    renderBandRef();
-  });
+  // Attach checkbox listener after rendering
+  const checkbox = document.getElementById('bandRefMyPriv');
+  if (checkbox) {
+    checkbox.addEventListener('change', () => {
+      localStorage.setItem('hamtab_bandref_mypriv', checkbox.checked ? 'true' : 'false');
+      renderBandRefTab();
+    });
+  }
 }

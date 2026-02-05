@@ -323,20 +323,48 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Responsive modals | ✅ | HIGH | 🌐 | viewport-relative sizing (min(92vw, XXpx)), small screen media query |
 | Accessibility standards | ❌ | HIGH | 🌐 | Define standards for visual impairments, color blindness, readability |
 
-#### P8.1: Configuration Management
-| Feature | Status | Priority | Mode | Notes |
-|---------|--------|----------|------|-------|
-| Multiple configuration profiles | ❌ | HIGH | ☁️ | localStorage (lanmode) / Workers KV (hostedmode) |
-| Configuration export/import | ❌ | HIGH | 🌐 | JSON download/upload |
-| Configuration rename | ❌ | LOW | ☁️ | localStorage (lanmode) / Workers KV (hostedmode) |
+#### P8.1: Theme Engine & Built-in Presets (Pulled Forward — Feb 2026) 📅
+**Implementation: 3 phases**
 
-#### P8.2: Theming & Customization
+**Theme Phase 1: Engine + Presets** (active)
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| Color customization | ❌ | MEDIUM | 🌐 | CSS custom properties, localStorage |
-| Light theme | ❌ | MEDIUM | 🌐 | CSS theme toggle |
-| Multiple color palettes | ❌ | MEDIUM | 🌐 | localStorage presets |
-| Gray scale mode | ❌ | LOW | 🌐 | CSS filter |
+| Theme engine (CSS var swap) | 🟡 | HIGH | 🌐 | `applyTheme()` swaps `:root` CSS variables dynamically |
+| Default theme (current dark) | 🟡 | HIGH | 🌐 | Existing color scheme packaged as theme object |
+| LCARS theme (Star Trek TNG) | 🟡 | HIGH | 🌐 | Orange/blue/purple palette + rounded pill shapes via CSS class overrides |
+| HamClock theme | 🟡 | HIGH | 🌐 | Dark + green/cyan palette familiar to HamClock migrants |
+| Theme persistence | 🟡 | HIGH | 🌐 | Active theme stored in `hamtab_theme` localStorage key |
+| Theme selector UI | 🟡 | HIGH | 🌐 | New "Appearance" tab in config modal with visual theme swatches |
+
+**Theme Phase 2: Multi-Layout Profiles + Purpose Presets**
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Named layout profiles | ❌ | HIGH | 🌐 | `hamtab_layouts` — JSON map of name → {positions, visibility} |
+| POTA Hunter preset | ❌ | HIGH | 🌐 | Big spots table + map + filters, hide solar/lunar/satellites |
+| POTA Activator preset | ❌ | HIGH | 🌐 | Big map + live spots + band conditions, smaller spots table |
+| DX/Contest preset | ❌ | MEDIUM | 🌐 | Big spots table + DX detail + band conditions + VOACAP |
+| EME preset | ❌ | MEDIUM | 🌐 | Lunar prominent, satellites, solar, hide POTA-specific |
+| HamClock-style preset | ❌ | MEDIUM | 🌐 | Map-dominant layout familiar to HamClock users |
+| Quick-switch profile selector | ❌ | HIGH | 🌐 | Dropdown or sidebar for fast profile switching |
+| Save/rename/delete profiles | ❌ | HIGH | 🌐 | User can create custom named profiles |
+| Combined "Views" (theme + layout) | ❌ | MEDIUM | 🌐 | Bundle theme + layout profile together; users can also mix-and-match |
+
+**Theme Phase 3: Custom Colors + Power User**
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Custom color picker | ❌ | MEDIUM | 🌐 | Native `<input type="color">` grouped by category (bg, text, accent, status) |
+| Live preview | ❌ | MEDIUM | 🌐 | Colors apply instantly as user picks |
+| Save custom themes | ❌ | MEDIUM | 🌐 | `hamtab_custom_themes` localStorage; user names their themes |
+| Configuration export/import | ❌ | HIGH | 🌐 | JSON download/upload (includes themes + layouts + all settings) |
+| Light theme | ❌ | MEDIUM | 🌐 | Built-in light palette for daytime use |
+| Gray scale mode | ❌ | LOW | 🌐 | CSS filter for accessibility/e-ink |
+
+#### P8.2: Configuration Management
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Multiple configuration profiles | ❌ | HIGH | ☁️ | localStorage (lanmode) / Workers KV (hostedmode) — ties into Theme Phase 2 layout profiles |
+| Configuration export/import | ❌ | HIGH | 🌐 | JSON download/upload — ties into Theme Phase 3 |
+| Configuration rename | ❌ | LOW | ☁️ | localStorage (lanmode) / Workers KV (hostedmode) |
 
 #### P8.3: Display Modes
 | Feature | Status | Priority | Mode | Notes |
@@ -356,13 +384,13 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Time shift planning | ❌ | LOW | 🌐 | Client-side historical calculations |
 
 **Phase 8 Deliverables:**
+- Theme engine with CSS variable swapping and shape overrides
+- Built-in themes: Default, LCARS (TNG), HamClock
+- Named layout profiles with purpose-specific presets (POTA Hunter, POTA Activator, DX/Contest, EME)
+- Custom color picker with live preview
+- Configuration export/import (themes + layouts + settings)
 - Non-overlapping widget layout with auto-size and snap behavior
 - Proportional widget resizing on window resize
-- Responsive modals that fit within viewport at any zoom
-- Improved operator info visibility (larger, bolder text)
-- Documented accessibility standards
-- Multiple configuration profiles with export/import
-- Color customization and light theme
 - Stopwatch and countdown timers
 
 ---

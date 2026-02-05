@@ -14,11 +14,13 @@ const REQUEST_TIMEOUT_MS = 5000;   // 5 seconds per single prediction request
 const MATRIX_TIMEOUT_MS = 60000;  // 60 seconds for batch matrix (24h × multiple targets)
 const STARTUP_TIMEOUT_MS = 30000; // 30 seconds for initial Python+numpy+dvoacap load
 const STARTUP_PING_INTERVAL = 2000; // 2 seconds between startup ping retries
-const RESPAWN_DELAY_MS = 3000;     // 3 seconds before respawn attempt
+const RESPAWN_DELAY_MS = 30000;    // 30 seconds between full respawn attempts
+const RESPAWN_WINDOW_MS = 5 * 60 * 1000; // 5 minutes — keep retrying spawns this long
 let respawnTimer = null;
 let shuttingDown = false;
 let lineBuffer = '';
 let fullyInitialized = false; // true once a working Python was confirmed
+let firstSpawnTime = 0;       // timestamp of first init() call — for respawn window
 
 // --- Python executable detection ---
 
@@ -35,17 +37,26 @@ function spawnWorker() {
   const workerPath = path.join(__dirname, 'voacap-worker.py');
   const pythonCandidates = findPython();
 
-  // If we already know which Python works, use it directly
-  if (fullyInitialized && child === null) {
-    // Respawn scenario — retry all candidates
-  }
-
   tryCandidate(0);
 
   function tryCandidate(idx) {
     if (idx >= pythonCandidates.length) {
-      console.log('[VOACAP] Python not found — using simplified propagation model');
-      available = false;
+      // All candidates exhausted for this spawn attempt
+      if (!fullyInitialized && !shuttingDown) {
+        const elapsed = Date.now() - firstSpawnTime;
+        if (elapsed < RESPAWN_WINDOW_MS) {
+          // Keep retrying — Python may not be ready yet (container still starting)
+          const remaining = Math.round((RESPAWN_WINDOW_MS - elapsed) / 1000);
+          console.log(`[VOACAP] Spawn failed — retrying in ${RESPAWN_DELAY_MS / 1000}s (${remaining}s remaining)`);
+          respawnTimer = setTimeout(() => spawnWorker(), RESPAWN_DELAY_MS);
+        } else {
+          console.log('[VOACAP] Python not available after 5 minutes — using simplified propagation model');
+          available = false;
+        }
+      } else if (!fullyInitialized) {
+        console.log('[VOACAP] Python not found — using simplified propagation model');
+        available = false;
+      }
       return;
     }
 
@@ -83,7 +94,7 @@ function spawnWorker() {
       rejectAllPending('Worker process exited');
 
       if (!shuttingDown && fullyInitialized) {
-        console.log(`[VOACAP] Worker exited (code ${code}), respawning in ${RESPAWN_DELAY_MS}ms...`);
+        console.log(`[VOACAP] Worker exited (code ${code}), respawning in ${RESPAWN_DELAY_MS / 1000}s...`);
         respawnTimer = setTimeout(() => spawnWorker(), RESPAWN_DELAY_MS);
       }
     });
@@ -213,6 +224,7 @@ function rejectAllPending(reason) {
 // --- Public API ---
 
 function init() {
+  firstSpawnTime = Date.now();
   spawnWorker();
 }
 

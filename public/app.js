@@ -5000,7 +5000,7 @@
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.21.5";
+    $("splashVersion").textContent = "0.22.2";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

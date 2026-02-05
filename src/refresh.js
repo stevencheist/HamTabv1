@@ -7,6 +7,7 @@ import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 import { fetchSolar, fetchPropagation } from './solar.js';
 import { fetchLunar } from './lunar.js';
+import { fetchVoacapMatrixThrottled } from './voacap.js';
 
 export async function fetchSourceData(source) {
   const def = SOURCE_DEFS[source];
@@ -47,6 +48,7 @@ export function refreshAll() {
   fetchSolar();
   fetchLunar();
   fetchPropagation();
+  fetchVoacapMatrixThrottled();
   resetCountdown();
 }
 

@@ -9,6 +9,7 @@ import { renderSpots } from './spots.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
 import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
+import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors } from './themes.js';
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -224,6 +225,48 @@ export function showSplash() {
   $('splashGridDropdown').classList.remove('open');
   $('splashGridDropdown').innerHTML = '';
   state.gridHighlightIdx = -1;
+
+  // --- Populate theme selector ---
+  const themeSelector = document.getElementById('themeSelector');
+  if (themeSelector) {
+    themeSelector.innerHTML = '';
+    const themes = getThemeList();
+    const currentId = getCurrentThemeId();
+    themes.forEach(t => {
+      const swatch = document.createElement('div');
+      swatch.className = 'theme-swatch' + (t.id === currentId ? ' active' : '');
+      swatch.dataset.themeId = t.id;
+
+      const colors = getThemeSwatchColors(t.id);
+      const colorsDiv = document.createElement('div');
+      colorsDiv.className = 'theme-swatch-colors';
+      colors.forEach(c => {
+        const span = document.createElement('span');
+        span.style.background = c;
+        colorsDiv.appendChild(span);
+      });
+      swatch.appendChild(colorsDiv);
+
+      const nameDiv = document.createElement('div');
+      nameDiv.className = 'theme-swatch-name';
+      nameDiv.textContent = t.name;
+      swatch.appendChild(nameDiv);
+
+      const descDiv = document.createElement('div');
+      descDiv.className = 'theme-swatch-desc';
+      descDiv.textContent = t.description;
+      swatch.appendChild(descDiv);
+
+      swatch.addEventListener('click', () => {
+        applyTheme(t.id);
+        themeSelector.querySelectorAll('.theme-swatch').forEach(s => s.classList.remove('active'));
+        swatch.classList.add('active');
+      });
+
+      themeSelector.appendChild(swatch);
+    });
+  }
+
   $('splashVersion').textContent = __APP_VERSION__;
 
   // --- Layout section state ---

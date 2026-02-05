@@ -74,6 +74,29 @@ If not provided, weather data comes from National Weather Service (US only).
 
 ---
 
+## Appearance (Themes)
+
+HamTab includes multiple visual themes to match your operating style and personal taste.
+
+### Changing Themes
+
+1. Click **Config** in the top-left corner
+2. Go to the **Appearance** tab
+3. Click a theme swatch to preview it — the theme applies instantly
+4. Click **OK** to save
+
+### Available Themes
+
+| Theme | Description |
+|-------|-------------|
+| **Default** | Modern dark theme with blue/magenta accents. Clean and readable. |
+| **LCARS** | Inspired by Star Trek: The Next Generation computer displays. Orange, blue, and purple palette with rounded pill-shaped buttons and condensed fonts. |
+| **HamClock** | Classic green-on-black terminal style familiar to HamClock users. Monospace fonts, sharp corners, and a utilitarian feel. |
+
+<div class="tip">Your theme choice is saved automatically and persists between sessions. You can change it anytime without losing your widget layout or settings.</div>
+
+---
+
 ## Widget Visibility
 
 Check or uncheck widgets to show or hide them:
@@ -179,6 +202,7 @@ HamTab stores all data in browser localStorage with the `hamtab_` prefix:
 | `hamtab_solar_fields` | Solar field visibility |
 | `hamtab_lunar_fields` | Lunar field visibility |
 | `hamtab_tracked_sats` | Tracked satellite IDs |
+| `hamtab_theme` | Active theme ID (default, lcars, hamclock) |
 
 ### Clearing All Data
 To completely reset HamTab:

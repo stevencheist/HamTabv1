@@ -326,15 +326,15 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P8.1: Theme Engine & Built-in Presets (Pulled Forward — Feb 2026) 📅
 **Implementation: 3 phases**
 
-**Theme Phase 1: Engine + Presets** (active)
+**Theme Phase 1: Engine + Presets** (complete)
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| Theme engine (CSS var swap) | 🟡 | HIGH | 🌐 | `applyTheme()` swaps `:root` CSS variables dynamically |
-| Default theme (current dark) | 🟡 | HIGH | 🌐 | Existing color scheme packaged as theme object |
-| LCARS theme (Star Trek TNG) | 🟡 | HIGH | 🌐 | Orange/blue/purple palette + rounded pill shapes via CSS class overrides |
-| HamClock theme | 🟡 | HIGH | 🌐 | Dark + green/cyan palette familiar to HamClock migrants |
-| Theme persistence | 🟡 | HIGH | 🌐 | Active theme stored in `hamtab_theme` localStorage key |
-| Theme selector UI | 🟡 | HIGH | 🌐 | New "Appearance" tab in config modal with visual theme swatches |
+| Theme engine (CSS var swap) | ✅ | HIGH | 🌐 | `applyTheme()` swaps `:root` CSS variables dynamically |
+| Default theme (current dark) | ✅ | HIGH | 🌐 | Existing color scheme packaged as theme object |
+| LCARS theme (Star Trek TNG) | ✅ | HIGH | 🌐 | Orange/blue/purple palette + rounded pill shapes via CSS class overrides |
+| HamClock theme | ✅ | HIGH | 🌐 | Dark + green/cyan palette familiar to HamClock migrants |
+| Theme persistence | ✅ | HIGH | 🌐 | Active theme stored in `hamtab_theme` localStorage key |
+| Theme selector UI | ✅ | HIGH | 🌐 | New "Appearance" tab in config modal with visual theme swatches |
 
 **Theme Phase 2: Multi-Layout Profiles + Purpose Presets**
 | Feature | Status | Priority | Mode | Notes |

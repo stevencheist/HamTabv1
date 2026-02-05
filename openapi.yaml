@@ -1,0 +1,1168 @@
+openapi: 3.0.3
+info:
+  title: HamTab API
+  description: |
+    API for HamTab amateur radio dashboard. Provides access to spots, solar data,
+    satellite tracking, weather, propagation predictions, and more.
+
+    **Note:** All endpoints are proxied through the HamTab server to avoid CORS issues
+    and protect API keys. Rate limiting is applied to all endpoints.
+  version: 0.21.5
+  contact:
+    name: HamTab GitHub
+    url: https://github.com/stevencheist/HamTabv1
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: /
+    description: Current server
+
+tags:
+  - name: Spots
+    description: Amateur radio spot data from various sources
+  - name: Solar
+    description: Solar and space weather data
+  - name: Satellites
+    description: Satellite tracking and pass predictions
+  - name: Lunar
+    description: Lunar phase and position data
+  - name: Weather
+    description: Weather conditions and alerts
+  - name: Propagation
+    description: HF propagation predictions
+  - name: Callsign
+    description: Callsign lookup
+  - name: System
+    description: System endpoints
+
+paths:
+  /api/spots:
+    get:
+      tags: [Spots]
+      summary: Get POTA spots
+      description: Fetches current Parks on the Air (POTA) activator spots from api.pota.app
+      responses:
+        '200':
+          description: Array of POTA spots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PotaSpot'
+        '502':
+          description: Upstream API error
+
+  /api/spots/sota:
+    get:
+      tags: [Spots]
+      summary: Get SOTA spots
+      description: Fetches current Summits on the Air (SOTA) spots from api2.sota.org.uk
+      responses:
+        '200':
+          description: Array of SOTA spots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SotaSpot'
+        '502':
+          description: Upstream API error
+
+  /api/spots/dxc:
+    get:
+      tags: [Spots]
+      summary: Get DX Cluster spots
+      description: Fetches DX Cluster spots from HamQTH
+      responses:
+        '200':
+          description: Array of DX Cluster spots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DxcSpot'
+        '502':
+          description: Upstream API error
+
+  /api/spots/psk:
+    get:
+      tags: [Spots]
+      summary: Get PSKReporter spots
+      description: Fetches spots from PSKReporter for a given callsign
+      parameters:
+        - name: callsign
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Callsign to look up spots for
+        - name: band
+          in: query
+          schema:
+            type: string
+          description: Filter by band (e.g., "20m")
+      responses:
+        '200':
+          description: Array of PSKReporter spots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PskSpot'
+        '400':
+          description: Missing callsign parameter
+        '502':
+          description: Upstream API error
+
+  /api/spots/psk/heard:
+    get:
+      tags: [Spots]
+      summary: Get PSKReporter "heard by" data (Live Spots)
+      description: |
+        Fetches stations that have heard your transmissions via PSKReporter.
+        Used for the Live Spots feature showing where you're being received.
+      parameters:
+        - name: callsign
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Your callsign
+        - name: minutes
+          in: query
+          schema:
+            type: integer
+            default: 60
+          description: Time window in minutes (max 1440)
+      responses:
+        '200':
+          description: Live spots data with summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LiveSpotsResponse'
+        '400':
+          description: Missing callsign parameter
+        '502':
+          description: Upstream API error
+
+  /api/solar:
+    get:
+      tags: [Solar]
+      summary: Get solar and space weather data
+      description: |
+        Fetches comprehensive solar data from hamqsl.com including:
+        - Solar flux index (SFI)
+        - Sunspot number
+        - A-index and K-index
+        - X-ray flux
+        - Solar wind
+        - Geomagnetic field
+        - Band conditions
+      responses:
+        '200':
+          description: Solar data object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SolarData'
+        '502':
+          description: Upstream API error
+
+  /api/solar/image:
+    get:
+      tags: [Solar]
+      summary: Get SDO solar image
+      description: Proxies Solar Dynamics Observatory images from NASA
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [0193, 0171, 0304, 0131, HMIIC, HMIBC]
+            default: '0193'
+          description: |
+            Image type:
+            - 0193: AIA 193 (corona)
+            - 0171: AIA 171 (corona)
+            - 0304: AIA 304 (chromosphere)
+            - 0131: AIA 131 (flare)
+            - HMIIC: HMI Intensitygram
+            - HMIBC: HMI Magnetogram
+      responses:
+        '200':
+          description: Solar image (JPEG)
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '502':
+          description: Upstream API error
+
+  /api/solar/frames:
+    get:
+      tags: [Solar]
+      summary: Get SDO animation frame list
+      description: Returns list of available SDO animation frames for the past 48 hours
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            default: '0193'
+          description: SDO image type
+      responses:
+        '200':
+          description: Array of frame filenames
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+
+  /api/solar/frame/{filename}:
+    get:
+      tags: [Solar]
+      summary: Get specific SDO animation frame
+      parameters:
+        - name: filename
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Frame filename from /api/solar/frames
+      responses:
+        '200':
+          description: Solar image frame (JPEG)
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Invalid filename
+
+  /api/lunar:
+    get:
+      tags: [Lunar]
+      summary: Get lunar data
+      description: |
+        Returns current lunar phase, position, and illumination data.
+        Calculations based on Jean Meeus "Astronomical Algorithms".
+      responses:
+        '200':
+          description: Lunar data object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LunarData'
+
+  /api/lunar/image:
+    get:
+      tags: [Lunar]
+      summary: Get moon phase image
+      description: Proxies moon phase images from NASA SVS
+      responses:
+        '200':
+          description: Moon phase image (JPEG)
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '502':
+          description: Upstream API error
+
+  /api/satellites/list:
+    get:
+      tags: [Satellites]
+      summary: Get list of amateur radio satellites
+      description: Returns list of trackable amateur radio satellites from N2YO
+      parameters:
+        - name: apiKey
+          in: query
+          required: true
+          schema:
+            type: string
+          description: N2YO API key
+      responses:
+        '200':
+          description: Array of satellite objects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Satellite'
+        '400':
+          description: Missing API key
+        '502':
+          description: Upstream API error
+
+  /api/satellites/positions:
+    get:
+      tags: [Satellites]
+      summary: Get satellite positions
+      description: Returns current positions for specified satellites
+      parameters:
+        - name: apiKey
+          in: query
+          required: true
+          schema:
+            type: string
+          description: N2YO API key
+        - name: ids
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Comma-separated NORAD IDs
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Observer latitude
+        - name: lon
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Observer longitude
+        - name: alt
+          in: query
+          schema:
+            type: number
+            default: 0
+          description: Observer altitude in meters
+      responses:
+        '200':
+          description: Satellite position data
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  $ref: '#/components/schemas/SatellitePosition'
+        '400':
+          description: Missing required parameters
+        '502':
+          description: Upstream API error
+
+  /api/satellites/passes:
+    get:
+      tags: [Satellites]
+      summary: Get satellite pass predictions
+      description: Returns upcoming passes for a satellite over observer location
+      parameters:
+        - name: apiKey
+          in: query
+          required: true
+          schema:
+            type: string
+          description: N2YO API key
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: NORAD ID
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Observer latitude
+        - name: lon
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Observer longitude
+        - name: alt
+          in: query
+          schema:
+            type: number
+            default: 0
+          description: Observer altitude in meters
+        - name: days
+          in: query
+          schema:
+            type: integer
+            default: 7
+          description: Number of days to predict (1-10)
+        - name: minElevation
+          in: query
+          schema:
+            type: integer
+            default: 10
+          description: Minimum elevation in degrees
+      responses:
+        '200':
+          description: Array of pass predictions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SatellitePass'
+        '400':
+          description: Missing required parameters
+        '502':
+          description: Upstream API error
+
+  /api/satellites/tle:
+    get:
+      tags: [Satellites]
+      summary: Get TLE data for satellite
+      description: Returns Two-Line Element set for satellite orbit calculation
+      parameters:
+        - name: apiKey
+          in: query
+          required: true
+          schema:
+            type: string
+          description: N2YO API key
+        - name: id
+          in: query
+          required: true
+          schema:
+            type: integer
+          description: NORAD ID
+      responses:
+        '200':
+          description: TLE data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TleData'
+        '400':
+          description: Missing required parameters
+        '502':
+          description: Upstream API error
+
+  /api/iss/position:
+    get:
+      tags: [Satellites]
+      summary: Get ISS position (no API key required)
+      description: |
+        Returns current ISS position using embedded TLE and SGP4 propagation.
+        No API key required - uses satellite.js for calculations.
+      responses:
+        '200':
+          description: ISS position data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IssPosition'
+
+  /api/weather:
+    get:
+      tags: [Weather]
+      summary: Get Weather Underground data
+      description: Fetches weather data from Weather Underground for a station ID
+      parameters:
+        - name: station
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Weather Underground station ID
+        - name: apiKey
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Weather Underground API key
+      responses:
+        '200':
+          description: Weather data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeatherData'
+        '400':
+          description: Missing required parameters
+        '502':
+          description: Upstream API error
+
+  /api/weather/conditions:
+    get:
+      tags: [Weather]
+      summary: Get NWS current conditions
+      description: Fetches current weather conditions from National Weather Service
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Latitude
+        - name: lon
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Longitude
+      responses:
+        '200':
+          description: NWS conditions data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NwsConditions'
+        '400':
+          description: Missing required parameters
+        '502':
+          description: Upstream API error
+
+  /api/weather/alerts:
+    get:
+      tags: [Weather]
+      summary: Get NWS weather alerts
+      description: Fetches active weather alerts from National Weather Service
+      parameters:
+        - name: lat
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Latitude
+        - name: lon
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Longitude
+      responses:
+        '200':
+          description: Array of weather alerts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WeatherAlert'
+        '400':
+          description: Missing required parameters
+        '502':
+          description: Upstream API error
+
+  /api/callsign/{call}:
+    get:
+      tags: [Callsign]
+      summary: Look up callsign
+      description: |
+        Fetches callsign data from callook.info (US) or QRZ (international).
+        Returns name, location, grid square, and license class.
+      parameters:
+        - name: call
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Callsign to look up
+      responses:
+        '200':
+          description: Callsign data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CallsignData'
+        '404':
+          description: Callsign not found
+        '502':
+          description: Upstream API error
+
+  /api/propagation:
+    get:
+      tags: [Propagation]
+      summary: Get propagation data
+      description: |
+        Fetches MUF (Maximum Usable Frequency) and foF2 data from KC2G ionosonde network.
+        Includes real-time ionospheric measurements from multiple stations.
+      responses:
+        '200':
+          description: Propagation data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PropagationData'
+        '502':
+          description: Upstream API error
+
+  /api/voacap:
+    get:
+      tags: [Propagation]
+      summary: Get VOACAP predictions
+      description: |
+        Returns 24-hour HF propagation predictions using VOACAP engine.
+        Uses real dvoacap-python when available, falls back to simplified model.
+      parameters:
+        - name: txLat
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Transmitter latitude
+        - name: txLon
+          in: query
+          required: true
+          schema:
+            type: number
+          description: Transmitter longitude
+        - name: rxLat
+          in: query
+          schema:
+            type: number
+          description: Receiver latitude (for point-to-point mode)
+        - name: rxLon
+          in: query
+          schema:
+            type: number
+          description: Receiver longitude (for point-to-point mode)
+        - name: power
+          in: query
+          schema:
+            type: integer
+            enum: [5, 100, 1000]
+            default: 100
+          description: TX power in watts
+        - name: mode
+          in: query
+          schema:
+            type: string
+            enum: [CW, SSB, FT8]
+            default: SSB
+          description: Operating mode
+        - name: toa
+          in: query
+          schema:
+            type: integer
+            enum: [3, 5, 10, 15]
+            default: 5
+          description: Takeoff angle in degrees
+        - name: path
+          in: query
+          schema:
+            type: string
+            enum: [SP, LP]
+            default: SP
+          description: Path type (Short Path or Long Path)
+      responses:
+        '200':
+          description: VOACAP prediction matrix
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoacapResponse'
+        '400':
+          description: Invalid parameters
+        '500':
+          description: Prediction engine error
+
+  /api/voacap/ssn:
+    get:
+      tags: [Propagation]
+      summary: Get current Smoothed Sunspot Number
+      description: Returns the current SSN used for VOACAP predictions
+      responses:
+        '200':
+          description: SSN data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ssn:
+                    type: number
+                    description: Smoothed Sunspot Number
+                  source:
+                    type: string
+                    description: Data source
+
+  /api/voacap/status:
+    get:
+      tags: [Propagation]
+      summary: Get VOACAP engine status
+      description: Returns status of the dvoacap-python engine (for diagnostics)
+      responses:
+        '200':
+          description: Engine status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VoacapStatus'
+
+  /api/feedback:
+    post:
+      tags: [System]
+      summary: Submit feedback
+      description: |
+        Submits user feedback which creates a GitHub issue.
+        Email addresses are encrypted client-side for GDPR compliance.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [feedback]
+              properties:
+                name:
+                  type: string
+                  maxLength: 100
+                  description: Submitter name (optional)
+                email:
+                  type: string
+                  description: Encrypted email (optional, RSA-2048)
+                feedback:
+                  type: string
+                  minLength: 10
+                  maxLength: 5000
+                  description: Feedback message
+      responses:
+        '200':
+          description: Feedback submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Validation error
+        '503':
+          description: Feedback system unavailable
+
+components:
+  schemas:
+    PotaSpot:
+      type: object
+      properties:
+        spotId:
+          type: integer
+        activator:
+          type: string
+          description: Activator callsign
+        frequency:
+          type: string
+          description: Frequency in kHz
+        mode:
+          type: string
+          description: Operating mode
+        reference:
+          type: string
+          description: Park reference (e.g., "K-1234")
+        parkName:
+          type: string
+        spotTime:
+          type: string
+          format: date-time
+        spotter:
+          type: string
+        comments:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+
+    SotaSpot:
+      type: object
+      properties:
+        id:
+          type: integer
+        activatorCallsign:
+          type: string
+        associationCode:
+          type: string
+        summitCode:
+          type: string
+        summitDetails:
+          type: string
+        frequency:
+          type: string
+        mode:
+          type: string
+        timeStamp:
+          type: string
+          format: date-time
+        comments:
+          type: string
+
+    DxcSpot:
+      type: object
+      properties:
+        spotter:
+          type: string
+        frequency:
+          type: number
+        dx:
+          type: string
+          description: DX callsign
+        comment:
+          type: string
+        time:
+          type: string
+        band:
+          type: string
+        mode:
+          type: string
+
+    PskSpot:
+      type: object
+      properties:
+        receiverCallsign:
+          type: string
+        senderCallsign:
+          type: string
+        frequency:
+          type: integer
+        mode:
+          type: string
+        snr:
+          type: integer
+          description: Signal-to-noise ratio
+        receiverLocator:
+          type: string
+          description: Grid square
+        senderLocator:
+          type: string
+
+    LiveSpotsResponse:
+      type: object
+      properties:
+        spots:
+          type: array
+          items:
+            $ref: '#/components/schemas/PskSpot'
+        summary:
+          type: object
+          description: Band-by-band summary counts
+
+    SolarData:
+      type: object
+      properties:
+        updated:
+          type: string
+          format: date-time
+        indices:
+          type: object
+          properties:
+            sfi:
+              type: string
+              description: Solar Flux Index
+            sunspots:
+              type: string
+              description: Sunspot number
+            aindex:
+              type: string
+              description: A-index
+            kindex:
+              type: string
+              description: K-index
+            xray:
+              type: string
+              description: X-ray flux class
+            protonflux:
+              type: string
+            electronflux:
+              type: string
+            solarwind:
+              type: string
+            geomagfield:
+              type: string
+        bands:
+          type: object
+          description: Band condition assessments
+
+    LunarData:
+      type: object
+      properties:
+        phase:
+          type: string
+          description: Phase name (New Moon, Full Moon, etc.)
+        illumination:
+          type: number
+          description: Illumination percentage (0-100)
+        age:
+          type: number
+          description: Days since new moon
+        distance:
+          type: number
+          description: Distance in km
+        eclipticLon:
+          type: number
+        eclipticLat:
+          type: number
+        nextNew:
+          type: string
+          format: date-time
+        nextFull:
+          type: string
+          format: date-time
+
+    Satellite:
+      type: object
+      properties:
+        satid:
+          type: integer
+          description: NORAD ID
+        satname:
+          type: string
+        intDesignator:
+          type: string
+
+    SatellitePosition:
+      type: object
+      properties:
+        satlatitude:
+          type: number
+        satlongitude:
+          type: number
+        sataltitude:
+          type: number
+          description: Altitude in km
+        azimuth:
+          type: number
+        elevation:
+          type: number
+        ra:
+          type: number
+          description: Right ascension
+        dec:
+          type: number
+          description: Declination
+        timestamp:
+          type: integer
+
+    SatellitePass:
+      type: object
+      properties:
+        startAz:
+          type: number
+        startEl:
+          type: number
+        startUTC:
+          type: integer
+        maxAz:
+          type: number
+        maxEl:
+          type: number
+        maxUTC:
+          type: integer
+        endAz:
+          type: number
+        endEl:
+          type: number
+        endUTC:
+          type: integer
+        duration:
+          type: integer
+          description: Duration in seconds
+
+    TleData:
+      type: object
+      properties:
+        info:
+          type: object
+          properties:
+            satid:
+              type: integer
+            satname:
+              type: string
+        tle:
+          type: string
+          description: Two-line element set
+
+    IssPosition:
+      type: object
+      properties:
+        latitude:
+          type: number
+        longitude:
+          type: number
+        altitude:
+          type: number
+          description: Altitude in km
+        velocity:
+          type: number
+          description: Velocity in km/s
+        timestamp:
+          type: integer
+
+    WeatherData:
+      type: object
+      properties:
+        stationID:
+          type: string
+        obsTimeLocal:
+          type: string
+        neighborhood:
+          type: string
+        temp:
+          type: number
+        humidity:
+          type: number
+        dewpt:
+          type: number
+        windSpeed:
+          type: number
+        windGust:
+          type: number
+        winddir:
+          type: number
+        pressure:
+          type: number
+        precipRate:
+          type: number
+        precipTotal:
+          type: number
+        uv:
+          type: number
+        solarRadiation:
+          type: number
+
+    NwsConditions:
+      type: object
+      properties:
+        temperature:
+          type: object
+          properties:
+            value:
+              type: number
+            unitCode:
+              type: string
+        dewpoint:
+          type: object
+        relativeHumidity:
+          type: object
+        windSpeed:
+          type: object
+        windDirection:
+          type: object
+        barometricPressure:
+          type: object
+        textDescription:
+          type: string
+        icon:
+          type: string
+
+    WeatherAlert:
+      type: object
+      properties:
+        id:
+          type: string
+        event:
+          type: string
+        headline:
+          type: string
+        severity:
+          type: string
+        urgency:
+          type: string
+        onset:
+          type: string
+          format: date-time
+        expires:
+          type: string
+          format: date-time
+        description:
+          type: string
+        instruction:
+          type: string
+
+    CallsignData:
+      type: object
+      properties:
+        callsign:
+          type: string
+        name:
+          type: string
+        address:
+          type: string
+        city:
+          type: string
+        state:
+          type: string
+        country:
+          type: string
+        grid:
+          type: string
+          description: Maidenhead grid square
+        class:
+          type: string
+          description: License class
+        lat:
+          type: number
+        lon:
+          type: number
+
+    PropagationData:
+      type: object
+      properties:
+        muf:
+          type: object
+          description: MUF values by path
+        fof2:
+          type: object
+          description: foF2 values by station
+        stations:
+          type: array
+          items:
+            type: object
+
+    VoacapResponse:
+      type: object
+      properties:
+        engine:
+          type: string
+          enum: [dvoacap, simplified]
+          description: Which prediction engine was used
+        ssn:
+          type: number
+          description: Sunspot number used
+        matrix:
+          type: array
+          description: 24-hour x band reliability matrix
+          items:
+            type: object
+            properties:
+              hour:
+                type: integer
+              bands:
+                type: object
+                description: Band name to reliability mapping
+              muf:
+                type: number
+
+    VoacapStatus:
+      type: object
+      properties:
+        available:
+          type: boolean
+          description: Whether dvoacap-python is available
+        fullyInitialized:
+          type: boolean
+        spawnAttempts:
+          type: integer
+        lastError:
+          type: string
+          nullable: true
+        uptime:
+          type: integer
+          description: Seconds since bridge started
+        childRunning:
+          type: boolean

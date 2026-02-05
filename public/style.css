@@ -3531,6 +3531,85 @@ header {
   position: relative;
 }
 
+/* Scrollbar theming */
+.theme-lcars ::-webkit-scrollbar { width: 10px; }
+.theme-lcars ::-webkit-scrollbar-track { background: #000; }
+.theme-lcars ::-webkit-scrollbar-thumb { background: #444; border-radius: 5px; }
+.theme-lcars ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+/* Button active state — hopbush pink flash (canonical LCARS click feedback) */
+.theme-lcars .op-btn:active,
+.theme-lcars .source-tab:active,
+.theme-lcars .toggle-btn:active,
+.theme-lcars .band-btn:active,
+.theme-lcars .mode-btn:active,
+.theme-lcars .prop-metric-btn:active,
+.theme-lcars .map-center-btn:active,
+.theme-lcars #refreshBtn:active,
+.theme-lcars #resetLayoutBtn:active,
+.theme-lcars #fullscreenBtn:active {
+  background: #CC6699 !important; /* hopbush — canonical LCARS click color */
+}
+
+/* Button hover — brighten to pale-canary */
+.theme-lcars .op-btn:hover,
+.theme-lcars .source-tab:hover,
+.theme-lcars #refreshBtn:hover,
+.theme-lcars #resetLayoutBtn:hover,
+.theme-lcars #fullscreenBtn:hover {
+  background: #FFFF99; /* pale-canary */
+  color: #000;
+}
+
+/* Source tab black notch separator (LCARS "decorated bar" pattern) */
+.theme-lcars .source-tab + .source-tab {
+  border-left: 2px solid #000;
+}
+
+/* Active button distinct palette colors per group */
+.theme-lcars .band-btn.active {
+  background: #FF9933; /* neon-carrot */
+}
+
+.theme-lcars .mode-btn.active {
+  background: #CC99CC; /* lilac */
+}
+
+/* Spot table row-scan animation — subtle LCARS data display effect */
+@keyframes lcars-rowscan {
+  0%   { filter: brightness(1.0); }
+  3%   { filter: brightness(1.4); }
+  10%  { filter: brightness(1.4); }
+  14%  { filter: brightness(1.0); }
+  100% { filter: brightness(1.0); }
+}
+
+.theme-lcars #spotsTable tbody tr {
+  animation: lcars-rowscan 10s infinite;
+}
+
+/* Stagger each row by 0.5s for cascading scan effect */
+.theme-lcars #spotsTable tbody tr:nth-child(1)  { animation-delay: 0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(2)  { animation-delay: 0.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(3)  { animation-delay: 1.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(4)  { animation-delay: 1.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(5)  { animation-delay: 2.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(6)  { animation-delay: 2.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(7)  { animation-delay: 3.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(8)  { animation-delay: 3.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(9)  { animation-delay: 4.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(10) { animation-delay: 4.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(11) { animation-delay: 5.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(12) { animation-delay: 5.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(13) { animation-delay: 6.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(14) { animation-delay: 6.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(15) { animation-delay: 7.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(16) { animation-delay: 7.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(17) { animation-delay: 8.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(18) { animation-delay: 8.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(19) { animation-delay: 9.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(20) { animation-delay: 9.5s; }
+
 /* ---- Theme: HamClock ---- */
 /* Monospace terminal feel, green-on-black, tighter spacing.
    Colors are handled by CSS variable swapping in themes.js. */

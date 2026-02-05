@@ -39,16 +39,16 @@ const THEMES = {
     vars: {
       '--bg': '#000000',
       '--surface': '#0a0a14',
-      '--surface2': '#9999ff',
-      '--surface3': '#cc99cc',
-      '--accent': '#ff9966',
-      '--text': '#ff9966',
-      '--text-dim': '#cc99cc',
-      '--green': '#66cc66',
-      '--yellow': '#ffcc00',
-      '--red': '#cc6666',
-      '--orange': '#ff9966',
-      '--border': '#9999ff',
+      '--surface2': '#9999CC',     // blue-bell (Drexler palette)
+      '--surface3': '#CC99CC',     // lilac
+      '--accent': '#FFCC66',       // golden-tanoi — signature LCARS gold
+      '--text': '#FF9966',         // orange-peel
+      '--text-dim': '#CC99CC',     // lilac
+      '--green': '#99CCFF',        // anakiwa — LCARS uses blue for "go"
+      '--yellow': '#FFFF99',       // pale-canary
+      '--red': '#CC6666',          // chestnut-rose
+      '--orange': '#FF9933',       // neon-carrot
+      '--border': '#9999CC',       // blue-bell (matches surface2)
       '--bg-secondary': '#0a0a14',
       '--bg-tertiary': '#111122',
     },

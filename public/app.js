@@ -919,8 +919,8 @@
           sections: [
             { heading: "Reading the Grid", content: 'Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Colors show predicted reliability: black = closed, red = poor, yellow = fair, green = good/excellent.' },
             { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows significantly more green because of its ~40dB SNR advantage over SSB." },
-            { heading: "Overview vs Spot", content: `Click OVW/SPOT to toggle target mode. "OVW" (overview) shows the best predicted reliability to representative worldwide targets (Europe, Asia, South America, etc.). "SPOT" calculates predictions specifically to the station you've selected in the On the Air table, so you can see exactly when a band will open to that DX.` },
-            { heading: "Engine Badge", content: 'The green "VOACAP" or gray "SIM" badge shows which prediction engine is active. VOACAP uses the real Voice of America Coverage Analysis Program \u2014 a professional ionospheric model used by broadcasters and militaries worldwide. SIM uses a simplified local model based on solar flux and geomagnetic indices. Both update automatically; VOACAP is available when the server has Python + dvoacap installed.' },
+            { heading: "Overview vs Spot", content: `Click OVW/SPOT to toggle target mode. "OVW" (overview) shows the best predicted reliability to four representative worldwide targets (Europe, East Asia, South America, North America). "SPOT" calculates predictions specifically to the station you've selected in the On the Air table, so you can see exactly when a band will open to that DX.` },
+            { heading: "Engine Badge", content: 'The green "VOACAP" or gray "SIM" badge shows which prediction engine is active. VOACAP uses the real Voice of America Coverage Analysis Program \u2014 a professional ionospheric ray-tracing model used by broadcasters and militaries worldwide. It computes multi-hop propagation paths through actual ionospheric layers, accounting for D-layer absorption, MUF, takeoff angle, power, and mode. SIM is a lightweight approximation based on solar flux and time of day \u2014 useful as a fallback but significantly less accurate. The engine switches automatically; no user action needed.' },
             { heading: "Map Overlay", content: "Click any band row to show propagation on the map. Two modes are available \u2014 click the \u25CB/REL toggle in the param bar to switch. Circle mode (\u25CB) draws concentric range rings from your QTH. REL heatmap mode paints the entire map with a color gradient showing predicted reliability to every point: green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels." },
             { heading: "About the Data", content: "Predictions are monthly median values based on the current smoothed sunspot number (SSN) from NOAA. They represent typical conditions for this month, not real-time ionospheric state. Use them for planning which bands to try at different times of day, rather than as guarantees of what's open right now." }
           ],
@@ -4840,7 +4840,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.21.0";
+    $("splashVersion").textContent = "0.21.2";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

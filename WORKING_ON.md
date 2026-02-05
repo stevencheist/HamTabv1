@@ -13,7 +13,17 @@ Clear your entry when done.
 
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
-| Steven + Claude | Phase 8 layout — non-overlapping widgets, proportional resize, responsive modals | main | 2026-02-04 |
+| | | | |
+
+## Next Up
+
+**Feedback relay for lanmode (Issue #97)**
+- Problem: Lanmode users can't submit feedback because `GITHUB_FEEDBACK_TOKEN` isn't configured
+- Solution: Relay feedback through hamtab.net, fallback to GitHub issues link if unavailable
+- Steps:
+  1. Check if hostedmode `/api/feedback` is accessible without Cloudflare Access
+  2. Add relay logic to lanmode server.js (when no local token, POST to hamtab.net)
+  3. Add fallback UI to feedback.js (show GitHub link modal if relay fails)
 
 
 ## Recently Completed
@@ -22,6 +32,7 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Steven + Claude | Phase 8 layout — non-overlapping widgets, responsive modals | main | 2026-02-04 |
 | Francisco + Claude | Keyless ISS tracking + orbit path line (SGP4 via satellite.js) | main | 2026-02-04 |
 | Francisco + Claude | Move band reference into Reference widget as Bands tab | main | 2026-02-04 |
 | Steven + Claude | Operator info visibility — responsive scaling header | main | 2026-02-04 |

@@ -11,6 +11,8 @@ const { XMLParser } = require('fast-xml-parser');
 const dns = require('dns');
 const voacap = require('./voacap-bridge.js');
 const satellite = require('satellite.js');
+const swaggerUi = require('swagger-ui-express');
+const YAML = require('yamljs');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -19,6 +21,16 @@ const HOST = process.env.HOST || '0.0.0.0';
 app.set('trust proxy', 1); // Cloudflare Worker proxy — enables real client IPs for rate limiting
 
 // --- Security middleware ---
+
+// CSP relaxed for /api/docs (Swagger UI needs inline scripts)
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/docs') || req.path.startsWith('/api-docs')) {
+    // Swagger UI needs relaxed CSP
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:");
+    return next();
+  }
+  next();
+});
 
 app.use(helmet({
   contentSecurityPolicy: {
@@ -58,6 +70,15 @@ const feedbackLimiter = rateLimit({
 
 app.use(express.json());
 app.use(express.static('public'));
+
+// --- API Documentation (Swagger UI) ---
+const openapiSpec = YAML.load(path.join(__dirname, 'openapi.yaml'));
+app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'HamTab API Documentation',
+}));
+// Redirect /api to /api/docs for convenience
+app.get('/api', (req, res) => res.redirect('/api/docs'));
 
 // Proxy POTA spots API
 app.get('/api/spots', async (req, res) => {

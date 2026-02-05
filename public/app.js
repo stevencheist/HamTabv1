@@ -4704,6 +4704,8 @@
   init_dom();
   init_utils();
   async function checkUpdateStatus() {
+    const el = $("platformLabel");
+    if (el && !el.textContent) el.textContent = "v0.14.0";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
@@ -4718,7 +4720,7 @@
         state_default.updateReleaseUrl = null;
       }
       if (data.platform && data.currentVersion) {
-        $("platformLabel").textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
+        el.textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
       }
     } catch (e) {
     }

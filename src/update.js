@@ -3,6 +3,10 @@ import { $ } from './dom.js';
 import { fmtTime } from './utils.js';
 
 export async function checkUpdateStatus() {
+  // Always show local version immediately
+  const el = $('platformLabel');
+  if (el && !el.textContent) el.textContent = 'v' + __APP_VERSION__;
+
   try {
     const resp = await fetch('/api/update/status');
     if (!resp.ok) return;
@@ -20,12 +24,12 @@ export async function checkUpdateStatus() {
       state.updateReleaseUrl = null;
     }
 
-    // Show platform and version in header
+    // Upgrade label with platform info if server provides it
     if (data.platform && data.currentVersion) {
-      $('platformLabel').textContent = `v${data.currentVersion} · ${data.platform}`;
+      el.textContent = `v${data.currentVersion} · ${data.platform}`;
     }
   } catch (e) {
-    // ignore
+    // ignore — version label already set above
   }
 }
 

@@ -272,7 +272,7 @@ HamTab has users worldwide, including the EU. Privacy and GDPR compliance are ma
 
 ## Working with Claude
 
-**IMPORTANT: Before starting work on any new feature or task, always re-read `CLAUDE.md` and `WORKING_ON.md` to ensure you have the latest instructions and know what's currently in progress.**
+**IMPORTANT: Before starting work on any new feature or task, follow the "Claim Work" protocol below. This is mandatory — not optional.**
 
 Stay on `main` for most work. Use simple commands to manage branches:
 
@@ -283,15 +283,33 @@ Stay on `main` for most work. Use simple commands to manage branches:
 | "sync branches" | Fetch, pull, merge, push for both deployment branches (see Branch Sync Protocol) |
 | "switch to [branch]" | Checkout the specified branch |
 
-**Workflow:**
-1. Re-read `CLAUDE.md` and `WORKING_ON.md` before starting any new feature
-2. Check `WORKING_ON.md` to avoid working on something the other developer is already doing
-3. Claim your work in `WORKING_ON.md` before starting
-4. Develop features on `main` (90% of work happens here)
-5. Say "sync branches" to deploy code changes to deployment branches
-6. Switch to `lanmode` or `hostedmode` only for branch-specific fixes
-7. Start sessions with "status" or "pull and status" to see current state
-8. Clear your entry from `WORKING_ON.md` when done
+### Claim Work Protocol (before starting ANY feature or task)
+
+1. `git pull` — get the latest from remote
+2. Re-read `CLAUDE.md` — check for updated instructions
+3. Re-read `WORKING_ON.md` — check what the other developer is doing
+4. **If there's a conflict** (other dev is touching the same files/feature), **stop and tell the user**
+5. Add your row to the "Active Work" table in `WORKING_ON.md`
+6. Commit and push `WORKING_ON.md` immediately:
+   ```
+   git add WORKING_ON.md && git commit -m "Claim: <feature name>" && git push
+   ```
+7. Now begin the actual work
+
+### Release Work Protocol (after finishing a feature or task)
+
+1. Move your row from "Active Work" to "Recently Completed" in `WORKING_ON.md`
+2. Include this change in your final feature commit (no separate commit needed)
+3. Push as normal
+
+### Workflow
+
+1. **Claim work** (protocol above) — pull, read files, claim, push
+2. Develop features on `main` (90% of work happens here)
+3. Say "sync branches" to deploy code changes to deployment branches
+4. Switch to `lanmode` or `hostedmode` only for branch-specific fixes
+5. Start sessions with "status" or "pull and status" to see current state
+6. **Release work** (protocol above) — move to completed on final commit
 
 **When to sync:**
 - ✅ After committing **code changes** (features, bug fixes)

@@ -123,6 +123,33 @@ sudo -u "$REAL_USER" npm install
 echo "Building client ..."
 sudo -u "$REAL_USER" npm run build
 
+# --- Optional: VOACAP propagation engine ---
+echo ""
+echo "HamTab includes an optional HF propagation prediction engine (VOACAP)."
+echo "This requires Python 3 and the dvoacap-python library (~50 MB)."
+echo "Without it, HamTab uses a simplified propagation model."
+echo ""
+read -rp "Install VOACAP propagation engine? [y/N] " VOACAP_CHOICE
+VOACAP_CHOICE="${VOACAP_CHOICE:-N}"
+
+if [[ "$VOACAP_CHOICE" =~ ^[Yy] ]]; then
+  if command -v python3 &>/dev/null; then
+    echo "Installing Python dependencies..."
+    sudo -u "$REAL_USER" pip3 install --user numpy
+    sudo -u "$REAL_USER" pip3 install --user git+https://github.com/skyelaird/dvoacap-python.git
+    echo "VOACAP engine installed."
+  else
+    echo "Python 3 not found. Skipping VOACAP installation."
+    echo "Install Python 3 manually, then run:"
+    echo "  pip3 install numpy"
+    echo "  pip3 install git+https://github.com/skyelaird/dvoacap-python.git"
+  fi
+else
+  echo "Skipping VOACAP. You can install it later with:"
+  echo "  pip3 install numpy"
+  echo "  pip3 install git+https://github.com/skyelaird/dvoacap-python.git"
+fi
+
 # --- Systemd service ---
 echo ""
 read -rp "Start HamTab on boot? [Y/n] " BOOT_CHOICE

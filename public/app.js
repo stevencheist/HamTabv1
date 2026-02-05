@@ -3658,7 +3658,20 @@
     document.querySelectorAll(".widget").forEach((widget) => {
       const header = widget.querySelector(".widget-header");
       const resizer = widget.querySelector(".widget-resize");
-      if (header) setupDrag(widget, header);
+      if (header) {
+        setupDrag(widget, header);
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "widget-close-btn";
+        closeBtn.title = "Hide widget";
+        closeBtn.textContent = "\xD7";
+        closeBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+        closeBtn.addEventListener("click", () => {
+          state_default.widgetVisibility[widget.id] = false;
+          saveWidgetVisibility();
+          applyWidgetVisibility();
+        });
+        header.insertBefore(closeBtn, header.firstChild);
+      }
       if (resizer) setupResize(widget, resizer);
       widget.addEventListener("mousedown", () => bringToFront(widget));
     });
@@ -4234,7 +4247,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.14.0";
+    $("splashVersion").textContent = "0.15.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

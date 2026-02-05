@@ -168,6 +168,13 @@
         // takeoff angle degrees: '3','5','10','15'
         voacapPath: localStorage.getItem("hamtab_voacap_path") || "SP",
         // 'SP' (short path), 'LP' (long path)
+        // Heatmap overlay (REL mode for VOACAP)
+        heatmapOverlayMode: localStorage.getItem("hamtab_heatmap_mode") || "circles",
+        // 'circles' or 'heatmap'
+        heatmapLayer: null,
+        // L.imageOverlay instance
+        heatmapRenderTimer: null,
+        // debounce timer for pan/zoom re-render
         // Init flag
         appInitialized: false,
         // Day/night
@@ -888,7 +895,7 @@
           sections: [
             { heading: "Reading the Grid", content: 'Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Colors show predicted reliability: black = closed, red = poor, yellow = fair, green = good/excellent.' },
             { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows significantly more green because of its ~40dB SNR advantage over SSB." },
-            { heading: "Map Overlay", content: "Click any band row to show estimated propagation range circles on the map. The overlay updates when you change parameters. Click the same band again to remove the overlay." },
+            { heading: "Map Overlay", content: "Click any band row to show propagation on the map. Two modes are available \u2014 click the \u25CB/REL toggle in the param bar to switch. Circle mode (\u25CB) draws concentric range rings from your QTH. REL heatmap mode paints the entire map with a color gradient showing predicted reliability to every point: green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels." },
             { heading: "Calculation Model", content: "Uses a local model based on solar flux (SFI), geomagnetic indices (K/A), and your location for solar zenith calculations. When your QTH is set, day/night transitions are calculated from actual sunrise/sunset at your location rather than a fixed UTC estimate." }
           ],
           links: [
@@ -1009,6 +1016,7 @@
     VOACAP_BANDS: () => VOACAP_BANDS,
     calculate24HourMatrix: () => calculate24HourMatrix,
     calculateBandConditions: () => calculateBandConditions,
+    calculateBandReliability: () => calculateBandReliability,
     calculateMUF: () => calculateMUF,
     calculateSolarZenith: () => calculateSolarZenith,
     conditionColorClass: () => conditionColorClass,
@@ -1308,10 +1316,181 @@
     }
   });
 
+  // src/rel-heatmap.js
+  var rel_heatmap_exports = {};
+  __export(rel_heatmap_exports, {
+    clearHeatmap: () => clearHeatmap,
+    initHeatmapListeners: () => initHeatmapListeners,
+    renderHeatmapCanvas: () => renderHeatmapCanvas
+  });
+  function greatCircleMidpoint(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const lat1r = lat1 * r, lon1r = lon1 * r;
+    const lat2r = lat2 * r, lon2r = lon2 * r;
+    const dLon = lon2r - lon1r;
+    const Bx = Math.cos(lat2r) * Math.cos(dLon);
+    const By = Math.cos(lat2r) * Math.sin(dLon);
+    const midLat = Math.atan2(
+      Math.sin(lat1r) + Math.sin(lat2r),
+      Math.sqrt((Math.cos(lat1r) + Bx) ** 2 + By ** 2)
+    );
+    const midLon = lon1r + Math.atan2(By, Math.cos(lat1r) + Bx);
+    return { lat: midLat / r, lon: midLon / r };
+  }
+  function distanceKm(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const R = 6371;
+    const dLat = (lat2 - lat1) * r;
+    const dLon = (lon2 - lon1) * r;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  function distanceModifier(distKm) {
+    if (distKm < 100) return 0.3;
+    if (distKm < 500) return 0.5;
+    if (distKm < 1e3) return 0.85;
+    if (distKm < 4e3) return 1;
+    if (distKm < 8e3) return 0.85;
+    if (distKm < 15e3) return 0.7;
+    return 0.5;
+  }
+  function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex, aIndex, utcHour, opts) {
+    const mid = greatCircleMidpoint(deLat, deLon, dxLat, dxLon);
+    const df = dayFraction(mid.lat, mid.lon, utcHour);
+    const muf = calculateMUF(sfi, df);
+    const isDay = df >= 0.5;
+    const baseRel = calculateBandReliability(freqMHz, muf, kIndex, aIndex, isDay, opts);
+    const dist = distanceKm(deLat, deLon, dxLat, dxLon);
+    const distMod = distanceModifier(dist);
+    return Math.max(0, Math.min(100, Math.round(baseRel * distMod)));
+  }
+  function hslToRgb(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(h / 60 % 2 - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) {
+      r = c;
+      g = x;
+    } else if (h < 120) {
+      r = x;
+      g = c;
+    } else if (h < 180) {
+      g = c;
+      b = x;
+    } else if (h < 240) {
+      g = x;
+      b = c;
+    } else if (h < 300) {
+      r = x;
+      b = c;
+    } else {
+      r = c;
+      b = x;
+    }
+    return {
+      r: Math.round((r + m) * 255),
+      g: Math.round((g + m) * 255),
+      b: Math.round((b + m) * 255)
+    };
+  }
+  function reliabilityToRGBA(rel) {
+    if (rel < 5) return { r: 0, g: 0, b: 0, a: 30 };
+    const hue = (rel - 5) / 95 * 120;
+    const { r, g, b } = hslToRgb(hue, 0.85, 0.45);
+    const alpha = Math.min(200, 80 + rel / 100 * 120);
+    return { r, g, b, a: Math.round(alpha) };
+  }
+  function cellSizeForZoom(zoom) {
+    if (zoom <= 3) return 4;
+    if (zoom <= 5) return 2;
+    if (zoom <= 7) return 1;
+    return 0.5;
+  }
+  function renderHeatmapCanvas(band) {
+    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
+    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) return;
+    const L2 = window.L;
+    const map = state_default.map;
+    clearHeatmap();
+    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
+    if (!bandDef) return;
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const opts = getVoacapOpts();
+    const bounds = map.getBounds();
+    const south = Math.max(-85, bounds.getSouth());
+    const north = Math.min(85, bounds.getNorth());
+    const west = bounds.getWest();
+    const east = bounds.getEast();
+    const zoom = map.getZoom();
+    const cellSize = cellSizeForZoom(zoom);
+    const cols = Math.ceil((east - west) / cellSize);
+    const rows = Math.ceil((north - south) / cellSize);
+    if (cols <= 0 || rows <= 0) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = cols;
+    canvas.height = rows;
+    const ctx = canvas.getContext("2d");
+    const imageData = ctx.createImageData(cols, rows);
+    const data = imageData.data;
+    for (let row = 0; row < rows; row++) {
+      const dxLat = north - (row + 0.5) * cellSize;
+      for (let col = 0; col < cols; col++) {
+        const dxLon = west + (col + 0.5) * cellSize;
+        const rel = computeCellReliability(
+          state_default.myLat,
+          state_default.myLon,
+          dxLat,
+          dxLon,
+          bandDef.freqMHz,
+          sfi,
+          kIndex,
+          aIndex,
+          utcHour,
+          opts
+        );
+        const px = reliabilityToRGBA(rel);
+        const idx = (row * cols + col) * 4;
+        data[idx] = px.r;
+        data[idx + 1] = px.g;
+        data[idx + 2] = px.b;
+        data[idx + 3] = px.a;
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+    const dataUrl = canvas.toDataURL();
+    const imageBounds = [[south, west], [north, east]];
+    state_default.heatmapLayer = L2.imageOverlay(dataUrl, imageBounds, {
+      opacity: 0.7,
+      pane: "propagation"
+    });
+    state_default.heatmapLayer.addTo(map);
+  }
+  function clearHeatmap() {
+    if (state_default.heatmapLayer && state_default.map) {
+      state_default.map.removeLayer(state_default.heatmapLayer);
+      state_default.heatmapLayer = null;
+    }
+  }
+  function initHeatmapListeners() {
+  }
+  var init_rel_heatmap = __esm({
+    "src/rel-heatmap.js"() {
+      init_state();
+      init_band_conditions();
+      init_voacap();
+    }
+  });
+
   // src/voacap.js
   var voacap_exports = {};
   __export(voacap_exports, {
     clearVoacapOverlay: () => clearVoacapOverlay,
+    getVoacapOpts: () => getVoacapOpts,
     initVoacapListeners: () => initVoacapListeners,
     renderVoacapMatrix: () => renderVoacapMatrix,
     toggleBandOverlay: () => toggleBandOverlay
@@ -1332,6 +1511,22 @@
     });
   }
   function cycleParam(name) {
+    if (name === "overlay") {
+      const next2 = state_default.heatmapOverlayMode === "circles" ? "heatmap" : "circles";
+      state_default.heatmapOverlayMode = next2;
+      localStorage.setItem("hamtab_heatmap_mode", next2);
+      renderVoacapMatrix();
+      if (state_default.hfPropOverlayBand) {
+        clearBandOverlay();
+        clearHeatmap();
+        if (next2 === "heatmap") {
+          renderHeatmapCanvas(state_default.hfPropOverlayBand);
+        } else {
+          drawBandOverlay(state_default.hfPropOverlayBand);
+        }
+      }
+      return;
+    }
     let options, key, stateKey;
     if (name === "power") {
       options = POWER_OPTIONS;
@@ -1358,7 +1553,12 @@
     renderVoacapMatrix();
     if (state_default.hfPropOverlayBand) {
       clearBandOverlay();
-      drawBandOverlay(state_default.hfPropOverlayBand);
+      clearHeatmap();
+      if (state_default.heatmapOverlayMode === "heatmap") {
+        renderHeatmapCanvas(state_default.hfPropOverlayBand);
+      } else {
+        drawBandOverlay(state_default.hfPropOverlayBand);
+      }
     }
   }
   function getVoacapOpts() {
@@ -1416,7 +1616,10 @@
     html += "</tr>";
     html += "</tbody></table>";
     const sn = state_default.lastSolarData?.indices?.sunspots || "--";
+    const overlayLabel = state_default.heatmapOverlayMode === "heatmap" ? "REL" : "\u25CB";
+    const overlayTitle = state_default.heatmapOverlayMode === "heatmap" ? "Overlay: REL heatmap (click for circles)" : "Overlay: circles (click for REL heatmap)";
     html += `<div class="voacap-params">`;
+    html += `<span class="voacap-param" data-param="overlay" title="${overlayTitle}">${overlayLabel}</span>`;
     html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state_default.voacapPower] || state_default.voacapPower}</span>`;
     html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state_default.voacapMode}</span>`;
     html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
@@ -1427,6 +1630,7 @@
   }
   function toggleBandOverlay(band) {
     clearBandOverlay();
+    clearHeatmap();
     if (state_default.hfPropOverlayBand === band) {
       state_default.hfPropOverlayBand = null;
       renderVoacapMatrix();
@@ -1434,7 +1638,11 @@
     }
     state_default.hfPropOverlayBand = band;
     renderVoacapMatrix();
-    drawBandOverlay(band);
+    if (state_default.heatmapOverlayMode === "heatmap") {
+      renderHeatmapCanvas(band);
+    } else {
+      drawBandOverlay(band);
+    }
   }
   function clearBandOverlay() {
     if (!state_default.map) return;
@@ -1499,6 +1707,7 @@
   }
   function clearVoacapOverlay() {
     clearBandOverlay();
+    clearHeatmap();
     state_default.hfPropOverlayBand = null;
   }
   var bandOverlayCircles, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
@@ -1507,6 +1716,7 @@
       init_state();
       init_dom();
       init_band_conditions();
+      init_rel_heatmap();
       bandOverlayCircles = [];
       POWER_OPTIONS = ["5", "100", "1000"];
       POWER_LABELS = { "5": "5W", "100": "100W", "1000": "1kW" };
@@ -3453,6 +3663,11 @@
           const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
           state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
         }
+        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
+          clearTimeout(state_default.heatmapRenderTimer);
+          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
+          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
+        }
       });
       state_default.map.on("moveend", () => {
         if (state_default.mapOverlays.latLonGrid) {
@@ -3463,6 +3678,11 @@
           clearTimeout(state_default.maidenheadDebounceTimer);
           const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
           state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
+        }
+        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
+          clearTimeout(state_default.heatmapRenderTimer);
+          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
+          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
         }
       });
       setTimeout(renderAllMapOverlays, 200);
@@ -4415,7 +4635,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.17.0";
+    $("splashVersion").textContent = "0.18.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -5842,6 +6062,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
 
   // src/main.js
   init_voacap();
+  init_rel_heatmap();
   migrate();
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
@@ -5874,6 +6095,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initFeedbackListeners();
   initLiveSpotsListeners();
   initVoacapListeners();
+  initHeatmapListeners();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

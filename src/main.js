@@ -39,6 +39,7 @@ import { initReferenceListeners } from './reference.js';
 import { initFeedbackListeners } from './feedback.js';
 import { initLiveSpotsListeners, fetchLiveSpots, renderLiveSpotsOnMap } from './live-spots.js';
 import { initVoacapListeners, renderVoacapMatrix } from './voacap.js';
+import { initHeatmapListeners } from './rel-heatmap.js';
 
 // Initialize map
 initMap();
@@ -78,6 +79,7 @@ initReferenceListeners();
 initFeedbackListeners();
 initLiveSpotsListeners();
 initVoacapListeners();
+initHeatmapListeners();
 
 // Wire initApp into splash dismissal
 function initApp() {

@@ -404,7 +404,7 @@ export const WIDGET_HELP = {
     sections: [
       { heading: 'Reading the Grid', content: 'Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Colors show predicted reliability: black = closed, red = poor, yellow = fair, green = good/excellent.' },
       { heading: 'Interactive Parameters', content: 'The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\u00B0/5\u00B0/10\u00B0/15\u00B0), and Path (SP=short, LP=long). FT8 mode shows significantly more green because of its ~40dB SNR advantage over SSB.' },
-      { heading: 'Map Overlay', content: 'Click any band row to show estimated propagation range circles on the map. The overlay updates when you change parameters. Click the same band again to remove the overlay.' },
+      { heading: 'Map Overlay', content: 'Click any band row to show propagation on the map. Two modes are available — click the \u25CB/REL toggle in the param bar to switch. Circle mode (\u25CB) draws concentric range rings from your QTH. REL heatmap mode paints the entire map with a color gradient showing predicted reliability to every point: green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels.' },
       { heading: 'Calculation Model', content: 'Uses a local model based on solar flux (SFI), geomagnetic indices (K/A), and your location for solar zenith calculations. When your QTH is set, day/night transitions are calculated from actual sunrise/sunset at your location rather than a fixed UTC estimate.' },
     ],
     links: [

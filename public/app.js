@@ -836,14 +836,13 @@
           ]
         },
         "widget-rst": {
-          title: "RST Reference",
-          description: "A quick-reference chart for RST signal reports. During a contact (QSO), you'll exchange signal reports to let each other know how well you're being received.",
+          title: "Reference",
+          description: "Quick-reference tables for common ham radio information. Use the tabs to switch between RST signal reports, NATO phonetic alphabet, Morse code, Q-codes, and US band privileges.",
           sections: [
-            { heading: "Readability (R)", content: "1 = Unreadable, 2 = Barely readable, 3 = Readable with difficulty, 4 = Readable with little difficulty, 5 = Perfectly readable. Most contacts are a 5." },
-            { heading: "Signal Strength (S)", content: "1 = Faint, up to 9 = Very strong. This corresponds roughly to your S-meter reading. S1-S3: needle barely moves, signal is in the noise \u2014 you may catch a word here and there. S4-S5: needle at the low end, you can follow the conversation but it takes concentration. S6-S7: needle at mid-scale, comfortable to listen to with occasional noise. S8-S9: needle at or near full scale, loud and clear like they're next door." },
-            { heading: "What You'll Hear", content: `A "3 by 3" signal sounds like someone talking through a wall with static \u2014 you can tell it's a voice but you strain to pick out words. A "5 by 5" is comfortable, like a clear phone call with some background hiss. A "5 by 9" is armchair copy \u2014 loud, crystal clear, no effort at all. Most everyday contacts on a good band will be 5 by 7 or better.` },
-            { heading: "Tone (T)", content: "Used for CW (Morse code) only. 1 = Rough/buzzy, 9 = Perfect pure tone. Most modern radios produce a 9." },
-            { heading: "Common Reports", content: `On phone (voice), you give just R and S \u2014 for example, "You're 5 by 9" means perfectly readable and very strong. On CW, add the tone: "599" is the most common report. Be honest with reports \u2014 a real 5-7 is more useful than a polite 5-9!` }
+            { heading: "RST Reports", content: "The RST tab shows readability (R), signal strength (S), and tone (T) values. During a contact, you exchange signal reports so each station knows how well they're being received." },
+            { heading: "Phonetic & Morse", content: "The Phonetic tab has the NATO phonetic alphabet for spelling callsigns clearly. The Morse tab shows dit/dah patterns for each character." },
+            { heading: "Q-Codes", content: "Common three-letter abbreviations starting with Q, originally for CW but now used on voice too. QTH = your location, QSO = a contact, QSL = confirmed." },
+            { heading: "Bands", content: 'US amateur band privileges by license class (Extra, General, Technician, Novice). Check "My privileges only" to show just your class. Requires a US callsign set in Config.' }
           ],
           links: [
             { label: "Ham Radio School \u2014 Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
@@ -876,6 +875,15 @@
             { heading: "Most Common for New Hams", content: 'QTH = your location ("My QTH is Denver"). QSO = a contact/conversation. QSL = confirmation ("QSL" means "I confirm" or "received"). QRZ = "who is calling?" (also the name of a popular callsign lookup website).' },
             { heading: "Power & Interference", content: "QRP = low power (5W or less) \u2014 a popular challenge mode. QRO = high power. QRM = man-made interference. QRN = natural noise (static). QSB = signal fading in and out." },
             { heading: "Operating", content: `QSY = change frequency ("Let's QSY to 14.250"). QRT = shutting down for the day ("I'm going QRT"). QRV = ready to receive. QRL = the frequency is in use (always ask "QRL?" before transmitting on a frequency!).` }
+          ]
+        },
+        "widget-rst:bands": {
+          title: "US Band Privileges",
+          description: "A reference chart showing which frequencies and modes are available to each US license class. This is based on FCC Part 97.301\u201397.305.",
+          sections: [
+            { heading: "License Classes", content: "US ham licenses come in four classes: Technician (entry level), General (expanded HF access), Amateur Extra (full privileges), and Novice (legacy, no longer issued). Each class has different frequency allocations." },
+            { heading: "My Privileges Only", content: 'Check "My privileges only" to filter the table to show just your license class. This requires a US callsign to be set in Config \u2014 your license class is looked up automatically.' },
+            { heading: "Mode Groups", content: "All = any mode allowed. CW = Morse code only. CW/Digital = CW and digital modes (FT8, PSK31, etc.). Phone = voice modes (SSB, FM, AM)." }
           ]
         },
         "widget-spot-detail": {
@@ -1013,6 +1021,11 @@
             },
             note: "QRP = operating at 5 watts or less \xB7 QRO = running high power \xB7 QSL cards confirm contacts"
           }
+        },
+        bands: {
+          label: "Bands",
+          custom: true
+          // rendered by bandref logic, not generic table renderer
         }
       };
       DEFAULT_REFERENCE_TAB = "rst";
@@ -4723,7 +4736,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.19.2";
+    $("splashVersion").textContent = "0.20.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -5051,52 +5064,6 @@
       $("spotColCfgSplash").classList.add("hidden");
       updateTableColumns();
       renderSpots();
-    });
-  }
-
-  // src/bandref.js
-  init_state();
-  init_dom();
-  init_constants();
-  init_filters();
-  function renderBandRef() {
-    const bandRefMyPriv = $("bandRefMyPriv");
-    const myPrivOnly = bandRefMyPriv.checked;
-    const hasClass = isUSCallsign(state_default.myCallsign) && !!state_default.licenseClass;
-    bandRefMyPriv.disabled = !hasClass;
-    if (!hasClass) bandRefMyPriv.checked = false;
-    const MODE_LABELS = { all: "All", cw: "CW", cwdig: "CW/Digital", phone: "Phone" };
-    let classesToShow;
-    if (myPrivOnly && hasClass) {
-      classesToShow = [state_default.licenseClass.toUpperCase()];
-    } else {
-      classesToShow = ["EXTRA", "GENERAL", "TECHNICIAN", "NOVICE"];
-    }
-    const CLASS_DISPLAY = { EXTRA: "Extra", GENERAL: "General", TECHNICIAN: "Technician", NOVICE: "Novice" };
-    let html = "";
-    for (const cls of classesToShow) {
-      const privs = US_PRIVILEGES[cls];
-      if (!privs) continue;
-      html += `<h3>${CLASS_DISPLAY[cls] || cls}</h3>`;
-      html += '<table class="band-ref-table"><thead><tr><th>Band</th><th>Frequency Range (MHz)</th><th>Modes</th></tr></thead><tbody>';
-      for (const [lo, hi, modes] of privs) {
-        const band = freqToBand(String(lo)) || "?";
-        html += `<tr><td>${band}</td><td>${lo} \u2013 ${hi}</td><td>${MODE_LABELS[modes] || modes}</td></tr>`;
-      }
-      html += "</tbody></table>";
-    }
-    $("bandRefContent").innerHTML = html;
-  }
-  function initBandRefListeners() {
-    $("bandRefBtn").addEventListener("click", () => {
-      renderBandRef();
-      $("bandRefSplash").classList.remove("hidden");
-    });
-    $("bandRefOk").addEventListener("click", () => {
-      $("bandRefSplash").classList.add("hidden");
-    });
-    $("bandRefMyPriv").addEventListener("change", () => {
-      renderBandRef();
     });
   }
 
@@ -5738,6 +5705,47 @@
   init_constants();
   init_utils();
   init_state();
+
+  // src/bandref.js
+  init_state();
+  init_dom();
+  init_constants();
+  init_filters();
+  function renderBandRefTab() {
+    const hasClass = isUSCallsign(state_default.myCallsign) && !!state_default.licenseClass;
+    const savedPref = localStorage.getItem("hamtab_bandref_mypriv");
+    const myPrivOnly = hasClass && savedPref !== "false";
+    const MODE_LABELS = { all: "All", cw: "CW", cwdig: "CW/Digital", phone: "Phone" };
+    const CLASS_DISPLAY = { EXTRA: "Extra", GENERAL: "General", TECHNICIAN: "Technician", NOVICE: "Novice" };
+    let classesToShow;
+    if (myPrivOnly && hasClass) {
+      classesToShow = [state_default.licenseClass.toUpperCase()];
+    } else {
+      classesToShow = ["EXTRA", "GENERAL", "TECHNICIAN", "NOVICE"];
+    }
+    let html = `<label class="band-ref-inline-filter"><input type="checkbox" id="bandRefMyPriv" ${myPrivOnly ? "checked" : ""} ${!hasClass ? "disabled" : ""} /> My privileges only</label>`;
+    for (const cls of classesToShow) {
+      const privs = US_PRIVILEGES[cls];
+      if (!privs) continue;
+      html += `<h3>${CLASS_DISPLAY[cls] || cls}</h3>`;
+      html += '<table class="band-ref-table"><thead><tr><th>Band</th><th>Frequency Range (MHz)</th><th>Modes</th></tr></thead><tbody>';
+      for (const [lo, hi, modes] of privs) {
+        const band = freqToBand(String(lo)) || "?";
+        html += `<tr><td>${band}</td><td>${lo} \u2013 ${hi}</td><td>${MODE_LABELS[modes] || modes}</td></tr>`;
+      }
+      html += "</tbody></table>";
+    }
+    $("referenceContent").innerHTML = html;
+    const checkbox = document.getElementById("bandRefMyPriv");
+    if (checkbox) {
+      checkbox.addEventListener("change", () => {
+        localStorage.setItem("hamtab_bandref_mypriv", checkbox.checked ? "true" : "false");
+        renderBandRefTab();
+      });
+    }
+  }
+
+  // src/reference.js
   function switchReferenceTab(tab) {
     if (!REFERENCE_TABS[tab]) return;
     state_default.currentReferenceTab = tab;
@@ -5754,6 +5762,10 @@
   function renderReferenceContent(tab) {
     const refData = REFERENCE_TABS[tab];
     if (!refData) return;
+    if (refData.custom) {
+      if (tab === "bands") renderBandRefTab();
+      return;
+    }
     const content = refData.content;
     let html = "";
     if (content.description) {
@@ -6184,7 +6196,6 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initTooltipListeners();
   initSplashListeners();
   initConfigListeners();
-  initBandRefListeners();
   initRefreshListeners();
   initUpdateListeners();
   initFullscreenListeners();

@@ -1758,6 +1758,12 @@ setInterval(() => {
 
 // --- Start servers ---
 
+// Write PID file so dev tooling can find and kill this process cleanly
+fs.writeFileSync(path.join(__dirname, 'server.pid'), String(process.pid));
+process.on('exit', () => {
+  try { fs.unlinkSync(path.join(__dirname, 'server.pid')); } catch {}
+});
+
 app.listen(PORT, HOST, () => {
   console.log(`HTTP  server running at http://${HOST}:${PORT}`);
 });

@@ -10,9 +10,11 @@ let available = false;
 let requestId = 0;
 const pending = new Map(); // id → { resolve, reject, timer }
 
-const REQUEST_TIMEOUT_MS = 5000;  // 5 seconds per single prediction request
-const MATRIX_TIMEOUT_MS = 60000; // 60 seconds for batch matrix (24h × multiple targets)
-const RESPAWN_DELAY_MS = 3000;   // 3 seconds before respawn attempt
+const REQUEST_TIMEOUT_MS = 5000;   // 5 seconds per single prediction request
+const MATRIX_TIMEOUT_MS = 60000;  // 60 seconds for batch matrix (24h × multiple targets)
+const STARTUP_TIMEOUT_MS = 30000; // 30 seconds for initial Python+numpy+dvoacap load
+const STARTUP_PING_INTERVAL = 2000; // 2 seconds between startup ping retries
+const RESPAWN_DELAY_MS = 3000;     // 3 seconds before respawn attempt
 let respawnTimer = null;
 let shuttingDown = false;
 let lineBuffer = '';
@@ -112,9 +114,21 @@ function spawnWorker() {
     // Suppress EPIPE errors on stdin when the child dies before we stop writing
     proc.stdin.on('error', () => {});
 
-    // Wait a moment for the process to stabilize, then ping
-    setTimeout(() => {
-      if (settled) return; // already failed
+    // Retry pings until the worker responds or we hit the startup timeout.
+    // Python + numpy + dvoacap PredictionEngine() can take 10-20s in a container.
+    const startupDeadline = Date.now() + STARTUP_TIMEOUT_MS;
+
+    function attemptPing() {
+      if (settled) return;
+      if (Date.now() > startupDeadline) {
+        if (!settled) {
+          settled = true;
+          console.log(`[VOACAP] Startup timeout (${pythonCmd}) — trying next candidate`);
+          try { proc.kill(); } catch {}
+          tryCandidate(idx + 1);
+        }
+        return;
+      }
 
       sendRequest({ action: 'ping' })
         .then((resp) => {
@@ -133,12 +147,13 @@ function spawnWorker() {
         })
         .catch((err) => {
           if (settled) return;
-          settled = true;
-          console.log(`[VOACAP] Ping failed (${pythonCmd}): ${err.message}`);
-          try { proc.kill(); } catch {}
-          tryCandidate(idx + 1);
+          // Ping failed (timeout or write error) — retry after interval
+          setTimeout(attemptPing, STARTUP_PING_INTERVAL);
         });
-    }, 300); // ms — wait for process to start
+    }
+
+    // First ping after a brief delay for the process to start
+    setTimeout(attemptPing, 500);
   }
 }
 

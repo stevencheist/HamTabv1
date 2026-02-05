@@ -17,3 +17,22 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           wranglerVersion: "4.61.1"
+
+      # Health check — verify hamtab.net responds after deploy
+      # Container needs time to boot (sleepAfter wakes it on first request)
+      - name: Wait for container startup
+        run: sleep 30
+
+      - name: Health check hamtab.net
+        run: |
+          for i in 1 2 3 4 5 6; do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://hamtab.net/healthz || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "Health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "Attempt $i: HTTP $STATUS — retrying in 15s..."
+            sleep 15
+          done
+          echo "Health check failed after 6 attempts"
+          exit 1

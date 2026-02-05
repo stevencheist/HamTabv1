@@ -1591,24 +1591,29 @@ async function getCurrentKIndex() {
 // Calculate effective SSN with K-index degradation for geomagnetic storms.
 // During storms, absorption increases and MUF decreases. We model this
 // by reducing the "effective" SSN used for propagation calculations.
-// Degradation factors aligned with band-conditions.js reliability logic.
+//
+// Research basis (NOAA G-scale, SWSC aviation study):
+// - G1 (Kp=5): Minor storm, degradation begins
+// - G2 (Kp=6): "HF fading at higher latitudes"
+// - G3 (Kp=7): "HF may be intermittent" — ~50% MUF drop threshold
+// - G4 (Kp=8): "HF sporadic" — severe degradation
+// - G5 (Kp=9): "HF may be impossible" — near blackout
+// Sources: swpc.noaa.gov/noaa-scales-explanation, swsc-journal.org 2022
 function calculateEffectiveSSN(baseSSN, kIndex) {
-  // K-index to degradation factor mapping:
-  // K=0-1: quiet, full SSN
-  // K=2-3: unsettled, minor degradation
-  // K=4: active, moderate degradation
-  // K=5+: storm, significant degradation
+  // K-index to degradation factor mapping based on NOAA G-scale research:
+  // - MOD threshold: 30% MUF drop, SEV threshold: 50% MUF drop
+  // - "Storm-time decrease falls to 0.3-0.5 of undisturbed levels"
   const degradationMap = {
-    0: 1.00,  // quiet
-    1: 1.00,  // quiet
-    2: 0.95,  // unsettled (-5%)
-    3: 0.90,  // unsettled (-10%)
-    4: 0.80,  // active (-20%)
-    5: 0.65,  // minor storm (-35%)
-    6: 0.50,  // moderate storm (-50%)
-    7: 0.35,  // strong storm (-65%)
-    8: 0.20,  // severe storm (-80%)
-    9: 0.10,  // extreme storm (-90%)
+    0: 1.00,  // quiet — no effect
+    1: 1.00,  // quiet — no effect
+    2: 1.00,  // quiet — no measurable HF impact per research
+    3: 0.95,  // unsettled — minimal effect (~5%)
+    4: 0.90,  // unsettled/active — minor effect (~10%)
+    5: 0.80,  // G1 minor storm — degradation begins (~20%)
+    6: 0.65,  // G2 moderate — "fading at higher latitudes" (~35%)
+    7: 0.50,  // G3 strong — "intermittent" = ~50% MUF drop threshold
+    8: 0.30,  // G4 severe — "sporadic" (~70% loss)
+    9: 0.15,  // G5 extreme — "may be impossible" (~85% loss)
   };
 
   // If K-index unavailable, use base SSN unchanged
@@ -1733,38 +1738,54 @@ function calculateMUFServer(sfi, dayFrac) {
 }
 
 // Server-side band reliability (mirrors client band-conditions.js)
+// Tuned to be more realistic — original was too optimistic (all green).
+// Key changes:
+// - Above MUF: much steeper dropoff (was 40% base, now 15%)
+// - FT8 bonus: reduced from +30 to +15 (still significant but not magic)
+// - Below optimal: reduced daytime floor, increased night bonus modestly
 function calculateBandReliabilityServer(freqMHz, muf, isDay, opts) {
-  const mufLower = muf * 0.5;
-  const mufOptimal = muf * 0.85;
+  const mufLower = muf * 0.5;   // LUF approximation
+  const mufOptimal = muf * 0.85; // optimal frequency ~85% of MUF
   let base = 0;
 
   if (freqMHz < mufLower) {
+    // Below LUF: heavy D-layer absorption during day, better at night
     if (isDay) {
-      base = Math.max(0, 20 - (mufLower - freqMHz) * 2);
+      base = Math.max(0, 10 - (mufLower - freqMHz) * 3); // was 20, now 10 max
     } else {
-      base = Math.min(85, 60 + (mufLower - freqMHz) * 1.5);
+      base = Math.min(70, 40 + (mufLower - freqMHz) * 1.0); // reduced from 85/60
     }
   } else if (freqMHz <= mufOptimal) {
+    // Between LUF and optimal: good propagation zone
     const position = (freqMHz - mufLower) / (mufOptimal - mufLower);
-    base = 70 + (30 * Math.sin(position * Math.PI));
+    base = 50 + (35 * Math.sin(position * Math.PI)); // was 70+30, now 50+35
   } else if (freqMHz <= muf) {
+    // Between optimal and MUF: still usable but degrading
     const position = (freqMHz - mufOptimal) / (muf - mufOptimal);
-    base = 90 - (position * 40);
+    base = 75 - (position * 35); // was 90-40, now 75-35 (ends at 40% at MUF)
   } else {
+    // Above MUF: rapid dropoff — signals won't reflect
     const excess = freqMHz - muf;
-    base = Math.max(0, 40 - excess * 3);
+    base = Math.max(0, 15 - excess * 5); // was 40-3x, now 15-5x (much steeper)
   }
 
   if (opts) {
-    if (opts.mode === 'CW') base += 10;
-    else if (opts.mode === 'FT8') base += 30;
+    // Mode adjustments — FT8 helps but isn't magic
+    if (opts.mode === 'CW') base += 8;      // was +10
+    else if (opts.mode === 'FT8') base += 15; // was +30 (way too high)
+
+    // Power adjustment (±10 dB = ±15% reliability)
     if (opts.powerWatts && opts.powerWatts !== 100) {
       base += 10 * Math.log10(opts.powerWatts / 100) * 1.5;
     }
+
+    // TOA adjustment — higher angles slightly better for skip
     if (opts.toaDeg != null) {
-      base += (opts.toaDeg - 5) * 1.5;
+      base += (opts.toaDeg - 5) * 0.5; // reduced from 1.5
     }
-    if (opts.longPath) base -= 25;
+
+    // Long path penalty
+    if (opts.longPath) base -= 30; // was -25
   }
 
   return Math.max(0, Math.min(100, base));

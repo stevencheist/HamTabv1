@@ -136,12 +136,37 @@ main ──────────────────────── SH
 
 ### Branch Sync Protocol
 
+**CRITICAL: Deployment branches are remote-primary.** The remote is the source of truth for `lanmode` and `hostedmode`. Local copies are transient and may be stale. Always pull before merging.
+
 - **After committing to `main`:**
-  1. Push `main`
-  2. Merge `main` → `lanmode` (should be clean)
-  3. Push `lanmode`
-  4. Merge `main` → `hostedmode` (should be clean)
-  5. Push `hostedmode`
+  ```bash
+  # 1. Push main first
+  git push origin main
+
+  # 2. Fetch all remote state
+  git fetch --all
+
+  # 3. Sync lanmode (pull remote, merge main, push)
+  git checkout lanmode
+  git pull origin lanmode
+  git merge main -m "Merge main into lanmode"
+  git push origin lanmode
+
+  # 4. Sync hostedmode (pull remote, merge main, push)
+  git checkout hostedmode
+  git pull origin hostedmode
+  git merge main -m "Merge main into hostedmode"
+  git push origin hostedmode
+
+  # 5. Return to main
+  git checkout main
+  ```
+
+- **Why this order matters:**
+  - `git fetch --all` shows remote state before we touch anything
+  - `git pull` before merge ensures we have CI/CD commits, other developer changes, etc.
+  - Merging into a stale local branch then pushing will fail or cause conflicts
+  - hostedmode especially drifts due to CI/CD commits
 
 - **If merge conflicts occur:**
   - ⚠️ **STOP!** This indicates mode-specific code on `main`
@@ -252,7 +277,7 @@ Stay on `main` for most work. Use simple commands to manage branches:
 |---------|--------|
 | "status" | Show current branch, sync state, pending changes |
 | "pull" | Pull latest changes on current branch |
-| "sync branches" | Merge `main` → `lanmode` and `main` → `hostedmode`, push all |
+| "sync branches" | Fetch, pull, merge, push for both deployment branches (see Branch Sync Protocol) |
 | "switch to [branch]" | Checkout the specified branch |
 
 **Workflow:**
@@ -260,6 +285,14 @@ Stay on `main` for most work. Use simple commands to manage branches:
 2. Say "sync branches" to propagate changes to deployment branches
 3. Switch to `lanmode` or `hostedmode` only for branch-specific fixes
 4. Start sessions with "status" or "pull and status" to see current state
+
+**Sync branches does:**
+1. Push `main`
+2. `git fetch --all` to see remote state
+3. For each deployment branch: checkout → pull → merge main → push
+4. Return to `main`
+
+This ensures we never merge into a stale local branch.
 
 **When to switch branches:**
 - **hostedmode** — Cloudflare-specific fixes (wrangler.jsonc, worker.js, Dockerfile, CI/CD)

@@ -14,12 +14,14 @@ Clear your entry when done.
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
 
+
 ## Recently Completed
 
 Move finished items here for a few days so the other dev knows what changed, then delete.
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Francisco + Claude | VOACAP integration via dvoacap-python | main | 2026-02-04 |
 | Francisco + Claude | REL heatmap overlay for VOACAP widget | main | 2026-02-04 |
 | Francisco + Claude | VOACAP DE→DX widget redesign | main | 2026-02-04 |
 | Steven + Claude | Lanmode auto-update system | lanmode | 2026-02-04 |

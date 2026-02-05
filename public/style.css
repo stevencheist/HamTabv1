@@ -3174,6 +3174,26 @@ header {
   padding: 1px 5px;
 }
 
+/* Engine badge — green for real VOACAP, gray for simplified */
+.voacap-engine-badge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.03em;
+  user-select: none;
+}
+
+.voacap-engine-real {
+  background: var(--green);
+  color: #000;
+}
+
+.voacap-engine-sim {
+  background: var(--text-dim);
+  color: #000;
+}
+
 /* VOACAP map overlay */
 .voacap-center-marker {
   background: transparent !important;

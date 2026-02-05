@@ -141,6 +141,12 @@ const state = {
   voacapToa: localStorage.getItem('hamtab_voacap_toa') || '5',       // takeoff angle degrees: '3','5','10','15'
   voacapPath: localStorage.getItem('hamtab_voacap_path') || 'SP',    // 'SP' (short path), 'LP' (long path)
 
+  // VOACAP server data
+  voacapServerData: null,       // latest /api/voacap response (matrix from server)
+  voacapEngine: 'simplified',   // 'dvoacap' or 'simplified' — which engine produced the data
+  voacapTarget: localStorage.getItem('hamtab_voacap_target') || 'overview', // 'overview' or 'spot'
+  voacapLastFetch: 0,           // timestamp of last successful /api/voacap fetch
+
   // Heatmap overlay (REL mode for VOACAP)
   heatmapOverlayMode: localStorage.getItem('hamtab_heatmap_mode') || 'circles', // 'circles' or 'heatmap'
   heatmapLayer: null,       // L.imageOverlay instance

@@ -322,8 +322,8 @@ export const WIDGET_HELP = {
     title: 'Satellites',
     description: 'Track amateur radio satellites in real time and predict when they\'ll pass over your location. Many satellites carry amateur radio repeaters that anyone with a ham license can use to make contacts.',
     sections: [
-      { heading: 'Getting Started', content: 'You\'ll need a free API key from N2YO.com — enter it in Config. The ISS (International Space Station) is tracked by default and has an amateur radio station onboard!' },
-      { heading: 'Adding Satellites', content: 'Click the gear icon to search for and add satellites to track. Popular choices include the ISS, AO-91, SO-50, and other FM satellites that are easy to work with a handheld radio.' },
+      { heading: 'ISS Tracking', content: 'The ISS (International Space Station) is tracked automatically — no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard.' },
+      { heading: 'Adding More Satellites', content: 'To track additional satellites like AO-91, SO-50, and others, you\'ll need a free API key from N2YO.com — enter it in Config. Click the gear icon to search for and add satellites.' },
       { heading: 'Live Position', content: 'See where each satellite is right now on the map, along with its altitude, speed, and whether it\'s above your horizon (visible to you).' },
       { heading: 'Pass Predictions', content: 'Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work.' },
     ],

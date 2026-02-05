@@ -2,6 +2,10 @@
 import { migrate } from './migration.js';
 migrate();
 
+// Theme must apply before any rendering to avoid flash of unstyled content
+import { initTheme } from './themes.js';
+initTheme();
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { loadSolarFieldVisibility } from './solar.js';

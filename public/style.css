@@ -3046,10 +3046,10 @@ header {
   margin-bottom: 12px;
 }
 
-/* ---- HF Propagation (VOACAP) Widget ---- */
+/* ---- VOACAP DE→DX Widget ---- */
 
 #widget-voacap .widget-body {
-  padding: 8px;
+  padding: 4px 6px;
   overflow: auto;
 }
 
@@ -3067,31 +3067,25 @@ header {
 
 .voacap-table {
   border-collapse: collapse;
-  font-size: 0.65rem;
+  table-layout: fixed;
+  font-size: 0.55rem;
   width: 100%;
 }
 
-.voacap-table th,
 .voacap-table td {
   padding: 0;
   text-align: center;
 }
 
-.voacap-band-header {
-  width: 35px;
-  min-width: 35px;
-}
-
-.voacap-hour-header {
-  font-size: 0.6rem;
+.voacap-band-label {
+  width: 30px;
+  min-width: 30px;
+  font-size: 0.55rem;
   font-weight: 600;
-  color: var(--text-dim);
-  padding: 2px 0;
-}
-
-.voacap-hour-header.voacap-now {
-  color: var(--accent);
-  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+  padding-right: 4px !important;
+  white-space: nowrap;
 }
 
 .voacap-row {
@@ -3111,18 +3105,9 @@ header {
   background: rgba(233, 69, 96, 0.2);
 }
 
-.voacap-band-label {
-  font-weight: 600;
-  color: var(--text);
-  text-align: right;
-  padding-right: 6px !important;
-  white-space: nowrap;
-}
-
 .voacap-cell {
-  width: 16px;
-  min-width: 16px;
-  height: 14px;
+  height: 12px;
+  border: 0.5px solid rgba(255, 255, 255, 0.06);
   transition: transform 0.1s;
 }
 
@@ -3133,31 +3118,58 @@ header {
 }
 
 .voacap-cell-now {
-  border: 1px solid var(--accent);
+  border-top: 1.5px solid var(--accent);
+  border-bottom: 1.5px solid var(--accent);
 }
 
-.voacap-legend {
+/* Hour labels row at bottom */
+.voacap-hour-row td {
+  padding: 0;
+}
+
+.voacap-hour-label {
+  font-size: 0.5rem;
+  color: var(--text-dim);
+  text-align: left;
+  padding-left: 1px !important;
+}
+
+.voacap-hour-now {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+/* Parameter bar */
+.voacap-params {
   display: flex;
   justify-content: center;
-  gap: 12px;
-  margin-top: 8px;
-  padding-top: 6px;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  padding-top: 3px;
   border-top: 1px solid var(--border);
 }
 
-.voacap-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.65rem;
-  color: var(--text-dim);
+.voacap-param {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 1px 5px;
+  border-radius: 3px;
+  transition: background 0.15s;
+  user-select: none;
 }
 
-.voacap-legend-color {
-  width: 12px;
-  height: 12px;
-  border-radius: 2px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+.voacap-param:hover {
+  background: rgba(233, 69, 96, 0.15);
+}
+
+.voacap-param-static {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 1px 5px;
 }
 
 /* VOACAP map overlay */

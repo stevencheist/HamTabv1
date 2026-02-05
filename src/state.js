@@ -136,6 +136,11 @@ const state = {
   voacapToa: localStorage.getItem('hamtab_voacap_toa') || '5',       // takeoff angle degrees: '3','5','10','15'
   voacapPath: localStorage.getItem('hamtab_voacap_path') || 'SP',    // 'SP' (short path), 'LP' (long path)
 
+  // Heatmap overlay (REL mode for VOACAP)
+  heatmapOverlayMode: localStorage.getItem('hamtab_heatmap_mode') || 'circles', // 'circles' or 'heatmap'
+  heatmapLayer: null,       // L.imageOverlay instance
+  heatmapRenderTimer: null, // debounce timer for pan/zoom re-render
+
   // Init flag
   appInitialized: false,
 

@@ -63,6 +63,11 @@ export function initMap() {
         const { renderMaidenheadGrid } = require('./map-overlays.js');
         state.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid, 150);
       }
+      if (state.hfPropOverlayBand && state.heatmapOverlayMode === 'heatmap') {
+        clearTimeout(state.heatmapRenderTimer);
+        const { renderHeatmapCanvas } = require('./rel-heatmap.js');
+        state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.hfPropOverlayBand), 200);
+      }
     });
     state.map.on('moveend', () => {
       if (state.mapOverlays.latLonGrid) {
@@ -73,6 +78,11 @@ export function initMap() {
         clearTimeout(state.maidenheadDebounceTimer);
         const { renderMaidenheadGrid } = require('./map-overlays.js');
         state.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid, 150);
+      }
+      if (state.hfPropOverlayBand && state.heatmapOverlayMode === 'heatmap') {
+        clearTimeout(state.heatmapRenderTimer);
+        const { renderHeatmapCanvas } = require('./rel-heatmap.js');
+        state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.hfPropOverlayBand), 200);
       }
     });
 

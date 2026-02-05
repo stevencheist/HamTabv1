@@ -4,6 +4,7 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { calculate24HourMatrix, getReliabilityColor, VOACAP_BANDS, HF_BANDS } from './band-conditions.js';
+import { renderHeatmapCanvas, clearHeatmap } from './rel-heatmap.js';
 
 // Store overlay circles on map
 let bandOverlayCircles = [];
@@ -42,6 +43,26 @@ export function initVoacapListeners() {
 // --- Parameter Cycling ---
 
 function cycleParam(name) {
+  // Overlay mode toggle (circles ↔ heatmap)
+  if (name === 'overlay') {
+    const next = state.heatmapOverlayMode === 'circles' ? 'heatmap' : 'circles';
+    state.heatmapOverlayMode = next;
+    localStorage.setItem('hamtab_heatmap_mode', next);
+    renderVoacapMatrix();
+
+    // Re-draw in the new mode if an overlay is active
+    if (state.hfPropOverlayBand) {
+      clearBandOverlay();
+      clearHeatmap();
+      if (next === 'heatmap') {
+        renderHeatmapCanvas(state.hfPropOverlayBand);
+      } else {
+        drawBandOverlay(state.hfPropOverlayBand);
+      }
+    }
+    return;
+  }
+
   let options, key, stateKey;
   if (name === 'power') {
     options = POWER_OPTIONS; key = 'hamtab_voacap_power'; stateKey = 'voacapPower';
@@ -65,12 +86,17 @@ function cycleParam(name) {
   // Re-draw map overlay if one is active
   if (state.hfPropOverlayBand) {
     clearBandOverlay();
-    drawBandOverlay(state.hfPropOverlayBand);
+    clearHeatmap();
+    if (state.heatmapOverlayMode === 'heatmap') {
+      renderHeatmapCanvas(state.hfPropOverlayBand);
+    } else {
+      drawBandOverlay(state.hfPropOverlayBand);
+    }
   }
 }
 
 // Build opts object from current VOACAP state for calculation functions
-function getVoacapOpts() {
+export function getVoacapOpts() {
   return {
     lat: state.myLat,
     lon: state.myLon,
@@ -151,7 +177,12 @@ export function renderVoacapMatrix() {
 
   // Parameter bar
   const sn = state.lastSolarData?.indices?.sunspots || '--';
+  const overlayLabel = state.heatmapOverlayMode === 'heatmap' ? 'REL' : '\u25CB'; // ○ for circles
+  const overlayTitle = state.heatmapOverlayMode === 'heatmap'
+    ? 'Overlay: REL heatmap (click for circles)'
+    : 'Overlay: circles (click for REL heatmap)';
   html += `<div class="voacap-params">`;
+  html += `<span class="voacap-param" data-param="overlay" title="${overlayTitle}">${overlayLabel}</span>`;
   html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state.voacapPower] || state.voacapPower}</span>`;
   html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state.voacapMode}</span>`;
   html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state.voacapToa}\u00B0</span>`;
@@ -165,8 +196,9 @@ export function renderVoacapMatrix() {
 // --- Map Overlay ---
 
 export function toggleBandOverlay(band) {
-  // Clear existing overlay
+  // Clear existing overlays (both modes)
   clearBandOverlay();
+  clearHeatmap();
 
   // If clicking the same band, just clear
   if (state.hfPropOverlayBand === band) {
@@ -179,8 +211,12 @@ export function toggleBandOverlay(band) {
   state.hfPropOverlayBand = band;
   renderVoacapMatrix();
 
-  // Draw circles based on reliability at current hour
-  drawBandOverlay(band);
+  // Dispatch to correct overlay mode
+  if (state.heatmapOverlayMode === 'heatmap') {
+    renderHeatmapCanvas(band);
+  } else {
+    drawBandOverlay(band);
+  }
 }
 
 function clearBandOverlay() {
@@ -263,5 +299,6 @@ function drawBandOverlay(band) {
 // Export for cleanup on source change
 export function clearVoacapOverlay() {
   clearBandOverlay();
+  clearHeatmap();
   state.hfPropOverlayBand = null;
 }

@@ -85,6 +85,21 @@ function showStatus(message, type) {
   status.className = 'feedback-status ' + type;
 }
 
+// Show status message with a clickable link
+function showStatusWithLink(message, url, linkText) {
+  const status = $('feedbackStatus');
+  status.innerHTML = '';
+  status.appendChild(document.createTextNode(message));
+  const link = document.createElement('a');
+  link.href = url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = linkText;
+  link.style.color = 'var(--accent)';
+  status.appendChild(link);
+  status.className = 'feedback-status error';
+}
+
 // Submit feedback
 async function submitFeedback(e) {
   e.preventDefault();
@@ -144,6 +159,15 @@ async function submitFeedback(e) {
       updateCharCount();
       // Close modal after 2 seconds
       setTimeout(closeFeedback, 2000);
+    } else if (response.status === 503) {
+      // Relay unavailable — show GitHub link
+      showStatusWithLink(
+        'Feedback system temporarily unavailable. Please submit directly: ',
+        'https://github.com/stevencheist/HamTabv1/issues/new',
+        'Create GitHub Issue'
+      );
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Send Feedback';
     } else {
       showStatus(result.error || 'Failed to submit feedback. Please try again.', 'error');
       submitBtn.disabled = false;

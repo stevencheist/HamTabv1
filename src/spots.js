@@ -2,7 +2,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
 import { esc, fmtTime, formatAge } from './utils.js';
-import { spotId } from './filters.js';
+import { spotId, saveCurrentFilters } from './filters.js';
 import { flyToSpot } from './markers.js';
 
 const SPOT_COL_VIS_KEY = 'hamtab_spot_columns';
@@ -22,18 +22,78 @@ export function saveSpotColumnVisibility() {
   localStorage.setItem(SPOT_COL_VIS_KEY, JSON.stringify(state.spotColumnVisibility));
 }
 
+// Toggle sort column/direction when clicking a header
+function toggleSort(colKey) {
+  if (state.spotSortColumn === colKey) {
+    // Toggle direction
+    state.spotSortDirection = state.spotSortDirection === 'asc' ? 'desc' : 'asc';
+  } else {
+    // New column — default to desc for time/age, asc for others
+    state.spotSortColumn = colKey;
+    state.spotSortDirection = (colKey === 'spotTime' || colKey === 'age') ? 'desc' : 'asc';
+  }
+  saveCurrentFilters();
+  renderSpots();
+}
+
+// Render table headers with sort indicators
+export function renderSpotsHeader() {
+  const cols = SOURCE_DEFS[state.currentSource].columns
+    .filter(c => state.spotColumnVisibility[c.key] !== false);
+
+  const thead = $('spotsHead');
+  thead.innerHTML = '';
+  const tr = document.createElement('tr');
+
+  cols.forEach(col => {
+    const th = document.createElement('th');
+    th.textContent = col.label;
+
+    if (col.sortable) {
+      th.classList.add('sortable');
+      th.addEventListener('click', () => toggleSort(col.key));
+
+      // Determine effective sort column (null means use default sortKey)
+      const effectiveCol = state.spotSortColumn || SOURCE_DEFS[state.currentSource].sortKey;
+      if (effectiveCol === col.key || (col.key === 'age' && effectiveCol === 'spotTime' && !state.spotSortColumn)) {
+        th.classList.add(state.spotSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+      }
+    }
+    tr.appendChild(th);
+  });
+  thead.appendChild(tr);
+}
+
 export function renderSpots() {
   const filtered = state.sourceFiltered[state.currentSource] || [];
   const spotsBody = $('spotsBody');
   spotsBody.innerHTML = '';
   $('spotCount').textContent = `(${filtered.length})`;
 
+  // Render headers with sort indicators
+  renderSpotsHeader();
+
   const cols = SOURCE_DEFS[state.currentSource].columns
     .filter(c => state.spotColumnVisibility[c.key] !== false);
-  const sortKey = SOURCE_DEFS[state.currentSource].sortKey;
+
+  // Determine sort column and direction
+  const sortCol = state.spotSortColumn || SOURCE_DEFS[state.currentSource].sortKey;
+  const dir = state.spotSortDirection === 'asc' ? 1 : -1;
 
   const sorted = [...filtered].sort((a, b) => {
-    return new Date(b[sortKey]) - new Date(a[sortKey]);
+    // Handle different column types
+    if (sortCol === 'spotTime' || sortCol === 'age') {
+      // Sort by actual spotTime for both time and age columns
+      return dir * (new Date(a.spotTime) - new Date(b.spotTime));
+    } else if (sortCol === 'frequency') {
+      // Numeric sort for frequency
+      return dir * ((parseFloat(a.frequency) || 0) - (parseFloat(b.frequency) || 0));
+    } else {
+      // String comparison for callsign, mode, etc.
+      const aVal = (a[sortCol] || a.activator || '').toString().toLowerCase();
+      const bVal = (b[sortCol] || b.activator || '').toString().toLowerCase();
+      return dir * aVal.localeCompare(bVal);
+    }
   });
 
   sorted.forEach(spot => {

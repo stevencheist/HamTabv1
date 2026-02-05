@@ -3949,6 +3949,101 @@
     h = Math.max(80, h);
     return { w, h };
   }
+  function getWidgetRect(widget) {
+    return {
+      id: widget.id,
+      left: parseInt(widget.style.left) || 0,
+      top: parseInt(widget.style.top) || 0,
+      width: parseInt(widget.style.width) || 200,
+      height: parseInt(widget.style.height) || 150
+    };
+  }
+  function rectsOverlap(r1, r2) {
+    return !(r1.left + r1.width <= r2.left || // r1 is left of r2
+    r2.left + r2.width <= r1.left || // r2 is left of r1
+    r1.top + r1.height <= r2.top || // r1 is above r2
+    r2.top + r2.height <= r1.top);
+  }
+  function resolveOverlaps(movedWidget) {
+    const { width: aW, height: aH } = getWidgetArea();
+    const pad = 6;
+    const maxIterations = 10;
+    for (let iter = 0; iter < maxIterations; iter++) {
+      let anyMoved = false;
+      const movedRect = getWidgetRect(movedWidget);
+      document.querySelectorAll(".widget").forEach((other) => {
+        if (other.id === movedWidget.id) return;
+        if (other.style.display === "none") return;
+        if (state_default.widgetVisibility && state_default.widgetVisibility[other.id] === false) return;
+        const otherRect = getWidgetRect(other);
+        if (!rectsOverlap(movedRect, otherRect)) return;
+        const overlapLeft = movedRect.left + movedRect.width - otherRect.left;
+        const overlapRight = otherRect.left + otherRect.width - movedRect.left;
+        const overlapTop = movedRect.top + movedRect.height - otherRect.top;
+        const overlapBottom = otherRect.top + otherRect.height - movedRect.top;
+        const pushes = [
+          { dir: "right", dist: overlapLeft, newLeft: movedRect.left + movedRect.width + pad, newTop: otherRect.top },
+          { dir: "left", dist: overlapRight, newLeft: movedRect.left - otherRect.width - pad, newTop: otherRect.top },
+          { dir: "down", dist: overlapTop, newLeft: otherRect.left, newTop: movedRect.top + movedRect.height + pad },
+          { dir: "up", dist: overlapBottom, newLeft: otherRect.left, newTop: movedRect.top - otherRect.height - pad }
+        ];
+        const validPushes = pushes.filter((p) => {
+          return p.newLeft >= 0 && p.newTop >= 0 && p.newLeft + otherRect.width <= aW && p.newTop + otherRect.height <= aH;
+        });
+        const sorted = (validPushes.length > 0 ? validPushes : pushes).sort((a, b) => a.dist - b.dist);
+        const best = sorted[0];
+        let newLeft = Math.max(0, Math.min(best.newLeft, aW - otherRect.width));
+        let newTop = Math.max(0, Math.min(best.newTop, aH - otherRect.height));
+        if (newLeft !== otherRect.left || newTop !== otherRect.top) {
+          other.style.left = newLeft + "px";
+          other.style.top = newTop + "px";
+          anyMoved = true;
+        }
+      });
+      if (!anyMoved) break;
+    }
+  }
+  function resolveAllOverlaps() {
+    const widgets = Array.from(document.querySelectorAll(".widget")).filter((w) => {
+      return w.style.display !== "none" && (!state_default.widgetVisibility || state_default.widgetVisibility[w.id] !== false);
+    });
+    const { width: aW, height: aH } = getWidgetArea();
+    const pad = 6;
+    const maxIterations = 20;
+    for (let iter = 0; iter < maxIterations; iter++) {
+      let anyMoved = false;
+      for (let i = 0; i < widgets.length; i++) {
+        for (let j = i + 1; j < widgets.length; j++) {
+          const r1 = getWidgetRect(widgets[i]);
+          const r2 = getWidgetRect(widgets[j]);
+          if (!rectsOverlap(r1, r2)) continue;
+          const overlapLeft = r1.left + r1.width - r2.left;
+          const overlapRight = r2.left + r2.width - r1.left;
+          const overlapTop = r1.top + r1.height - r2.top;
+          const overlapBottom = r2.top + r2.height - r1.top;
+          const pushes = [
+            { dist: overlapLeft, newLeft: r1.left + r1.width + pad, newTop: r2.top },
+            { dist: overlapRight, newLeft: r1.left - r2.width - pad, newTop: r2.top },
+            { dist: overlapTop, newLeft: r2.left, newTop: r1.top + r1.height + pad },
+            { dist: overlapBottom, newLeft: r2.left, newTop: r1.top - r2.height - pad }
+          ];
+          const validPushes = pushes.filter((p) => {
+            return p.newLeft >= 0 && p.newTop >= 0 && p.newLeft + r2.width <= aW && p.newTop + r2.height <= aH;
+          });
+          const sorted = (validPushes.length > 0 ? validPushes : pushes).sort((a, b) => a.dist - b.dist);
+          const best = sorted[0];
+          let newLeft = Math.max(0, Math.min(best.newLeft, aW - r2.width));
+          let newTop = Math.max(0, Math.min(best.newTop, aH - r2.height));
+          if (newLeft !== r2.left || newTop !== r2.top) {
+            widgets[j].style.left = newLeft + "px";
+            widgets[j].style.top = newTop + "px";
+            anyMoved = true;
+          }
+        }
+      }
+      if (!anyMoved) break;
+    }
+  }
   function saveWidgets() {
     const layout = {};
     document.querySelectorAll(".widget").forEach((w) => {
@@ -4006,6 +4101,7 @@
       function onUp() {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        resolveOverlaps(widget);
         saveWidgets();
       }
       document.addEventListener("mousemove", onMove);
@@ -4038,6 +4134,7 @@
       function onUp() {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
+        resolveOverlaps(widget);
         saveWidgets();
         if (state_default.map && widget.id === "widget-map") {
           state_default.map.invalidateSize();
@@ -4107,6 +4204,7 @@
     });
     prevAreaW = aW;
     prevAreaH = aH;
+    resolveAllOverlaps();
     if (state_default.map) state_default.map.invalidateSize();
     saveWidgets();
   }

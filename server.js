@@ -9,6 +9,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { XMLParser } = require('fast-xml-parser');
 const dns = require('dns');
+const voacap = require('./voacap-bridge.js');
 
 const app = express();
 const PORT = process.env.PORT || 8080;
@@ -1333,6 +1334,385 @@ app.get('/api/propagation', async (req, res) => {
   }
 });
 
+// --- VOACAP prediction engine ---
+
+// SSN cache — refreshed every 24 hours from NOAA predicted monthly sunspot number
+const ssnCache = { data: null, expires: 0 };
+const SSN_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+async function getCurrentSSN() {
+  if (ssnCache.data && Date.now() < ssnCache.expires) {
+    return ssnCache.data;
+  }
+
+  try {
+    // NOAA predicted monthly sunspot number (JSON array of [year, month, ssn, ...])
+    const raw = await fetchJSON('https://services.swpc.noaa.gov/json/predicted_monthly_sunspot_number.json');
+    const now = new Date();
+    const currentYear = now.getUTCFullYear();
+    const currentMonth = now.getUTCMonth() + 1;
+
+    // Find entry matching current UTC month/year
+    let entry = null;
+    if (Array.isArray(raw)) {
+      entry = raw.find(e =>
+        e['time-tag'] &&
+        new Date(e['time-tag']).getUTCFullYear() === currentYear &&
+        (new Date(e['time-tag']).getUTCMonth() + 1) === currentMonth
+      );
+    }
+
+    if (entry && entry['predicted_ssn'] != null) {
+      ssnCache.data = {
+        ssn: parseFloat(entry['predicted_ssn']),
+        month: currentMonth,
+        year: currentYear,
+        source: 'noaa',
+      };
+    } else {
+      // Fallback: use first entry or a reasonable default
+      const fallbackSSN = Array.isArray(raw) && raw.length > 0 && raw[0]['predicted_ssn'] != null
+        ? parseFloat(raw[0]['predicted_ssn'])
+        : 50;
+      ssnCache.data = {
+        ssn: fallbackSSN,
+        month: currentMonth,
+        year: currentYear,
+        source: 'noaa-fallback',
+      };
+    }
+
+    ssnCache.expires = Date.now() + SSN_TTL;
+    return ssnCache.data;
+  } catch (err) {
+    console.error('Error fetching SSN:', err.message);
+
+    // If we have stale data, return it
+    if (ssnCache.data) return ssnCache.data;
+
+    // Last resort: reasonable default
+    return {
+      ssn: 50,
+      month: new Date().getUTCMonth() + 1,
+      year: new Date().getUTCFullYear(),
+      source: 'default',
+    };
+  }
+}
+
+// VOACAP prediction cache — keyed by rounded params, TTL 1 hour
+const voacapCache = {}; // { key: { data, expires } }
+const VOACAP_TTL = 60 * 60 * 1000; // 1 hour
+
+// Simplified propagation model (server-side fallback when Python unavailable)
+// Mirrors the client-side calculate24HourMatrix from band-conditions.js
+function simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toaDeg, longPath) {
+  // Mode SNR/bandwidth mapping
+  const modeParams = {
+    CW:  { snr: 39, bw: 500 },
+    SSB: { snr: 73, bw: 2700 },
+    FT8: { snr: 2,  bw: 50 },
+  };
+  const mp = modeParams[mode] || modeParams.SSB;
+
+  // Simplified solar flux estimate from SSN (empirical: SFI ≈ 63 + 0.73 * SSN)
+  const sfi = 63 + 0.73 * ssn;
+
+  // VOACAP band subset (no 160m, no 60m)
+  const bands = [
+    { name: '80m',  freq: 3.7 },
+    { name: '40m',  freq: 7.15 },
+    { name: '30m',  freq: 10.12 },
+    { name: '20m',  freq: 14.15 },
+    { name: '17m',  freq: 18.1 },
+    { name: '15m',  freq: 21.2 },
+    { name: '12m',  freq: 24.93 },
+    { name: '10m',  freq: 28.5 },
+  ];
+
+  const matrix = [];
+
+  for (let hour = 0; hour < 24; hour++) {
+    // Solar zenith–based day fraction
+    const df = dayFractionServer(txLat, txLon, hour);
+    const muf = calculateMUFServer(sfi, df);
+
+    const bandResults = {};
+    for (const band of bands) {
+      let rel = calculateBandReliabilityServer(band.freq, muf, df >= 0.5, {
+        mode, powerWatts: power, toaDeg, longPath,
+      });
+      bandResults[band.name] = { rel: Math.round(rel), snr: 0, mode: '' };
+    }
+
+    matrix.push({
+      hour,
+      bands: bandResults,
+      muf: Math.round(muf * 10) / 10,
+    });
+  }
+
+  return matrix;
+}
+
+// Server-side day fraction (mirrors client band-conditions.js dayFraction)
+function dayFractionServer(lat, lon, utcHour) {
+  if (lat == null || lon == null) {
+    return (utcHour >= 6 && utcHour < 18) ? 1.0 : 0.0;
+  }
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((now - start) / 86400000) + 1;
+  const declRad = Math.asin(
+    Math.sin(23.44 * Math.PI / 180) * Math.sin((360 / 365) * (dayOfYear - 81) * Math.PI / 180)
+  );
+  const solarNoonOffset = lon / 15;
+  const hourAngle = (utcHour - 12 + solarNoonOffset) * 15;
+  const haRad = hourAngle * Math.PI / 180;
+  const latRad = lat * Math.PI / 180;
+  const cosZenith = Math.sin(latRad) * Math.sin(declRad) +
+                    Math.cos(latRad) * Math.cos(declRad) * Math.cos(haRad);
+  const zenith = Math.acos(Math.max(-1, Math.min(1, cosZenith))) * 180 / Math.PI;
+  if (zenith <= 80) return 1.0;
+  if (zenith >= 100) return 0.0;
+  return (100 - zenith) / 20;
+}
+
+// Server-side MUF calculation (mirrors client band-conditions.js)
+function calculateMUFServer(sfi, dayFrac) {
+  if (dayFrac === true) dayFrac = 1.0;
+  else if (dayFrac === false) dayFrac = 0.0;
+  const foF2Factor = 0.6 + 0.3 * dayFrac;
+  const foF2 = foF2Factor * Math.sqrt(Math.max(sfi, 50));
+  return foF2 * 3.5; // obliquity factor
+}
+
+// Server-side band reliability (mirrors client band-conditions.js)
+function calculateBandReliabilityServer(freqMHz, muf, isDay, opts) {
+  const mufLower = muf * 0.5;
+  const mufOptimal = muf * 0.85;
+  let base = 0;
+
+  if (freqMHz < mufLower) {
+    if (isDay) {
+      base = Math.max(0, 20 - (mufLower - freqMHz) * 2);
+    } else {
+      base = Math.min(85, 60 + (mufLower - freqMHz) * 1.5);
+    }
+  } else if (freqMHz <= mufOptimal) {
+    const position = (freqMHz - mufLower) / (mufOptimal - mufLower);
+    base = 70 + (30 * Math.sin(position * Math.PI));
+  } else if (freqMHz <= muf) {
+    const position = (freqMHz - mufOptimal) / (muf - mufOptimal);
+    base = 90 - (position * 40);
+  } else {
+    const excess = freqMHz - muf;
+    base = Math.max(0, 40 - excess * 3);
+  }
+
+  if (opts) {
+    if (opts.mode === 'CW') base += 10;
+    else if (opts.mode === 'FT8') base += 30;
+    if (opts.powerWatts && opts.powerWatts !== 100) {
+      base += 10 * Math.log10(opts.powerWatts / 100) * 1.5;
+    }
+    if (opts.toaDeg != null) {
+      base += (opts.toaDeg - 5) * 1.5;
+    }
+    if (opts.longPath) base -= 25;
+  }
+
+  return Math.max(0, Math.min(100, base));
+}
+
+// Representative global targets for multi-target VOACAP overview
+const VOACAP_TARGETS = [
+  { name: 'Europe',        lat: 50.0,  lon: 10.0 },
+  { name: 'East Asia',     lat: 35.0,  lon: 135.0 },
+  { name: 'South America', lat: -15.0, lon: -47.0 },
+  { name: 'Oceania',       lat: -33.0, lon: 151.0 },
+  { name: 'Africa',        lat: 0.0,   lon: 30.0 },
+  { name: 'North America', lat: 40.0,  lon: -100.0 },
+];
+
+// Return SSN data
+app.get('/api/voacap/ssn', async (req, res) => {
+  try {
+    const ssn = await getCurrentSSN();
+    res.json(ssn);
+  } catch (err) {
+    console.error('Error fetching SSN:', err.message);
+    res.status(502).json({ error: 'Failed to fetch SSN data' });
+  }
+});
+
+// VOACAP prediction endpoint
+app.get('/api/voacap', async (req, res) => {
+  try {
+    // Validate params
+    const txLat = parseFloat(req.query.txLat);
+    const txLon = parseFloat(req.query.txLon);
+    if (isNaN(txLat) || isNaN(txLon) || txLat < -90 || txLat > 90 || txLon < -180 || txLon > 180) {
+      return res.status(400).json({ error: 'Invalid or missing txLat/txLon' });
+    }
+
+    const rxLat = req.query.rxLat != null ? parseFloat(req.query.rxLat) : null;
+    const rxLon = req.query.rxLon != null ? parseFloat(req.query.rxLon) : null;
+    if (rxLat != null && (isNaN(rxLat) || rxLat < -90 || rxLat > 90)) {
+      return res.status(400).json({ error: 'Invalid rxLat' });
+    }
+    if (rxLon != null && (isNaN(rxLon) || rxLon < -180 || rxLon > 180)) {
+      return res.status(400).json({ error: 'Invalid rxLon' });
+    }
+
+    const validPowers = [5, 100, 1000];
+    const power = validPowers.includes(parseInt(req.query.power)) ? parseInt(req.query.power) : 100;
+
+    const validModes = ['CW', 'SSB', 'FT8'];
+    const mode = validModes.includes(req.query.mode) ? req.query.mode : 'SSB';
+
+    const validToa = [3, 5, 10, 15];
+    const toa = validToa.includes(parseInt(req.query.toa)) ? parseInt(req.query.toa) : 5;
+
+    const validPath = ['SP', 'LP'];
+    const pathType = validPath.includes(req.query.path) ? req.query.path : 'SP';
+    const longPath = pathType === 'LP';
+
+    // API token validation — if VOACAP_API_TOKENS is set in .env, require a valid token.
+    // Format: comma-separated list of tokens, e.g. VOACAP_API_TOKENS=abc123,def456
+    // Client sends token via X-Voacap-Token header or ?token= query param.
+    // When not configured (lanmode default), all requests are allowed.
+    const allowedTokens = process.env.VOACAP_API_TOKENS;
+    if (allowedTokens) {
+      const tokenSet = new Set(allowedTokens.split(',').map(t => t.trim()).filter(Boolean));
+      const clientToken = req.headers['x-voacap-token'] || req.query.token || '';
+      if (!tokenSet.has(clientToken)) {
+        return res.status(401).json({ error: 'Invalid or missing API token' });
+      }
+    }
+
+    // Cache key — round lat/lon to 1 decimal to improve hit rate
+    const cacheKey = [
+      Math.round(txLat * 10) / 10,
+      Math.round(txLon * 10) / 10,
+      rxLat != null ? Math.round(rxLat * 10) / 10 : 'all',
+      rxLon != null ? Math.round(rxLon * 10) / 10 : 'all',
+      power, mode, toa, pathType,
+    ].join(':');
+
+    const cached = voacapCache[cacheKey];
+    if (cached && Date.now() < cached.expires) {
+      return res.json(cached.data);
+    }
+
+    // Fetch current SSN
+    const ssnData = await getCurrentSSN();
+    const ssn = ssnData.ssn;
+    const month = ssnData.month;
+
+    // Mode → required SNR and bandwidth
+    const modeMap = {
+      CW:  { snr: 39, bw: 500 },
+      SSB: { snr: 73, bw: 2700 },
+      FT8: { snr: 2,  bw: 50 },
+    };
+    const { snr: requiredSnr, bw: bandwidthHz } = modeMap[mode] || modeMap.SSB;
+
+    // VOACAP band frequencies (no 160m, no 60m)
+    const frequencies = [3.7, 7.15, 10.12, 14.15, 18.1, 21.2, 24.93, 28.5];
+    const bandNames = ['80m', '40m', '30m', '20m', '17m', '15m', '12m', '10m'];
+
+    // Determine targets
+    let targets;
+    if (rxLat != null && rxLon != null) {
+      targets = [{ name: 'target', lat: rxLat, lon: rxLon }];
+    } else {
+      // Use representative global targets; swap NA for Caribbean if TX is in NA
+      targets = VOACAP_TARGETS.map(t => {
+        if (t.name === 'North America' && txLat > 24 && txLat < 50 && txLon > -130 && txLon < -60) {
+          return { name: 'Caribbean', lat: 18.0, lon: -66.0 };
+        }
+        return t;
+      });
+    }
+
+    let engine = 'simplified';
+    let matrix;
+
+    if (voacap.isAvailable()) {
+      // Use real VOACAP engine — compute all 24 hours for each target
+      engine = 'dvoacap';
+      matrix = [];
+
+      for (let hour = 0; hour < 24; hour++) {
+        // For each hour, find best reliability across all targets per band
+        const bandBest = {};
+        for (const bn of bandNames) {
+          bandBest[bn] = { rel: 0, snr: 0, mode: '' };
+        }
+        let maxMuf = 0;
+
+        for (const target of targets) {
+          try {
+            const result = await voacap.predict({
+              tx_lat: txLat,
+              tx_lon: txLon,
+              rx_lat: target.lat,
+              rx_lon: target.lon,
+              ssn,
+              month,
+              power,
+              min_angle_deg: toa,
+              long_path: longPath,
+              required_snr: requiredSnr,
+              bandwidth_hz: bandwidthHz,
+              frequencies,
+            });
+
+            if (result.ok && result.predictions) {
+              if (result.muf > maxMuf) maxMuf = result.muf;
+
+              for (let i = 0; i < result.predictions.length; i++) {
+                const pred = result.predictions[i];
+                const bn = bandNames[i];
+                if (pred.reliability > bandBest[bn].rel) {
+                  bandBest[bn] = {
+                    rel: pred.reliability,
+                    snr: pred.snr_db,
+                    mode: pred.mode,
+                  };
+                }
+              }
+            }
+          } catch (err) {
+            console.error(`[VOACAP] Prediction error for ${target.name}: ${err.message}`);
+          }
+        }
+
+        matrix.push({ hour, bands: bandBest, muf: Math.round(maxMuf * 10) / 10 });
+      }
+    } else {
+      // Simplified fallback
+      matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
+    }
+
+    const response = {
+      engine,
+      ssn: Math.round(ssn * 10) / 10,
+      month,
+      matrix,
+    };
+
+    // Cache result
+    voacapCache[cacheKey] = { data: response, expires: Date.now() + VOACAP_TTL };
+
+    res.json(response);
+  } catch (err) {
+    console.error('Error in /api/voacap:', err.message);
+    res.status(500).json({ error: 'Failed to compute VOACAP predictions' });
+  }
+});
+
 // --- Lunar math (simplified Meeus algorithms) ---
 
 // Lunar position via Jean Meeus, "Astronomical Algorithms" 2nd ed.
@@ -1664,7 +2044,7 @@ function parseSolarXML(xml) {
 }
 
 // --- Cache eviction (runs every 30 minutes, removes expired entries) ---
-const allCaches = [dxcCallCache, pskHeardCache, satPassCache, satTleCache, nwsGridCache, sdoDirCache, sotaSummitCache];
+const allCaches = [dxcCallCache, pskHeardCache, satPassCache, satTleCache, nwsGridCache, sdoDirCache, sotaSummitCache, voacapCache];
 setInterval(() => {
   const now = Date.now();
   for (const cache of allCaches) {
@@ -1678,9 +2058,13 @@ setInterval(() => {
 
 // --- Start server ---
 
+// Initialize VOACAP bridge (Python child process for real predictions)
+voacap.init();
+
 // Write PID file so dev tooling can find and kill this process cleanly
 fs.writeFileSync(path.join(__dirname, 'server.pid'), String(process.pid));
 process.on('exit', () => {
+  voacap.shutdown();
   try { fs.unlinkSync(path.join(__dirname, 'server.pid')); } catch {}
 });
 

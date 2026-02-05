@@ -133,8 +133,12 @@ const state = {
   liveSpotsMarkers: {},
   liveSpotsLines: null,
 
-  // HF Propagation (24-hour matrix)
+  // HF Propagation (VOACAP DE→DX)
   hfPropOverlayBand: null, // currently displayed band overlay on map
+  voacapPower: localStorage.getItem('hamtab_voacap_power') || '100', // watts: '5','100','1000'
+  voacapMode: localStorage.getItem('hamtab_voacap_mode') || 'SSB',   // 'CW','SSB','FT8'
+  voacapToa: localStorage.getItem('hamtab_voacap_toa') || '5',       // takeoff angle degrees: '3','5','10','15'
+  voacapPath: localStorage.getItem('hamtab_voacap_path') || 'SP',    // 'SP' (short path), 'LP' (long path)
 
   // Init flag
   appInitialized: false,

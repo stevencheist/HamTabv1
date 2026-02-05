@@ -1922,6 +1922,7 @@ app.get('/api/voacap', async (req, res) => {
               rx_lon: target.lon,
               ssn,
               month,
+              utc_hour: hour,
               power,
               min_angle_deg: toa,
               long_path: longPath,

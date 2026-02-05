@@ -9,11 +9,12 @@ Actions:
   ping     → { ok: true, engine: "dvoacap" }
   predict  → per-frequency reliability, SNR, mode, MUF
 
-Requires: dvoacap-python (pip install dvoacap)
+Requires: dvoacap-python (pip install -e . from https://github.com/skyelaird/dvoacap-python)
 """
 
 import sys
 import json
+import math
 import traceback
 
 # Flush stdout after every write to prevent buffering deadlocks with Node.js
@@ -24,17 +25,19 @@ def respond(obj):
 def init_engine():
     """Try to import and create the VOACAP PredictionEngine."""
     try:
-        from dvoacap import PredictionEngine
+        import numpy as np
+        from dvoacap.prediction_engine import PredictionEngine
+        from dvoacap.path_geometry import GeoPoint
         engine = PredictionEngine()
-        return engine
-    except ImportError:
-        respond({"ok": False, "error": "dvoacap-python not installed"})
+        return engine, np, GeoPoint
+    except ImportError as e:
+        respond({"ok": False, "error": f"dvoacap-python not installed: {e}"})
         sys.exit(1)
     except Exception as e:
         respond({"ok": False, "error": f"Failed to initialize PredictionEngine: {e}"})
         sys.exit(1)
 
-engine = init_engine()
+engine, np, GeoPoint = init_engine()
 
 def handle_ping(req):
     return {"ok": True, "engine": "dvoacap", "id": req.get("id")}
@@ -49,6 +52,7 @@ def handle_predict(req):
     rx_lon = params.get("rx_lon", 0)
     ssn = params.get("ssn", 50)
     month = params.get("month", 1)
+    utc_hour = params.get("utc_hour", 12)
     power = params.get("power", 100)
     min_angle_deg = params.get("min_angle_deg", 3.0)
     long_path = params.get("long_path", False)
@@ -56,51 +60,97 @@ def handle_predict(req):
     bandwidth_hz = params.get("bandwidth_hz", 2700)  # SSB default
     frequencies = params.get("frequencies", [3.7, 7.15, 10.12, 14.15, 18.1, 21.2, 24.93, 28.5])
 
-    predictions = []
-    circuit_muf = 0
+    # Configure engine parameters
+    engine.params.ssn = float(ssn)
+    engine.params.month = int(month)
+    engine.params.tx_location = GeoPoint.from_degrees(tx_lat, tx_lon)
+    engine.params.tx_power = float(power)
+    engine.params.min_angle = np.deg2rad(float(min_angle_deg))
+    engine.params.long_path = bool(long_path)
+    engine.params.required_snr = float(required_snr)
+    engine.params.bandwidth_hz = float(bandwidth_hz)
+
+    rx_location = GeoPoint.from_degrees(rx_lat, rx_lon)
+    utc_fraction = float(utc_hour) / 24.0  # convert hour (0-23) to fraction (0.0-1.0)
+
+    # Run prediction for all frequencies at once
+    try:
+        engine.predict(
+            rx_location=rx_location,
+            utc_time=utc_fraction,
+            frequencies=frequencies,
+        )
+    except Exception as e:
+        return {
+            "ok": False,
+            "id": req.get("id"),
+            "error": f"Prediction failed: {e}",
+        }
+
+    # Extract path geometry
     distance_km = 0
     azimuth_deg = 0
+    circuit_muf = 0
 
-    for freq in frequencies:
+    try:
+        if hasattr(engine, 'path') and engine.path is not None:
+            distance_km = float(engine.path.dist) if hasattr(engine.path, 'dist') else 0
+            azimuth_deg = float(np.rad2deg(engine.path.azim_tr)) if hasattr(engine.path, 'azim_tr') else 0
+    except Exception:
+        pass
+
+    try:
+        if hasattr(engine, 'muf_calculator') and engine.muf_calculator is not None:
+            muf_obj = engine.muf_calculator
+            if hasattr(muf_obj, 'muf'):
+                circuit_muf = float(muf_obj.muf)
+    except Exception:
+        pass
+
+    # Extract per-frequency results
+    predictions = []
+    for i, freq in enumerate(frequencies):
         try:
-            result = engine.predict(
-                tx_lat=tx_lat,
-                tx_lon=tx_lon,
-                rx_lat=rx_lat,
-                rx_lon=rx_lon,
-                freq_mhz=freq,
-                ssn=ssn,
-                month=month,
-                power_watts=power,
-                min_angle_deg=min_angle_deg,
-                long_path=long_path,
-                required_snr=required_snr,
-                bandwidth_hz=bandwidth_hz,
-            )
+            if i < len(engine.predictions) and engine.predictions[i] is not None:
+                pred = engine.predictions[i]
 
-            # Extract fields from dvoacap result
-            snr = result.get("snr_db", 0)
-            rel = result.get("reliability", 0)
-            mode_desc = result.get("mode", "")
-            hop_count = result.get("hop_count", 0)
-            power_dbw = result.get("power_dbw", 0)
+                # Signal info
+                snr = 0.0
+                rel = 0.0
+                if hasattr(pred, 'signal') and pred.signal is not None:
+                    snr = float(pred.signal.snr_db) if hasattr(pred.signal, 'snr_db') else 0.0
+                    rel = float(pred.signal.reliability) if hasattr(pred.signal, 'reliability') else 0.0
+                    # Reliability from dvoacap is 0.0-1.0, convert to percentage
+                    if rel <= 1.0:
+                        rel = rel * 100.0
 
-            # Capture circuit-level data from the first frequency
-            if not circuit_muf and result.get("muf"):
-                circuit_muf = result["muf"]
-            if not distance_km and result.get("distance_km"):
-                distance_km = result["distance_km"]
-            if not azimuth_deg and result.get("azimuth_deg"):
-                azimuth_deg = result["azimuth_deg"]
+                # Mode description
+                mode_desc = ""
+                if hasattr(pred, 'method') and pred.method:
+                    mode_desc = str(pred.method)
+                elif hasattr(pred, 'get_mode_name'):
+                    try:
+                        mode_desc = pred.get_mode_name(distance_km)
+                    except Exception:
+                        pass
 
-            predictions.append({
-                "freq": freq,
-                "snr_db": round(snr, 1),
-                "reliability": round(rel),
-                "mode": mode_desc,
-                "hop_count": hop_count,
-                "power_dbw": round(power_dbw, 1),
-            })
+                hop_count = int(pred.hop_count) if hasattr(pred, 'hop_count') else 0
+
+                predictions.append({
+                    "freq": freq,
+                    "snr_db": round(snr, 1),
+                    "reliability": round(rel),
+                    "mode": mode_desc,
+                    "hop_count": hop_count,
+                })
+            else:
+                predictions.append({
+                    "freq": freq,
+                    "snr_db": 0,
+                    "reliability": 0,
+                    "mode": "",
+                    "hop_count": 0,
+                })
         except Exception as e:
             predictions.append({
                 "freq": freq,
@@ -108,7 +158,6 @@ def handle_predict(req):
                 "reliability": 0,
                 "mode": "",
                 "hop_count": 0,
-                "power_dbw": 0,
                 "error": str(e),
             })
 

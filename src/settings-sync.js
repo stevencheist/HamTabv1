@@ -4,6 +4,8 @@ const SYNC_KEYS = [
   'hamtab_callsign',
   'hamtab_lat',
   'hamtab_lon',
+  'hamtab_gps_lat',
+  'hamtab_gps_lon',
   'hamtab_time24',
   'hamtab_spot_source',
   'hamtab_privilege_filter',

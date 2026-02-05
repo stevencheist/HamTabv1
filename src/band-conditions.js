@@ -28,6 +28,52 @@ export const HF_BANDS = [
   { name: '10m',  freqMHz: 28.5,  label: '10m'  },
 ];
 
+// VOACAP subset — excludes 160m and 60m (8 bands matching VOACAP DE-DX reference)
+export const VOACAP_BANDS = HF_BANDS.filter(b => b.name !== '160m' && b.name !== '60m');
+
+// --- Solar Zenith & Day Fraction ---
+
+// Calculate solar zenith angle at a given location and UTC hour.
+// Uses simplified solar position from Meeus, "Astronomical Algorithms" Ch. 25.
+// Returns zenith in degrees (0 = sun at zenith, 90 = horizon, 180 = midnight).
+export function calculateSolarZenith(lat, lon, utcHour) {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), 0, 1);
+  const dayOfYear = Math.floor((now - start) / 86400000) + 1; // ms per day
+
+  // Solar declination (simplified, accurate to ~1°)
+  // Meeus Ch. 25 — axial tilt ≈ 23.44°
+  const declRad = Math.asin(
+    Math.sin(23.44 * Math.PI / 180) * Math.sin((360 / 365) * (dayOfYear - 81) * Math.PI / 180)
+  );
+
+  // Hour angle: how far the sun is from local solar noon
+  const solarNoonOffset = lon / 15; // hours — longitude offset from UTC
+  const hourAngle = (utcHour - 12 + solarNoonOffset) * 15; // degrees
+  const haRad = hourAngle * Math.PI / 180;
+  const latRad = lat * Math.PI / 180;
+
+  // cos(zenith) = sin(lat)*sin(decl) + cos(lat)*cos(decl)*cos(ha)
+  const cosZenith = Math.sin(latRad) * Math.sin(declRad) +
+                    Math.cos(latRad) * Math.cos(declRad) * Math.cos(haRad);
+
+  return Math.acos(Math.max(-1, Math.min(1, cosZenith))) * 180 / Math.PI;
+}
+
+// Returns 0.0 (full night) to 1.0 (full day) with smooth twilight blending.
+// Zenith 80° → 1.0 (bright day), 100° → 0.0 (full night), linear blend between.
+// Falls back to hardcoded UTC model when no location is available.
+export function dayFraction(lat, lon, utcHour) {
+  if (lat == null || lon == null) {
+    // Fallback: simple UTC-based model (0° longitude assumption)
+    return (utcHour >= 6 && utcHour < 18) ? 1.0 : 0.0;
+  }
+  const zenith = calculateSolarZenith(lat, lon, utcHour);
+  if (zenith <= 80) return 1.0;  // degrees — full daylight
+  if (zenith >= 100) return 0.0; // degrees — full night
+  return (100 - zenith) / 20;    // linear twilight blend over 20° range
+}
+
 // --- MUF Calculation ---
 
 /**
@@ -42,11 +88,14 @@ export const HF_BANDS = [
  * @param {boolean} isDay - True if daytime at ionospheric reflection point
  * @returns {number} - Estimated MUF in MHz
  */
-export function calculateMUF(sfi, isDay) {
+export function calculateMUF(sfi, dayFrac) {
+  // Backward compat: boolean callers pass true/false → map to 1.0/0.0
+  if (dayFrac === true) dayFrac = 1.0;
+  else if (dayFrac === false) dayFrac = 0.0;
+
   // foF2 correlation with SFI (empirical)
-  // Day: foF2 ≈ 0.9 × sqrt(SFI)
-  // Night: foF2 ≈ 0.6 × sqrt(SFI)
-  const foF2Factor = isDay ? 0.9 : 0.6;
+  // Blend foF2 factor smoothly between night (0.6) and day (0.9)
+  const foF2Factor = 0.6 + 0.3 * dayFrac;
   const foF2 = foF2Factor * Math.sqrt(Math.max(sfi, 50)); // MHz
 
   // Obliquity factor for mid-range DX paths (1000-3000 km)
@@ -74,7 +123,7 @@ export function calculateMUF(sfi, isDay) {
  * @param {boolean} isDay - True if daytime
  * @returns {number} - Reliability percentage (0-100)
  */
-function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay) {
+function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay, opts) {
   // Usable frequency range is typically 50-90% of MUF
   const mufLower = muf * 0.5;  // 50% of MUF (minimum usable)
   const mufOptimal = muf * 0.85; // 85% of MUF (optimal)
@@ -128,9 +177,30 @@ function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay) {
     aIndexPenalty = (aIndex - 10) / 4;
   }
 
-  const finalReliability = Math.max(0, Math.min(100,
-    baseReliability - geomagPenalty - aIndexPenalty
-  ));
+  let adjusted = baseReliability - geomagPenalty - aIndexPenalty;
+
+  // --- VOACAP parameter adjustments (when opts provided) ---
+  if (opts) {
+    // Mode bonus: CW +10%, SSB baseline, FT8 +30% (reflects ~40dB SNR advantage)
+    if (opts.mode === 'CW') adjusted += 10;
+    else if (opts.mode === 'FT8') adjusted += 30;
+
+    // Power adjustment: 10 * log10(power/100) dB → map to % (100W = baseline)
+    if (opts.powerWatts && opts.powerWatts !== 100) {
+      const dBdiff = 10 * Math.log10(opts.powerWatts / 100); // dB relative to 100W
+      adjusted += dBdiff * 1.5; // ~1.5% per dB
+    }
+
+    // TOA adjustment: ±1.5% per degree from reference 5°
+    if (opts.toaDeg != null) {
+      adjusted += (opts.toaDeg - 5) * 1.5; // higher TOA = more reliability (steeper angle)
+    }
+
+    // Long path penalty: -25%
+    if (opts.longPath) adjusted -= 25;
+  }
+
+  const finalReliability = Math.max(0, Math.min(100, adjusted));
 
   return Math.round(finalReliability);
 }
@@ -263,7 +333,7 @@ export function getReliabilityColor(rel) {
  *
  * @returns {Array} - Array of 24 entries: { hour, bands: { '20m': reliability%, ... }, muf }
  */
-export function calculate24HourMatrix() {
+export function calculate24HourMatrix(opts) {
   if (!state.lastSolarData || !state.lastSolarData.indices) {
     // Return placeholder data if no solar data available
     return Array.from({ length: 24 }, (_, i) => ({
@@ -278,25 +348,30 @@ export function calculate24HourMatrix() {
   const kIndex = parseInt(indices.kindex) || 2;
   const aIndex = parseInt(indices.aindex) || 5;
 
+  // Use location-aware day fraction when lat/lon provided in opts
+  const lat = opts && opts.lat != null ? opts.lat : null;
+  const lon = opts && opts.lon != null ? opts.lon : null;
+
+  // Choose which bands to compute — VOACAP_BANDS when opts given, else all HF_BANDS
+  const bandList = opts ? VOACAP_BANDS : HF_BANDS;
+
   const matrix = [];
 
   for (let hour = 0; hour < 24; hour++) {
-    // Determine day/night for this UTC hour
-    // Simple model: 06:00-18:00 UTC is "day" at 0° longitude
-    // Adjust based on hour
-    const isDay = hour >= 6 && hour < 18;
-
-    const muf = calculateMUF(sfi, isDay);
+    // Use solar zenith–based day fraction when location available
+    const df = dayFraction(lat, lon, hour);
+    const muf = calculateMUF(sfi, df);
 
     // Calculate reliability for each band at this hour
     const bands = {};
-    for (const band of HF_BANDS) {
+    for (const band of bandList) {
       const reliability = calculateBandReliability(
         band.freqMHz,
         muf,
         kIndex,
         aIndex,
-        isDay
+        df >= 0.5, // boolean isDay for absorption branch
+        opts
       );
       bands[band.name] = reliability;
     }

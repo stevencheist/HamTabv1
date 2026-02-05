@@ -1663,8 +1663,10 @@ app.get('/api/voacap', async (req, res) => {
       matrix,
     };
 
-    // Cache result
-    voacapCache[cacheKey] = { data: response, expires: Date.now() + VOACAP_TTL };
+    // Cache result — only cache dvoacap responses long-term.
+    // Simplified responses use a short TTL so we re-check once the worker is ready.
+    const ttl = engine === 'dvoacap' ? VOACAP_TTL : 30 * 1000; // 1h vs 30s
+    voacapCache[cacheKey] = { data: response, expires: Date.now() + ttl };
 
     res.json(response);
   } catch (err) {

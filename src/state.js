@@ -88,6 +88,7 @@ const state = {
     markers: {}, // { satId: L.marker }
     circles: {}, // { satId: L.circle (footprint) }
     orbitLines: {}, // { satId: L.polyline }
+    issOrbitPath: [], // ISS orbit ground track from SGP4 [{lat, lon}, ...]
     selectedSatId: null, // currently selected satellite for pass display
   },
   n2yoApiKey: localStorage.getItem('hamtab_n2yo_apikey') || '',

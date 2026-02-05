@@ -200,17 +200,6 @@ if (!state.manualLoc) {
   }
 }
 
-// Debug: log location source and values
-console.log('[State] Location loaded:', {
-  manualLoc: state.manualLoc,
-  myLat: state.myLat,
-  myLon: state.myLon,
-  hamtab_lat: localStorage.getItem('hamtab_lat'),
-  hamtab_lon: localStorage.getItem('hamtab_lon'),
-  hamtab_gps_lat: localStorage.getItem('hamtab_gps_lat'),
-  hamtab_gps_lon: localStorage.getItem('hamtab_gps_lon'),
-});
-
 // Load tracked satellites from localStorage (default to ISS if empty)
 try {
   const savedTracked = JSON.parse(localStorage.getItem('hamtab_sat_tracked'));

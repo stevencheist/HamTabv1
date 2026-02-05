@@ -53,14 +53,18 @@ html, body {
   border-radius: 8px;
   padding: 32px 40px;
   text-align: center;
-  min-width: 300px;
+  min-width: 280px;
+  width: 100%;
+  max-width: min(90vw, 400px);
+  max-height: min(90vh, 80vh);
+  overflow-y: auto;
 }
 
 /* -- Config modal tab layout -- */
 
 .config-box {
-  max-height: 80vh;
-  max-width: 420px;
+  max-height: min(90vh, 80vh);
+  max-width: min(92vw, 420px);
   display: flex;
   flex-direction: column;
 }
@@ -2431,8 +2435,8 @@ header {
 /* ---- Help Modal ---- */
 
 .help-box {
-  max-width: 600px;
-  max-height: 80vh;
+  max-width: min(92vw, 600px);
+  max-height: min(90vh, 80vh);
 }
 
 #helpContent {
@@ -2494,8 +2498,8 @@ header {
 /* ---- Feedback Modal ---- */
 
 .feedback-box {
-  max-width: 500px;
-  max-height: 90vh;
+  max-width: min(92vw, 500px);
+  max-height: min(92vh, 90vh);
 }
 
 .feedback-description {
@@ -2884,7 +2888,7 @@ header {
 
 /* Satellite config modal */
 .sat-cfg-box {
-  max-width: 400px;
+  max-width: min(92vw, 400px);
 }
 
 .sat-select-list {
@@ -3018,7 +3022,7 @@ header {
 
 /* Live Spots config modal */
 .live-spots-cfg-box {
-  max-width: 350px;
+  max-width: min(92vw, 350px);
 }
 
 .live-spots-cfg-field {
@@ -3214,5 +3218,56 @@ header {
   padding: 2px 6px;
   border-radius: 3px;
   white-space: nowrap;
+}
+
+
+
+/* ---- Responsive adjustments for small screens ---- */
+
+@media (max-width: 480px) {
+  .splash-box {
+    padding: 20px 24px;
+    border-radius: 6px;
+  }
+
+  .splash-box h2 {
+    font-size: 1.2rem;
+    margin-bottom: 16px;
+  }
+
+  .splash-box input {
+    font-size: 1rem;
+    padding: 6px 10px;
+    margin-bottom: 12px;
+  }
+
+  .splash-box button {
+    padding: 6px 24px;
+    font-size: 0.85rem;
+  }
+
+  .config-tabs {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .config-box .config-tab {
+    padding: 5px 10px;
+    font-size: 0.75rem;
+  }
+
+  .help-section h3 {
+    font-size: 0.8rem;
+  }
+
+  .help-section p {
+    font-size: 0.75rem;
+  }
+
+  .feedback-field input,
+  .feedback-field textarea {
+    font-size: 0.8rem;
+    padding: 6px;
+  }
 }
 

@@ -424,18 +424,23 @@ header {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 14px;
+  flex: 1 1 auto;
+  min-width: 220px;
+  max-width: 500px;
+  container-type: inline-size;
+  container-name: header-left;
 }
 
 .op-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 4px;
 }
 
 .op-call {
-  font-size: 1.5rem;
+  /* Scale from 2.1rem to 3.3rem based on container width */
+  font-size: clamp(2.1rem, 12cqw, 3.3rem);
   font-weight: 700;
   font-family: monospace;
   color: var(--accent);
@@ -452,17 +457,19 @@ header {
 }
 
 .op-class {
-  font-size: 0.75rem;
+  /* Scale with callsign */
+  font-size: clamp(1.1rem, 6cqw, 1.65rem);
   color: var(--yellow);
-  font-weight: 400;
-  margin-left: 4px;
+  font-weight: 600;
+  margin-left: 8px;
 }
 
 .op-name {
-  font-size: 0.72rem;
+  /* Scale from 1.1rem to 1.65rem */
+  font-size: clamp(1.1rem, 6cqw, 1.65rem);
   color: var(--text);
-  font-weight: 400;
-  line-height: 1.1;
+  font-weight: 500;
+  line-height: 1.2;
 }
 
 .op-name:empty {
@@ -470,24 +477,30 @@ header {
 }
 
 .op-loc {
-  font-size: 0.72rem;
+  /* Scale from 1rem to 1.5rem */
+  font-size: clamp(1rem, 5cqw, 1.5rem);
   color: var(--text-dim);
+  font-family: monospace;
 }
 
 .op-btns {
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 5px;
 }
 
 .op-btn {
-  padding: 1px 6px;
-  font-size: 0.62rem;
+  /* Scale button size with container */
+  padding: clamp(5px, 2cqw, 9px) clamp(12px, 6cqw, 20px);
+  font-size: clamp(0.95rem, 4.5cqw, 1.25rem);
+  font-weight: 600;
   border: 1px solid var(--border);
   background: var(--surface2);
   color: var(--text-dim);
-  border-radius: 3px;
+  border-radius: 4px;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
 }
 
 .op-btn:hover {

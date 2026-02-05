@@ -1715,7 +1715,23 @@
     const engineTitle = state_default.voacapEngine === "dvoacap" ? "Using real VOACAP propagation model" : "Using simplified propagation model";
     const targetLabel = state_default.voacapTarget === "spot" ? "SPOT" : "OVW";
     const targetTitle = state_default.voacapTarget === "spot" ? "Showing prediction to selected spot (click for overview)" : "Showing best worldwide prediction (click for spot mode)";
-    const ssnDisplay = state_default.voacapServerData?.ssn ? Math.round(state_default.voacapServerData.ssn) : state_default.lastSolarData?.indices?.sunspots || "--";
+    const serverData = state_default.voacapServerData;
+    const effectiveSSN = serverData?.ssn ? Math.round(serverData.ssn) : null;
+    const baseSSN = serverData?.ssnBase ? Math.round(serverData.ssnBase) : null;
+    const kIndex = serverData?.kIndex;
+    const kDegradation = serverData?.kDegradation || 0;
+    const ssnDisplay = effectiveSSN ?? (state_default.lastSolarData?.indices?.sunspots || "--");
+    const isStorm = kIndex !== null && kIndex >= 4;
+    const ssnWarningClass = isStorm ? " voacap-k-warning" : "";
+    const ssnWarningIndicator = isStorm ? "!" : "";
+    let ssnTitle = "Smoothed sunspot number";
+    if (kIndex !== null && baseSSN !== null) {
+      if (kDegradation > 0) {
+        ssnTitle = `K-index ${kIndex}: Base SSN ${baseSSN} \u2192 ${effectiveSSN} (-${kDegradation}%)`;
+      } else {
+        ssnTitle = `K-index ${kIndex}: SSN ${baseSSN} (no degradation)`;
+      }
+    }
     const overlayLabel = state_default.heatmapOverlayMode === "heatmap" ? "REL" : "\u25CB";
     const overlayTitle = state_default.heatmapOverlayMode === "heatmap" ? "Overlay: REL heatmap (click for circles)" : "Overlay: circles (click for REL heatmap)";
     html += `<div class="voacap-params">`;
@@ -1726,7 +1742,7 @@
     html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state_default.voacapMode}</span>`;
     html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
     html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
-    html += `<span class="voacap-param-static" title="Smoothed sunspot number">S=${ssnDisplay}</span>`;
+    html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
     html += `</div>`;
     container.innerHTML = html;
   }
@@ -4836,7 +4852,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.21.3";
+    $("splashVersion").textContent = "0.21.4";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

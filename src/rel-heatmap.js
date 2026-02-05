@@ -113,9 +113,6 @@ export function renderHeatmapCanvas(band) {
   if (!state.map || state.myLat == null || state.myLon == null) return;
   if (!state.lastSolarData || !state.lastSolarData.indices) return;
 
-  // Debug: log coordinates being used for heatmap center
-  console.log('[Heatmap] DE location:', { lat: state.myLat, lon: state.myLon });
-
   const L = window.L;
   const map = state.map;
 

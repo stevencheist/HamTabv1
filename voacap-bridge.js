@@ -27,10 +27,12 @@ let spawnAttempts = 0;        // number of spawn attempts for diagnostics
 // --- Python executable detection ---
 
 function findPython() {
-  // Try python3 first (Linux/Mac), then python (Windows)
+  // dvoacap-python requires Python 3.11+, so try versioned executables first.
+  // On Linux/Mac: try python3.13 → python3.12 → python3.11 → python3 → python
+  // On Windows: try python → python3 (py launcher typically finds newest)
   return process.platform === 'win32'
     ? ['python', 'python3']
-    : ['python3', 'python'];
+    : ['python3.13', 'python3.12', 'python3.11', 'python3', 'python'];
 }
 
 // --- Child process management ---

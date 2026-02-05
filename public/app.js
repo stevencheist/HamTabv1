@@ -225,15 +225,6 @@
           }
         }
       }
-      console.log("[State] Location loaded:", {
-        manualLoc: state.manualLoc,
-        myLat: state.myLat,
-        myLon: state.myLon,
-        hamtab_lat: localStorage.getItem("hamtab_lat"),
-        hamtab_lon: localStorage.getItem("hamtab_lon"),
-        hamtab_gps_lat: localStorage.getItem("hamtab_gps_lat"),
-        hamtab_gps_lon: localStorage.getItem("hamtab_gps_lon")
-      });
       try {
         const savedTracked = JSON.parse(localStorage.getItem("hamtab_sat_tracked"));
         if (Array.isArray(savedTracked) && savedTracked.length > 0) {
@@ -1445,7 +1436,6 @@
   function renderHeatmapCanvas(band) {
     if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
     if (!state_default.lastSolarData || !state_default.lastSolarData.indices) return;
-    console.log("[Heatmap] DE location:", { lat: state_default.myLat, lon: state_default.myLon });
     const L2 = window.L;
     const map = state_default.map;
     clearHeatmap();
@@ -1630,7 +1620,6 @@
       toa: state_default.voacapToa,
       path: state_default.voacapPath
     });
-    console.log("[VOACAP] Fetching with coordinates:", { txLat: state_default.myLat, txLon: state_default.myLon });
     if (state_default.voacapTarget === "spot" && state_default.selectedSpotId) {
       const spot = findSelectedSpot();
       if (spot && spot.lat != null && spot.lon != null) {

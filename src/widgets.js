@@ -143,6 +143,144 @@ function clampSize(left, top, w, h) {
   return { w, h };
 }
 
+// --- Collision Detection for Non-Overlapping Widgets ---
+
+function getWidgetRect(widget) {
+  return {
+    id: widget.id,
+    left: parseInt(widget.style.left) || 0,
+    top: parseInt(widget.style.top) || 0,
+    width: parseInt(widget.style.width) || 200,
+    height: parseInt(widget.style.height) || 150,
+  };
+}
+
+function rectsOverlap(r1, r2) {
+  // Two rectangles overlap if they intersect on both axes
+  return !(r1.left + r1.width <= r2.left ||  // r1 is left of r2
+           r2.left + r2.width <= r1.left ||  // r2 is left of r1
+           r1.top + r1.height <= r2.top ||   // r1 is above r2
+           r2.top + r2.height <= r1.top);    // r2 is above r1
+}
+
+function resolveOverlaps(movedWidget) {
+  // Push other widgets away from the moved widget to eliminate overlaps
+  // Uses iterative resolution to handle chain reactions
+  const { width: aW, height: aH } = getWidgetArea();
+  const pad = 6; // gap between widgets
+  const maxIterations = 10; // prevent infinite loops
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let anyMoved = false;
+    const movedRect = getWidgetRect(movedWidget);
+
+    document.querySelectorAll('.widget').forEach(other => {
+      if (other.id === movedWidget.id) return;
+      if (other.style.display === 'none') return;
+      if (state.widgetVisibility && state.widgetVisibility[other.id] === false) return;
+
+      const otherRect = getWidgetRect(other);
+      if (!rectsOverlap(movedRect, otherRect)) return;
+
+      // Calculate overlap distances for each direction
+      const overlapLeft = (movedRect.left + movedRect.width) - otherRect.left;   // push right
+      const overlapRight = (otherRect.left + otherRect.width) - movedRect.left;  // push left
+      const overlapTop = (movedRect.top + movedRect.height) - otherRect.top;     // push down
+      const overlapBottom = (otherRect.top + otherRect.height) - movedRect.top;  // push up
+
+      // Find minimum push direction
+      const pushes = [
+        { dir: 'right', dist: overlapLeft, newLeft: movedRect.left + movedRect.width + pad, newTop: otherRect.top },
+        { dir: 'left', dist: overlapRight, newLeft: movedRect.left - otherRect.width - pad, newTop: otherRect.top },
+        { dir: 'down', dist: overlapTop, newLeft: otherRect.left, newTop: movedRect.top + movedRect.height + pad },
+        { dir: 'up', dist: overlapBottom, newLeft: otherRect.left, newTop: movedRect.top - otherRect.height - pad },
+      ];
+
+      // Filter out pushes that would go out of bounds
+      const validPushes = pushes.filter(p => {
+        return p.newLeft >= 0 &&
+               p.newTop >= 0 &&
+               p.newLeft + otherRect.width <= aW &&
+               p.newTop + otherRect.height <= aH;
+      });
+
+      // Pick the smallest valid push, or fallback to smallest if all go out of bounds
+      const sorted = (validPushes.length > 0 ? validPushes : pushes).sort((a, b) => a.dist - b.dist);
+      const best = sorted[0];
+
+      // Apply push with clamping
+      let newLeft = Math.max(0, Math.min(best.newLeft, aW - otherRect.width));
+      let newTop = Math.max(0, Math.min(best.newTop, aH - otherRect.height));
+
+      if (newLeft !== otherRect.left || newTop !== otherRect.top) {
+        other.style.left = newLeft + 'px';
+        other.style.top = newTop + 'px';
+        anyMoved = true;
+      }
+    });
+
+    if (!anyMoved) break; // No overlaps remain
+  }
+}
+
+function resolveAllOverlaps() {
+  // Check all widget pairs and resolve any overlaps
+  // Used after window resize reflow
+  const widgets = Array.from(document.querySelectorAll('.widget')).filter(w => {
+    return w.style.display !== 'none' &&
+           (!state.widgetVisibility || state.widgetVisibility[w.id] !== false);
+  });
+
+  const { width: aW, height: aH } = getWidgetArea();
+  const pad = 6;
+  const maxIterations = 20;
+
+  for (let iter = 0; iter < maxIterations; iter++) {
+    let anyMoved = false;
+
+    for (let i = 0; i < widgets.length; i++) {
+      for (let j = i + 1; j < widgets.length; j++) {
+        const r1 = getWidgetRect(widgets[i]);
+        const r2 = getWidgetRect(widgets[j]);
+
+        if (!rectsOverlap(r1, r2)) continue;
+
+        // Push the second widget (j) away from the first (i)
+        const overlapLeft = (r1.left + r1.width) - r2.left;
+        const overlapRight = (r2.left + r2.width) - r1.left;
+        const overlapTop = (r1.top + r1.height) - r2.top;
+        const overlapBottom = (r2.top + r2.height) - r1.top;
+
+        const pushes = [
+          { dist: overlapLeft, newLeft: r1.left + r1.width + pad, newTop: r2.top },
+          { dist: overlapRight, newLeft: r1.left - r2.width - pad, newTop: r2.top },
+          { dist: overlapTop, newLeft: r2.left, newTop: r1.top + r1.height + pad },
+          { dist: overlapBottom, newLeft: r2.left, newTop: r1.top - r2.height - pad },
+        ];
+
+        const validPushes = pushes.filter(p => {
+          return p.newLeft >= 0 && p.newTop >= 0 &&
+                 p.newLeft + r2.width <= aW && p.newTop + r2.height <= aH;
+        });
+
+        const sorted = (validPushes.length > 0 ? validPushes : pushes).sort((a, b) => a.dist - b.dist);
+        const best = sorted[0];
+
+        let newLeft = Math.max(0, Math.min(best.newLeft, aW - r2.width));
+        let newTop = Math.max(0, Math.min(best.newTop, aH - r2.height));
+
+        if (newLeft !== r2.left || newTop !== r2.top) {
+          widgets[j].style.left = newLeft + 'px';
+          widgets[j].style.top = newTop + 'px';
+          anyMoved = true;
+        }
+      }
+    }
+
+    if (!anyMoved) break;
+  }
+}
+
 export function saveWidgets() {
   const layout = {};
   document.querySelectorAll('.widget').forEach(w => {
@@ -210,6 +348,7 @@ function setupDrag(widget, handle) {
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      resolveOverlaps(widget);
       saveWidgets();
     }
 
@@ -247,6 +386,7 @@ function setupResize(widget, handle) {
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      resolveOverlaps(widget);
       saveWidgets();
       if (state.map && widget.id === 'widget-map') {
         state.map.invalidateSize();
@@ -332,6 +472,9 @@ function reflowWidgets() {
 
   prevAreaW = aW;
   prevAreaH = aH;
+
+  // Resolve any overlaps created by proportional scaling
+  resolveAllOverlaps();
 
   if (state.map) state.map.invalidateSize();
   saveWidgets();

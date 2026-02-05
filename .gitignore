@@ -9,3 +9,5 @@ FEEDBACK_DECRYPTION_GUIDE.md
 nul
 docs/user-guide/debug-output.html
 server.pid
+__pycache__/
+*.pyc

@@ -13,6 +13,7 @@ Clear your entry when done.
 
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
+| Francisco + Claude | Move band reference into Reference widget as Bands tab | main | 2026-02-04 |
 
 
 ## Recently Completed

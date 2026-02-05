@@ -1653,13 +1653,12 @@ function calculateBandReliabilityServer(freqMHz, muf, isDay, opts) {
   return Math.max(0, Math.min(100, base));
 }
 
-// Representative global targets for multi-target VOACAP overview
+// Representative global targets for multi-target VOACAP overview.
+// 4 targets × 24 hours = 96 predictions — fits within container CPU budget.
 const VOACAP_TARGETS = [
   { name: 'Europe',        lat: 50.0,  lon: 10.0 },
   { name: 'East Asia',     lat: 35.0,  lon: 135.0 },
   { name: 'South America', lat: -15.0, lon: -47.0 },
-  { name: 'Oceania',       lat: -33.0, lon: 151.0 },
-  { name: 'Africa',        lat: 0.0,   lon: 30.0 },
   { name: 'North America', lat: 40.0,  lon: -100.0 },
 ];
 

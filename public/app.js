@@ -157,9 +157,17 @@
         },
         liveSpotsMarkers: {},
         liveSpotsLines: null,
-        // HF Propagation (24-hour matrix)
+        // HF Propagation (VOACAP DE→DX)
         hfPropOverlayBand: null,
         // currently displayed band overlay on map
+        voacapPower: localStorage.getItem("hamtab_voacap_power") || "100",
+        // watts: '5','100','1000'
+        voacapMode: localStorage.getItem("hamtab_voacap_mode") || "SSB",
+        // 'CW','SSB','FT8'
+        voacapToa: localStorage.getItem("hamtab_voacap_toa") || "5",
+        // takeoff angle degrees: '3','5','10','15'
+        voacapPath: localStorage.getItem("hamtab_voacap_path") || "SP",
+        // 'SP' (short path), 'LP' (long path)
         // Init flag
         appInitialized: false,
         // Day/night
@@ -471,7 +479,7 @@
         { id: "widget-map", name: "HamMap" },
         { id: "widget-solar", name: "Solar" },
         { id: "widget-propagation", name: "Band Conditions" },
-        { id: "widget-voacap", name: "HF Propagation" },
+        { id: "widget-voacap", name: "VOACAP DE\u2192DX" },
         { id: "widget-live-spots", name: "Live Spots" },
         { id: "widget-lunar", name: "Lunar / EME" },
         { id: "widget-satellites", name: "Satellites" },
@@ -875,13 +883,13 @@
           ]
         },
         "widget-voacap": {
-          title: "HF Propagation",
-          description: "A 24-hour prediction of which HF bands will be open and when. This helps you plan your operating \u2014 pick the right band for the time of day to maximize your chances of making contacts.",
+          title: "VOACAP DE\u2192DX",
+          description: "A dense 24-hour propagation grid showing predicted band reliability from your station (DE) to the world (DX). The current hour starts at the left edge so you can instantly see what's open right now.",
           sections: [
-            { heading: "How to Read It", content: "Each row is an HF band (80m through 10m). Each column is an hour of the day in UTC. The color of each cell shows the predicted band reliability for that hour." },
-            { heading: "Color Scale", content: "Black = band closed (no propagation expected). Red = poor. Yellow = fair. Green = good (best chance of making contacts). Look for the green cells to find the best bands to use right now." },
-            { heading: "Current Hour", content: "The current UTC hour is highlighted so you can quickly see what's predicted to be open right now." },
-            { heading: "Map Overlay", content: "Click a band row to show estimated propagation range circles on the map, giving you a visual sense of how far that band can reach." }
+            { heading: "Reading the Grid", content: 'Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Colors show predicted reliability: black = closed, red = poor, yellow = fair, green = good/excellent.' },
+            { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows significantly more green because of its ~40dB SNR advantage over SSB." },
+            { heading: "Map Overlay", content: "Click any band row to show estimated propagation range circles on the map. The overlay updates when you change parameters. Click the same band again to remove the overlay." },
+            { heading: "Calculation Model", content: "Uses a local model based on solar flux (SFI), geomagnetic indices (K/A), and your location for solar zenith calculations. When your QTH is set, day/night transitions are calculated from actual sunrise/sunset at your location rather than a fixed UTC estimate." }
           ],
           links: [
             { label: "NOAA Space Weather & Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
@@ -998,22 +1006,50 @@
   var band_conditions_exports = {};
   __export(band_conditions_exports, {
     HF_BANDS: () => HF_BANDS,
+    VOACAP_BANDS: () => VOACAP_BANDS,
     calculate24HourMatrix: () => calculate24HourMatrix,
     calculateBandConditions: () => calculateBandConditions,
     calculateMUF: () => calculateMUF,
+    calculateSolarZenith: () => calculateSolarZenith,
     conditionColorClass: () => conditionColorClass,
     conditionLabel: () => conditionLabel,
+    dayFraction: () => dayFraction,
     getReliabilityColor: () => getReliabilityColor,
     initDayNightToggle: () => initDayNightToggle,
     renderPropagationWidget: () => renderPropagationWidget
   });
-  function calculateMUF(sfi, isDay) {
-    const foF2Factor = isDay ? 0.9 : 0.6;
+  function calculateSolarZenith(lat, lon, utcHour) {
+    const now = /* @__PURE__ */ new Date();
+    const start = new Date(now.getFullYear(), 0, 1);
+    const dayOfYear = Math.floor((now - start) / 864e5) + 1;
+    const declRad = Math.asin(
+      Math.sin(23.44 * Math.PI / 180) * Math.sin(360 / 365 * (dayOfYear - 81) * Math.PI / 180)
+    );
+    const solarNoonOffset = lon / 15;
+    const hourAngle = (utcHour - 12 + solarNoonOffset) * 15;
+    const haRad = hourAngle * Math.PI / 180;
+    const latRad = lat * Math.PI / 180;
+    const cosZenith = Math.sin(latRad) * Math.sin(declRad) + Math.cos(latRad) * Math.cos(declRad) * Math.cos(haRad);
+    return Math.acos(Math.max(-1, Math.min(1, cosZenith))) * 180 / Math.PI;
+  }
+  function dayFraction(lat, lon, utcHour) {
+    if (lat == null || lon == null) {
+      return utcHour >= 6 && utcHour < 18 ? 1 : 0;
+    }
+    const zenith = calculateSolarZenith(lat, lon, utcHour);
+    if (zenith <= 80) return 1;
+    if (zenith >= 100) return 0;
+    return (100 - zenith) / 20;
+  }
+  function calculateMUF(sfi, dayFrac) {
+    if (dayFrac === true) dayFrac = 1;
+    else if (dayFrac === false) dayFrac = 0;
+    const foF2Factor = 0.6 + 0.3 * dayFrac;
     const foF2 = foF2Factor * Math.sqrt(Math.max(sfi, 50));
     const obliquityFactor = 3.5;
     return foF2 * obliquityFactor;
   }
-  function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay) {
+  function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay, opts) {
     const mufLower = muf * 0.5;
     const mufOptimal = muf * 0.85;
     let baseReliability = 0;
@@ -1045,10 +1081,20 @@
     } else if (aIndex > 10) {
       aIndexPenalty = (aIndex - 10) / 4;
     }
-    const finalReliability = Math.max(0, Math.min(
-      100,
-      baseReliability - geomagPenalty - aIndexPenalty
-    ));
+    let adjusted = baseReliability - geomagPenalty - aIndexPenalty;
+    if (opts) {
+      if (opts.mode === "CW") adjusted += 10;
+      else if (opts.mode === "FT8") adjusted += 30;
+      if (opts.powerWatts && opts.powerWatts !== 100) {
+        const dBdiff = 10 * Math.log10(opts.powerWatts / 100);
+        adjusted += dBdiff * 1.5;
+      }
+      if (opts.toaDeg != null) {
+        adjusted += (opts.toaDeg - 5) * 1.5;
+      }
+      if (opts.longPath) adjusted -= 25;
+    }
+    const finalReliability = Math.max(0, Math.min(100, adjusted));
     return Math.round(finalReliability);
   }
   function classifyCondition(reliability) {
@@ -1126,7 +1172,7 @@
     if (rel < 66) return "#f1c40f";
     return "#27ae60";
   }
-  function calculate24HourMatrix() {
+  function calculate24HourMatrix(opts) {
     if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
       return Array.from({ length: 24 }, (_, i) => ({
         hour: i,
@@ -1138,18 +1184,23 @@
     const sfi = parseFloat(indices.sfi) || 70;
     const kIndex = parseInt(indices.kindex) || 2;
     const aIndex = parseInt(indices.aindex) || 5;
+    const lat = opts && opts.lat != null ? opts.lat : null;
+    const lon = opts && opts.lon != null ? opts.lon : null;
+    const bandList = opts ? VOACAP_BANDS : HF_BANDS;
     const matrix = [];
     for (let hour = 0; hour < 24; hour++) {
-      const isDay = hour >= 6 && hour < 18;
-      const muf = calculateMUF(sfi, isDay);
+      const df = dayFraction(lat, lon, hour);
+      const muf = calculateMUF(sfi, df);
       const bands = {};
-      for (const band of HF_BANDS) {
+      for (const band of bandList) {
         const reliability = calculateBandReliability(
           band.freqMHz,
           muf,
           kIndex,
           aIndex,
-          isDay
+          df >= 0.5,
+          // boolean isDay for absorption branch
+          opts
         );
         bands[band.name] = reliability;
       }
@@ -1230,7 +1281,7 @@
       grid.appendChild(card);
     });
   }
-  var dayNightTime, saved, HF_BANDS;
+  var dayNightTime, saved, HF_BANDS, VOACAP_BANDS;
   var init_band_conditions = __esm({
     "src/band-conditions.js"() {
       init_state();
@@ -1253,6 +1304,7 @@
         { name: "12m", freqMHz: 24.93, label: "12m" },
         { name: "10m", freqMHz: 28.5, label: "10m" }
       ];
+      VOACAP_BANDS = HF_BANDS.filter((b) => b.name !== "160m" && b.name !== "60m");
     }
   });
 
@@ -1266,58 +1318,111 @@
   });
   function initVoacapListeners() {
     const matrix = $("voacapMatrix");
-    if (matrix) {
-      matrix.addEventListener("click", (e) => {
-        const row = e.target.closest(".voacap-row");
-        if (row && row.dataset.band) {
-          toggleBandOverlay(row.dataset.band);
-        }
-      });
+    if (!matrix) return;
+    matrix.addEventListener("click", (e) => {
+      const param = e.target.closest(".voacap-param");
+      if (param && param.dataset.param) {
+        cycleParam(param.dataset.param);
+        return;
+      }
+      const row = e.target.closest(".voacap-row");
+      if (row && row.dataset.band) {
+        toggleBandOverlay(row.dataset.band);
+      }
+    });
+  }
+  function cycleParam(name) {
+    let options, key, stateKey;
+    if (name === "power") {
+      options = POWER_OPTIONS;
+      key = "hamtab_voacap_power";
+      stateKey = "voacapPower";
+    } else if (name === "mode") {
+      options = MODE_OPTIONS;
+      key = "hamtab_voacap_mode";
+      stateKey = "voacapMode";
+    } else if (name === "toa") {
+      options = TOA_OPTIONS;
+      key = "hamtab_voacap_toa";
+      stateKey = "voacapToa";
+    } else if (name === "path") {
+      options = PATH_OPTIONS;
+      key = "hamtab_voacap_path";
+      stateKey = "voacapPath";
+    } else return;
+    const current = state_default[stateKey];
+    const idx = options.indexOf(current);
+    const next = options[(idx + 1) % options.length];
+    state_default[stateKey] = next;
+    localStorage.setItem(key, next);
+    renderVoacapMatrix();
+    if (state_default.hfPropOverlayBand) {
+      clearBandOverlay();
+      drawBandOverlay(state_default.hfPropOverlayBand);
     }
+  }
+  function getVoacapOpts() {
+    return {
+      lat: state_default.myLat,
+      lon: state_default.myLon,
+      mode: state_default.voacapMode,
+      powerWatts: parseInt(state_default.voacapPower, 10),
+      toaDeg: parseInt(state_default.voacapToa, 10),
+      longPath: state_default.voacapPath === "LP"
+    };
   }
   function renderVoacapMatrix() {
     const container = $("voacapMatrix");
     if (!container) return;
-    const matrix = calculate24HourMatrix();
+    const opts = getVoacapOpts();
+    const matrix = calculate24HourMatrix(opts);
     const hasData = matrix.some((entry) => Object.keys(entry.bands).length > 0);
     if (!hasData) {
       container.innerHTML = '<div class="voacap-no-data">Waiting for solar data...</div>';
       return;
     }
     const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
-    let html = '<table class="voacap-table">';
-    html += '<thead><tr><th class="voacap-band-header"></th>';
-    for (let h = 0; h < 24; h += 2) {
-      const isNow = h === nowHour || h + 1 === nowHour;
-      const nowClass = isNow ? "voacap-now" : "";
-      html += `<th class="voacap-hour-header ${nowClass}" colspan="2">${String(h).padStart(2, "0")}</th>`;
+    const hourOrder = [];
+    for (let i = 0; i < 24; i++) {
+      hourOrder.push((nowHour + i) % 24);
     }
-    html += "</tr></thead>";
-    html += "<tbody>";
-    for (const band of HF_BANDS) {
+    const bandsReversed = [...VOACAP_BANDS].reverse();
+    let html = '<table class="voacap-table"><tbody>';
+    for (const band of bandsReversed) {
       const isOverlayActive = state_default.hfPropOverlayBand === band.name;
       const activeClass = isOverlayActive ? "voacap-row-active" : "";
       html += `<tr class="voacap-row ${activeClass}" data-band="${band.name}">`;
       html += `<td class="voacap-band-label">${band.label}</td>`;
-      for (let h = 0; h < 24; h++) {
+      for (let i = 0; i < 24; i++) {
+        const h = hourOrder[i];
         const hourData = matrix[h];
         const reliability = hourData.bands[band.name] || 0;
         const color = getReliabilityColor(reliability);
-        const isNow = h === nowHour;
+        const isNow = i === 0;
         const nowClass = isNow ? "voacap-cell-now" : "";
         html += `<td class="voacap-cell ${nowClass}" style="background-color: ${color}" title="${band.label} @ ${String(h).padStart(2, "0")}z: ${reliability}%"></td>`;
       }
       html += "</tr>";
     }
+    html += '<tr class="voacap-hour-row"><td class="voacap-band-label"></td>';
+    for (let i = 0; i < 24; i++) {
+      const h = hourOrder[i];
+      if (i % 3 === 0) {
+        const isNow = i === 0;
+        const nowClass = isNow ? "voacap-hour-now" : "";
+        html += `<td class="voacap-hour-label ${nowClass}" colspan="3">${String(h).padStart(2, "0")}</td>`;
+      }
+    }
+    html += "</tr>";
     html += "</tbody></table>";
-    html += `
-    <div class="voacap-legend">
-      <span class="voacap-legend-item"><span class="voacap-legend-color" style="background: #1a1a1a"></span>Closed</span>
-      <span class="voacap-legend-item"><span class="voacap-legend-color" style="background: #c0392b"></span>Poor</span>
-      <span class="voacap-legend-item"><span class="voacap-legend-color" style="background: #f1c40f"></span>Fair</span>
-      <span class="voacap-legend-item"><span class="voacap-legend-color" style="background: #27ae60"></span>Good</span>
-    </div>
-  `;
+    const sn = state_default.lastSolarData?.indices?.sunspots || "--";
+    html += `<div class="voacap-params">`;
+    html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state_default.voacapPower] || state_default.voacapPower}</span>`;
+    html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state_default.voacapMode}</span>`;
+    html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
+    html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
+    html += `<span class="voacap-param-static" title="Sunspot number">S=${sn}</span>`;
+    html += `</div>`;
     container.innerHTML = html;
   }
   function toggleBandOverlay(band) {
@@ -1341,11 +1446,12 @@
   function drawBandOverlay(band) {
     if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
     const L2 = window.L;
-    const matrix = calculate24HourMatrix();
+    const opts = getVoacapOpts();
+    const matrix = calculate24HourMatrix(opts);
     const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
     const hourData = matrix[nowHour];
     const reliability = hourData.bands[band] || 0;
-    const bandDef = HF_BANDS.find((b) => b.name === band);
+    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
     if (!bandDef) return;
     const baseRadius = 500;
     const maxRadius = 15e3;
@@ -1370,7 +1476,7 @@
       const color = getReliabilityColor(stepReliability);
       const circle = L2.circle([state_default.myLat, state_default.myLon], {
         radius: stepRadius * 1e3,
-        // Convert km to meters
+        // km → meters
         color,
         fillColor: color,
         fillOpacity: 0.05 + 0.1 * (steps - i) / steps,
@@ -1395,13 +1501,18 @@
     clearBandOverlay();
     state_default.hfPropOverlayBand = null;
   }
-  var bandOverlayCircles;
+  var bandOverlayCircles, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
   var init_voacap = __esm({
     "src/voacap.js"() {
       init_state();
       init_dom();
       init_band_conditions();
       bandOverlayCircles = [];
+      POWER_OPTIONS = ["5", "100", "1000"];
+      POWER_LABELS = { "5": "5W", "100": "100W", "1000": "1kW" };
+      MODE_OPTIONS = ["CW", "SSB", "FT8"];
+      TOA_OPTIONS = ["3", "5", "10", "15"];
+      PATH_OPTIONS = ["SP", "LP"];
     }
   });
 
@@ -4304,7 +4415,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.16.1";
+    $("splashVersion").textContent = "0.17.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

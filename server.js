@@ -1623,57 +1623,33 @@ app.get('/api/voacap', async (req, res) => {
     let matrix;
 
     if (voacap.isAvailable()) {
-      // Use real VOACAP engine — compute all 24 hours for each target
-      engine = 'dvoacap';
-      matrix = [];
+      // Batch predict: send all 24 hours × all targets in a single IPC call
+      try {
+        const result = await voacap.predictMatrix({
+          tx_lat: txLat,
+          tx_lon: txLon,
+          targets: targets.map(t => ({ name: t.name, lat: t.lat, lon: t.lon })),
+          ssn,
+          month,
+          power,
+          min_angle_deg: toa,
+          long_path: longPath,
+          required_snr: requiredSnr,
+          bandwidth_hz: bandwidthHz,
+          frequencies,
+          band_names: bandNames,
+        });
 
-      for (let hour = 0; hour < 24; hour++) {
-        // For each hour, find best reliability across all targets per band
-        const bandBest = {};
-        for (const bn of bandNames) {
-          bandBest[bn] = { rel: 0, snr: 0, mode: '' };
+        if (result.ok && result.matrix) {
+          engine = 'dvoacap';
+          matrix = result.matrix;
+        } else {
+          console.error('[VOACAP] Matrix prediction failed:', result.error || 'unknown');
+          matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
         }
-        let maxMuf = 0;
-
-        for (const target of targets) {
-          try {
-            const result = await voacap.predict({
-              tx_lat: txLat,
-              tx_lon: txLon,
-              rx_lat: target.lat,
-              rx_lon: target.lon,
-              ssn,
-              month,
-              utc_hour: hour,
-              power,
-              min_angle_deg: toa,
-              long_path: longPath,
-              required_snr: requiredSnr,
-              bandwidth_hz: bandwidthHz,
-              frequencies,
-            });
-
-            if (result.ok && result.predictions) {
-              if (result.muf > maxMuf) maxMuf = result.muf;
-
-              for (let i = 0; i < result.predictions.length; i++) {
-                const pred = result.predictions[i];
-                const bn = bandNames[i];
-                if (pred.reliability > bandBest[bn].rel) {
-                  bandBest[bn] = {
-                    rel: pred.reliability,
-                    snr: pred.snr_db,
-                    mode: pred.mode,
-                  };
-                }
-              }
-            }
-          } catch (err) {
-            console.error(`[VOACAP] Prediction error for ${target.name}: ${err.message}`);
-          }
-        }
-
-        matrix.push({ hour, bands: bandBest, muf: Math.round(maxMuf * 10) / 10 });
+      } catch (err) {
+        console.error(`[VOACAP] Matrix prediction error: ${err.message}`);
+        matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
       }
     } else {
       // Simplified fallback

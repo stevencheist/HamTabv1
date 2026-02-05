@@ -142,6 +142,9 @@ export async function fetchVoacapMatrix() {
     path: state.voacapPath,
   });
 
+  // Debug: log coordinates being sent to server
+  console.log('[VOACAP] Fetching with coordinates:', { txLat: state.myLat, txLon: state.myLon });
+
   // If in "spot" mode and a spot is selected, add RX coordinates
   if (state.voacapTarget === 'spot' && state.selectedSpotId) {
     const spot = findSelectedSpot();

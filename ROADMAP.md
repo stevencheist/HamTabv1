@@ -4,7 +4,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 **Mission:** Provide a modern, web-based amateur radio dashboard for the ~10,000+ HamClock users whose installations will stop functioning in June 2026, while serving the broader ham radio community.
 
-**Last updated:** 2026-02-04
+**Last updated:** 2026-02-05
 
 ---
 
@@ -466,8 +466,8 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 |---------|-------|--------|-------------|
 | VOACAP integration | P3 | ✅ | CRITICAL |
 | UDP spot input (WSJT-X) | P4 | ❌ | CRITICAL |
-| Configurable port | P1 | ❌ | HIGH |
-| Uninstall script | P1 | ❌ | HIGH |
+| Configurable port | P1 | ✅ | HIGH |
+| Uninstall script | P1 | ✅ | HIGH |
 | Units toggle | P1 | ✅ | HIGH |
 | Long path display | P1 | ✅ | HIGH |
 | Space weather graphs | P1 | ❌ | HIGH |

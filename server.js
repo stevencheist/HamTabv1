@@ -1470,11 +1470,51 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
     const nameSafe = (name || '').trim().substring(0, 100);
     const emailSafe = (email || '').trim().substring(0, 100);
 
-    // 5. Check for GitHub token
+    // 5. Check for GitHub token — if not configured, relay to hamtab.net
     const githubToken = process.env.GITHUB_FEEDBACK_TOKEN;
     if (!githubToken) {
-      console.error('GITHUB_FEEDBACK_TOKEN not configured');
-      return res.status(500).json({ error: 'Feedback system not configured. Please contact the developer.' });
+      // Relay to hamtab.net (lanmode without local token)
+      console.log('No local GITHUB_FEEDBACK_TOKEN — relaying to hamtab.net');
+      try {
+        const relayData = JSON.stringify({ name, email, feedback, website });
+        const relayReq = https.request({
+          hostname: 'hamtab.net',
+          path: '/api/feedback',
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(relayData),
+            'User-Agent': 'HamTab-Lanmode-Relay',
+          },
+        }, (relayRes) => {
+          let data = '';
+          relayRes.on('data', chunk => data += chunk);
+          relayRes.on('end', () => {
+            try {
+              const result = JSON.parse(data);
+              res.status(relayRes.statusCode).json(result);
+            } catch {
+              res.status(relayRes.statusCode).json({ error: 'Relay response parse error' });
+            }
+          });
+        });
+
+        relayReq.on('error', (err) => {
+          console.error('Relay to hamtab.net failed:', err.message);
+          res.status(503).json({
+            error: 'Feedback relay unavailable. Please submit feedback directly at https://github.com/stevencheist/HamTabv1/issues'
+          });
+        });
+
+        relayReq.write(relayData);
+        relayReq.end();
+        return;
+      } catch (relayErr) {
+        console.error('Relay error:', relayErr.message);
+        return res.status(503).json({
+          error: 'Feedback relay unavailable. Please submit feedback directly at https://github.com/stevencheist/HamTabv1/issues'
+        });
+      }
     }
 
     // 6. Build GitHub issue body

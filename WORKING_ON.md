@@ -13,6 +13,7 @@ Clear your entry when done.
 
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
+| Steven + Claude | VOACAP DE→DX widget redesign | main | 2026-02-04 |
 
 ## Recently Completed
 

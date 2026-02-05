@@ -117,6 +117,8 @@
           // { satId: L.circle (footprint) }
           orbitLines: {},
           // { satId: L.polyline }
+          issOrbitPath: [],
+          // ISS orbit ground track from SGP4 [{lat, lon}, ...]
           selectedSatId: null
           // currently selected satellite for pass display
         },
@@ -825,8 +827,8 @@
           title: "Satellites",
           description: "Track amateur radio satellites in real time and predict when they'll pass over your location. Many satellites carry amateur radio repeaters that anyone with a ham license can use to make contacts.",
           sections: [
-            { heading: "Getting Started", content: "You'll need a free API key from N2YO.com \u2014 enter it in Config. The ISS (International Space Station) is tracked by default and has an amateur radio station onboard!" },
-            { heading: "Adding Satellites", content: "Click the gear icon to search for and add satellites to track. Popular choices include the ISS, AO-91, SO-50, and other FM satellites that are easy to work with a handheld radio." },
+            { heading: "ISS Tracking", content: "The ISS (International Space Station) is tracked automatically \u2014 no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard." },
+            { heading: "Adding More Satellites", content: "To track additional satellites like AO-91, SO-50, and others, you'll need a free API key from N2YO.com \u2014 enter it in Config. Click the gear icon to search for and add satellites." },
             { heading: "Live Position", content: "See where each satellite is right now on the map, along with its altitude, speed, and whether it's above your horizon (visible to you)." },
             { heading: "Pass Predictions", content: "Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work." }
           ],
@@ -2182,7 +2184,7 @@
       return;
     }
     const pts = geodesicPoints(state_default.myLat, state_default.myLon, spotLat, spotLon, 64);
-    function splitAtDateline(points) {
+    function splitAtDateline2(points) {
       const segments = [[]];
       for (let i = 0; i < points.length; i++) {
         segments[segments.length - 1].push(points[i]);
@@ -2194,7 +2196,7 @@
       }
       return segments;
     }
-    state_default.geodesicLine = L.polyline(splitAtDateline(pts), {
+    state_default.geodesicLine = L.polyline(splitAtDateline2(pts), {
       color: "#ff9800",
       weight: 2,
       opacity: 0.7,
@@ -2209,7 +2211,7 @@
     const ptsToAnti = geodesicPoints(state_default.myLat, state_default.myLon, antiLat, antiLon, 48);
     const ptsFromAnti = geodesicPoints(antiLat, antiLon, spotLat, spotLon, 48);
     const longPts = [...ptsToAnti.slice(0, -1), ...ptsFromAnti];
-    state_default.geodesicLineLong = L.polyline(splitAtDateline(longPts), {
+    state_default.geodesicLineLong = L.polyline(splitAtDateline2(longPts), {
       color: "#ff9800",
       weight: 1.5,
       opacity: 0.35,
@@ -4836,7 +4838,7 @@
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
-    $("splashVersion").textContent = "0.20.2";
+    $("splashVersion").textContent = "0.21.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -5374,6 +5376,7 @@
   var DEFAULT_SAT_ALT_KM = 400;
   function initSatellites() {
     initSatelliteListeners();
+    fetchIssPosition();
     if (state_default.n2yoApiKey) {
       fetchSatellitePositions();
     }
@@ -5394,6 +5397,60 @@
       });
     }
   }
+  async function fetchIssPosition() {
+    try {
+      const lat = state_default.myLat ?? 0;
+      const lon = state_default.myLon ?? 0;
+      const resp = await fetch(`/api/iss/position?lat=${lat}&lon=${lon}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.satellites.positions["25544"] = {
+        satId: 25544,
+        name: data.name,
+        lat: data.lat,
+        lon: data.lon,
+        alt: data.alt,
+        azimuth: data.azimuth,
+        elevation: data.elevation,
+        timestamp: data.timestamp
+      };
+      state_default.satellites.issOrbitPath = data.orbitPath || [];
+      updateSatelliteMarkers();
+      updateIssOrbitLine();
+      renderSatelliteWidget();
+    } catch (err) {
+      if (state_default.debug) console.error("Failed to fetch ISS position:", err);
+    }
+  }
+  function splitAtDateline(points) {
+    const segments = [[]];
+    for (let i = 0; i < points.length; i++) {
+      segments[segments.length - 1].push([points[i].lat, points[i].lon]);
+      if (i < points.length - 1) {
+        if (Math.abs(points[i + 1].lon - points[i].lon) > 180) {
+          segments.push([]);
+        }
+      }
+    }
+    return segments;
+  }
+  function updateIssOrbitLine() {
+    if (!state_default.map) return;
+    if (state_default.satellites.orbitLines["25544"]) {
+      state_default.map.removeLayer(state_default.satellites.orbitLines["25544"]);
+      delete state_default.satellites.orbitLines["25544"];
+    }
+    const path = state_default.satellites.issOrbitPath;
+    if (!path || path.length < 2) return;
+    const segments = splitAtDateline(path);
+    state_default.satellites.orbitLines["25544"] = L.polyline(segments, {
+      color: "#00bcd4",
+      weight: 1.5,
+      opacity: 0.5,
+      dashArray: "6 4",
+      interactive: false
+    }).addTo(state_default.map);
+  }
   async function fetchSatelliteList() {
     if (!state_default.n2yoApiKey) return;
     try {
@@ -5409,15 +5466,19 @@
   }
   async function fetchSatellitePositions() {
     if (!state_default.n2yoApiKey || state_default.satellites.tracked.length === 0) return;
+    const n2yoIds = state_default.satellites.tracked.filter((id) => id !== 25544);
+    if (n2yoIds.length === 0) return;
     try {
-      const ids = state_default.satellites.tracked.join(",");
+      const ids = n2yoIds.join(",");
       const lat = state_default.myLat ?? 0;
       const lon = state_default.myLon ?? 0;
       const url = `/api/satellites/positions?apikey=${encodeURIComponent(state_default.n2yoApiKey)}&ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
+      const issPos = state_default.satellites.positions["25544"];
       state_default.satellites.positions = data;
+      if (issPos) state_default.satellites.positions["25544"] = issPos;
       updateSatelliteMarkers();
       renderSatelliteWidget();
     } catch (err) {
@@ -5454,6 +5515,12 @@
       if (!positions[satId]) {
         state_default.map.removeLayer(state_default.satellites.circles[satId]);
         delete state_default.satellites.circles[satId];
+      }
+    }
+    for (const satId of Object.keys(state_default.satellites.orbitLines)) {
+      if (!positions[satId]) {
+        state_default.map.removeLayer(state_default.satellites.orbitLines[satId]);
+        delete state_default.satellites.orbitLines[satId];
       }
     }
     for (const [satId, pos] of Object.entries(positions)) {
@@ -5570,12 +5637,12 @@
     if (!satList) return;
     const positions = state_default.satellites.positions;
     const tracked = state_default.satellites.tracked;
-    if (!state_default.n2yoApiKey) {
-      satList.innerHTML = '<div class="sat-no-key">Configure N2YO API key in settings</div>';
-      return;
-    }
-    if (tracked.length === 0 || Object.keys(positions).length === 0) {
-      satList.innerHTML = '<div class="sat-no-data">No satellite data</div>';
+    if (Object.keys(positions).length === 0) {
+      if (!state_default.n2yoApiKey) {
+        satList.innerHTML = '<div class="sat-no-data">Loading ISS...</div>';
+      } else {
+        satList.innerHTML = '<div class="sat-no-data">No satellite data</div>';
+      }
       return;
     }
     let html = "";
@@ -5602,6 +5669,9 @@
         html += `<span class="sat-doppler">${dopplerStr} kHz</span>`;
       }
       html += `</div>`;
+    }
+    if (!state_default.n2yoApiKey && tracked.some((id) => id !== 25544)) {
+      html += '<div class="sat-no-key" style="font-size:0.85em;margin-top:4px">N2YO key needed for other satellites</div>';
     }
     satList.innerHTML = html;
     satList.querySelectorAll(".sat-row").forEach((row) => {
@@ -5714,6 +5784,7 @@
       localStorage.setItem("hamtab_sat_tracked", JSON.stringify(state_default.satellites.tracked));
     }
     splash.classList.add("hidden");
+    fetchIssPosition();
     if (state_default.n2yoApiKey) {
       fetchSatellitePositions();
     }
@@ -6287,6 +6358,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   updateGrayLine();
   setInterval(updateGrayLine, 6e4);
   initSatellites();
+  setInterval(fetchIssPosition, 1e4);
   setInterval(fetchSatellitePositions, 1e4);
   updateClocks();
   setInterval(updateClocks, 1e3);

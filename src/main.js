@@ -29,7 +29,7 @@ import { initWeatherListeners, fetchWeather, startNwsPolling } from './weather.j
 import { initPropListeners, updateGrayLine, initSolarImage } from './solar.js';
 import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
-import { initSatellites, fetchSatellitePositions } from './satellites.js';
+import { initSatellites, fetchSatellitePositions, fetchIssPosition } from './satellites.js';
 import { initSpotDetail } from './spot-detail.js';
 import { initDayNightToggle, renderPropagationWidget } from './band-conditions.js';
 import { initHelpListeners } from './help.js';
@@ -48,7 +48,8 @@ setInterval(updateGrayLine, 60000);
 
 // Satellite tracking (multi-satellite via N2YO)
 initSatellites();
-setInterval(fetchSatellitePositions, 10000); // 10 s — satellite position refresh
+setInterval(fetchIssPosition, 10000); // 10 s — ISS position refresh (free, no API key)
+setInterval(fetchSatellitePositions, 10000); // 10 s — other satellite position refresh (N2YO)
 
 // Clocks
 updateClocks();

@@ -1195,6 +1195,33 @@ header {
   border-bottom: 1px solid var(--border);
 }
 
+/* Sortable column headers */
+#spotsTable th.sortable {
+  cursor: pointer;
+  user-select: none;
+}
+
+#spotsTable th.sortable:hover {
+  background: var(--surface3);
+  color: var(--text);
+}
+
+#spotsTable th.sortable::after {
+  content: '';
+  margin-left: 4px;
+  opacity: 0.3;
+}
+
+#spotsTable th.sort-asc::after {
+  content: ' ▲';
+  opacity: 1;
+}
+
+#spotsTable th.sort-desc::after {
+  content: ' ▼';
+  opacity: 1;
+}
+
 #spotsTable td {
   padding: 4px 6px;
   border-bottom: 1px solid var(--border);

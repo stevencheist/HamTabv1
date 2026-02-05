@@ -64,8 +64,9 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 |---------|--------|----------|------|-------|
 | Units toggle (metric/imperial) | ✅ | HIGH | 🌐 | Miles/km, °F/°C in config modal |
 | Long path display | ✅ | HIGH | 🌐 | Dimmer dashed line shows long path |
-| Spot retention window | ❌ | MEDIUM | 🌐 | 5-30 minute configurable max age |
+| Spot retention window | ✅ | MEDIUM | 🌐 | Age filter in Filters widget (5-60+ min) |
 | "My Spots" highlighting | ✅ | MEDIUM | 🌐 | Gold highlight when you're the activator |
+| Table column sorting | ✅ | MEDIUM | 🌐 | Click column headers to sort (callsign, freq, mode, time, age) |
 
 #### P1.3: Space Weather History 🔥
 | Feature | Status | Priority | Mode | Notes |
@@ -106,7 +107,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 |---------|--------|----------|------|-------|
 | ADIF log display | ❌ | HIGH | ☁️ | File upload (lanmode) / KV or R2 storage (hostedmode) |
 | ADIF watch list | ❌ | HIGH | ☁️ | Requires ADIF storage |
-| Sort by band/call/age/distance | ❌ | MEDIUM | 🌐 | Client-side sorting |
+| Sort by band/call/age/distance | 🟡 | MEDIUM | 🌐 | Client-side sorting (callsign/freq/mode/time/age done, ADIF pending) |
 | Click QSO to set DX | ❌ | MEDIUM | 🌐 | Map integration |
 | File reload on change | ❌ | LOW | 🏠 | File watching (lanmode only) |
 

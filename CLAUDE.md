@@ -329,6 +329,20 @@ This ensures we never merge into a stale local branch.
 - **hostedmode** — Cloudflare-specific fixes (wrangler.jsonc, worker.js, Dockerfile, CI/CD)
 - **lanmode** — Self-hosted fixes (install scripts, update checker, CORS config)
 
+### End-of-Session Protocol
+
+**When the user says they're done for the day (e.g. "done", "wrapping up", "end of session"), run this checklist:**
+
+1. **Check for uncommitted changes** — `git status`. If there are meaningful changes, commit them with a clear message.
+2. **Push main** — Make sure `main` is pushed to remote.
+3. **Sync branches** — If any code changes were pushed during the session, sync both `lanmode` and `hostedmode` (full Branch Sync Protocol).
+4. **Update WORKING_ON.md** — Move any completed work from "Active Work" to "Recently Completed". If work is still in progress, leave it in "Active Work" with a note about current status.
+5. **Save work-in-progress notes** — If a feature is partially done or needs to be continued next session:
+   - Add a brief status note to the "Active Work" entry in `WORKING_ON.md` (e.g. "server endpoint done, client integration next")
+   - If there's a tracking document (e.g. `FEATURE_NAME.md`), update it with current progress
+   - Commit and push the updated `WORKING_ON.md`
+6. **Confirm clean state** — Run `git status` one final time and report the state to the user. The goal is: on `main`, up to date with remote, no uncommitted code changes.
+
 ## Feature Tracking
 
 When working on multiple related features or a feature set with more than one task:

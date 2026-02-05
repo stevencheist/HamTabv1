@@ -13,7 +13,7 @@ Clear your entry when done.
 
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
-| | | | |
+| Francisco + Claude | VOACAP real-time enhancements (P3.2) — K-index correction, effective SSN | main | 2026-02-05 |
 
 ## Next Up
 

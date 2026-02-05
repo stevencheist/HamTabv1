@@ -3184,6 +3184,12 @@ header {
   padding: 1px 5px;
 }
 
+/* K-index storm warning — highlights SSN when K>=4 causes degradation */
+.voacap-k-warning {
+  color: var(--yellow);
+  font-weight: 700;
+}
+
 /* Engine badge — green for real VOACAP, gray for simplified */
 .voacap-engine-badge {
   font-size: 0.55rem;

@@ -1829,6 +1829,100 @@ async function getCurrentSSN() {
   }
 }
 
+// --- K-index cache for real-time geomagnetic corrections ---
+// K-index from HamQSL updates every 3 hours but conditions can change rapidly,
+// so we use a 10-minute cache to balance freshness with API load.
+const kIndexCache = { kindex: null, aindex: null, expires: 0 };
+const KINDEX_TTL = 10 * 60 * 1000; // 10 minutes
+
+async function getCurrentKIndex() {
+  // Return cached data if still valid
+  if (Date.now() < kIndexCache.expires && kIndexCache.kindex !== null) {
+    return { kindex: kIndexCache.kindex, aindex: kIndexCache.aindex };
+  }
+
+  try {
+    const xml = await fetchText('https://www.hamqsl.com/solarxml.php');
+    const solar = parseSolarXML(xml);
+
+    const kindex = parseInt(solar.indices.kindex, 10);
+    const aindex = parseInt(solar.indices.aindex, 10);
+
+    kIndexCache.kindex = isNaN(kindex) ? null : kindex;
+    kIndexCache.aindex = isNaN(aindex) ? null : aindex;
+    kIndexCache.expires = Date.now() + KINDEX_TTL;
+
+    return { kindex: kIndexCache.kindex, aindex: kIndexCache.aindex };
+  } catch (err) {
+    console.error('Error fetching K-index:', err.message);
+
+    // If we have stale data, return it
+    if (kIndexCache.kindex !== null) {
+      return { kindex: kIndexCache.kindex, aindex: kIndexCache.aindex };
+    }
+
+    // Return null if no data available (caller should handle gracefully)
+    return { kindex: null, aindex: null };
+  }
+}
+
+// Calculate effective SSN with K-index degradation for geomagnetic storms.
+// During storms, absorption increases and MUF decreases. We model this
+// by reducing the "effective" SSN used for propagation calculations.
+// Degradation factors aligned with band-conditions.js reliability logic.
+function calculateEffectiveSSN(baseSSN, kIndex) {
+  // K-index to degradation factor mapping:
+  // K=0-1: quiet, full SSN
+  // K=2-3: unsettled, minor degradation
+  // K=4: active, moderate degradation
+  // K=5+: storm, significant degradation
+  const degradationMap = {
+    0: 1.00,  // quiet
+    1: 1.00,  // quiet
+    2: 0.95,  // unsettled (-5%)
+    3: 0.90,  // unsettled (-10%)
+    4: 0.80,  // active (-20%)
+    5: 0.65,  // minor storm (-35%)
+    6: 0.50,  // moderate storm (-50%)
+    7: 0.35,  // strong storm (-65%)
+    8: 0.20,  // severe storm (-80%)
+    9: 0.10,  // extreme storm (-90%)
+  };
+
+  // If K-index unavailable, use base SSN unchanged
+  if (kIndex === null || kIndex === undefined || kIndex < 0 || kIndex > 9) {
+    return {
+      effectiveSSN: baseSSN,
+      baseSSN,
+      kIndex: null,
+      degradationFactor: 1.0,
+      degradationPercent: 0,
+    };
+  }
+
+  const factor = degradationMap[kIndex] || 1.0;
+  const effectiveSSN = Math.round(baseSSN * factor * 10) / 10;
+  const degradationPercent = Math.round((1 - factor) * 100);
+
+  return {
+    effectiveSSN,
+    baseSSN,
+    kIndex,
+    degradationFactor: factor,
+    degradationPercent,
+  };
+}
+
+// Classify K-index into bands for cache key partitioning:
+// q=quiet (K<=2), u=unsettled (K=3), s=storm (K=4-5), x=extreme (K>=6)
+function getKBand(kIndex) {
+  if (kIndex === null || kIndex === undefined) return 'q'; // assume quiet if unknown
+  if (kIndex <= 2) return 'q';
+  if (kIndex === 3) return 'u';
+  if (kIndex <= 5) return 's';
+  return 'x';
+}
+
 // VOACAP prediction cache — keyed by rounded params, TTL 1 hour
 const voacapCache = {}; // { key: { data, expires } }
 const VOACAP_TTL = 60 * 60 * 1000; // 1 hour
@@ -2024,24 +2118,34 @@ app.get('/api/voacap', async (req, res) => {
       }
     }
 
-    // Cache key — round lat/lon to 1 decimal to improve hit rate
+    // Fetch SSN and K-index in parallel for real-time corrections
+    const [ssnData, kIndexData] = await Promise.all([
+      getCurrentSSN(),
+      getCurrentKIndex(),
+    ]);
+
+    const baseSSN = ssnData.ssn;
+    const month = ssnData.month;
+    const kIndex = kIndexData.kindex;
+
+    // Calculate effective SSN with K-index degradation
+    const ssnCorrection = calculateEffectiveSSN(baseSSN, kIndex);
+    const ssn = ssnCorrection.effectiveSSN;
+    const kBand = getKBand(kIndex);
+
+    // Cache key — round lat/lon to 1 decimal, include K-band for storm transitions
     const cacheKey = [
       Math.round(txLat * 10) / 10,
       Math.round(txLon * 10) / 10,
       rxLat != null ? Math.round(rxLat * 10) / 10 : 'all',
       rxLon != null ? Math.round(rxLon * 10) / 10 : 'all',
-      power, mode, toa, pathType,
+      power, mode, toa, pathType, kBand,
     ].join(':');
 
     const cached = voacapCache[cacheKey];
     if (cached && Date.now() < cached.expires) {
       return res.json(cached.data);
     }
-
-    // Fetch current SSN
-    const ssnData = await getCurrentSSN();
-    const ssn = ssnData.ssn;
-    const month = ssnData.month;
 
     // Mode → required SNR and bandwidth (ITU standard thresholds)
     const modeMap = {
@@ -2111,7 +2215,10 @@ app.get('/api/voacap', async (req, res) => {
 
     const response = {
       engine,
-      ssn: Math.round(ssn * 10) / 10,
+      ssn: Math.round(ssn * 10) / 10,  // effective SSN used for predictions
+      ssnBase: Math.round(baseSSN * 10) / 10,  // original NOAA SSN before K-index correction
+      kIndex: ssnCorrection.kIndex,  // current K-index (null if unavailable)
+      kDegradation: ssnCorrection.degradationPercent,  // % degradation from K-index (0 if none)
       month,
       matrix,
     };

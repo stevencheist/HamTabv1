@@ -288,10 +288,28 @@ export function renderVoacapMatrix() {
     ? 'Showing prediction to selected spot (click for overview)'
     : 'Showing best worldwide prediction (click for spot mode)';
 
-  // SSN display — prefer server data
-  const ssnDisplay = state.voacapServerData?.ssn
-    ? Math.round(state.voacapServerData.ssn)
-    : (state.lastSolarData?.indices?.sunspots || '--');
+  // SSN display — prefer server data, show K-index degradation warning
+  const serverData = state.voacapServerData;
+  const effectiveSSN = serverData?.ssn ? Math.round(serverData.ssn) : null;
+  const baseSSN = serverData?.ssnBase ? Math.round(serverData.ssnBase) : null;
+  const kIndex = serverData?.kIndex;
+  const kDegradation = serverData?.kDegradation || 0;
+  const ssnDisplay = effectiveSSN ?? (state.lastSolarData?.indices?.sunspots || '--');
+
+  // Show warning indicator for K>=4 (storm conditions causing significant degradation)
+  const isStorm = kIndex !== null && kIndex >= 4;
+  const ssnWarningClass = isStorm ? ' voacap-k-warning' : '';
+  const ssnWarningIndicator = isStorm ? '!' : '';
+
+  // Build tooltip explaining SSN and K-index correction
+  let ssnTitle = 'Smoothed sunspot number';
+  if (kIndex !== null && baseSSN !== null) {
+    if (kDegradation > 0) {
+      ssnTitle = `K-index ${kIndex}: Base SSN ${baseSSN} \u2192 ${effectiveSSN} (-${kDegradation}%)`;
+    } else {
+      ssnTitle = `K-index ${kIndex}: SSN ${baseSSN} (no degradation)`;
+    }
+  }
 
   // Parameter bar
   const overlayLabel = state.heatmapOverlayMode === 'heatmap' ? 'REL' : '\u25CB'; // ○ for circles
@@ -306,7 +324,7 @@ export function renderVoacapMatrix() {
   html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state.voacapMode}</span>`;
   html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state.voacapToa}\u00B0</span>`;
   html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state.voacapPath}</span>`;
-  html += `<span class="voacap-param-static" title="Smoothed sunspot number">S=${ssnDisplay}</span>`;
+  html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
   html += `</div>`;
 
   container.innerHTML = html;

@@ -4998,7 +4998,7 @@
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.22.0";
+    $("splashVersion").textContent = "0.22.1";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

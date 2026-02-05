@@ -272,6 +272,8 @@ HamTab has users worldwide, including the EU. Privacy and GDPR compliance are ma
 
 ## Working with Claude
 
+**IMPORTANT: Before starting work on any new feature or task, always re-read `CLAUDE.md` and `WORKING_ON.md` to ensure you have the latest instructions and know what's currently in progress.**
+
 Stay on `main` for most work. Use simple commands to manage branches:
 
 | Command | Action |
@@ -282,10 +284,14 @@ Stay on `main` for most work. Use simple commands to manage branches:
 | "switch to [branch]" | Checkout the specified branch |
 
 **Workflow:**
-1. Develop features on `main` (90% of work happens here)
-2. Say "sync branches" to deploy code changes to deployment branches
-3. Switch to `lanmode` or `hostedmode` only for branch-specific fixes
-4. Start sessions with "status" or "pull and status" to see current state
+1. Re-read `CLAUDE.md` and `WORKING_ON.md` before starting any new feature
+2. Check `WORKING_ON.md` to avoid working on something the other developer is already doing
+3. Claim your work in `WORKING_ON.md` before starting
+4. Develop features on `main` (90% of work happens here)
+5. Say "sync branches" to deploy code changes to deployment branches
+6. Switch to `lanmode` or `hostedmode` only for branch-specific fixes
+7. Start sessions with "status" or "pull and status" to see current state
+8. Clear your entry from `WORKING_ON.md` when done
 
 **When to sync:**
 - ✅ After committing **code changes** (features, bug fixes)

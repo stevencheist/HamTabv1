@@ -1657,6 +1657,11 @@ app.get('/api/voacap/ssn', async (req, res) => {
   }
 });
 
+// VOACAP bridge diagnostics — helps debug container startup issues
+app.get('/api/voacap/status', (req, res) => {
+  res.json(voacap.getStatus());
+});
+
 // VOACAP prediction endpoint
 app.get('/api/voacap', async (req, res) => {
   try {

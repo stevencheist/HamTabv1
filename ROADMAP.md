@@ -4,7 +4,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 **Mission:** Provide a modern, web-based amateur radio dashboard for the ~10,000+ HamClock users whose installations will stop functioning in June 2026, while serving the broader ham radio community.
 
-**Last updated:** 2026-02-03
+**Last updated:** 2026-02-04
 
 ---
 
@@ -132,24 +132,44 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P3.1: VOACAP Integration 🔥
 | Feature | Status | Priority | Mode | Issue | Notes |
 |---------|--------|----------|------|-------|-------|
-| Reliability graph (24h × band) | ✅ | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | HF Propagation widget with color-coded matrix |
-| REL map overlay | 🟡 | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Click band row shows reliability circles |
-| TOA map overlay | ❌ | HIGH | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Take-off angle map |
-| Power level selection | ❌ | MEDIUM | 🌐 | — | 5/50/500W options |
-| Mode selection | ❌ | MEDIUM | 🌐 | — | CW/SSB/RTTY/etc |
+| Reliability graph (24h × band) | ✅ | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | VOACAP DE→DX widget with color-coded matrix |
+| Real VOACAP engine (dvoacap-python) | ✅ | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Python child process with JSON-RPC IPC, batch predictions |
+| REL heatmap overlay | ✅ | CRITICAL | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Canvas heatmap showing reliability to every point on Earth |
+| Circle overlay | ✅ | HIGH | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Concentric range rings scaled by reliability |
+| Power level selection | ✅ | MEDIUM | 🌐 | — | 5W/100W/1kW cycle |
+| Mode selection | ✅ | MEDIUM | 🌐 | — | CW/SSB/FT8 cycle |
+| Takeoff angle selection | ✅ | MEDIUM | 🌐 | — | 3°/5°/10°/15° cycle |
+| Path type selection | ✅ | MEDIUM | 🌐 | — | Short path / Long path cycle |
+| Overview / Spot target mode | ✅ | MEDIUM | 🌐 | — | Multi-target overview or single DX target |
+| Simplified fallback | ✅ | HIGH | 🌐 | — | Client-side model when Python unavailable |
+| TOA map overlay | ❌ | LOW | 🌐 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | Take-off angle map |
 
-#### P3.2: Additional Propagation
+#### P3.2: Real-Time Propagation Enhancements
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| DRAP overlay | ❌ | MEDIUM | 🌐 | D-Region absorption map |
+| Real-time SSN + K-index correction | ❌ | HIGH | 🌐 | Adjust VOACAP SSN input using daily sunspot number and K/A-index to degrade predictions during geomagnetic storms. All data already available from HamQSL. |
+| Effective SSN from real-time foF2 | ❌ | HIGH | 🌐 | Back-calculate "effective SSN" from NOAA ionosonde foF2 measurements, feed into VOACAP for predictions that track actual ionospheric state instead of monthly medians. |
+| IRTAM real-time ionospheric model | ❌ | MEDIUM | 🌐 | Integrate IRI Real-Time Assimilative Model — ingests live ionosonde data from GIRO global network. Provides real-time electron density profiles. Could replace VOACAP's built-in ionospheric model. |
+| GPS TEC data integration | ❌ | MEDIUM | 🌐 | Overlay Total Electron Content from GPS satellites (NOAA near-real-time). Maps ionosphere globally — useful for identifying disturbed regions. |
+| DRAP overlay | ❌ | MEDIUM | 🌐 | D-Region absorption map from NOAA |
 | Auto space weather mode | ❌ | LOW | 🌐 | Auto-show DRAP/Aurora when active |
 | Grayline planning tool | ❌ | LOW | 🌐 | DE/DX twilight overlap |
 
+#### P3.3: WSPR/Beacon Real-Time Propagation (Separate Project)
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| WSPR beacon propagation map | ❌ | MEDIUM | 🌐 | Use WSPR reception reports as ground-truth real-time propagation data. WSPR stations transmit known power on known frequencies 24/7 — their reception reports ARE direct propagation measurements. |
+| PSKReporter propagation heatmap | ❌ | MEDIUM | 🌐 | Aggregate PSKReporter spots into a real-time band-by-band propagation heatmap showing where signals are actually being received right now. |
+| Model calibration vs observations | ❌ | LOW | 🌐 | Compare VOACAP predictions against actual WSPR/PSK observations to calibrate the model and show users prediction accuracy. |
+
 **Phase 3 Deliverables:**
-- Redesigned config modal with tab-based organization
-- Full VOACAP integration with REL/TOA maps
-- 24-hour reliability grid
+- ✅ Redesigned config modal with tab-based organization
+- ✅ Full VOACAP integration with real dvoacap-python engine
+- ✅ 24-hour reliability grid with interactive parameters
+- ✅ REL heatmap and circle map overlays
+- Real-time SSN/foF2 corrections for current ionospheric conditions
 - DRAP map overlay
+- WSPR/PSK observation-based propagation maps (future)
 
 ---
 
@@ -444,7 +464,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 | Feature | Phase | Status | User Demand |
 |---------|-------|--------|-------------|
-| VOACAP integration | P3 | 🟡 | CRITICAL |
+| VOACAP integration | P3 | ✅ | CRITICAL |
 | UDP spot input (WSJT-X) | P4 | ❌ | CRITICAL |
 | Configurable port | P1 | ❌ | HIGH |
 | Uninstall script | P1 | ❌ | HIGH |
@@ -469,7 +489,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | [#88](https://github.com/stevencheist/HamTabv1/issues/88) | Feedback button | ✅ | P1 | MEDIUM |
 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Configurable port | ✅ | P1 | HIGH |
 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Uninstall script | ✅ | P1 | HIGH |
-| [#91](https://github.com/stevencheist/HamTabv1/issues/91) | VOACAP propagation + Live Spots | 🟡 | P3/P9 | CRITICAL |
+| [#91](https://github.com/stevencheist/HamTabv1/issues/91) | VOACAP propagation + Live Spots | ✅ | P3/P9 | CRITICAL |
 
 ---
 
@@ -485,7 +505,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 - ✅ Satellite tracking
 - ✅ Weather integration
 - ✅ Filter system
-- 🟡 VOACAP propagation (P3) — HF Propagation widget with 24h matrix implemented
+- ✅ VOACAP propagation (P3) — Full dvoacap-python engine with 24h matrix, interactive params, REL heatmap
 - ❌ UDP spot input (P4)
 - ❌ Space weather graphs (P1)
 - ❌ Watch list modes (P2)
@@ -519,14 +539,16 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 - **Solar Images:** sdo.gsfc.nasa.gov
 - **Moon Images:** svs.gsfc.nasa.gov
 - **Ionosonde:** kc2g.com (MUF-RT, foF2)
-- **Satellites:** N2YO API
+- **Propagation:** dvoacap-python (self-hosted VOACAP engine), NOAA predicted SSN
+- **Satellites:** N2YO API, satellite.js (SGP4 for ISS)
 - **Weather:** NWS, Weather Underground
 - **Callsign:** callook.info, QRZ
 - **Spots:** api.pota.app, api2.sota.org.uk, HamQTH CSV, pskreporter.info (including "heard by" Live Spots)
 
 ### Planned (By Phase)
-- **P3:** VOACAP.com (propagation modeling)
-- **P3:** NOAA SWPC (DRAP overlay)
+- **P3:** NOAA ionosondes (real-time foF2 for effective SSN)
+- **P3:** GIRO/IRTAM (real-time ionospheric model)
+- **P3:** NOAA SWPC (DRAP overlay, GPS TEC)
 - **P4:** WSJT-X UDP (local network)
 - **P4:** N1MM+/DXLog/Log4OM UDP
 - **P5:** WA7BNM (contests calendar)
@@ -677,10 +699,11 @@ HamTab supports two deployment modes with a shared codebase on `main` and mode-s
 
 ### Planned Enhancements
 
-#### P3: VOACAP Microservice
-- Optional propagation modeling service
-- Separate container/process for compute-intensive VOACAP
-- REST API for REL/TOA map generation
+#### P3: VOACAP Engine (✅ Implemented)
+- Python child process (dvoacap-python) managed by Node.js bridge
+- JSON-RPC over stdin/stdout with batch predictions
+- Automatic fallback to simplified model when Python unavailable
+- **Next:** Real-time ionospheric corrections (foF2, K-index adjustments)
 
 #### P4: UDP Gateway
 - Local network listener for WSJT-X/N1MM+
@@ -836,8 +859,8 @@ HamTab supports two deployment modes with a shared codebase on `main` and mode-s
   - Mitigation: Focus P1-P4 on critical migration features
 
 ### Technical Risks
-- **VOACAP API availability** — Third-party service may be unreliable
-  - Mitigation: Consider self-hosted VOACAP engine
+- **VOACAP API availability** — ✅ Resolved: self-hosted dvoacap-python engine
+  - Real-time enhancements depend on NOAA ionosonde data availability
 - **DX Cluster stability** — Telnet connections can be flaky
   - Mitigation: Implement robust reconnection logic, HTTP fallback
 - **Browser compatibility** — Advanced features may not work on all browsers
@@ -864,10 +887,12 @@ This roadmap provides a clear path from the current 43% feature completion to a 
 By June 2026, HamTab will provide a viable alternative for ~10,000 HamClock users facing the shutdown of their installations. The web-based architecture, self-hosted data sources, and modern UI position HamTab as the successor to HamClock while serving the broader amateur radio community.
 
 **Next Actions:**
-1. Complete Phase 1.1 features ([#88](https://github.com/stevencheist/HamTabv1/issues/88), [#90](https://github.com/stevencheist/HamTabv1/issues/90))
+1. ~~Complete Phase 1.1 features~~ ✅ Done (feedback, configurable port, uninstall)
 2. ~~Implement units toggle and long path display (Phase 1.2)~~ ✅ Done
 3. Add space weather history graphs (Phase 1.3)
-4. Begin VOACAP research and architecture planning (Phase 3)
+4. ~~VOACAP integration (Phase 3.1)~~ ✅ Done — full dvoacap-python engine deployed
+5. Real-time propagation enhancements (Phase 3.2) — K-index corrections, effective SSN from foF2
+6. WSPR/PSK observation-based propagation (Phase 3.3) — separate project, can run in parallel
 
 ---
 

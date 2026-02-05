@@ -58,5 +58,14 @@ HamTab can be deployed in two ways:
 - Works offline on your local network
 - Full privacy — no data leaves your LAN
 - Automatic HTTPS with self-signed certificates
+- Optional: Install Python 3 + dvoacap-python for full VOACAP propagation predictions
 
 Both modes have identical features. Choose hosted mode for convenience, or LAN mode for privacy and offline operation.
+
+## Optional Dependencies (LAN Mode)
+
+| Feature | Dependency | Installation |
+|---------|------------|--------------|
+| Full VOACAP propagation | Python 3 + dvoacap-python | `pip3 install numpy git+https://github.com/skyelaird/dvoacap-python.git` |
+
+Without optional dependencies, HamTab uses simplified fallback models that still provide useful estimates.

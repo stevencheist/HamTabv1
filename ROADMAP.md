@@ -54,9 +54,9 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P1.1: Installation & Configuration 🔥
 | Feature | Status | Priority | Mode | Issue | Notes |
 |---------|--------|----------|------|-------|-------|
-| Configurable port | ❌ | HIGH | 🏠 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Via .env or CLI arg |
-| Uninstall script | ❌ | HIGH | 🏠 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | lanmode cleanup |
-| Feedback button | ❌ | MEDIUM | 🌐 | [#88](https://github.com/stevencheist/HamTabv1/issues/88) | Link to GitHub issues |
+| Configurable port | ✅ | HIGH | 🏠 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Via .env (HTTP_PORT, HTTPS_PORT) |
+| Uninstall script | ✅ | HIGH | 🏠 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | uninstall.sh and uninstall.ps1 |
+| Feedback button | ✅ | MEDIUM | 🌐 | [#88](https://github.com/stevencheist/HamTabv1/issues/88) | Modal with encrypted email, creates GitHub issue |
 | Docker support | ❌ | MEDIUM | ☁️ | — | lanmode only; hostedmode uses Cloudflare Containers |
 
 #### P1.2: Essential Features 🔥
@@ -125,8 +125,8 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P3.0: Config Modal Redesign
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| Tab-based organization | ❌ | HIGH | 🌐 | Group settings (General/Location/API Keys/Advanced) |
-| Improved layout | ❌ | HIGH | 🌐 | Better spacing, logical grouping |
+| Tab-based organization | ✅ | HIGH | 🌐 | Station/Display/Services tabs |
+| Improved layout | ✅ | HIGH | 🌐 | Scrollable content, responsive sizing |
 | Field validation | ❌ | MEDIUM | 🌐 | Real-time feedback for inputs |
 
 #### P3.1: VOACAP Integration 🔥
@@ -466,9 +466,9 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 | Issue | Title | Status | Phase | Priority |
 |-------|-------|--------|-------|----------|
-| [#88](https://github.com/stevencheist/HamTabv1/issues/88) | Feedback button | ❌ | P1 | MEDIUM |
-| [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Configurable port | ❌ | P1 | HIGH |
-| [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Uninstall script | ❌ | P1 | HIGH |
+| [#88](https://github.com/stevencheist/HamTabv1/issues/88) | Feedback button | ✅ | P1 | MEDIUM |
+| [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Configurable port | ✅ | P1 | HIGH |
+| [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Uninstall script | ✅ | P1 | HIGH |
 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | VOACAP propagation + Live Spots | 🟡 | P3/P9 | CRITICAL |
 
 ---

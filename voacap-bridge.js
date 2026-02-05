@@ -11,7 +11,7 @@ let requestId = 0;
 const pending = new Map(); // id → { resolve, reject, timer }
 
 const REQUEST_TIMEOUT_MS = 5000;   // 5 seconds per single prediction request
-const MATRIX_TIMEOUT_MS = 60000;  // 60 seconds for batch matrix (24h × multiple targets)
+const MATRIX_TIMEOUT_MS = 180000; // 180 seconds for batch matrix — container CPUs are slow
 const STARTUP_TIMEOUT_MS = 30000; // 30 seconds for initial Python+numpy+dvoacap load
 const STARTUP_PING_INTERVAL = 2000; // 2 seconds between startup ping retries
 const RESPAWN_DELAY_MS = 30000;    // 30 seconds between full respawn attempts

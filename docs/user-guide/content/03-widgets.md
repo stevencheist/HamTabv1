@@ -322,7 +322,7 @@ Click a satellite name to view upcoming passes:
 
 ## Reference Widget
 
-Quick reference tables for signal reporting.
+Quick-reference tables for common ham radio information. Use the tabs to switch between different references.
 
 ### RST Tab
 Readability-Strength-Tone signal reporting system:
@@ -343,6 +343,18 @@ Readability-Strength-Tone signal reporting system:
 
 ### Phonetic Tab
 NATO phonetic alphabet for clear letter pronunciation.
+
+### Morse Tab
+International Morse code dit/dah patterns for each letter and number.
+
+### Q-Codes Tab
+Common Q-code abbreviations used in amateur radio.
+
+### Bands Tab
+US amateur band privileges by license class (Extra, General, Technician, Novice). Shows frequency ranges and allowed modes for each class.
+
+- **My privileges only** — Check this box to filter the table to show only your license class. Requires a US callsign set in Config.
+- Mode groups: **All** (any mode), **CW** (Morse only), **CW/Digital** (CW and digital modes like FT8), **Phone** (voice modes like SSB).
 
 ---
 

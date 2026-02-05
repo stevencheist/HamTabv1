@@ -298,9 +298,9 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
 | Operator info visibility | ✅ | HIGH | 🌐 | Callsign, name, license, location, and control buttons larger and bolder |
-| Widget non-overlapping layout | ❌ | HIGH | 🌐 | Widgets should not overlap; auto-size and snap together |
-| Proportional widget resize | ❌ | HIGH | 🌐 | Widgets resize proportionately to maintain layout on window change |
-| Responsive modals | ❌ | HIGH | 🌐 | Modals resize to fit within viewport at any zoom level |
+| Widget non-overlapping layout | ✅ | HIGH | 🌐 | Collision detection pushes widgets apart on drag/resize/reflow |
+| Proportional widget resize | ✅ | HIGH | 🌐 | Already implemented via reflowWidgets() with ResizeObserver |
+| Responsive modals | ✅ | HIGH | 🌐 | viewport-relative sizing (min(92vw, XXpx)), small screen media query |
 | Accessibility standards | ❌ | HIGH | 🌐 | Define standards for visual impairments, color blindness, readability |
 
 #### P8.1: Configuration Management

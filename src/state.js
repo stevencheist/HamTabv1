@@ -63,6 +63,8 @@ const state = {
   // Cached data for re-render
   lastSolarData: null,
   lastLunarData: null,
+  spacewxData: null,   // { kp: [], xray: [], sfi: [], wind: [], mag: [] }
+  spacewxTab: 'kp',    // active graph tab
 
   // Operator
   myCallsign: localStorage.getItem('hamtab_callsign') || '',

@@ -42,6 +42,7 @@ import { initFeedbackListeners } from './feedback.js';
 import { initLiveSpotsListeners, fetchLiveSpots, renderLiveSpotsOnMap } from './live-spots.js';
 import { initVoacapListeners, renderVoacapMatrix, fetchVoacapMatrix, fetchVoacapMatrixThrottled } from './voacap.js';
 import { initHeatmapListeners } from './rel-heatmap.js';
+import { initSpaceWxListeners, fetchSpaceWxData } from './spacewx-graphs.js';
 
 // Initialize map
 initMap();
@@ -80,6 +81,7 @@ initFeedbackListeners();
 initLiveSpotsListeners();
 initVoacapListeners();
 initHeatmapListeners();
+initSpaceWxListeners();
 
 // Wire initApp into splash dismissal
 function initApp() {
@@ -94,6 +96,7 @@ function initApp() {
   startNwsPolling();
   fetchLiveSpots();
   fetchVoacapMatrix();
+  fetchSpaceWxData();
 }
 
 // Live Spots refresh (5 min — PSKReporter rate limit)

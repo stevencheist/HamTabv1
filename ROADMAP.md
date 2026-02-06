@@ -800,6 +800,17 @@ HamTab supports two deployment modes with a shared codebase on `main` and mode-s
 - Self-signed TLS (lanmode)
 - Cloudflare Access auth (hostedmode)
 
+### Code Hardening (from Feb 2026 security audit)
+
+| Fix | Severity | File | Notes |
+|-----|----------|------|-------|
+| Prototype pollution — `Object.assign(state.mapOverlays, saved)` on localStorage data | MEDIUM | `src/state.js:188` | Filter `__proto__`/`constructor`/`prototype` or use safe merge |
+| Callsign validation — no format check before callook.info API call | MEDIUM | `server.js:1217` | Add `/^[A-Z0-9]{1,10}$/i` |
+| Satellite ID validation — no format check before N2YO API call | MEDIUM | `server.js:722` | Add `/^\d+(,\d+)*$/` |
+| Lat/lon range validation — `parseFloat` without bounds checking | MEDIUM | `server.js:1071,1110,933` | Validate -90≤lat≤90, -180≤lon≤180, reject NaN |
+| Body parser limit not explicit — relies on Express default | LOW | `server.js:90` | Change to `express.json({ limit: '100kb' })` |
+| LocalStorage schema validation — parsed JSON not validated | LOW | `src/state.js:187,221,233` | Validate shape after `JSON.parse()` |
+
 ### Planned Enhancements
 
 #### P3-P4: Microservice Security

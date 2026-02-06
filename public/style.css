@@ -3322,6 +3322,36 @@ header {
 .beacon-loc { color: var(--text-dim); font-size: 0.7rem; }
 .beacon-time { color: var(--text-dim); font-size: 0.7rem; text-align: right; }
 
+/* ---- DE/DX Info Widget ---- */
+.dedx-container { display: flex; gap: 0; height: 100%; }
+.dedx-panel { flex: 1; padding: 4px 8px; overflow-y: auto; }
+.dedx-de { border-right: 1px solid var(--border); }
+.dedx-title { text-align: center; font-weight: 700; font-size: 0.8rem; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+.dedx-de .dedx-title { color: var(--de-color, var(--accent)); }
+.dedx-dx .dedx-title { color: var(--dx-color, var(--accent)); }
+.dedx-row { display: flex; justify-content: space-between; align-items: baseline; padding: 1px 0; font-size: 0.72rem; }
+.dedx-label-sm { color: var(--text-dim); font-size: 0.68rem; text-transform: uppercase; min-width: 32px; }
+.dedx-value { color: var(--text); font-weight: 600; text-align: right; }
+.dedx-callsign { font-weight: 700; font-size: 0.85rem; }
+.dedx-de .dedx-callsign { color: var(--de-color, var(--text)); }
+.dedx-dx .dedx-callsign { color: var(--dx-color, var(--text)); }
+.dedx-sunrise { color: var(--yellow); }
+.dedx-sunset { color: var(--orange); }
+.dedx-compact { letter-spacing: -0.3px; }
+.dedx-utc-badge { font-size: 0.65rem; color: var(--text-dim); background: rgba(255,255,255,0.06); padding: 0 4px; border-radius: 3px; }
+.dedx-empty { color: var(--text-dim); font-style: italic; font-size: 0.7rem; text-align: center; padding: 8px 0; }
+
+@media (max-width: 767px) {
+  .dedx-container { flex-direction: column; }
+  .dedx-de { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* ---- Sun / Moon Map Markers ---- */
+.sun-marker-icon { background: transparent; border: none; }
+.sun-marker-dot { display: block; width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle, #ffe066 40%, #ffaa00 100%); box-shadow: 0 0 8px 2px rgba(255, 200, 0, 0.6); }
+.moon-marker-icon { background: transparent; border: none; }
+.moon-marker-dot { display: block; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle, #e8e8f0 40%, #aaaacc 100%); box-shadow: 0 0 6px 1px rgba(200, 200, 230, 0.5); }
+
 /* ---- DXpeditions Widget ---- */
 
 #widget-dxpeditions .widget-body { padding: 6px; overflow-y: auto; }
@@ -3991,15 +4021,198 @@ header {
   }
 }
 
-/* ---- Theme: HamClock ---- */
+/* ---- Theme: Terminal ---- */
 /* Monospace terminal feel, green-on-black, tighter spacing.
    Colors are handled by CSS variable swapping in themes.js. */
+
+.theme-terminal {
+  font-family: 'Courier New', 'Lucida Console', monospace;
+}
+
+/* Widget — sharp corners, thin borders, terminal feel */
+.theme-terminal .widget {
+  border-radius: 2px;
+  border-width: 1px;
+}
+
+.theme-terminal .widget-header {
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 0.74rem;
+  padding: 3px 8px;
+  border-radius: 1px 1px 0 0;
+}
+
+.theme-terminal .widget-body {
+  font-family: 'Courier New', 'Lucida Console', monospace;
+}
+
+/* Header — minimal, terminal-like */
+.theme-terminal header {
+  padding: 4px 12px;
+}
+
+.theme-terminal .op-call a {
+  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Clock — monospace, smaller, denser */
+.theme-terminal .header-clock {
+  border-radius: 3px;
+  padding: 8px 20px;
+}
+
+.theme-terminal .header-clock-time {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 2px;
+}
+
+.theme-terminal .header-clock-label {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Buttons — squared off, utilitarian */
+.theme-terminal .op-btn,
+.theme-terminal #refreshBtn,
+.theme-terminal #resetLayoutBtn,
+.theme-terminal #fullscreenBtn,
+.theme-terminal .feedback-btn,
+.theme-terminal .coffee-btn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Source tabs — very square */
+.theme-terminal .source-tab {
+  border-radius: 2px 2px 0 0;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.theme-terminal .source-tab.active {
+  background: var(--accent);
+  color: #000;
+}
+
+/* Band/mode buttons */
+.theme-terminal .band-btn,
+.theme-terminal .mode-btn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+.theme-terminal .band-btn.active,
+.theme-terminal .mode-btn.active {
+  color: #000;
+}
+
+/* Spot table — monospace data */
+.theme-terminal #spotsTable th {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.68rem;
+}
+
+.theme-terminal #spotsTable td {
+  font-family: 'Courier New', monospace;
+  font-size: 0.72rem;
+}
+
+/* Solar card labels */
+.theme-terminal .solar-card-label {
+  text-transform: uppercase;
+  font-family: 'Courier New', monospace;
+}
+
+/* Toggle/control buttons */
+.theme-terminal .toggle-btn,
+.theme-terminal .prop-metric-btn,
+.theme-terminal .map-center-btn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+/* Reference tabs */
+.theme-terminal .reference-tab {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+/* Modal */
+.theme-terminal .splash-box {
+  border-radius: 4px;
+}
+
+.theme-terminal .splash-box h2 {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.theme-terminal .config-tab {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+.theme-terminal #splashOk,
+.theme-terminal #solarCfgOk,
+.theme-terminal #lunarCfgOk,
+.theme-terminal #spotColCfgOk,
+.theme-terminal #mapOverlayCfgOk,
+.theme-terminal #liveSpotsCfgOk,
+.theme-terminal #satCfgOk,
+.theme-terminal #helpOk,
+.theme-terminal #wxAlertClose,
+.theme-terminal #feedbackCancel,
+.theme-terminal #feedbackSubmit {
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Inputs */
+.theme-terminal select {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+.theme-terminal input[type="text"],
+.theme-terminal input[type="number"],
+.theme-terminal input[type="email"],
+.theme-terminal textarea {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Filter buttons */
+.theme-terminal #savePresetBtn,
+.theme-terminal #deletePresetBtn,
+.theme-terminal #clearFiltersBtn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+/* ---- Theme: HamClock ---- */
+/* Inspired by HamClock by WB0OEW — dark navy/black with cyan headings and colored data.
+   Shares structural overrides with Terminal (monospace, sharp corners) but uses
+   a cyan/blue color palette instead of green. */
 
 .theme-hamclock {
   font-family: 'Courier New', 'Lucida Console', monospace;
 }
 
-/* Widget — sharp corners, thin borders, terminal feel */
 .theme-hamclock .widget {
   border-radius: 2px;
   border-width: 1px;
@@ -4018,7 +4231,6 @@ header {
   font-family: 'Courier New', 'Lucida Console', monospace;
 }
 
-/* Header — minimal, terminal-like */
 .theme-hamclock header {
   padding: 4px 12px;
 }
@@ -4028,7 +4240,6 @@ header {
   font-family: 'Courier New', monospace;
 }
 
-/* Clock — monospace, smaller, denser */
 .theme-hamclock .header-clock {
   border-radius: 3px;
   padding: 8px 20px;
@@ -4045,7 +4256,6 @@ header {
   letter-spacing: 1px;
 }
 
-/* Buttons — squared off, utilitarian */
 .theme-hamclock .op-btn,
 .theme-hamclock #refreshBtn,
 .theme-hamclock #resetLayoutBtn,
@@ -4058,7 +4268,6 @@ header {
   letter-spacing: 1px;
 }
 
-/* Source tabs — very square */
 .theme-hamclock .source-tab {
   border-radius: 2px 2px 0 0;
   font-family: 'Courier New', monospace;
@@ -4071,7 +4280,6 @@ header {
   color: #000;
 }
 
-/* Band/mode buttons */
 .theme-hamclock .band-btn,
 .theme-hamclock .mode-btn {
   border-radius: 2px;
@@ -4083,7 +4291,6 @@ header {
   color: #000;
 }
 
-/* Spot table — monospace data */
 .theme-hamclock #spotsTable th {
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -4096,13 +4303,11 @@ header {
   font-size: 0.72rem;
 }
 
-/* Solar card labels */
 .theme-hamclock .solar-card-label {
   text-transform: uppercase;
   font-family: 'Courier New', monospace;
 }
 
-/* Toggle/control buttons */
 .theme-hamclock .toggle-btn,
 .theme-hamclock .prop-metric-btn,
 .theme-hamclock .map-center-btn {
@@ -4111,14 +4316,12 @@ header {
   text-transform: uppercase;
 }
 
-/* Reference tabs */
 .theme-hamclock .reference-tab {
   border-radius: 2px;
   font-family: 'Courier New', monospace;
   text-transform: uppercase;
 }
 
-/* Modal */
 .theme-hamclock .splash-box {
   border-radius: 4px;
 }
@@ -4151,7 +4354,6 @@ header {
   letter-spacing: 1px;
 }
 
-/* Inputs */
 .theme-hamclock select {
   border-radius: 2px;
   font-family: 'Courier New', monospace;
@@ -4165,7 +4367,6 @@ header {
   font-family: 'Courier New', monospace;
 }
 
-/* Filter buttons */
 .theme-hamclock #savePresetBtn,
 .theme-hamclock #deletePresetBtn,
 .theme-hamclock #clearFiltersBtn {
@@ -4173,6 +4374,39 @@ header {
   font-family: 'Courier New', monospace;
   text-transform: uppercase;
 }
+
+/* ---- HamClock DE/DX Panel Overrides ---- */
+
+/* DE panel — orange theme (matches real HamClock DE box) */
+.theme-hamclock .dedx-de { border-right: none; border-left: 3px solid var(--de-color); }
+.theme-hamclock .dedx-de .dedx-title { color: var(--de-color); }
+.theme-hamclock .dedx-de .dedx-value { color: var(--de-color); }
+.theme-hamclock .dedx-de .dedx-callsign { color: var(--de-color); font-size: 1rem; }
+.theme-hamclock .dedx-de .dedx-label-sm { color: #b07000; }
+
+/* DX panel — green theme (matches real HamClock DX box) */
+.theme-hamclock .dedx-dx { border-left: 3px solid var(--dx-color); }
+.theme-hamclock .dedx-dx .dedx-title { color: var(--dx-color); }
+.theme-hamclock .dedx-dx .dedx-value { color: var(--dx-color); }
+.theme-hamclock .dedx-dx .dedx-callsign { color: var(--dx-color); font-size: 1rem; }
+.theme-hamclock .dedx-dx .dedx-label-sm { color: #008800; }
+
+/* Sunrise yellow, sunset orange for both panels */
+.theme-hamclock .dedx-sunrise { color: #ffff00; }
+.theme-hamclock .dedx-sunset { color: #ff8800; }
+
+/* Dense stacked layout */
+.theme-hamclock .dedx-container { flex-direction: column; }
+.theme-hamclock .dedx-panel { border-right: none; border-bottom: 1px solid #333; }
+.theme-hamclock .dedx-row { font-size: 0.82rem; padding: 1px 4px; }
+
+/* Pure black widget bodies */
+.theme-hamclock .widget-body { background: #000000; padding: 2px; }
+.theme-hamclock .widget { border-color: #333; border-width: 1px; border-radius: 0; }
+.theme-hamclock .widget-header { font-size: 0.7rem; padding: 2px 6px; text-transform: uppercase; border-radius: 0; }
+
+/* UTC badge in HamClock theme */
+.theme-hamclock .dedx-utc-badge { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
 /* ---- Theme Selector (Config Modal Appearance Tab) ---- */
 

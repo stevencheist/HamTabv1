@@ -17,6 +17,7 @@ export const WIDGET_DEFS = [
   { id: 'widget-contests',     name: 'Contests' },
   { id: 'widget-dxpeditions',  name: 'DXpeditions' },
   { id: 'widget-beacons',      name: 'NCDXF Beacons' },
+  { id: 'widget-dedx',         name: 'DE/DX Info' },
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)
@@ -443,6 +444,16 @@ export const WIDGET_HELP = {
     ],
     links: [
       { label: 'NCDXF Beacon Project', url: 'https://www.ncdxf.org/beacon/' },
+    ],
+  },
+  'widget-dedx': {
+    title: 'DE/DX Info',
+    description: 'A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock layout, this widget gives you the key information you need at a glance when making contacts.',
+    sections: [
+      { heading: 'DE (Your Station)', content: 'The left panel shows your callsign, Maidenhead grid square, latitude/longitude, and today\'s sunrise and sunset times at your location (in UTC). This requires your callsign and location to be set in Config.' },
+      { heading: 'DX (Selected Station)', content: 'The right panel shows details for whichever station you\'ve clicked in the On the Air table or on the map. It displays their callsign, frequency, mode, grid square, bearing (compass direction to point your antenna), distance, and sunrise/sunset times at their location.' },
+      { heading: 'Why Sunrise/Sunset?', content: 'HF radio propagation changes dramatically at sunrise and sunset. The "gray line" (the band of twilight circling the Earth) often produces enhanced propagation. Knowing sunrise/sunset at both ends of a path helps you predict when a band will open or close between your station and the DX.' },
+      { heading: 'Bearing & Distance', content: 'The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact.' },
     ],
   },
   'widget-live-spots': {

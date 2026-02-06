@@ -537,3 +537,31 @@ Each beacon transmits:
 If you hear the callsign but not the weaker dashes, the band is open but marginal to that location.
 
 <div class="tip">The beacons are an excellent quick check of band conditions. In just 3 minutes of listening on one frequency, you can hear from up to 18 locations worldwide.</div>
+
+---
+
+## DE/DX Info Widget
+
+A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock application, this widget puts the essential information for making contacts in one compact panel.
+
+### DE Panel (Your Station)
+The left panel shows:
+- **Call** — Your callsign (set in Config)
+- **Grid** — Your Maidenhead grid square (computed from your location)
+- **Loc** — Your latitude and longitude
+- **Rise/Set** — Today's sunrise and sunset times at your location, in UTC
+
+### DX Panel (Selected Station)
+When you click a spot in the On the Air table or a marker on the map, the right panel shows:
+- **Call** — The distant station's callsign
+- **Freq** — Operating frequency and band
+- **Mode** — Operating mode (SSB, CW, FT8, etc.)
+- **Grid** — The distant station's grid square
+- **Brg** — Compass bearing from your station to theirs (for antenna pointing)
+- **Dist** — Distance in your preferred unit (miles or km)
+- **Rise/Set** — Sunrise and sunset at the DX location, in UTC
+
+### Why Sunrise/Sunset Matters
+HF radio propagation changes dramatically at sunrise and sunset. The "gray line" — the band of twilight circling the Earth — often produces enhanced long-distance propagation. By comparing sunrise/sunset times at both ends of a path, you can predict when bands will open or close.
+
+<div class="tip">Compare the sunrise/sunset times on both panels. If both stations are near their gray line at the same time, conditions are often excellent for HF contacts.</div>

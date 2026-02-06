@@ -13,7 +13,7 @@ Clear your entry when done.
 
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
-| | | | |
+| Francisco + Claude | Deployment reliability — /api/health, CI/CD hardening, server.js refactoring | main + hostedmode | 2026-02-06 |
 
 ## Next Up
 

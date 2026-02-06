@@ -308,7 +308,7 @@ Stay on `main` for most work. Use simple commands to manage branches:
 ### Claim Work Protocol (before starting ANY feature or task)
 
 1. `git pull` — get the latest from remote
-2. Re-read `CLAUDE.md` — check for updated instructions
+2. Re-read **both** `CLAUDE.md` (project instructions) AND `~/.claude/instructions.md` (shared instructions)
 3. Re-read `WORKING_ON.md` — check what the other developer is doing
 4. **If there's a conflict** (other dev is touching the same files/feature), **stop and tell the user**
 5. Add your row to the "Active Work" table in `WORKING_ON.md`

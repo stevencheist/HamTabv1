@@ -149,6 +149,13 @@
         // Widgets
         zCounter: 10,
         // next z-index to assign when a widget is focused (increments on each click)
+        // Grid layout mode
+        gridMode: localStorage.getItem("hamtab_grid_mode") || "float",
+        // 'float' or 'grid'
+        gridPermutation: localStorage.getItem("hamtab_grid_permutation") || "3L-3R",
+        // active permutation ID
+        gridAssignments: null,
+        // loaded at grid activation — maps cell names to widget IDs
         // Reference widget
         currentReferenceTab: "rst",
         // active reference tab (rst, phonetic, etc.)
@@ -1961,6 +1968,12 @@ ${beacon.location}`);
     BREAKPOINT_TABLET: () => BREAKPOINT_TABLET,
     DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
     DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
+    GRID_ASSIGN_KEY: () => GRID_ASSIGN_KEY,
+    GRID_DEFAULT_ASSIGNMENTS: () => GRID_DEFAULT_ASSIGNMENTS,
+    GRID_MODE_KEY: () => GRID_MODE_KEY,
+    GRID_PERMUTATIONS: () => GRID_PERMUTATIONS,
+    GRID_PERM_KEY: () => GRID_PERM_KEY,
+    GRID_SIZES_KEY: () => GRID_SIZES_KEY,
     HEADER_H: () => HEADER_H,
     LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
     REFERENCE_TABS: () => REFERENCE_TABS,
@@ -1981,7 +1994,7 @@ ${beacon.location}`);
     if (w < BREAKPOINT_TABLET) return "tablet";
     return "desktop";
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -2592,6 +2605,140 @@ ${beacon.location}`);
       USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
       HEADER_H = 30;
+      GRID_MODE_KEY = "hamtab_grid_mode";
+      GRID_PERM_KEY = "hamtab_grid_permutation";
+      GRID_ASSIGN_KEY = "hamtab_grid_assignments";
+      GRID_SIZES_KEY = "hamtab_grid_sizes";
+      GRID_PERMUTATIONS = [
+        {
+          id: "2L-2R",
+          name: "2 Left / 2 Right",
+          slots: 4,
+          // Legacy fields — used by config preview (splash.js:renderGridPreview)
+          areas: '"L1 map R1" "L2 map R2"',
+          columns: "1fr 2fr 1fr",
+          rows: "1fr 1fr",
+          cellNames: ["L1", "L2", "R1", "R2"],
+          // Flex-column hybrid fields — used by grid-layout.js at runtime
+          left: ["L1", "L2"],
+          right: ["R1", "R2"],
+          top: [],
+          bottom: [],
+          outerAreas: '"left map right"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "1fr"
+        },
+        {
+          id: "3L-3R",
+          name: "3 Left / 3 Right",
+          slots: 6,
+          areas: '"L1 map R1" "L2 map R2" "L3 map R3"',
+          columns: "1fr 2fr 1fr",
+          rows: "1fr 1fr 1fr",
+          cellNames: ["L1", "L2", "L3", "R1", "R2", "R3"],
+          left: ["L1", "L2", "L3"],
+          right: ["R1", "R2", "R3"],
+          top: [],
+          bottom: [],
+          outerAreas: '"left map right"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "1fr"
+        },
+        {
+          id: "1T-2L-2R-1B",
+          name: "Top + 2L/2R + Bottom",
+          slots: 6,
+          areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "B1 B1 B1"',
+          columns: "1fr 2fr 1fr",
+          rows: "auto 1fr 1fr auto",
+          cellNames: ["T1", "L1", "L2", "R1", "R2", "B1"],
+          left: ["L1", "L2"],
+          right: ["R1", "R2"],
+          top: ["T1"],
+          bottom: ["B1"],
+          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "auto 1fr auto"
+        },
+        {
+          id: "1T-3L-3R-1B",
+          name: "Top + 3L/3R + Bottom",
+          slots: 8,
+          areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "L3 map R3" "B1 B1 B1"',
+          columns: "1fr 2fr 1fr",
+          rows: "auto 1fr 1fr 1fr auto",
+          cellNames: ["T1", "L1", "L2", "L3", "R1", "R2", "R3", "B1"],
+          left: ["L1", "L2", "L3"],
+          right: ["R1", "R2", "R3"],
+          top: ["T1"],
+          bottom: ["B1"],
+          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "auto 1fr auto"
+        },
+        {
+          id: "2T-3L-3R-2B",
+          name: "2 Top + 3L/3R + 2 Bottom",
+          slots: 10,
+          areas: '"T1 T1 T2 T2" "L1 map map R1" "L2 map map R2" "L3 map map R3" "B1 B1 B2 B2"',
+          columns: "1fr 1fr 1fr 1fr",
+          rows: "auto 1fr 1fr 1fr auto",
+          cellNames: ["T1", "T2", "L1", "L2", "L3", "R1", "R2", "R3", "B1", "B2"],
+          left: ["L1", "L2", "L3"],
+          right: ["R1", "R2", "R3"],
+          top: ["T1", "T2"],
+          bottom: ["B1", "B2"],
+          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "auto 1fr auto"
+        }
+      ];
+      GRID_DEFAULT_ASSIGNMENTS = {
+        "2L-2R": {
+          L1: "widget-filters",
+          L2: "widget-activations",
+          R1: "widget-solar",
+          R2: "widget-propagation"
+        },
+        "3L-3R": {
+          L1: "widget-filters",
+          L2: "widget-activations",
+          L3: "widget-live-spots",
+          R1: "widget-solar",
+          R2: "widget-propagation",
+          R3: "widget-voacap"
+        },
+        "1T-2L-2R-1B": {
+          T1: "widget-solar",
+          L1: "widget-filters",
+          L2: "widget-activations",
+          R1: "widget-propagation",
+          R2: "widget-voacap",
+          B1: "widget-live-spots"
+        },
+        "1T-3L-3R-1B": {
+          T1: "widget-solar",
+          L1: "widget-filters",
+          L2: "widget-activations",
+          L3: "widget-live-spots",
+          R1: "widget-propagation",
+          R2: "widget-voacap",
+          R3: "widget-spot-detail",
+          B1: "widget-lunar"
+        },
+        "2T-3L-3R-2B": {
+          T1: "widget-solar",
+          T2: "widget-propagation",
+          L1: "widget-filters",
+          L2: "widget-activations",
+          L3: "widget-live-spots",
+          R1: "widget-voacap",
+          R2: "widget-spot-detail",
+          R3: "widget-satellites",
+          B1: "widget-lunar",
+          B2: "widget-rst"
+        }
+      };
     }
   });
 
@@ -4300,6 +4447,7 @@ ${beacon.location}`);
       name: "Default",
       description: "Modern dark theme",
       bodyClass: "",
+      supportsGrid: true,
       vars: {
         "--bg": "#1a1a2e",
         "--surface": "#16213e",
@@ -4326,6 +4474,7 @@ ${beacon.location}`);
       name: "LCARS",
       description: "Star Trek TNG inspired",
       bodyClass: "theme-lcars",
+      supportsGrid: true,
       vars: {
         "--bg": "#000000",
         "--surface": "#0a0a14",
@@ -4362,6 +4511,7 @@ ${beacon.location}`);
       name: "Terminal",
       description: "Retro terminal style",
       bodyClass: "theme-terminal",
+      supportsGrid: true,
       vars: {
         "--bg": "#000000",
         "--surface": "#0a1a0a",
@@ -4388,6 +4538,7 @@ ${beacon.location}`);
       name: "HamClock",
       description: "Inspired by HamClock by WB0OEW",
       bodyClass: "theme-hamclock",
+      supportsGrid: true,
       vars: {
         "--bg": "#000000",
         "--surface": "#000000",
@@ -4450,6 +4601,10 @@ ${beacon.location}`);
     const themeId = THEMES[savedId] ? savedId : "default";
     applyTheme(themeId);
   }
+  function currentThemeSupportsGrid() {
+    const theme = THEMES[activeThemeId];
+    return theme ? theme.supportsGrid !== false : true;
+  }
   function getThemeSwatchColors(themeId) {
     const theme = THEMES[themeId];
     if (!theme) return [];
@@ -4472,6 +4627,587 @@ ${beacon.location}`);
   init_state();
   init_constants();
   init_map_init();
+
+  // src/grid-layout.js
+  init_state();
+  init_constants();
+  var trackHandles = [];
+  var MIN_FR = 0.3;
+  var MIN_FLEX = 0.15;
+  function loadCustomTrackSizes(permId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(GRID_SIZES_KEY));
+      if (all && all[permId]) return all[permId];
+    } catch (e) {
+    }
+    return null;
+  }
+  function saveCustomTrackSizes(permId, columns, rows, flexRatios) {
+    let all = {};
+    try {
+      const saved2 = JSON.parse(localStorage.getItem(GRID_SIZES_KEY));
+      if (saved2 && typeof saved2 === "object") all = saved2;
+    } catch (e) {
+    }
+    all[permId] = { columns, rows, ...flexRatios || {} };
+    localStorage.setItem(GRID_SIZES_KEY, JSON.stringify(all));
+  }
+  function clearCustomTrackSizes(permId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(GRID_SIZES_KEY));
+      if (all && all[permId]) {
+        delete all[permId];
+        localStorage.setItem(GRID_SIZES_KEY, JSON.stringify(all));
+      }
+    } catch (e) {
+    }
+  }
+  function parseTracks(templateStr) {
+    return templateStr.trim().split(/\s+/).map((t) => {
+      const frMatch = t.match(/^([\d.]+)fr$/);
+      if (frMatch) return { value: parseFloat(frMatch[1]), unit: "fr" };
+      const pxMatch = t.match(/^([\d.]+)px$/);
+      if (pxMatch) return { value: parseFloat(pxMatch[1]), unit: "px" };
+      return { value: t, unit: "keyword" };
+    });
+  }
+  function serializeTracks(tracks) {
+    return tracks.map((t) => {
+      if (t.unit === "fr") return t.value.toFixed(2) + "fr";
+      if (t.unit === "px") return t.value + "px";
+      return t.value;
+    }).join(" ");
+  }
+  function getResizableBoundaries(tracks) {
+    const boundaries = [];
+    for (let i = 0; i < tracks.length - 1; i++) {
+      const a = tracks[i].unit;
+      const b = tracks[i + 1].unit;
+      if (a === "fr" && b === "fr") {
+        boundaries.push({ index: i, type: "fr-fr" });
+      } else if (a === "fr" && b === "keyword" || a === "keyword" && b === "fr") {
+        boundaries.push({ index: i, type: "auto-fr" });
+      }
+    }
+    return boundaries;
+  }
+  function removeTrackHandles() {
+    trackHandles.forEach((h) => h.remove());
+    trackHandles = [];
+  }
+  function createTrackHandles() {
+    removeTrackHandles();
+    const area = document.getElementById("widgetArea");
+    if (!area || !isGridMode()) return;
+    const colTemplate = area.style.gridTemplateColumns || "";
+    const rowTemplate = area.style.gridTemplateRows || "";
+    const colTracks = parseTracks(colTemplate);
+    const rowTracks = parseTracks(rowTemplate);
+    const colBoundaries = getResizableBoundaries(colTracks);
+    const rowBoundaries = getResizableBoundaries(rowTracks);
+    colBoundaries.forEach((b) => {
+      const handle = document.createElement("div");
+      handle.className = "grid-track-handle grid-track-handle--col";
+      handle.dataset.axis = "col";
+      handle.dataset.boundary = b.index;
+      handle.dataset.btype = b.type;
+      handle.addEventListener("mousedown", onHandleMouseDown);
+      area.appendChild(handle);
+      trackHandles.push(handle);
+    });
+    rowBoundaries.forEach((b) => {
+      const handle = document.createElement("div");
+      handle.className = "grid-track-handle grid-track-handle--row";
+      handle.dataset.axis = "row";
+      handle.dataset.boundary = b.index;
+      handle.dataset.btype = b.type;
+      handle.addEventListener("mousedown", onHandleMouseDown);
+      area.appendChild(handle);
+      trackHandles.push(handle);
+    });
+    positionTrackHandles();
+  }
+  function positionTrackHandles() {
+    const area = document.getElementById("widgetArea");
+    if (!area || trackHandles.length === 0) return;
+    const cs = getComputedStyle(area);
+    const padding = 6;
+    const gap = 6;
+    const colPx = cs.gridTemplateColumns.split(/\s+/).map(parseFloat);
+    const rowPx = cs.gridTemplateRows.split(/\s+/).map(parseFloat);
+    trackHandles.forEach((handle) => {
+      const axis = handle.dataset.axis;
+      const bIdx = parseInt(handle.dataset.boundary);
+      if (axis === "col") {
+        let left = padding;
+        for (let i = 0; i <= bIdx; i++) left += colPx[i] + gap;
+        left -= gap / 2 + 3;
+        handle.style.left = left + "px";
+        handle.style.top = "0";
+        handle.style.height = area.offsetHeight + "px";
+        handle.style.width = "6px";
+      } else {
+        let top = padding;
+        for (let i = 0; i <= bIdx; i++) top += rowPx[i] + gap;
+        top -= gap / 2 + 3;
+        handle.style.top = top + "px";
+        handle.style.left = "0";
+        handle.style.width = area.offsetWidth + "px";
+        handle.style.height = "6px";
+      }
+    });
+  }
+  function repositionGridHandles() {
+    positionTrackHandles();
+  }
+  function onHandleMouseDown(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    const axis = handle.dataset.axis;
+    const bIdx = parseInt(handle.dataset.boundary);
+    const btype = handle.dataset.btype;
+    const area = document.getElementById("widgetArea");
+    if (!area) return;
+    const isCol = axis === "col";
+    const templateProp = isCol ? "gridTemplateColumns" : "gridTemplateRows";
+    const tracks = parseTracks(area.style[templateProp] || "");
+    const cs = getComputedStyle(area);
+    const pxSizes = (isCol ? cs.gridTemplateColumns : cs.gridTemplateRows).split(/\s+/).map(parseFloat);
+    const beforeIdx = bIdx;
+    const afterIdx = bIdx + 1;
+    const startPos = isCol ? e.clientX : e.clientY;
+    let onMove;
+    if (btype === "fr-fr") {
+      const beforeFr = tracks[beforeIdx].value;
+      const afterFr = tracks[afterIdx].value;
+      const totalPx = pxSizes[beforeIdx] + pxSizes[afterIdx];
+      const totalFr = beforeFr + afterFr;
+      const pxPerFr = totalPx / totalFr;
+      onMove = function(ev) {
+        const delta = (isCol ? ev.clientX : ev.clientY) - startPos;
+        const deltaFr = delta / pxPerFr;
+        let newBefore = beforeFr + deltaFr;
+        let newAfter = afterFr - deltaFr;
+        if (newBefore < MIN_FR) {
+          newAfter -= MIN_FR - newBefore;
+          newBefore = MIN_FR;
+        }
+        if (newAfter < MIN_FR) {
+          newBefore -= MIN_FR - newAfter;
+          newAfter = MIN_FR;
+        }
+        newBefore = Math.max(MIN_FR, newBefore);
+        newAfter = Math.max(MIN_FR, newAfter);
+        tracks[beforeIdx] = { value: newBefore, unit: "fr" };
+        tracks[afterIdx] = { value: newAfter, unit: "fr" };
+        area.style[templateProp] = serializeTracks(tracks);
+        positionTrackHandles();
+      };
+    } else {
+      const MIN_PX = 40;
+      const autoIdx = tracks[beforeIdx].unit === "keyword" ? beforeIdx : afterIdx;
+      const initialPx = pxSizes[autoIdx];
+      const sign = autoIdx === beforeIdx ? 1 : -1;
+      onMove = function(ev) {
+        const delta = (isCol ? ev.clientX : ev.clientY) - startPos;
+        const newPx = Math.max(MIN_PX, initialPx + delta * sign);
+        tracks[autoIdx] = { value: Math.round(newPx), unit: "px" };
+        area.style[templateProp] = serializeTracks(tracks);
+        positionTrackHandles();
+      };
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      const perm = getGridPermutation(state_default.gridPermutation);
+      saveCustomTrackSizes(
+        state_default.gridPermutation,
+        area.style.gridTemplateColumns,
+        area.style.gridTemplateRows,
+        readCurrentFlexRatios(perm)
+      );
+      if (state_default.map) state_default.map.invalidateSize();
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+  function createWrappers(perm) {
+    const area = document.getElementById("widgetArea");
+    if (!area) return;
+    if (perm.left.length > 0) {
+      const wrapper = document.createElement("div");
+      wrapper.id = "grid-col-left";
+      wrapper.className = "grid-col-wrapper";
+      wrapper.style.gridArea = "left";
+      area.appendChild(wrapper);
+    }
+    if (perm.right.length > 0) {
+      const wrapper = document.createElement("div");
+      wrapper.id = "grid-col-right";
+      wrapper.className = "grid-col-wrapper";
+      wrapper.style.gridArea = "right";
+      area.appendChild(wrapper);
+    }
+    if (perm.top.length > 0) {
+      const wrapper = document.createElement("div");
+      wrapper.id = "grid-bar-top";
+      wrapper.className = "grid-bar-wrapper";
+      wrapper.style.gridArea = "top";
+      area.appendChild(wrapper);
+    }
+    if (perm.bottom.length > 0) {
+      const wrapper = document.createElement("div");
+      wrapper.id = "grid-bar-bottom";
+      wrapper.className = "grid-bar-wrapper";
+      wrapper.style.gridArea = "bottom";
+      area.appendChild(wrapper);
+    }
+  }
+  function removeWrappers() {
+    const area = document.getElementById("widgetArea");
+    if (!area) return;
+    const wrapperIds = ["grid-col-left", "grid-col-right", "grid-bar-top", "grid-bar-bottom"];
+    wrapperIds.forEach((id) => {
+      const wrapper = document.getElementById(id);
+      if (!wrapper) return;
+      const widgets = wrapper.querySelectorAll(".widget");
+      widgets.forEach((w) => area.appendChild(w));
+      wrapper.querySelectorAll(".grid-flex-handle, .grid-cell-placeholder").forEach((el) => el.remove());
+      wrapper.remove();
+    });
+  }
+  function onFlexHandleMouseDown(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const handle = e.currentTarget;
+    const wrapper = handle.parentElement;
+    if (!wrapper) return;
+    const isColumn = wrapper.classList.contains("grid-col-wrapper");
+    const children = Array.from(wrapper.children).filter(
+      (c) => !c.classList.contains("grid-flex-handle")
+    );
+    const handleIdx = Array.from(wrapper.children).indexOf(handle);
+    let beforeEl = null;
+    let afterEl = null;
+    for (let i = handleIdx - 1; i >= 0; i--) {
+      const c = wrapper.children[i];
+      if (!c.classList.contains("grid-flex-handle")) {
+        beforeEl = c;
+        break;
+      }
+    }
+    for (let i = handleIdx + 1; i < wrapper.children.length; i++) {
+      const c = wrapper.children[i];
+      if (!c.classList.contains("grid-flex-handle")) {
+        afterEl = c;
+        break;
+      }
+    }
+    if (!beforeEl || !afterEl) return;
+    const beforeFlex = parseFloat(beforeEl.style.flexGrow) || 1;
+    const afterFlex = parseFloat(afterEl.style.flexGrow) || 1;
+    const totalFlex = beforeFlex + afterFlex;
+    const beforePx = isColumn ? beforeEl.offsetHeight : beforeEl.offsetWidth;
+    const afterPx = isColumn ? afterEl.offsetHeight : afterEl.offsetWidth;
+    const totalPx = beforePx + afterPx;
+    const pxPerFlex = totalPx / totalFlex;
+    const startPos = isColumn ? e.clientY : e.clientX;
+    function onMove(ev) {
+      const delta = (isColumn ? ev.clientY : ev.clientX) - startPos;
+      const deltaFlex = delta / pxPerFlex;
+      let newBefore = beforeFlex + deltaFlex;
+      let newAfter = afterFlex - deltaFlex;
+      if (newBefore < MIN_FLEX) {
+        newAfter -= MIN_FLEX - newBefore;
+        newBefore = MIN_FLEX;
+      }
+      if (newAfter < MIN_FLEX) {
+        newBefore -= MIN_FLEX - newAfter;
+        newAfter = MIN_FLEX;
+      }
+      newBefore = Math.max(MIN_FLEX, newBefore);
+      newAfter = Math.max(MIN_FLEX, newAfter);
+      beforeEl.style.flexGrow = newBefore.toFixed(3);
+      afterEl.style.flexGrow = newAfter.toFixed(3);
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      const perm = getGridPermutation(state_default.gridPermutation);
+      const area = document.getElementById("widgetArea");
+      if (area) {
+        saveCustomTrackSizes(
+          state_default.gridPermutation,
+          area.style.gridTemplateColumns,
+          area.style.gridTemplateRows,
+          readCurrentFlexRatios(perm)
+        );
+      }
+      if (state_default.map) state_default.map.invalidateSize();
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+  function readCurrentFlexRatios(perm) {
+    const ratios = {};
+    const wrapperMap = {
+      leftFlex: "grid-col-left",
+      rightFlex: "grid-col-right",
+      topFlex: "grid-bar-top",
+      bottomFlex: "grid-bar-bottom"
+    };
+    for (const [key, wrapperId] of Object.entries(wrapperMap)) {
+      const wrapper = document.getElementById(wrapperId);
+      if (!wrapper) continue;
+      const children = Array.from(wrapper.children).filter(
+        (c) => !c.classList.contains("grid-flex-handle")
+      );
+      if (children.length > 0) {
+        ratios[key] = children.map((c) => parseFloat(c.style.flexGrow) || 1);
+      }
+    }
+    return ratios;
+  }
+  function populateWrapper(wrapperId, cellNames, flexKey, isColumn, customSizes) {
+    const wrapper = document.getElementById(wrapperId);
+    if (!wrapper || cellNames.length === 0) return;
+    while (wrapper.firstChild) {
+      const child = wrapper.firstChild;
+      if (child.classList && child.classList.contains("widget")) {
+        document.getElementById("widgetArea").appendChild(child);
+      } else {
+        child.remove();
+      }
+    }
+    const savedFlex = customSizes && customSizes[flexKey];
+    const defaultFlex = cellNames.map(() => 1);
+    const flexValues = savedFlex && savedFlex.length === cellNames.length ? savedFlex : defaultFlex;
+    cellNames.forEach((cellName, idx) => {
+      if (idx > 0) {
+        const handle = document.createElement("div");
+        handle.className = isColumn ? "grid-flex-handle grid-flex-handle--col" : "grid-flex-handle grid-flex-handle--row";
+        handle.addEventListener("mousedown", onFlexHandleMouseDown);
+        wrapper.appendChild(handle);
+      }
+      const widgetId = state_default.gridAssignments[cellName];
+      let el;
+      if (widgetId) {
+        el = document.getElementById(widgetId);
+        if (el) {
+          el.style.gridArea = "";
+          el.style.display = "";
+          wrapper.appendChild(el);
+        }
+      }
+      if (!el) {
+        el = document.createElement("div");
+        el.className = "grid-cell-placeholder";
+        el.dataset.gridCell = cellName;
+        wrapper.appendChild(el);
+      }
+      el.style.flexGrow = flexValues[idx];
+      el.style.flexShrink = "1";
+      el.style.flexBasis = "0%";
+    });
+  }
+  function isGridMode() {
+    return state_default.gridMode === "grid";
+  }
+  function getGridPermutation(permId) {
+    return GRID_PERMUTATIONS.find((p) => p.id === permId) || GRID_PERMUTATIONS[1];
+  }
+  function loadGridAssignments() {
+    try {
+      const saved2 = JSON.parse(localStorage.getItem(GRID_ASSIGN_KEY));
+      if (saved2 && typeof saved2 === "object") {
+        state_default.gridAssignments = saved2;
+        return saved2;
+      }
+    } catch (e) {
+    }
+    const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
+    state_default.gridAssignments = defaults ? { ...defaults } : {};
+    return state_default.gridAssignments;
+  }
+  function saveGridAssignments() {
+    localStorage.setItem(GRID_ASSIGN_KEY, JSON.stringify(state_default.gridAssignments));
+  }
+  function saveGridMode() {
+    localStorage.setItem(GRID_MODE_KEY, state_default.gridMode);
+  }
+  function saveGridPermutation() {
+    localStorage.setItem(GRID_PERM_KEY, state_default.gridPermutation);
+  }
+  function activateGridMode(permId) {
+    const perm = getGridPermutation(permId);
+    const area = document.getElementById("widgetArea");
+    if (!area) return;
+    state_default.gridMode = "grid";
+    state_default.gridPermutation = perm.id;
+    saveGridMode();
+    saveGridPermutation();
+    if (!state_default.gridAssignments) {
+      loadGridAssignments();
+    }
+    area.classList.add("grid-active");
+    area.style.gridTemplateAreas = perm.outerAreas;
+    const custom = loadCustomTrackSizes(perm.id);
+    area.style.gridTemplateColumns = custom ? custom.columns : perm.outerColumns;
+    area.style.gridTemplateRows = custom ? custom.rows : perm.outerRows;
+    removeWrappers();
+    createWrappers(perm);
+    applyGridAssignments(custom);
+    setTimeout(() => {
+      if (state_default.map) state_default.map.invalidateSize();
+      createTrackHandles();
+    }, 100);
+  }
+  function deactivateGridMode() {
+    removeTrackHandles();
+    removeWrappers();
+    const area = document.getElementById("widgetArea");
+    if (!area) return;
+    state_default.gridMode = "float";
+    saveGridMode();
+    area.classList.remove("grid-active");
+    area.style.gridTemplateAreas = "";
+    area.style.gridTemplateColumns = "";
+    area.style.gridTemplateRows = "";
+    const saved2 = getSavedFloatLayout();
+    document.querySelectorAll(".widget").forEach((w) => {
+      w.style.gridArea = "";
+      w.style.flex = "";
+      w.style.flexGrow = "";
+      w.style.flexShrink = "";
+      w.style.flexBasis = "";
+      if (saved2 && saved2[w.id]) {
+        w.style.left = saved2[w.id].left + "px";
+        w.style.top = saved2[w.id].top + "px";
+        w.style.width = saved2[w.id].width + "px";
+        w.style.height = saved2[w.id].height + "px";
+      }
+    });
+    area.querySelectorAll(".grid-cell-placeholder").forEach((el) => el.remove());
+    setTimeout(() => {
+      if (state_default.map) state_default.map.invalidateSize();
+    }, 100);
+  }
+  function getSavedFloatLayout() {
+    try {
+      const saved2 = localStorage.getItem("hamtab_widgets");
+      if (saved2) return JSON.parse(saved2);
+    } catch (e) {
+    }
+    return null;
+  }
+  function applyGridAssignments(customSizes) {
+    const perm = getGridPermutation(state_default.gridPermutation);
+    const area = document.getElementById("widgetArea");
+    if (!area || !state_default.gridAssignments) return;
+    if (!customSizes) customSizes = loadCustomTrackSizes(perm.id);
+    const mapEl = document.getElementById("widget-map");
+    if (mapEl) {
+      mapEl.style.gridArea = "map";
+      mapEl.style.display = "";
+      if (mapEl.parentElement !== area) area.appendChild(mapEl);
+    }
+    populateWrapper("grid-col-left", perm.left, "leftFlex", true, customSizes);
+    populateWrapper("grid-col-right", perm.right, "rightFlex", true, customSizes);
+    populateWrapper("grid-bar-top", perm.top, "topFlex", false, customSizes);
+    populateWrapper("grid-bar-bottom", perm.bottom, "bottomFlex", false, customSizes);
+    const assignedWidgets = new Set(Object.values(state_default.gridAssignments));
+    WIDGET_DEFS.forEach((def) => {
+      if (def.id === "widget-map") return;
+      if (assignedWidgets.has(def.id)) return;
+      const el = document.getElementById(def.id);
+      if (el) {
+        el.style.gridArea = "";
+        el.style.display = "none";
+      }
+    });
+  }
+  function resetGridAssignments() {
+    const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
+    state_default.gridAssignments = defaults ? { ...defaults } : {};
+    saveGridAssignments();
+    clearCustomTrackSizes(state_default.gridPermutation);
+    const perm = getGridPermutation(state_default.gridPermutation);
+    const area = document.getElementById("widgetArea");
+    if (area) {
+      area.style.gridTemplateAreas = perm.outerAreas;
+      area.style.gridTemplateColumns = perm.outerColumns;
+      area.style.gridTemplateRows = perm.outerRows;
+    }
+    applyGridAssignments();
+    createTrackHandles();
+  }
+  function handleGridDragStart(widget, e) {
+    if (widget.id === "widget-map") return;
+    e.preventDefault();
+    const sourceId = widget.id;
+    let currentTarget = null;
+    widget.classList.add("grid-dragging");
+    function onMove(ev) {
+      widget.style.pointerEvents = "none";
+      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      widget.style.pointerEvents = "";
+      if (currentTarget) {
+        currentTarget.classList.remove("grid-drop-target");
+        currentTarget = null;
+      }
+      if (!el) return;
+      const target = el.closest(".widget, .grid-cell-placeholder");
+      if (target && target !== widget && target.id !== "widget-map") {
+        target.classList.add("grid-drop-target");
+        currentTarget = target;
+      }
+    }
+    function onUp() {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+      widget.classList.remove("grid-dragging");
+      if (currentTarget) {
+        currentTarget.classList.remove("grid-drop-target");
+        performSwap(sourceId, currentTarget);
+      }
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  }
+  function performSwap(sourceWidgetId, target) {
+    if (!state_default.gridAssignments) return;
+    let sourceCell = null;
+    for (const [cell, wId] of Object.entries(state_default.gridAssignments)) {
+      if (wId === sourceWidgetId) {
+        sourceCell = cell;
+        break;
+      }
+    }
+    if (!sourceCell) return;
+    if (target.classList.contains("grid-cell-placeholder")) {
+      const targetCell = target.dataset.gridCell;
+      if (!targetCell) return;
+      delete state_default.gridAssignments[sourceCell];
+      state_default.gridAssignments[targetCell] = sourceWidgetId;
+    } else if (target.classList.contains("widget")) {
+      const targetWidgetId = target.id;
+      let targetCell = null;
+      for (const [cell, wId] of Object.entries(state_default.gridAssignments)) {
+        if (wId === targetWidgetId) {
+          targetCell = cell;
+          break;
+        }
+      }
+      if (!targetCell) return;
+      state_default.gridAssignments[sourceCell] = targetWidgetId;
+      state_default.gridAssignments[targetCell] = sourceWidgetId;
+    }
+    saveGridAssignments();
+    applyGridAssignments();
+  }
+
+  // src/widgets.js
   var WIDGET_VIS_KEY = "hamtab_widget_vis";
   function loadWidgetVisibility() {
     try {
@@ -4487,6 +5223,11 @@ ${beacon.location}`);
     localStorage.setItem(WIDGET_VIS_KEY, JSON.stringify(state_default.widgetVisibility));
   }
   function applyWidgetVisibility() {
+    if (isGridMode()) {
+      applyGridAssignments();
+      if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
+      return;
+    }
     WIDGET_DEFS.forEach((w) => {
       const el = document.getElementById(w.id);
       if (!el) return;
@@ -4723,6 +5464,10 @@ ${beacon.location}`);
     let startX, startY, origLeft, origTop;
     handle.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
+      if (isGridMode()) {
+        handleGridDragStart(widget, e);
+        return;
+      }
       e.preventDefault();
       bringToFront(widget);
       startX = e.clientX;
@@ -4753,6 +5498,7 @@ ${beacon.location}`);
     let startX, startY, origW, origH, origLeft, origTop;
     handle.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
+      if (isGridMode()) return;
       e.preventDefault();
       e.stopPropagation();
       bringToFront(widget);
@@ -4804,6 +5550,12 @@ ${beacon.location}`);
     if (state_default.map) state_default.map.invalidateSize();
   }
   function resetLayout() {
+    if (isGridMode()) {
+      resetGridAssignments();
+      centerMapOnUser();
+      updateUserMarker();
+      return;
+    }
     localStorage.removeItem(WIDGET_STORAGE_KEY);
     const userSaved = localStorage.getItem(USER_LAYOUT_KEY);
     if (userSaved) {
@@ -4822,6 +5574,11 @@ ${beacon.location}`);
   var prevAreaW = 0;
   var prevAreaH = 0;
   function reflowWidgets() {
+    if (isGridMode()) {
+      repositionGridHandles();
+      if (state_default.map) state_default.map.invalidateSize();
+      return;
+    }
     if (getLayoutMode() !== "desktop") return;
     const { width: aW, height: aH } = getWidgetArea();
     if (prevAreaW === 0 || prevAreaH === 0) {
@@ -4899,6 +5656,7 @@ ${beacon.location}`);
         closeBtn.textContent = "\xD7";
         closeBtn.addEventListener("mousedown", (e) => e.stopPropagation());
         closeBtn.addEventListener("click", () => {
+          if (isGridMode() && widget.id === "widget-map") return;
           state_default.widgetVisibility[widget.id] = false;
           saveWidgetVisibility();
           applyWidgetVisibility();
@@ -4919,6 +5677,9 @@ ${beacon.location}`);
         clearTimeout(reflowTimer);
         reflowTimer = setTimeout(reflowWidgets, 150);
       }).observe(document.getElementById("widgetArea"));
+    }
+    if (isGridMode()) {
+      activateGridMode(state_default.gridPermutation);
     }
   }
 
@@ -5296,6 +6057,7 @@ ${beacon.location}`);
 
   // src/splash.js
   init_filters();
+  init_constants();
   function updateOperatorDisplay2() {
     const opCall = $("opCall");
     const opLoc = $("opLoc");
@@ -5521,12 +6283,45 @@ ${beacon.location}`);
           applyTheme(t.id);
           themeSelector.querySelectorAll(".theme-swatch").forEach((s) => s.classList.remove("active"));
           swatch.classList.add("active");
+          const gridSec = document.getElementById("gridModeSection");
+          if (gridSec) {
+            const supports = currentThemeSupportsGrid();
+            gridSec.style.display = supports ? "" : "none";
+            if (!supports) {
+              const floatRadio = document.getElementById("layoutModeFloat");
+              if (floatRadio) floatRadio.checked = true;
+              const permSec = document.getElementById("gridPermSection");
+              if (permSec) permSec.style.display = "none";
+            }
+          }
         });
         themeSelector.appendChild(swatch);
       });
     }
     $("splashVersion").textContent = "0.27.2";
     $("aboutVersion").textContent = "0.27.2";
+    const gridSection = document.getElementById("gridModeSection");
+    const gridPermSection = document.getElementById("gridPermSection");
+    if (gridSection) {
+      gridSection.style.display = currentThemeSupportsGrid() ? "" : "none";
+      $("layoutModeFloat").checked = state_default.gridMode !== "grid";
+      $("layoutModeGrid").checked = state_default.gridMode === "grid";
+      const permSelect = document.getElementById("gridPermSelect");
+      if (permSelect) {
+        permSelect.innerHTML = "";
+        GRID_PERMUTATIONS.forEach((p) => {
+          const opt = document.createElement("option");
+          opt.value = p.id;
+          opt.textContent = `${p.name} (${p.slots} slots)`;
+          permSelect.appendChild(opt);
+        });
+        permSelect.value = state_default.gridPermutation;
+      }
+      if (gridPermSection) {
+        gridPermSection.style.display = state_default.gridMode === "grid" ? "" : "none";
+      }
+      renderGridPreview(state_default.gridPermutation);
+    }
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -5570,6 +6365,26 @@ ${beacon.location}`);
       state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
     });
     saveWidgetVisibility();
+    if (currentThemeSupportsGrid()) {
+      const newMode = $("layoutModeGrid").checked ? "grid" : "float";
+      const permSelect = document.getElementById("gridPermSelect");
+      const newPerm = permSelect ? permSelect.value : state_default.gridPermutation;
+      if (newMode === "grid" && state_default.gridMode !== "grid") {
+        state_default.gridPermutation = newPerm;
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
+        state_default.gridAssignments = defaults ? { ...defaults } : {};
+        saveGridAssignments();
+        activateGridMode(newPerm);
+      } else if (newMode === "grid" && newPerm !== state_default.gridPermutation) {
+        state_default.gridPermutation = newPerm;
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
+        state_default.gridAssignments = defaults ? { ...defaults } : {};
+        saveGridAssignments();
+        activateGridMode(newPerm);
+      } else if (newMode === "float" && state_default.gridMode === "grid") {
+        deactivateGridMode();
+      }
+    }
     applyWidgetVisibility();
     const intervalSelect = $("splashUpdateInterval");
     if (intervalSelect) {
@@ -5732,6 +6547,24 @@ ${beacon.location}`);
       $("splashLayoutStatus").textContent = "App default restored";
       $("splashClearLayout").disabled = true;
     });
+    const layoutModeFloat = document.getElementById("layoutModeFloat");
+    const layoutModeGrid = document.getElementById("layoutModeGrid");
+    const gridPermSelect = document.getElementById("gridPermSelect");
+    const gridPermSection = document.getElementById("gridPermSection");
+    if (layoutModeFloat && layoutModeGrid) {
+      layoutModeFloat.addEventListener("change", () => {
+        if (gridPermSection) gridPermSection.style.display = "none";
+      });
+      layoutModeGrid.addEventListener("change", () => {
+        if (gridPermSection) gridPermSection.style.display = "";
+        if (gridPermSelect) renderGridPreview(gridPermSelect.value);
+      });
+    }
+    if (gridPermSelect) {
+      gridPermSelect.addEventListener("change", () => {
+        renderGridPreview(gridPermSelect.value);
+      });
+    }
     $("editCallBtn").addEventListener("click", () => {
       showSplash();
     });
@@ -5742,6 +6575,27 @@ ${beacon.location}`);
         $("opLoc").textContent = "Locating...";
         fetchLocation();
       }
+    });
+  }
+  function renderGridPreview(permId) {
+    const container = document.getElementById("gridPermPreview");
+    if (!container) return;
+    const perm = getGridPermutation(permId);
+    container.innerHTML = "";
+    container.style.gridTemplateAreas = perm.areas;
+    container.style.gridTemplateColumns = perm.columns;
+    container.style.gridTemplateRows = perm.rows;
+    const mapCell = document.createElement("div");
+    mapCell.className = "grid-preview-cell grid-preview-map";
+    mapCell.style.gridArea = "map";
+    mapCell.textContent = "MAP";
+    container.appendChild(mapCell);
+    perm.cellNames.forEach((name) => {
+      const cell = document.createElement("div");
+      cell.className = "grid-preview-cell";
+      cell.style.gridArea = name;
+      cell.textContent = name;
+      container.appendChild(cell);
     });
   }
 

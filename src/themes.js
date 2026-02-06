@@ -13,6 +13,7 @@ const THEMES = {
     name: 'Default',
     description: 'Modern dark theme',
     bodyClass: '',
+    supportsGrid: true,
     vars: {
       '--bg': '#1a1a2e',
       '--surface': '#16213e',
@@ -38,6 +39,7 @@ const THEMES = {
     name: 'LCARS',
     description: 'Star Trek TNG inspired',
     bodyClass: 'theme-lcars',
+    supportsGrid: true,
     vars: {
       '--bg': '#000000',
       '--surface': '#0a0a14',
@@ -63,6 +65,7 @@ const THEMES = {
     name: 'Terminal',
     description: 'Retro terminal style',
     bodyClass: 'theme-terminal',
+    supportsGrid: true,
     vars: {
       '--bg': '#000000',
       '--surface': '#0a1a0a',
@@ -88,6 +91,7 @@ const THEMES = {
     name: 'HamClock',
     description: 'Inspired by HamClock by WB0OEW',
     bodyClass: 'theme-hamclock',
+    supportsGrid: true,
     vars: {
       '--bg': '#000000',
       '--surface': '#000000',       // pure black — real HamClock has no surface variation
@@ -159,6 +163,12 @@ export function initTheme() {
   // Validate saved theme still exists
   const themeId = THEMES[savedId] ? savedId : 'default';
   applyTheme(themeId);
+}
+
+/** Check if the currently active theme supports grid layout */
+export function currentThemeSupportsGrid() {
+  const theme = THEMES[activeThemeId];
+  return theme ? theme.supportsGrid !== false : true;
 }
 
 /** Get the swatch colors for a theme (for preview in config modal) */

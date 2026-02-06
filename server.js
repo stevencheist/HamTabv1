@@ -22,7 +22,7 @@ const cors = require('cors');
 const selfsigned = require('selfsigned');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 const HOST = process.env.HOST || '0.0.0.0';
 

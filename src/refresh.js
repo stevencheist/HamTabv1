@@ -1,7 +1,6 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
-import { fmtTime } from './utils.js';
 import { applyFilter, updateBandFilterButtons, updateModeFilterButtons, updateCountryFilter, updateStateFilter, updateGridFilter, updateContinentFilter } from './filters.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
@@ -36,7 +35,6 @@ export async function fetchSourceData(source) {
       updateStateFilter();
       updateGridFilter();
       updateContinentFilter();
-      $('lastUpdated').textContent = 'Updated: ' + fmtTime(new Date());
     }
   } catch (err) {
     console.error(`Failed to fetch ${source} spots:`, err);
@@ -44,6 +42,10 @@ export async function fetchSourceData(source) {
 }
 
 export function refreshAll() {
+  // Brief "Refreshing..." feedback
+  const btn = $('refreshBtn');
+  if (btn) btn.textContent = 'Refreshing...';
+
   fetchSourceData('pota');
   fetchSourceData('sota');
   fetchSourceData('dxc');
@@ -64,16 +66,19 @@ function resetCountdown() {
 }
 
 function updateCountdownDisplay() {
+  const btn = $('refreshBtn');
+  if (!btn) return;
   if (state.autoRefreshEnabled) {
-    $('countdown').textContent = `(${state.countdownSeconds}s)`;
+    btn.textContent = 'Refresh (' + state.countdownSeconds + 's)';
   } else {
-    $('countdown').textContent = '';
+    btn.textContent = 'Refresh';
   }
 }
 
 export function startAutoRefresh() {
   stopAutoRefresh();
   state.autoRefreshEnabled = true;
+  localStorage.setItem('hamtab_auto_refresh', 'true');
   resetCountdown();
   state.countdownTimer = setInterval(() => {
     state.countdownSeconds--;
@@ -86,22 +91,16 @@ export function startAutoRefresh() {
 
 export function stopAutoRefresh() {
   state.autoRefreshEnabled = false;
+  localStorage.setItem('hamtab_auto_refresh', 'false');
   if (state.countdownTimer) {
     clearInterval(state.countdownTimer);
     state.countdownTimer = null;
   }
-  $('countdown').textContent = '';
+  const btn = $('refreshBtn');
+  if (btn) btn.textContent = 'Refresh';
 }
 
 export function initRefreshListeners() {
-  $('autoRefresh').addEventListener('change', () => {
-    if ($('autoRefresh').checked) {
-      startAutoRefresh();
-    } else {
-      stopAutoRefresh();
-    }
-  });
-
   $('refreshBtn').addEventListener('click', () => {
     refreshAll();
   });

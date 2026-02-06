@@ -20,10 +20,7 @@ export async function checkUpdateStatus() {
       state.updateReleaseUrl = null;
     }
 
-    // Show platform and version in header
-    if (data.platform && data.currentVersion) {
-      $('platformLabel').textContent = `v${data.currentVersion} · ${data.platform}`;
-    }
+    // Platform label removed from header — info shown in config modal About tab
   } catch (e) {
     // ignore
   }

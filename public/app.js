@@ -5454,12 +5454,18 @@ ${beacon.location}`);
       $("splashGpsBtn").classList.add("active");
       updateLocStatus("Using GPS");
     }
-    $("timeFmt24").checked = state_default.use24h;
-    $("timeFmt12").checked = !state_default.use24h;
-    $("distUnitMi").checked = state_default.distanceUnit === "mi";
-    $("distUnitKm").checked = state_default.distanceUnit === "km";
-    $("tempUnitF").checked = state_default.temperatureUnit === "F";
-    $("tempUnitC").checked = state_default.temperatureUnit === "C";
+    const timeFmt24 = $("timeFmt24");
+    const timeFmt12 = $("timeFmt12");
+    if (timeFmt24) timeFmt24.checked = state_default.use24h;
+    if (timeFmt12) timeFmt12.checked = !state_default.use24h;
+    const distUnitMi = $("distUnitMi");
+    const distUnitKm = $("distUnitKm");
+    if (distUnitMi) distUnitMi.checked = state_default.distanceUnit === "mi";
+    if (distUnitKm) distUnitKm.checked = state_default.distanceUnit === "km";
+    const tempUnitF = $("tempUnitF");
+    const tempUnitC = $("tempUnitC");
+    if (tempUnitF) tempUnitF.checked = state_default.temperatureUnit === "F";
+    if (tempUnitC) tempUnitC.checked = state_default.temperatureUnit === "C";
     const widgetList = document.getElementById("splashWidgetList");
     widgetList.innerHTML = "";
     WIDGET_DEFS.forEach((w) => {
@@ -5476,8 +5482,10 @@ ${beacon.location}`);
     $("splashWxApiKey").value = state_default.wxApiKey;
     $("splashN2yoApiKey").value = state_default.n2yoApiKey;
     const intervalSelect = $("splashUpdateInterval");
-    const savedInterval = localStorage.getItem("hamtab_update_interval") || "60";
-    intervalSelect.value = savedInterval;
+    if (intervalSelect) {
+      const savedInterval = localStorage.getItem("hamtab_update_interval") || "60";
+      intervalSelect.value = savedInterval;
+    }
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
@@ -5515,8 +5523,8 @@ ${beacon.location}`);
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.27.0";
-    $("aboutVersion").textContent = "0.27.0";
+    $("splashVersion").textContent = "0.27.1";
+    $("aboutVersion").textContent = "0.27.1";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -5562,14 +5570,16 @@ ${beacon.location}`);
     saveWidgetVisibility();
     applyWidgetVisibility();
     const intervalSelect = $("splashUpdateInterval");
-    const intervalVal = intervalSelect.value;
-    localStorage.setItem("hamtab_update_interval", intervalVal);
-    fetch("/api/update/interval", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
-    }).catch(() => {
-    });
+    if (intervalSelect) {
+      const intervalVal = intervalSelect.value;
+      localStorage.setItem("hamtab_update_interval", intervalVal);
+      fetch("/api/update/interval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
+      }).catch(() => {
+      });
+    }
     $("splashGridDropdown").classList.remove("open");
     $("splash").classList.add("hidden");
     updateOperatorDisplay2();

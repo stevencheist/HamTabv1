@@ -13,6 +13,16 @@ jobs:
           node-version: 20
       - run: npm ci
       - run: npm run build
+
+      # Disable preview URLs before deploy — Durable Objects are incompatible with them
+      - name: Disable preview URLs
+        run: |
+          curl -s -X POST \
+            "https://api.cloudflare.com/client/v4/accounts/2d96977bf715fc9bc0432ed71154d550/workers/scripts/hamtabv1/subdomain" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d '{"enabled": false, "previews_enabled": false}'
+
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -18,4 +18,6 @@ COPY --from=builder /app/voacap-worker.py ./
 COPY --from=builder /app/public ./public
 
 EXPOSE 8080
-CMD ["node", "server.js"]
+# TEMPORARY: bare-bones HTTP to test container networking
+# If this responds, the issue is in server.js startup, not container networking
+CMD ["node", "-e", "require('http').createServer((q,s)=>{s.writeHead(200,{'Content-Type':'application/json'});s.end(JSON.stringify({ok:true,msg:'bare-bones container'}))}).listen(8080,'0.0.0.0',()=>console.log('listening 8080'))"]

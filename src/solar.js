@@ -341,6 +341,10 @@ export function updateGrayLine() {
   const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
   const sunLon = -(utcHours - 12) * 15;
 
+  // Store sub-solar position for sun marker
+  state.sunLat = sunDec;
+  state.sunLon = sunLon;
+
   const rad = Math.PI / 180;
   const dec = Math.abs(sunDec) < 0.1 ? 0.1 : sunDec;
   const tanDec = Math.tan(dec * rad);

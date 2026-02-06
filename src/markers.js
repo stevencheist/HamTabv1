@@ -4,6 +4,7 @@ import { esc } from './utils.js';
 import { bearingTo, bearingToCardinal, distanceMi, localTimeAtLon, geodesicPoints, gridToLatLon } from './geo.js';
 import { spotId } from './filters.js';
 import { updateSpotDetail, clearSpotDetail } from './spot-detail.js';
+import { setDedxSpot, clearDedxSpot } from './dedx-info.js';
 
 let defaultIcon = null;
 let selectedIcon = null;
@@ -203,18 +204,21 @@ export function selectSpot(sid) {
     selectedRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
-  // Update spot detail widget
+  // Update spot detail and DE/DX widgets
   if (sid) {
     const filtered = state.sourceFiltered[state.currentSource] || [];
     const spot = filtered.find(s => spotId(s) === sid);
     if (spot) {
       updateSpotDetail(spot);
+      setDedxSpot(spot);
       drawGeodesicLine(spot);
     } else {
       clearSpotDetail();
+      clearDedxSpot();
     }
   } else {
     clearSpotDetail();
+    clearDedxSpot();
   }
 }
 

@@ -1,5 +1,5 @@
 import state from './state.js';
-import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H } from './constants.js';
+import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, getLayoutMode } from './constants.js';
 import { centerMapOnUser, updateUserMarker } from './map-init.js';
 import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, resetGridAssignments, repositionGridHandles } from './grid-layout.js';
 
@@ -48,7 +48,7 @@ function redistributeRightColumn() {
   const rightX = parseInt(solarEl.style.left) || 0;
   const rightW = parseInt(solarEl.style.width) || 0;
 
-  const rightBottomIds = ['widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail'];
+  const rightBottomIds = ['widget-spacewx', 'widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail', 'widget-contests', 'widget-dxpeditions', 'widget-beacons', 'widget-dedx'];
   const vis = state.widgetVisibility || {};
   const visible = rightBottomIds.filter(id => vis[id] !== false);
   if (visible.length === 0) return;
@@ -97,7 +97,7 @@ export function getDefaultLayout() {
   };
 
   // Stack visible right-column widgets below solar
-  const rightBottomIds = ['widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail'];
+  const rightBottomIds = ['widget-spacewx', 'widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail', 'widget-contests', 'widget-dxpeditions', 'widget-beacons', 'widget-dedx'];
   const vis = state.widgetVisibility || {};
   const visibleBottom = rightBottomIds.filter(id => vis[id] !== false);
   const bottomSpace = H - rightHalf - pad * 2;
@@ -410,6 +410,11 @@ function setupResize(widget, handle) {
 }
 
 function applyLayout(layout) {
+  if (getLayoutMode() !== 'desktop') {
+    // On mobile/tablet, CSS handles layout — just ensure map resizes
+    if (state.map) setTimeout(() => state.map.invalidateSize(), 200);
+    return;
+  }
   // Build fallback positions for widgets missing from saved layout
   const defaults = getDefaultLayout();
   document.querySelectorAll('.widget').forEach(widget => {
@@ -459,6 +464,7 @@ function reflowWidgets() {
     if (state.map) state.map.invalidateSize();
     return;
   }
+  if (getLayoutMode() !== 'desktop') return; // CSS handles mobile/tablet layout
   const { width: aW, height: aH } = getWidgetArea();
   if (prevAreaW === 0 || prevAreaH === 0) {
     prevAreaW = aW;
@@ -544,11 +550,13 @@ export function initWidgets() {
   prevAreaW = area.width;
   prevAreaH = area.height;
 
+  const isDesktop = getLayoutMode() === 'desktop';
+
   document.querySelectorAll('.widget').forEach(widget => {
     const header = widget.querySelector('.widget-header');
     const resizer = widget.querySelector('.widget-resize');
     if (header) {
-      setupDrag(widget, header);
+      if (isDesktop) setupDrag(widget, header);
 
       // Inject close button (× at far right of header)
       const closeBtn = document.createElement('button');
@@ -564,8 +572,8 @@ export function initWidgets() {
       });
       header.insertBefore(closeBtn, header.firstChild);
     }
-    if (resizer) setupResize(widget, resizer);
-    widget.addEventListener('mousedown', () => bringToFront(widget));
+    if (resizer && isDesktop) setupResize(widget, resizer);
+    if (isDesktop) widget.addEventListener('mousedown', () => bringToFront(widget));
   });
 
   const mapWidget = document.getElementById('widget-map');

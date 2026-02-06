@@ -63,6 +63,8 @@ const state = {
   // Cached data for re-render
   lastSolarData: null,
   lastLunarData: null,
+  spacewxData: null,   // { kp: [], xray: [], sfi: [], wind: [], mag: [] }
+  spacewxTab: 'kp',    // active graph tab
 
   // Operator
   myCallsign: localStorage.getItem('hamtab_callsign') || '',
@@ -74,6 +76,7 @@ const state = {
 
   // Map
   map: null,
+  tileLayer: null, // L.tileLayer reference for dynamic tile swaps (e.g. HamClock political map)
   clusterGroup: null,
   grayLinePolygon: null,
   dayPolygon: null,
@@ -157,8 +160,22 @@ const state = {
   heatmapLayer: null,       // L.imageOverlay instance
   heatmapRenderTimer: null, // debounce timer for pan/zoom re-render
 
+  // Beacons / DXpeditions / Contests
+  beaconTimer: null,          // setInterval ID for 1-second beacon updates
+  lastDxpeditionData: null,   // cached /api/dxpeditions response
+  lastContestData: null,      // cached /api/contests response
+
   // Init flag
   appInitialized: false,
+
+  // Sun/Moon sub-point positions
+  sunLat: null,         // sub-solar latitude (degrees) — declination
+  sunLon: null,         // sub-solar longitude (degrees)
+  moonLat: null,        // sub-lunar latitude (degrees) — declination
+  moonLon: null,        // sub-lunar longitude (degrees)
+  sunMarker: null,      // L.marker for sun position on map
+  moonMarker: null,     // L.marker for moon position on map
+  beaconMarkers: {},    // { freq: L.circleMarker } for active NCDXF beacon map markers
 
   // Day/night
   lastLocalDay: null,

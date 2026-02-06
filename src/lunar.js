@@ -66,6 +66,9 @@ export async function fetchLunar() {
     const data = await resp.json();
     state.lastLunarData = data;
     renderLunar(data);
+    // Update moon marker on map
+    const { updateMoonMarker } = await import('./map-init.js');
+    updateMoonMarker();
   } catch (err) {
     console.error('Failed to fetch lunar:', err);
   }

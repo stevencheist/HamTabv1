@@ -1423,54 +1423,6 @@ app.get('/api/solar/image', async (req, res) => {
   }
 });
 
-// --- N2YO Satellite Tracking API ---
-
-// Satellite list cache (category 18 = amateur radio)
-let satListCache = { data: null, expires: 0 };
-const SAT_LIST_TTL = 24 * 60 * 60 * 1000; // 24 hours
-
-// Satellite position cache
-let satPosCache = { data: null, expires: 0, key: '' };
-const SAT_POS_TTL = 10 * 1000; // 10 seconds
-
-// Pass prediction cache (per satellite)
-const satPassCache = {}; // { 'satId:lat:lon': { data, expires } }
-const SAT_PASS_TTL = 5 * 60 * 1000; // 5 minutes
-
-// TLE cache (per satellite)
-const satTleCache = {}; // { satId: { data, expires } }
-const SAT_TLE_TTL = 6 * 60 * 60 * 1000; // 6 hours
-
-app.get('/api/satellites/list', async (req, res) => {
-  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
-  if (!apiKey) {
-    return res.status(503).json({ error: 'No N2YO API key configured' });
-  }
-
-  try {
-    // Return cached data if fresh
-    if (satListCache.data && Date.now() < satListCache.expires) {
-      return res.json(satListCache.data);
-    }
-
-    const url = `https://api.n2yo.com/rest/v1/satellite/above/0/0/0/90/18/&apiKey=${apiKey}`;
-    const data = await fetchJSON(url);
-
-    // Extract satellite list from response
-    const satellites = (data.above || []).map(s => ({
-      satId: s.satid,
-      name: s.satname,
-      intDesignator: s.intDesignator,
-    }));
-
-    satListCache = { data: satellites, expires: Date.now() + SAT_LIST_TTL };
-    res.json(satellites);
-  } catch (err) {
-    console.error('Error fetching satellite list:', err.message);
-    res.status(502).json({ error: 'Failed to fetch satellite list' });
-  }
-});
-
 // Fetch positions for multiple satellites (batched)
 app.get('/api/satellites/positions', async (req, res) => {
   const apiKey = req.query.apikey || process.env.N2YO_API_KEY;

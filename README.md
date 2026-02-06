@@ -427,14 +427,19 @@ All settings are saved to localStorage and synced to Workers KV so they follow y
 
 ## Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| [Express](https://expressjs.com/) | HTTP server and API proxy |
-| [helmet](https://helmetjs.github.io/) | Security headers, CSP, HSTS |
-| [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) | API rate limiting (60 req/min) |
-| [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) | Solar XML data parsing |
-| [dotenv](https://github.com/motdotla/dotenv) | Environment variable configuration |
-| [esbuild](https://esbuild.github.io/) | Client JS bundler (dev dependency) |
+| Package | Version | Purpose |
+|---------|---------|---------|
+| [Express](https://expressjs.com/) | ^4.21.0 | HTTP server and API proxy |
+| [helmet](https://helmetjs.github.io/) | ^8.x | Security headers and CSP |
+| [express-rate-limit](https://github.com/express-rate-limit/express-rate-limit) | ^8.x | API rate limiting (60 req/min) |
+| [fast-xml-parser](https://github.com/NaturalIntelligence/fast-xml-parser) | ^5.x | Solar/DXpedition/contest XML parsing |
+| [dotenv](https://github.com/motdotla/dotenv) | ^17.x | Environment variable configuration |
+| [satellite.js](https://github.com/shashwatak/satellite-js) | ^6.x | SGP4/SDP4 satellite orbit propagation |
+| [swagger-ui-express](https://github.com/scottie1984/swagger-ui-express) | ^5.x | API documentation UI at `/api/docs` |
+| [yamljs](https://github.com/jeremyfa/yaml.js) | ^0.3.x | OpenAPI spec parsing for Swagger |
+| [cors](https://github.com/expressjs/cors) | ^2.x | CORS middleware (lanmode only) |
+| [selfsigned](https://github.com/jfromaniello/selfsigned) | ^2.x | Self-signed TLS certificate generation (lanmode only) |
+| [esbuild](https://esbuild.github.io/) | ^0.27.x | Client JS bundler (dev dependency) |
 
 Leaflet maps and marker clustering are bundled locally in `public/vendor/`.
 
@@ -450,10 +455,17 @@ Leaflet maps and marker clustering are bundled locally in `public/vendor/`.
 | [NWS API](https://www.weather.gov/documentation/services-web-api) | Weather conditions, forecasts, and alerts | None (US only) |
 | [Weather Underground](https://www.wunderground.com/member/api-keys) | Personal weather station observations | Free API key (optional) |
 | [Callook.info](https://callook.info/) | US callsign license class lookup | None |
+| [PSKReporter](https://pskreporter.info/) | Live FT8/FT4/CW/SSB spots | None |
+| [DX Cluster](https://dxc.oscl2.org/) | DX cluster spots via WebSocket | None |
+| [NOAA SWPC](https://services.swpc.noaa.gov/) | Space weather history (Kp, X-ray, SFI, solar wind, Bz) and predicted SSN | None |
+| [N2YO](https://www.n2yo.com/api/) | Satellite positions and pass predictions | Free API key |
 | [NASA SDO](https://sdo.gsfc.nasa.gov/) | Solar images and time-lapse frames | None |
 | [NASA SVS](https://svs.gsfc.nasa.gov/) | Lunar phase images | None |
+| [NG3K ADXO](https://www.ng3k.com/adxo.xml) | Upcoming and active DXpeditions | None |
+| [WA7BNM Contest Calendar](https://www.contestcalendar.com/) | Upcoming and active contests | None |
 
 Lunar/EME data is computed server-side using Meeus astronomical algorithms — no external API needed.
+VOACAP propagation predictions use a Python bridge (dvoacap) when available, with a server-side simplified model as fallback.
 
 ---
 

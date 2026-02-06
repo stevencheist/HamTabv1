@@ -152,6 +152,9 @@
         // Reference widget
         currentReferenceTab: "rst",
         // active reference tab (rst, phonetic, etc.)
+        // Update
+        updateStatusPolling: null,
+        updateReleaseUrl: null,
         // Live Spots (PSKReporter "heard" data)
         liveSpots: {
           data: [],
@@ -5451,14 +5454,16 @@ ${beacon.location}`);
       $("splashGpsBtn").classList.add("active");
       updateLocStatus("Using GPS");
     }
-    $("timeFmt24").checked = state_default.use24h;
-    $("timeFmt12").checked = !state_default.use24h;
+    const timeFmt24 = $("timeFmt24");
+    const timeFmt12 = $("timeFmt12");
+    if (timeFmt24) timeFmt24.checked = state_default.use24h;
+    if (timeFmt12) timeFmt12.checked = !state_default.use24h;
     const distUnitMi = $("distUnitMi");
     const distUnitKm = $("distUnitKm");
-    const tempUnitF = $("tempUnitF");
-    const tempUnitC = $("tempUnitC");
     if (distUnitMi) distUnitMi.checked = state_default.distanceUnit === "mi";
     if (distUnitKm) distUnitKm.checked = state_default.distanceUnit === "km";
+    const tempUnitF = $("tempUnitF");
+    const tempUnitC = $("tempUnitC");
     if (tempUnitF) tempUnitF.checked = state_default.temperatureUnit === "F";
     if (tempUnitC) tempUnitC.checked = state_default.temperatureUnit === "C";
     const widgetList = document.getElementById("splashWidgetList");
@@ -5476,6 +5481,11 @@ ${beacon.location}`);
     $("splashWxStation").value = state_default.wxStation;
     $("splashWxApiKey").value = state_default.wxApiKey;
     $("splashN2yoApiKey").value = state_default.n2yoApiKey;
+    const intervalSelect = $("splashUpdateInterval");
+    if (intervalSelect) {
+      const savedInterval = localStorage.getItem("hamtab_update_interval") || "60";
+      intervalSelect.value = savedInterval;
+    }
     $("splashGridDropdown").classList.remove("open");
     $("splashGridDropdown").innerHTML = "";
     state_default.gridHighlightIdx = -1;
@@ -5513,80 +5523,72 @@ ${beacon.location}`);
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.27.0";
-    $("aboutVersion").textContent = "0.27.0";
+    $("splashVersion").textContent = "0.27.1";
+    $("aboutVersion").textContent = "0.27.1";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
     $("splashCallsign").focus();
   }
   function dismissSplash() {
-    const callsignEl = $("splashCallsign");
-    const val = callsignEl ? callsignEl.value.trim().toUpperCase() : "";
+    const val = $("splashCallsign").value.trim().toUpperCase();
     if (!val) return;
-    const splashEl = $("splash");
-    const gridDropdown = $("splashGridDropdown");
-    if (gridDropdown) gridDropdown.classList.remove("open");
-    if (splashEl) splashEl.classList.add("hidden");
-    try {
-      state_default.myCallsign = val;
-      localStorage.setItem("hamtab_callsign", state_default.myCallsign);
-      if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
-        localStorage.setItem("hamtab_lat", String(state_default.myLat));
-        localStorage.setItem("hamtab_lon", String(state_default.myLon));
-      }
-      const timeFmt24 = $("timeFmt24");
-      state_default.use24h = timeFmt24 ? timeFmt24.checked : state_default.use24h;
-      localStorage.setItem("hamtab_time24", String(state_default.use24h));
-      const distUnitKm = $("distUnitKm");
-      const tempUnitC = $("tempUnitC");
-      state_default.distanceUnit = distUnitKm && distUnitKm.checked ? "km" : "mi";
-      state_default.temperatureUnit = tempUnitC && tempUnitC.checked ? "C" : "F";
-      localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
-      localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
-      const wxStationEl = $("splashWxStation");
-      const wxApiKeyEl = $("splashWxApiKey");
-      const n2yoApiKeyEl = $("splashN2yoApiKey");
-      state_default.wxStation = wxStationEl ? wxStationEl.value.trim().toUpperCase() : state_default.wxStation;
-      state_default.wxApiKey = wxApiKeyEl ? wxApiKeyEl.value.trim() : state_default.wxApiKey;
-      state_default.n2yoApiKey = n2yoApiKeyEl ? n2yoApiKeyEl.value.trim() : state_default.n2yoApiKey;
-      localStorage.setItem("hamtab_wx_station", state_default.wxStation);
-      localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
-      localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
-      fetchWeather();
-      const widgetList = document.getElementById("splashWidgetList");
-      if (widgetList) {
-        widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-          state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
-        });
-      }
-      saveWidgetVisibility();
-      applyWidgetVisibility();
-      const intervalSelect = $("splashUpdateInterval");
-      if (intervalSelect) {
-        const intervalVal = intervalSelect.value;
-        localStorage.setItem("hamtab_update_interval", intervalVal);
-        fetch("/api/update/interval", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
-        }).catch(() => {
-        });
-      }
-    } catch (e) {
-      console.warn("Error saving settings:", e);
+    state_default.myCallsign = val;
+    localStorage.setItem("hamtab_callsign", state_default.myCallsign);
+    if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
+      localStorage.setItem("hamtab_lat", String(state_default.myLat));
+      localStorage.setItem("hamtab_lon", String(state_default.myLon));
     }
-    try {
-      updateOperatorDisplay2();
-      centerMapOnUser();
-      updateUserMarker();
-      updateClocks();
-      renderSpots();
-      if (_initApp) _initApp();
-      fetchLicenseClass(state_default.myCallsign);
-    } catch (e) {
-      console.warn("Error updating display after dismiss:", e);
+    state_default.use24h = $("timeFmt24").checked;
+    localStorage.setItem("hamtab_time24", String(state_default.use24h));
+    state_default.distanceUnit = $("distUnitKm").checked ? "km" : "mi";
+    state_default.temperatureUnit = $("tempUnitC").checked ? "C" : "F";
+    localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
+    localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
+    state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
+    state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
+    state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
+    localStorage.setItem("hamtab_wx_station", state_default.wxStation);
+    localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
+    localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
+    const envUpdates = {};
+    if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
+    if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
+    if (Object.keys(envUpdates).length > 0) {
+      fetch("/api/config/env", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(envUpdates)
+      }).catch(() => {
+      });
     }
+    fetchWeather();
+    const widgetList = document.getElementById("splashWidgetList");
+    widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+      state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
+    });
+    saveWidgetVisibility();
+    applyWidgetVisibility();
+    const intervalSelect = $("splashUpdateInterval");
+    if (intervalSelect) {
+      const intervalVal = intervalSelect.value;
+      localStorage.setItem("hamtab_update_interval", intervalVal);
+      fetch("/api/update/interval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
+      }).catch(() => {
+      });
+    }
+    $("splashGridDropdown").classList.remove("open");
+    $("splash").classList.add("hidden");
+    updateOperatorDisplay2();
+    centerMapOnUser();
+    updateUserMarker();
+    updateClocks();
+    renderSpots();
+    if (_initApp) _initApp();
+    fetchLicenseClass(state_default.myCallsign);
   }
   function initSplashListeners() {
     document.querySelectorAll(".config-tab").forEach((tab) => {
@@ -6476,60 +6478,81 @@ ${beacon.location}`);
   }
 
   // src/update.js
+  init_state();
   init_dom();
-  function initUpdateDisplay() {
-    const el = $("platformLabel");
-    if (el) el.textContent = "v0.21.5";
-  }
-
-  // src/settings-sync.js
-  var SYNC_KEYS = [
-    "hamtab_callsign",
-    "hamtab_lat",
-    "hamtab_lon",
-    "hamtab_gps_lat",
-    "hamtab_gps_lon",
-    "hamtab_time24",
-    "hamtab_spot_source",
-    "hamtab_privilege_filter",
-    "hamtab_license_class",
-    "hamtab_prop_metric",
-    "hamtab_map_center",
-    "hamtab_clock_style",
-    "hamtab_wx_station",
-    "hamtab_wx_apikey",
-    "hamtab_map_overlays",
-    "hamtab_widgets_user",
-    "hamtab_widget_visibility",
-    "hamtab_solar_fields",
-    "hamtab_lunar_fields",
-    "hamtab_spot_columns",
-    "hamtab_sdo_type"
-  ];
-  async function pullSettings() {
+  init_utils();
+  async function checkUpdateStatus() {
     try {
-      const resp = await fetch("/api/settings");
+      const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
-      const remote = await resp.json();
-      if (!remote || typeof remote !== "object") return;
-      let changed = false;
-      for (const key of SYNC_KEYS) {
-        if (key in remote) {
-          const local = localStorage.getItem(key);
-          const remoteVal = remote[key] === null ? null : String(remote[key]);
-          if (local !== remoteVal) {
-            if (remoteVal === null) {
-              localStorage.removeItem(key);
-            } else {
-              localStorage.setItem(key, remoteVal);
-            }
-            changed = true;
-          }
-        }
+      const data = await resp.json();
+      if (data.available && data.latestVersion) {
+        $("updateDot").className = "update-dot green";
+        $("updateLabel").textContent = `v${data.latestVersion} available`;
+        state_default.updateReleaseUrl = data.releaseUrl || null;
+      } else {
+        $("updateDot").className = "update-dot gray";
+        $("updateLabel").textContent = data.lastCheck ? "Checked " + fmtTime(new Date(data.lastCheck), { hour: "2-digit", minute: "2-digit" }) : "No updates";
+        state_default.updateReleaseUrl = null;
       }
-      if (changed) location.reload();
-    } catch {
+      if (data.platform && data.currentVersion) {
+        $("platformLabel").textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
+      }
+    } catch (e) {
     }
+  }
+  function startUpdateStatusPolling() {
+    if (state_default.updateStatusPolling) clearInterval(state_default.updateStatusPolling);
+    checkUpdateStatus();
+    state_default.updateStatusPolling = setInterval(checkUpdateStatus, 3e4);
+  }
+  function pollForServer(attempts) {
+    if (attempts <= 0) {
+      $("updateLabel").textContent = "Server did not come back";
+      $("updateDot").className = "update-dot red";
+      return;
+    }
+    setTimeout(() => {
+      fetch("/api/spots").then((resp) => {
+        if (resp.ok) {
+          $("updateLabel").textContent = "Reloading...";
+          location.reload();
+        } else {
+          pollForServer(attempts - 1);
+        }
+      }).catch(() => {
+        pollForServer(attempts - 1);
+      });
+    }, 1e3);
+  }
+  function sendUpdateInterval() {
+    const saved2 = localStorage.getItem("hamtab_update_interval");
+    if (saved2) {
+      fetch("/api/update/interval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seconds: parseInt(saved2, 10) })
+      }).catch(() => {
+      });
+    }
+  }
+  function initUpdateListeners() {
+    $("updateIndicator").addEventListener("click", () => {
+      if ($("updateDot").classList.contains("green") && state_default.updateReleaseUrl) {
+        window.open(state_default.updateReleaseUrl, "_blank", "noopener");
+      }
+    });
+    $("restartBtn").addEventListener("click", async (e) => {
+      e.stopPropagation();
+      $("restartBtn").classList.add("hidden");
+      $("updateDot").className = "update-dot yellow";
+      $("updateLabel").textContent = "Restarting...";
+      try {
+        await fetch("/api/restart", { method: "POST" });
+      } catch {
+      }
+      pollForServer(30);
+    });
   }
 
   // src/fullscreen.js
@@ -7569,7 +7592,6 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   state_default.widgetVisibility = loadWidgetVisibility();
   state_default.spotColumnVisibility = loadSpotColumnVisibility();
   initMap();
-  pullSettings();
   updateGrayLine();
   updateSunMarker();
   setInterval(() => {
@@ -7588,6 +7610,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initSplashListeners();
   initConfigListeners();
   initRefreshListeners();
+  initUpdateListeners();
   initFullscreenListeners();
   initWeatherListeners();
   initPropListeners();
@@ -7611,7 +7634,8 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     refreshAll();
     startAutoRefresh();
     fetchLocation();
-    initUpdateDisplay();
+    startUpdateStatusPolling();
+    sendUpdateInterval();
     fetchWeather();
     startNwsPolling();
     fetchLiveSpots();

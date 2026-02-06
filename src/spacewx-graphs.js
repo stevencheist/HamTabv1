@@ -74,7 +74,8 @@ export function renderSpaceWxGraph() {
   ctx.clearRect(0, 0, w, h);
 
   const tab = state.spacewxTab || 'kp';
-  const data = state.spacewxData && state.spacewxData[tab];
+  const dataKey = tab === 'bz' ? 'mag' : tab; // bz tab uses mag data
+  const data = state.spacewxData && state.spacewxData[dataKey];
   if (!data || data.length === 0) {
     drawNoData(ctx, w, h);
     return;

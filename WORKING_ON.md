@@ -26,6 +26,7 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Francisco + Claude | Phase 5 — Contests, DXpeditions & NCDXF Beacons widgets | main | 2026-02-05 |
 | Francisco + Claude | Mobile Phase 1 — responsive layout, stacked widgets, touch targets, header reflow | main | 2026-02-05 |
 | Francisco + Claude | Space Weather History widget (P1.3) — Kp/X-Ray/SFI/Wind/Bz graphs | main | 2026-02-05 |
 | Francisco + Claude | LCARS theme readability — contrast overrides for surface2 backgrounds | main | 2026-02-05 |

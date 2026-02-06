@@ -43,6 +43,9 @@ import { initLiveSpotsListeners, fetchLiveSpots, renderLiveSpotsOnMap } from './
 import { initVoacapListeners, renderVoacapMatrix, fetchVoacapMatrix, fetchVoacapMatrixThrottled } from './voacap.js';
 import { initHeatmapListeners } from './rel-heatmap.js';
 import { initSpaceWxListeners, fetchSpaceWxData } from './spacewx-graphs.js';
+import { initBeaconListeners, startBeaconTimer } from './beacons.js';
+import { initDxpeditionListeners, fetchDxpeditions } from './dxpeditions.js';
+import { initContestListeners, fetchContests } from './contests.js';
 
 // Initialize map
 initMap();
@@ -82,6 +85,9 @@ initLiveSpotsListeners();
 initVoacapListeners();
 initHeatmapListeners();
 initSpaceWxListeners();
+initBeaconListeners();
+initDxpeditionListeners();
+initContestListeners();
 
 // Wire initApp into splash dismissal
 function initApp() {
@@ -97,6 +103,9 @@ function initApp() {
   fetchLiveSpots();
   fetchVoacapMatrix();
   fetchSpaceWxData();
+  startBeaconTimer();
+  fetchDxpeditions();
+  fetchContests();
 }
 
 // Live Spots refresh (5 min — PSKReporter rate limit)

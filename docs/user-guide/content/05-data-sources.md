@@ -165,6 +165,57 @@ Alternative weather provider. Requires free API key.
 
 ---
 
+## Contest Calendar (WA7BNM)
+
+### What Is It?
+The WA7BNM Contest Calendar is the most comprehensive listing of amateur radio contests worldwide. It provides dates, times, rules, and exchange formats for contests happening every week.
+
+### Data Provided
+- **Contest name** — Full name of the contest
+- **Date/time window** — Start and end times in UTC
+- **Rules link** — URL to the contest rules page
+- **Mode** — CW, Phone, Digital, or Mixed (inferred from contest name)
+
+### Update Frequency
+Contest data is cached for 6 hours. Contests are relatively stable events — the schedule rarely changes on short notice.
+
+---
+
+## DXpeditions (NG3K)
+
+### What Is NG3K?
+NG3K maintains a comprehensive calendar of upcoming and active DXpeditions — organized amateur radio operations from rare DXCC entities worldwide.
+
+### Data Provided
+- **Callsign** — The callsign being used on the DXpedition
+- **Entity** — The DXCC entity (country or territory)
+- **Operating dates** — Start and end dates
+- **QSL information** — How to confirm contacts (LoTW, direct, bureau)
+- **Active status** — Whether the DXpedition is currently on the air
+
+### Update Frequency
+DXpedition data is cached for 2 hours. DXpeditions can start or end during a day, so more frequent updates help keep the active status current.
+
+---
+
+## NCDXF Beacons
+
+### What Is It?
+The NCDXF/IARU International Beacon Project is a network of 18 HF beacons distributed around the world. They transmit on a precise, synchronized schedule on five frequencies (14.100, 18.110, 21.150, 24.930, and 28.200 MHz) so operators can quickly check propagation to different parts of the world.
+
+### Data Provided
+This is **static data** — no server endpoint is needed. The beacon locations and schedule are hardcoded because they never change. The rotation is calculated in real time from the UTC clock.
+
+- **Beacon callsign** — The 18 beacon station callsigns
+- **Location** — Geographic location of each beacon
+- **Active frequency** — Which frequency each beacon is currently transmitting on
+- **Countdown** — Seconds remaining in the current 10-second slot
+
+### Update Frequency
+Updated every second (client-side timer). No network requests needed.
+
+---
+
 ## Data Refresh Rates
 
 | Data Source | Refresh Interval |
@@ -176,6 +227,9 @@ Alternative weather provider. Requires free API key.
 | Space weather | 5 minutes |
 | Satellite positions | 5 seconds |
 | Live Spots (your TX) | 60 seconds |
+| Contests (WA7BNM) | 6 hours (cached) |
+| DXpeditions (NG3K) | 2 hours (cached) |
+| NCDXF Beacons | 1 second (client-side) |
 
 <div class="tip">Data refresh happens automatically. There's no need to manually refresh the page.</div>
 

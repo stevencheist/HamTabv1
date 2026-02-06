@@ -1601,6 +1601,214 @@ app.get('/api/lunar/image', async (req, res) => {
   }
 });
 
+// --- DXpeditions (NG3K ADXO feed) ---
+
+const dxpeditionCache = { data: null, expires: 0 };
+const DXPEDITION_TTL = 2 * 60 * 60 * 1000; // 2 hours
+
+function parseDxpeditionItem(item) {
+  // Title format: "Entity: Dates -- Callsign -- QSL via: Method"
+  const title = (item.title || '').trim();
+  const parts = title.split(/\s*--\s*/);
+  let entity = '', dateStr = '', callsign = '', qsl = '';
+
+  if (parts.length >= 1) {
+    // First segment: "Entity: Dates" or just "Entity"
+    const colonIdx = parts[0].indexOf(':');
+    if (colonIdx > 0) {
+      entity = parts[0].substring(0, colonIdx).trim();
+      dateStr = parts[0].substring(colonIdx + 1).trim();
+    } else {
+      entity = parts[0].trim();
+    }
+  }
+  if (parts.length >= 2) callsign = parts[1].trim();
+  if (parts.length >= 3) {
+    qsl = parts[2].replace(/^QSL\s*via:\s*/i, '').trim();
+  }
+
+  // Parse date range with best-effort regex
+  // Patterns: "Jan 1-Feb 16, 2026", "January 1 - February 16, 2026"
+  let startDate = null, endDate = null;
+  const now = new Date();
+  const year = now.getUTCFullYear();
+
+  const rangeMatch = dateStr.match(/(\w+)\s+(\d+)\s*[-–]\s*(\w+)\s+(\d+)(?:\s*,?\s*(\d{4}))?/);
+  if (rangeMatch) {
+    const yr = rangeMatch[5] ? parseInt(rangeMatch[5]) : year;
+    startDate = parseDatePart(rangeMatch[1], parseInt(rangeMatch[2]), yr);
+    endDate = parseDatePart(rangeMatch[3], parseInt(rangeMatch[4]), yr);
+    if (endDate) endDate.setUTCHours(23, 59, 59);
+  } else {
+    // Single month range: "Jan 1-16, 2026"
+    const singleMatch = dateStr.match(/(\w+)\s+(\d+)\s*[-–]\s*(\d+)(?:\s*,?\s*(\d{4}))?/);
+    if (singleMatch) {
+      const yr = singleMatch[4] ? parseInt(singleMatch[4]) : year;
+      startDate = parseDatePart(singleMatch[1], parseInt(singleMatch[2]), yr);
+      endDate = parseDatePart(singleMatch[1], parseInt(singleMatch[3]), yr);
+      if (endDate) endDate.setUTCHours(23, 59, 59);
+    }
+  }
+
+  const active = startDate && endDate && now >= startDate && now <= endDate;
+
+  return {
+    callsign,
+    entity,
+    dateStr,
+    startDate: startDate ? startDate.toISOString() : null,
+    endDate: endDate ? endDate.toISOString() : null,
+    qsl,
+    link: (item.link || '').trim(),
+    active: !!active,
+  };
+}
+
+function parseDatePart(monthStr, day, year) {
+  const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
+    january: 0, february: 1, march: 2, april: 3, june: 5, july: 6, august: 7, september: 8, october: 9, november: 10, december: 11 };
+  const m = months[monthStr.toLowerCase()];
+  if (m === undefined || isNaN(day)) return null;
+  return new Date(Date.UTC(year, m, day));
+}
+
+app.get('/api/dxpeditions', async (req, res) => {
+  try {
+    if (dxpeditionCache.data && Date.now() < dxpeditionCache.expires) {
+      return res.json(dxpeditionCache.data);
+    }
+
+    const xml = await fetchText('https://www.ng3k.com/adxo.xml');
+    const parser = new XMLParser({ ignoreAttributes: false });
+    const parsed = parser.parse(xml);
+
+    const channel = parsed.rss && parsed.rss.channel;
+    let items = channel && channel.item;
+    if (!items) items = [];
+    if (!Array.isArray(items)) items = [items];
+
+    const results = items
+      .map(parseDxpeditionItem)
+      .filter(d => d.callsign) // skip items without a callsign
+      .sort((a, b) => {
+        // Active first, then by start date ascending
+        if (a.active !== b.active) return a.active ? -1 : 1;
+        const aDate = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const bDate = b.startDate ? new Date(b.startDate).getTime() : 0;
+        return aDate - bDate;
+      });
+
+    dxpeditionCache.data = results;
+    dxpeditionCache.expires = Date.now() + DXPEDITION_TTL;
+    res.json(results);
+  } catch (err) {
+    console.error('Error fetching DXpeditions:', err.message);
+    res.status(502).json({ error: 'Failed to fetch DXpedition data' });
+  }
+});
+
+// --- Contests (WA7BNM Contest Calendar) ---
+
+const contestCache = { data: null, expires: 0 };
+const CONTEST_TTL = 6 * 60 * 60 * 1000; // 6 hours
+
+function parseContestItem(item) {
+  const name = (item.title || '').trim();
+  const description = (item.description || '').trim();
+  const link = (item.link || '').trim();
+
+  // Parse dates from description: "0000Z, Feb 7 to 2400Z, Feb 8"
+  let startDate = null, endDate = null, dateStr = description;
+  const now = new Date();
+  const year = now.getUTCFullYear();
+
+  const dateMatch = description.match(/(\d{4})Z\s*,?\s*(\w+)\s+(\d+)\s+to\s+(\d{4})Z\s*,?\s*(\w+)\s+(\d+)/i);
+  if (dateMatch) {
+    const startHour = parseInt(dateMatch[1].substring(0, 2));
+    const startMin = parseInt(dateMatch[1].substring(2));
+    const endHourRaw = parseInt(dateMatch[4].substring(0, 2));
+    const endMin = parseInt(dateMatch[4].substring(2));
+
+    startDate = parseDatePart(dateMatch[2], parseInt(dateMatch[3]), year);
+    endDate = parseDatePart(dateMatch[5], parseInt(dateMatch[6]), year);
+
+    if (startDate) {
+      startDate.setUTCHours(startHour, startMin);
+    }
+    if (endDate) {
+      // 2400Z means midnight of the next day
+      if (endHourRaw === 24) {
+        endDate.setUTCDate(endDate.getUTCDate() + 1);
+        endDate.setUTCHours(0, 0);
+      } else {
+        endDate.setUTCHours(endHourRaw, endMin);
+      }
+    }
+  }
+
+  // Infer mode from contest name
+  const upper = name.toUpperCase();
+  let mode = 'mixed';
+  if (/\bCW\b/.test(upper)) mode = 'cw';
+  else if (/\b(SSB|PHONE)\b/.test(upper)) mode = 'phone';
+  else if (/\b(RTTY|FT[48]|DIGITAL|PSK|DATA)\b/.test(upper)) mode = 'digital';
+
+  // Determine status
+  let status = 'upcoming';
+  if (startDate && endDate) {
+    if (now >= startDate && now <= endDate) status = 'active';
+    else if (now > endDate) status = 'past';
+  }
+
+  return {
+    name,
+    dateStr,
+    startDate: startDate ? startDate.toISOString() : null,
+    endDate: endDate ? endDate.toISOString() : null,
+    link,
+    mode,
+    status,
+  };
+}
+
+app.get('/api/contests', async (req, res) => {
+  try {
+    if (contestCache.data && Date.now() < contestCache.expires) {
+      return res.json(contestCache.data);
+    }
+
+    const xml = await fetchText('https://www.contestcalendar.com/contestcal.php?rss');
+    const parser = new XMLParser({ ignoreAttributes: false });
+    const parsed = parser.parse(xml);
+
+    const channel = parsed.rss && parsed.rss.channel;
+    let items = channel && channel.item;
+    if (!items) items = [];
+    if (!Array.isArray(items)) items = [items];
+
+    const results = items
+      .map(parseContestItem)
+      .filter(c => c.status !== 'past') // exclude past contests
+      .sort((a, b) => {
+        // Active first, then upcoming by start date
+        if (a.status !== b.status) {
+          if (a.status === 'active') return -1;
+          if (b.status === 'active') return 1;
+        }
+        const aDate = a.startDate ? new Date(a.startDate).getTime() : 0;
+        const bDate = b.startDate ? new Date(b.startDate).getTime() : 0;
+        return aDate - bDate;
+      });
+
+    contestCache.data = results;
+    contestCache.expires = Date.now() + CONTEST_TTL;
+    res.json(results);
+  } catch (err) {
+    console.error('Error fetching contests:', err.message);
+    res.status(502).json({ error: 'Failed to fetch contest data' });
+  }
+});
+
 // Proxy prop.kc2g.com propagation GeoJSON contours
 app.get('/api/propagation', async (req, res) => {
   try {
@@ -2536,7 +2744,7 @@ function ensureCerts() {
 }
 
 // --- Cache eviction (runs every 30 minutes, removes expired entries) ---
-const allCaches = [dxcCallCache, pskHeardCache, satPassCache, satTleCache, nwsGridCache, sdoDirCache, sotaSummitCache, voacapCache];
+const allCaches = [dxcCallCache, pskHeardCache, satPassCache, satTleCache, nwsGridCache, sdoDirCache, sotaSummitCache, voacapCache, dxpeditionCache, contestCache];
 setInterval(() => {
   const now = Date.now();
   for (const cache of allCaches) {

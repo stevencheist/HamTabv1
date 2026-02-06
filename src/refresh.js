@@ -9,6 +9,8 @@ import { fetchSolar, fetchPropagation } from './solar.js';
 import { fetchLunar } from './lunar.js';
 import { fetchVoacapMatrixThrottled } from './voacap.js';
 import { fetchSpaceWxData } from './spacewx-graphs.js';
+import { fetchDxpeditions } from './dxpeditions.js';
+import { fetchContests } from './contests.js';
 
 export async function fetchSourceData(source) {
   const def = SOURCE_DEFS[source];
@@ -51,6 +53,8 @@ export function refreshAll() {
   fetchPropagation();
   fetchVoacapMatrixThrottled();
   fetchSpaceWxData();
+  fetchDxpeditions();
+  fetchContests();
   resetCountdown();
 }
 

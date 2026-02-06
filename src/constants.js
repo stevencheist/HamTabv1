@@ -14,6 +14,9 @@ export const WIDGET_DEFS = [
   { id: 'widget-satellites',  name: 'Satellites' },
   { id: 'widget-rst',          name: 'Reference' },
   { id: 'widget-spot-detail', name: 'DX Detail' },
+  { id: 'widget-contests',     name: 'Contests' },
+  { id: 'widget-dxpeditions',  name: 'DXpeditions' },
+  { id: 'widget-beacons',      name: 'NCDXF Beacons' },
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)
@@ -404,6 +407,42 @@ export const WIDGET_HELP = {
       { heading: 'Distance & Bearing', content: 'Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config.' },
       { heading: 'Frequency & Mode', content: 'The frequency and mode the station is operating on, so you know exactly where to tune your radio.' },
       { heading: 'Weather', content: 'Shows current weather conditions at the station\'s location, if available.' },
+    ],
+  },
+  'widget-contests': {
+    title: 'Contests',
+    description: 'A calendar of upcoming and active amateur radio contests. Contests are time-limited on-air competitions where operators try to make as many contacts as possible. They\'re a great way to fill your logbook and practice your operating skills.',
+    sections: [
+      { heading: 'What Are Contests?', content: 'Ham radio contests run for a set period (usually a weekend). Operators exchange brief messages and try to contact as many stations or regions as possible. Contests happen nearly every weekend — from casual events to major international competitions.' },
+      { heading: 'Reading the List', content: 'Each card shows the contest name, date/time window, and operating mode. Cards marked "NOW" are currently running. Click any card to view the full rules and exchange format on the contest website.' },
+      { heading: 'Mode Badges', content: 'CW = Morse code only. PHONE = voice modes (SSB/FM). DIGITAL = digital modes (RTTY, FT8, etc.). Contests without a badge accept mixed modes.' },
+    ],
+    links: [
+      { label: 'WA7BNM Contest Calendar', url: 'https://www.contestcalendar.com/' },
+    ],
+  },
+  'widget-dxpeditions': {
+    title: 'DXpeditions',
+    description: 'Track upcoming and active DXpeditions — organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.',
+    sections: [
+      { heading: 'What Is a DXpedition?', content: 'A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade.' },
+      { heading: 'Reading the Cards', content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details.' },
+      { heading: 'QSL Information', content: 'QSL means "I confirm" — it\'s how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).' },
+    ],
+    links: [
+      { label: 'NG3K DXpedition Calendar', url: 'https://www.ng3k.com/Misc/adxo.html' },
+    ],
+  },
+  'widget-beacons': {
+    title: 'NCDXF Beacons',
+    description: 'Real-time display of the NCDXF/IARU International Beacon Project — a network of 18 synchronized beacons worldwide that transmit on 5 HF frequencies in a repeating 3-minute cycle. Listening for these beacons is the quickest way to check which bands are open to which parts of the world.',
+    sections: [
+      { heading: 'How It Works', content: 'Every 3 minutes, each of the 18 beacons transmits for 10 seconds on each of 5 frequencies (14.100, 18.110, 21.150, 24.930, and 28.200 MHz). Five beacons transmit simultaneously — one per frequency. The table shows which beacon is active on each frequency right now, with a countdown to the next rotation.' },
+      { heading: 'Checking Propagation', content: 'Tune your radio to one of the beacon frequencies and listen. If you hear a beacon, the band is open to that beacon\'s location. Scan all five frequencies to quickly map which bands are open to which parts of the world.' },
+      { heading: 'Beacon Transmission', content: 'Each beacon transmits its callsign in CW (Morse code) at 100 watts, followed by four 1-second dashes at decreasing power levels (100W, 10W, 1W, 0.1W). If you can copy the callsign but not the last dashes, you know the band is open but marginal to that location.' },
+    ],
+    links: [
+      { label: 'NCDXF Beacon Project', url: 'https://www.ncdxf.org/beacon/' },
     ],
   },
   'widget-live-spots': {

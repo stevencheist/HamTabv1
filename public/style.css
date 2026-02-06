@@ -3334,10 +3334,11 @@ header {
 .theme-lcars .header-left {
   background: var(--surface2);   /* #9999CC blue-bell */
   border-radius: 0;             /* rectangular — cutout creates the curve */
-  padding: 8px 52px 8px 20px;   /* 52px right clears the 36px cutout */
+  padding: 8px 44px 8px 20px;   /* 44px right clears the 36px cutout */
   position: relative;
   min-width: 200px;
-  max-width: 260px;
+  max-width: 360px;
+  flex: 0 1 auto;               /* size to content, don't grow */
 }
 
 /* Black cutout — creates the LCARS inner curve */
@@ -3354,7 +3355,10 @@ header {
 
 /* Text on blue-bell background */
 .theme-lcars .header-left .op-call,
-.theme-lcars .header-left .op-call a { color: #000; }
+.theme-lcars .header-left .op-call a {
+  color: var(--accent);          /* gold callsign — stands out on blue-bell */
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
+}
 .theme-lcars .header-left .op-name   { color: #000; }
 .theme-lcars .header-left .op-loc    { color: rgba(0, 0, 0, 0.6); }
 

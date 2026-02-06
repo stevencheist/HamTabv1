@@ -3336,9 +3336,9 @@ header {
   border-radius: 0;             /* rectangular — cutout creates the curve */
   padding: 8px 44px 8px 20px;   /* 44px right clears the 36px cutout */
   position: relative;
-  min-width: 200px;
+  min-width: 280px;             /* firm floor — container-type prevents auto-sizing from children */
   max-width: 360px;
-  flex: 0 1 auto;               /* size to content, don't grow */
+  flex: 0 0 auto;               /* don't grow, don't shrink */
 }
 
 /* Black cutout — creates the LCARS inner curve */
@@ -3360,7 +3360,7 @@ header {
   text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
 }
 .theme-lcars .header-left .op-name   { color: #000; }
-.theme-lcars .header-left .op-loc    { color: rgba(0, 0, 0, 0.6); }
+.theme-lcars .header-left .op-loc    { color: rgba(0, 0, 0, 0.6); white-space: nowrap; }
 
 .theme-lcars .header-left .op-btn {
   background: var(--accent);     /* gold pills on blue-bell */

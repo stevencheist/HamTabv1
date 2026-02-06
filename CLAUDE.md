@@ -208,6 +208,21 @@ main ──────────────────────── SH
 - Only run "sync branches" when there's actual code to deploy
 - Never edit documentation directly on deployment branches
 
+### README.md Updates
+
+**The README must stay current.** Update it whenever any of these change:
+
+| Change | README section to update |
+|--------|--------------------------|
+| New npm dependency added/removed | Dependencies table |
+| New external API integrated | External APIs table |
+| Install script changes (install.sh, install.ps1) | Installation section |
+| Uninstall procedure changes | Uninstall subsection |
+| New widget added | Features list |
+| New user-facing feature | Features list |
+| Environment variable added/changed | Configuration / Environment Variables |
+| Port or network behavior changes | Network Configuration |
+
 ## Code Quality
 
 - No unused variables or dead code

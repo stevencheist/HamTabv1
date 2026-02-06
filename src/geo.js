@@ -111,6 +111,25 @@ export function isDaytime(lat, lon, date) {
   return diff < 6;
 }
 
+// Convert decimal lat/lon to cardinal format: "33N 98W"
+export function latLonToCardinal(lat, lon) {
+  const ns = lat >= 0 ? 'N' : 'S';
+  const ew = lon >= 0 ? 'E' : 'W';
+  return `${Math.abs(lat).toFixed(0)}${ns} ${Math.abs(lon).toFixed(0)}${ew}`;
+}
+
+// Approximate UTC offset from longitude (hours, e.g. -6 for 90W)
+export function utcOffsetFromLon(lon) {
+  return Math.round(lon / 15);
+}
+
+// Local date/time at a given longitude (approximate, no DST)
+export function localDateAtLon(lon) {
+  const now = new Date();
+  const offsetMs = utcOffsetFromLon(lon) * 3600000; // ms
+  return new Date(now.getTime() + now.getTimezoneOffset() * 60000 + offsetMs);
+}
+
 export function localTimeAtLon(lon, use24h) {
   const now = new Date();
   const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;

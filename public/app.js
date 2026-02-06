@@ -101,6 +101,8 @@
         // currently highlighted index in the grid-square autocomplete dropdown (-1 = none)
         // Map
         map: null,
+        tileLayer: null,
+        // L.tileLayer reference for dynamic tile swaps (e.g. HamClock political map)
         clusterGroup: null,
         grayLinePolygon: null,
         dayPolygon: null,
@@ -275,64 +277,6 @@
     }
   });
 
-  // src/dom.js
-  function $(id) {
-    if (!cache[id]) cache[id] = document.getElementById(id);
-    return cache[id];
-  }
-  var cache;
-  var init_dom = __esm({
-    "src/dom.js"() {
-      cache = {};
-    }
-  });
-
-  // src/utils.js
-  var utils_exports = {};
-  __export(utils_exports, {
-    cacheCallsign: () => cacheCallsign,
-    esc: () => esc,
-    fmtTime: () => fmtTime,
-    formatAge: () => formatAge
-  });
-  function esc(str) {
-    const div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
-  }
-  function fmtTime(date, options) {
-    const opts = Object.assign({ hour12: !state_default.use24h }, options || {});
-    return date.toLocaleTimeString([], opts);
-  }
-  function cacheCallsign(key, value) {
-    const keys = Object.keys(state_default.callsignCache);
-    if (keys.length >= CALLSIGN_CACHE_MAX) {
-      const toRemove = keys.slice(0, Math.floor(keys.length / 2));
-      toRemove.forEach((k) => delete state_default.callsignCache[k]);
-    }
-    state_default.callsignCache[key] = value;
-  }
-  function formatAge(spotTime) {
-    if (!spotTime) return "";
-    const ts = spotTime.endsWith("Z") ? spotTime : spotTime + "Z";
-    const diffMs = Date.now() - new Date(ts).getTime();
-    if (diffMs < 0) return "0s";
-    const totalSec = Math.floor(diffMs / 1e3);
-    const h = Math.floor(totalSec / 3600);
-    const m = Math.floor(totalSec % 3600 / 60);
-    const s = totalSec % 60;
-    if (h > 0) return m > 0 ? `${h}h${m}m` : `${h}h`;
-    if (m > 0) return s > 0 ? `${m}m${s}s` : `${m}m`;
-    return `${s}s`;
-  }
-  var CALLSIGN_CACHE_MAX;
-  var init_utils = __esm({
-    "src/utils.js"() {
-      init_state();
-      CALLSIGN_CACHE_MAX = 500;
-    }
-  });
-
   // src/geo.js
   var geo_exports = {};
   __export(geo_exports, {
@@ -343,8 +287,11 @@
     getSunTimes: () => getSunTimes,
     gridToLatLon: () => gridToLatLon,
     isDaytime: () => isDaytime,
+    latLonToCardinal: () => latLonToCardinal,
     latLonToGrid: () => latLonToGrid,
-    localTimeAtLon: () => localTimeAtLon
+    localDateAtLon: () => localDateAtLon,
+    localTimeAtLon: () => localTimeAtLon,
+    utcOffsetFromLon: () => utcOffsetFromLon
   });
   function latLonToGrid(lat, lon) {
     lon += 180;
@@ -449,6 +396,19 @@
     const diff = Math.abs((utcHour - solarNoon + 24) % 24 - 12);
     return diff < 6;
   }
+  function latLonToCardinal(lat, lon) {
+    const ns = lat >= 0 ? "N" : "S";
+    const ew = lon >= 0 ? "E" : "W";
+    return `${Math.abs(lat).toFixed(0)}${ns} ${Math.abs(lon).toFixed(0)}${ew}`;
+  }
+  function utcOffsetFromLon(lon) {
+    return Math.round(lon / 15);
+  }
+  function localDateAtLon(lon) {
+    const now = /* @__PURE__ */ new Date();
+    const offsetMs = utcOffsetFromLon(lon) * 36e5;
+    return new Date(now.getTime() + now.getTimezoneOffset() * 6e4 + offsetMs);
+  }
   function localTimeAtLon(lon, use24h) {
     const now = /* @__PURE__ */ new Date();
     const utcMs = now.getTime() + now.getTimezoneOffset() * 6e4;
@@ -458,6 +418,52 @@
   }
   var init_geo = __esm({
     "src/geo.js"() {
+    }
+  });
+
+  // src/utils.js
+  var utils_exports = {};
+  __export(utils_exports, {
+    cacheCallsign: () => cacheCallsign,
+    esc: () => esc,
+    fmtTime: () => fmtTime,
+    formatAge: () => formatAge
+  });
+  function esc(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+  function fmtTime(date, options) {
+    const opts = Object.assign({ hour12: !state_default.use24h }, options || {});
+    return date.toLocaleTimeString([], opts);
+  }
+  function cacheCallsign(key, value) {
+    const keys = Object.keys(state_default.callsignCache);
+    if (keys.length >= CALLSIGN_CACHE_MAX) {
+      const toRemove = keys.slice(0, Math.floor(keys.length / 2));
+      toRemove.forEach((k) => delete state_default.callsignCache[k]);
+    }
+    state_default.callsignCache[key] = value;
+  }
+  function formatAge(spotTime) {
+    if (!spotTime) return "";
+    const ts = spotTime.endsWith("Z") ? spotTime : spotTime + "Z";
+    const diffMs = Date.now() - new Date(ts).getTime();
+    if (diffMs < 0) return "0s";
+    const totalSec = Math.floor(diffMs / 1e3);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor(totalSec % 3600 / 60);
+    const s = totalSec % 60;
+    if (h > 0) return m > 0 ? `${h}h${m}m` : `${h}h`;
+    if (m > 0) return s > 0 ? `${m}m${s}s` : `${m}m`;
+    return `${s}s`;
+  }
+  var CALLSIGN_CACHE_MAX;
+  var init_utils = __esm({
+    "src/utils.js"() {
+      init_state();
+      CALLSIGN_CACHE_MAX = 500;
     }
   });
 
@@ -636,6 +642,18 @@
   var init_map_overlays = __esm({
     "src/map-overlays.js"() {
       init_state();
+    }
+  });
+
+  // src/dom.js
+  function $(id) {
+    if (!cache[id]) cache[id] = document.getElementById(id);
+    return cache[id];
+  }
+  var cache;
+  var init_dom = __esm({
+    "src/dom.js"() {
+      cache = {};
     }
   });
 
@@ -1538,6 +1556,7 @@
   __export(map_init_exports, {
     centerMapOnUser: () => centerMapOnUser,
     initMap: () => initMap,
+    swapMapTiles: () => swapMapTiles,
     updateBeaconMarkers: () => updateBeaconMarkers,
     updateMoonMarker: () => updateMoonMarker,
     updateSunMarker: () => updateSunMarker,
@@ -1553,7 +1572,7 @@
         maxBounds: [[-90, -180], [90, 180]],
         minZoom: 2
       }).setView([39.8, -98.5], 4);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
+      state_default.tileLayer = L.tileLayer(TILE_DARK, {
         attribution: "&copy; OpenStreetMap &copy; CARTO",
         maxZoom: 19
       }).addTo(state_default.map);
@@ -1737,7 +1756,12 @@ ${beacon.location}`);
       state_default.beaconMarkers[freq] = marker;
     }
   }
-  var BEACON_COLORS;
+  function swapMapTiles(themeId) {
+    if (!state_default.tileLayer) return;
+    const url = themeId === "hamclock" ? TILE_VOYAGER : TILE_DARK;
+    state_default.tileLayer.setUrl(url);
+  }
+  var TILE_DARK, TILE_VOYAGER, BEACON_COLORS;
   var init_map_init = __esm({
     "src/map-init.js"() {
       init_state();
@@ -1745,6 +1769,8 @@ ${beacon.location}`);
       init_utils();
       init_map_overlays();
       init_beacons();
+      TILE_DARK = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+      TILE_VOYAGER = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
       BEACON_COLORS = {
         14100: "#ff4444",
         // 20m — red
@@ -2756,24 +2782,44 @@ ${beacon.location}`);
     renderDedxDe();
     renderDedxDx();
   }
+  function fmtSunCountdown(target, now, prefix) {
+    if (!target) return null;
+    const diffMs = target.getTime() - now.getTime();
+    const absDiff = Math.abs(diffMs);
+    const h = Math.floor(absDiff / 36e5);
+    const m = Math.floor(absDiff % 36e5 / 6e4);
+    const mm = String(m).padStart(2, "0");
+    if (diffMs > 0) {
+      return `${prefix} in ${h}:${mm}`;
+    }
+    return `${prefix} ${h}:${mm} ago`;
+  }
   function renderDedxDe() {
     const el = $("dedxDeContent");
     if (!el) return;
     const call = state_default.myCallsign || "\u2014";
     const lat = state_default.myLat;
     const lon = state_default.myLon;
-    let rows = `<div class="dedx-row"><span class="dedx-label-sm">Call</span><span class="dedx-value">${esc(call)}</span></div>`;
+    let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
     if (lat !== null && lon !== null) {
+      const now = /* @__PURE__ */ new Date();
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dayStr = days[now.getDay()];
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Time</span><span class="dedx-value">${dayStr} ${hh}:${mm}</span></div>`;
       const grid = latLonToGrid(lat, lon).substring(0, 6).toUpperCase();
       rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${lat.toFixed(2)}, ${lon.toFixed(2)}</span></div>`;
-      const now = /* @__PURE__ */ new Date();
+      const cardinal = latLonToCardinal(lat, lon);
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
       const sun = getSunTimes(lat, lon, now);
-      if (sun.sunrise) {
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">Rise</span><span class="dedx-value dedx-sunrise">${fmtSunTime(sun.sunrise)}</span></div>`;
+      const rise = fmtSunCountdown(sun.sunrise, now, "R");
+      const set = fmtSunCountdown(sun.sunset, now, "S");
+      if (rise) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunrise">${rise}</span></div>`;
       }
-      if (sun.sunset) {
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">Set</span><span class="dedx-value dedx-sunset">${fmtSunTime(sun.sunset)}</span></div>`;
+      if (set) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunset">${set}</span></div>`;
       }
     } else {
       rows += `<div class="dedx-row dedx-empty">Set location in Config</div>`;
@@ -2794,40 +2840,42 @@ ${beacon.location}`);
     const band = freqToBand(freq) || "";
     const lat = parseFloat(spot.latitude);
     const lon = parseFloat(spot.longitude);
-    let rows = `<div class="dedx-row"><span class="dedx-label-sm">Call</span><span class="dedx-value">${esc(call)}</span></div>`;
+    let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
     if (freq) {
-      const bandStr = band ? ` (${band})` : "";
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Freq</span><span class="dedx-value">${esc(freq)}${esc(bandStr)}</span></div>`;
-    }
-    if (mode) {
+      const parts = [freq];
+      if (band) parts.push(`(${band})`);
+      if (mode) parts.push(mode);
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Freq</span><span class="dedx-value">${esc(parts.join(" "))}</span></div>`;
+    } else if (mode) {
       rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode)}</span></div>`;
     }
     if (!isNaN(lat) && !isNaN(lon)) {
       const grid = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
       rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
+      const cardinal = latLonToCardinal(lat, lon);
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
       if (state_default.myLat !== null && state_default.myLon !== null) {
         const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
         const mi = distanceMi(state_default.myLat, state_default.myLon, lat, lon);
         const dist = state_default.distanceUnit === "km" ? Math.round(mi * 1.60934) : Math.round(mi);
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">Brg</span><span class="dedx-value">${Math.round(deg)}\xB0 ${bearingToCardinal(deg)}</span></div>`;
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">Dist</span><span class="dedx-value">${dist.toLocaleString()} ${state_default.distanceUnit}</span></div>`;
+        const card = bearingToCardinal(deg);
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">D/B</span><span class="dedx-value dedx-compact">${dist.toLocaleString()}${state_default.distanceUnit}@${Math.round(deg)}\xB0${card}</span></div>`;
       }
       const now = /* @__PURE__ */ new Date();
       const sun = getSunTimes(lat, lon, now);
-      if (sun.sunrise) {
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">Rise</span><span class="dedx-value dedx-sunrise">${fmtSunTime(sun.sunrise)}</span></div>`;
+      const rise = fmtSunCountdown(sun.sunrise, now, "R");
+      const set = fmtSunCountdown(sun.sunset, now, "S");
+      if (rise) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunrise">${rise}</span></div>`;
       }
-      if (sun.sunset) {
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">Set</span><span class="dedx-value dedx-sunset">${fmtSunTime(sun.sunset)}</span></div>`;
+      if (set) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunset">${set}</span></div>`;
       }
+      const offset = utcOffsetFromLon(lon);
+      const sign = offset >= 0 ? "+" : "";
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">TZ</span><span class="dedx-value dedx-utc-badge">UTC${sign}${offset}</span></div>`;
     }
     el.innerHTML = rows;
-  }
-  function fmtSunTime(date) {
-    if (!date) return "\u2014";
-    const h = String(date.getUTCHours()).padStart(2, "0");
-    const m = String(date.getUTCMinutes()).padStart(2, "0");
-    return `${h}:${m}z`;
   }
   var selectedSpot;
   var init_dedx_info = __esm({
@@ -4264,7 +4312,11 @@ ${beacon.location}`);
         "--orange": "#ff9100",
         "--border": "#2a3a5e",
         "--bg-secondary": "#1a1a2e",
-        "--bg-tertiary": "#252540"
+        "--bg-tertiary": "#252540",
+        "--de-color": "#4fc3f7",
+        // light blue — DE panel accent
+        "--dx-color": "#81c784"
+        // light green — DX panel accent
       }
     },
     lcars: {
@@ -4296,7 +4348,11 @@ ${beacon.location}`);
         "--border": "#9999CC",
         // blue-bell (matches surface2)
         "--bg-secondary": "#0a0a14",
-        "--bg-tertiary": "#111122"
+        "--bg-tertiary": "#111122",
+        "--de-color": "#ff9900",
+        // LCARS gold — DE panel accent
+        "--dx-color": "#99ccff"
+        // LCARS blue — DX panel accent
       }
     },
     terminal: {
@@ -4318,7 +4374,11 @@ ${beacon.location}`);
         "--orange": "#ff8800",
         "--border": "#1a4a2a",
         "--bg-secondary": "#0a1a0a",
-        "--bg-tertiary": "#0d200d"
+        "--bg-tertiary": "#0d200d",
+        "--de-color": "#00ff00",
+        // green — DE panel accent
+        "--dx-color": "#00ff00"
+        // green — DX panel accent
       }
     },
     hamclock: {
@@ -4328,9 +4388,10 @@ ${beacon.location}`);
       bodyClass: "theme-hamclock",
       vars: {
         "--bg": "#000000",
-        "--surface": "#0a0a14",
-        "--surface2": "#1a1a2e",
-        "--surface3": "#252540",
+        "--surface": "#000000",
+        // pure black — real HamClock has no surface variation
+        "--surface2": "#0a0a0a",
+        "--surface3": "#141414",
         "--accent": "#00ffff",
         // cyan — HamClock uses cyan for headings/labels
         "--text": "#e0e0e0",
@@ -4342,10 +4403,16 @@ ${beacon.location}`);
         // yellow — warnings, highlighted values
         "--red": "#ff0000",
         // red — alerts
-        "--orange": "#ff8800",
-        "--border": "#333355",
-        "--bg-secondary": "#0a0a14",
-        "--bg-tertiary": "#111122"
+        "--orange": "#e8a000",
+        // warm amber — matches real HamClock orange
+        "--border": "#333333",
+        // subtle separator — real HamClock uses very thin borders
+        "--bg-secondary": "#000000",
+        "--bg-tertiary": "#0a0a0a",
+        "--de-color": "#e8a000",
+        // orange — DE panel accent (matches real HamClock)
+        "--dx-color": "#00ff00"
+        // bright green — DX panel accent
       }
     }
   };
@@ -4373,6 +4440,8 @@ ${beacon.location}`);
     if (theme.bodyClass) document.body.classList.add(theme.bodyClass);
     activeThemeId = themeId;
     localStorage.setItem(STORAGE_KEY, themeId);
+    Promise.resolve().then(() => (init_map_init(), map_init_exports)).then((m) => m.swapMapTiles(themeId)).catch(() => {
+    });
   }
   function initTheme() {
     const savedId = localStorage.getItem(STORAGE_KEY) || "default";
@@ -5446,8 +5515,8 @@ ${beacon.location}`);
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.26.0";
-    $("aboutVersion").textContent = "0.26.0";
+    $("splashVersion").textContent = "0.27.0";
+    $("aboutVersion").textContent = "0.27.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -7572,6 +7641,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   setInterval(renderVoacapMatrix, 60 * 1e3);
   setInterval(fetchVoacapMatrixThrottled, 60 * 1e3);
   setInterval(updateBeaconMarkers, 1e4);
+  setInterval(renderDedxInfo, 6e4);
   setInitApp(initApp);
   initWidgets();
   switchSource(state_default.currentSource);

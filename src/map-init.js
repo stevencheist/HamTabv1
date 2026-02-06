@@ -4,6 +4,10 @@ import { esc } from './utils.js';
 import { renderAllMapOverlays } from './map-overlays.js';
 import { BEACONS, getActiveBeacons } from './beacons.js';
 
+// --- Tile URL constants ---
+const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const TILE_VOYAGER = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+
 export function initMap() {
   const hasLeaflet = typeof L !== 'undefined' && L.map;
   if (!hasLeaflet) return;
@@ -16,7 +20,7 @@ export function initMap() {
       minZoom: 2,
     }).setView([39.8, -98.5], 4);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    state.tileLayer = L.tileLayer(TILE_DARK, {
       attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 19,
     }).addTo(state.map);
@@ -237,4 +241,11 @@ export function updateBeaconMarkers() {
     marker.bindTooltip(`${beacon.call}\n${(freq / 1000).toFixed(3)} MHz\n${beacon.location}`);
     state.beaconMarkers[freq] = marker;
   }
+}
+
+// Swap map tiles based on theme (HamClock uses political/colored tiles)
+export function swapMapTiles(themeId) {
+  if (!state.tileLayer) return;
+  const url = themeId === 'hamclock' ? TILE_VOYAGER : TILE_DARK;
+  state.tileLayer.setUrl(url);
 }

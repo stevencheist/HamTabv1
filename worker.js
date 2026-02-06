@@ -7,7 +7,61 @@ export class HamTab extends Container {
   defaultPort = 8080;
   sleepAfter = '5m';
 
-  // Lifecycle hooks for debugging
+  // Override fetch to add diagnostics and explicit lifecycle management
+  async fetch(request) {
+    const url = new URL(request.url);
+
+    // Internal diagnostic endpoint — called via DO stub
+    if (url.pathname === '/container-diag-internal') {
+      const diag = { steps: [], timestamp: new Date().toISOString() };
+      try {
+        diag.steps.push('1. Inside Container class fetch()');
+        diag.steps.push(`2. ctx.container exists: ${!!this.ctx.container}`);
+
+        // Try to get container status
+        try {
+          const monitor = this.ctx.container.monitor();
+          diag.steps.push(`3. monitor() returned: ${JSON.stringify(monitor)}`);
+        } catch (e) {
+          diag.steps.push(`3. monitor() error: ${e.message}`);
+        }
+
+        // Try explicit start
+        diag.steps.push('4. Calling this.ctx.container.start()');
+        this.ctx.container.start();
+        diag.steps.push('5. start() called (no error)');
+
+        // Wait a moment then check
+        await new Promise(r => setTimeout(r, 5000));
+
+        // Try to get container status again
+        try {
+          const monitor = this.ctx.container.monitor();
+          diag.steps.push(`6. After start, monitor(): ${JSON.stringify(monitor)}`);
+        } catch (e) {
+          diag.steps.push(`6. After start, monitor() error: ${e.message}`);
+        }
+
+        // Try containerFetch
+        diag.steps.push('7. Calling this.containerFetch()');
+        const resp = await this.containerFetch(new Request('http://localhost:8080/api/health'));
+        const body = await resp.text();
+        diag.steps.push(`8. containerFetch responded: HTTP ${resp.status} — ${body}`);
+        diag.ok = true;
+      } catch (err) {
+        diag.error = err.message;
+        diag.stack = err.stack;
+        diag.ok = false;
+      }
+      return new Response(JSON.stringify(diag, null, 2), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Default: use base Container class fetch (auto-start + proxy)
+    return super.fetch(request);
+  }
+
   onStart() {
     console.log('[HamTab Container] Started', {
       timestamp: new Date().toISOString(),
@@ -54,34 +108,10 @@ export default {
         });
       }
 
-      // --- Container diagnostics ---
+      // --- Deep container diagnostics (runs inside DO) ---
       if (url.pathname === '/container-diag') {
-        const diag = { steps: [], timestamp: new Date().toISOString() };
-        try {
-          diag.steps.push('1. Getting container stub');
-          const container = getContainer(env.HAMTAB, 'hamtab');
-          diag.steps.push('2. Container stub obtained');
-
-          diag.steps.push('3. Calling startAndWaitForPorts');
-          await container.startAndWaitForPorts({
-            ports: [8080],
-            cancellationOptions: { portReadyTimeoutMS: 60000 },
-          });
-          diag.steps.push('4. startAndWaitForPorts completed');
-
-          diag.steps.push('5. Calling container.fetch for /api/health');
-          const resp = await container.fetch(new Request('http://container/api/health'));
-          const body = await resp.text();
-          diag.steps.push(`6. Container responded: HTTP ${resp.status} — ${body}`);
-          diag.ok = true;
-        } catch (err) {
-          diag.error = err.message;
-          diag.stack = err.stack;
-          diag.ok = false;
-        }
-        return new Response(JSON.stringify(diag, null, 2), {
-          headers: { 'Content-Type': 'application/json' },
-        });
+        const container = getContainer(env.HAMTAB, 'hamtab');
+        return await container.fetch(new Request('http://container/container-diag-internal'));
       }
 
       // --- Settings KV routes ---
@@ -115,19 +145,15 @@ export default {
       }
 
       // --- Proxy everything else to the Container ---
-      // getContainer returns a named instance — Container base class
-      // handles lifecycle (auto-start, sleep, wake) via its fetch() method
       const container = getContainer(env.HAMTAB, 'hamtab');
 
       // Clone headers and inject secrets for specific endpoints
       const headers = new Headers(request.headers);
 
-      // Inject GitHub token for feedback endpoint
       if (url.pathname === '/api/feedback' && env.GITHUB_FEEDBACK_TOKEN) {
         headers.set('X-GitHub-Token', env.GITHUB_FEEDBACK_TOKEN);
       }
 
-      // Proxy request — Container.fetch() auto-starts and routes to defaultPort
       const proxyRequest = new Request(request, { headers });
       return await container.fetch(proxyRequest);
     } catch (err) {

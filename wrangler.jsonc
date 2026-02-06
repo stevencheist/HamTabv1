@@ -3,7 +3,7 @@
   "main": "worker.js",
   "compatibility_date": "2026-01-16",
   "account_id": "2d96977bf715fc9bc0432ed71154d550",
-  "workers_dev": true,
+  "workers_dev": false,
   "observability": {
     "enabled": true
   },

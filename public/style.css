@@ -3351,6 +3351,14 @@ header {
   height: calc(100% - 18px);    /* 18px top = horizontal arm of elbow */
   background: #000;
   border-top-left-radius: 24px; /* characteristic LCARS inner curve */
+  z-index: 0;
+}
+
+/* Content must stack above the ::after cutout */
+.theme-lcars .header-left .op-info,
+.theme-lcars .header-left .op-buttons {
+  position: relative;
+  z-index: 1;
 }
 
 /* Text on blue-bell background */

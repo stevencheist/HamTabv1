@@ -13,7 +13,7 @@ Clear your entry when done.
 
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
-| | | | |
+| Francisco + Claude | HamClock theme rename/rebuild, DE/DX widget, sun/moon/beacon map markers | main | 2026-02-05 |
 
 ## Next Up
 

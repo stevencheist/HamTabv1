@@ -5523,8 +5523,8 @@ ${beacon.location}`);
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.27.1";
-    $("aboutVersion").textContent = "0.27.1";
+    $("splashVersion").textContent = "0.27.2";
+    $("aboutVersion").textContent = "0.27.2";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

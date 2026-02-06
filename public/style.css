@@ -3849,3 +3849,295 @@ header {
   margin-top: 2px;
 }
 
+/* ---- Grid Layout Mode ---- */
+
+.widget-area.grid-active {
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+}
+
+/* Neutralize free-float inline styles when grid is active */
+.grid-active .widget {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  left: auto !important;
+  top: auto !important;
+  min-width: 0;
+  min-height: 80px;
+  z-index: auto !important;
+}
+
+/* Map widget is always in the "map" grid area */
+.grid-active #widget-map {
+  grid-area: map;
+}
+
+/* Hide close button on map in grid mode — map is permanently visible */
+.grid-active #widget-map .widget-close-btn {
+  display: none;
+}
+
+/* Map header is not draggable in grid mode */
+.grid-active #widget-map .widget-header {
+  cursor: default;
+}
+
+/* Hide manual resize handles in grid mode — CSS Grid sizes cells */
+.grid-active .widget-resize {
+  display: none;
+}
+
+/* Drag feedback */
+.grid-active .widget.grid-dragging {
+  opacity: 0.5;
+  z-index: 9999 !important;
+}
+
+.grid-active .widget.grid-drop-target {
+  outline: 2px dashed var(--accent);
+  outline-offset: -2px;
+}
+
+/* Resize handles for grid track boundaries */
+.grid-track-handle {
+  position: absolute;
+  z-index: 100;
+  background: transparent;
+  transition: background 0.15s;
+}
+
+.grid-track-handle:hover {
+  background: var(--accent);
+  opacity: 0.4;
+}
+
+.grid-track-handle:active {
+  background: var(--accent);
+  opacity: 0.7;
+}
+
+.grid-track-handle--col {
+  width: 6px;
+  cursor: col-resize;
+  top: 0;
+  bottom: 0;
+}
+
+.grid-track-handle--row {
+  height: 6px;
+  cursor: row-resize;
+  left: 0;
+  right: 0;
+}
+
+/* Visual grab indicator */
+.grid-track-handle--col::after {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: 40px;
+  background: var(--accent);
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.grid-track-handle--row::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  height: 2px;
+  width: 40px;
+  background: var(--accent);
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.grid-track-handle:hover::after {
+  opacity: 0.8;
+}
+
+/* Placeholder cells for unoccupied grid slots */
+.grid-cell-placeholder {
+  background: var(--bg-tertiary);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  opacity: 0.4;
+  min-height: 60px;
+}
+
+/* ---- Flex Column/Bar Wrappers (grid+flex hybrid) ---- */
+
+.grid-col-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.grid-bar-wrapper {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* When bar has flex handles between items, remove gap (handles replace it) */
+.grid-bar-wrapper:has(.grid-flex-handle) {
+  gap: 0;
+}
+
+/* Widgets and placeholders inside flex wrappers */
+.grid-col-wrapper > .widget,
+.grid-bar-wrapper > .widget,
+.grid-col-wrapper > .grid-cell-placeholder,
+.grid-bar-wrapper > .grid-cell-placeholder {
+  flex: 1 1 0%;
+  min-height: 80px;
+  min-width: 0;
+}
+
+/* ---- Flex Resize Handles (between widgets in wrappers) ---- */
+
+.grid-flex-handle {
+  flex: 0 0 6px;
+  background: transparent;
+  transition: background 0.15s;
+  z-index: 100;
+}
+
+.grid-flex-handle--col {
+  cursor: row-resize;
+  width: 100%;
+}
+
+.grid-flex-handle--row {
+  cursor: col-resize;
+  height: 100%;
+}
+
+.grid-flex-handle:hover {
+  background: var(--accent);
+  opacity: 0.4;
+}
+
+.grid-flex-handle:active {
+  background: var(--accent);
+  opacity: 0.7;
+}
+
+/* Visual grab indicator for flex handles */
+.grid-flex-handle--col::after {
+  content: '';
+  position: relative;
+  display: block;
+  margin: 0 auto;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 2px;
+  width: 40px;
+  background: var(--accent);
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.grid-flex-handle--row::after {
+  content: '';
+  position: relative;
+  display: block;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 2px;
+  height: 40px;
+  background: var(--accent);
+  border-radius: 1px;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.grid-flex-handle:hover::after {
+  opacity: 0.8;
+}
+
+/* Grid preview in config modal */
+.grid-perm-preview {
+  display: grid;
+  gap: 3px;
+  padding: 8px 0;
+  max-width: 220px;
+  margin: 0 auto;
+}
+
+.grid-perm-preview .grid-preview-cell {
+  background: var(--surface2);
+  border-radius: 3px;
+  padding: 3px 4px;
+  font-size: 0.6rem;
+  text-align: center;
+  color: var(--text-dim);
+  min-height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.grid-perm-preview .grid-preview-cell.grid-preview-map {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+/* Grid mode section in config modal */
+.splash-grid-mode-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.splash-layout-mode-toggle {
+  display: flex;
+  gap: 16px;
+  font-size: 0.8rem;
+}
+
+.splash-layout-mode-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.splash-grid-perm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.splash-grid-perm-section label {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.splash-grid-perm-section select {
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+}
+

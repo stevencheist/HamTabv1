@@ -1,6 +1,7 @@
 import state from './state.js';
 import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H } from './constants.js';
 import { centerMapOnUser, updateUserMarker } from './map-init.js';
+import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, resetGridAssignments, repositionGridHandles } from './grid-layout.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
 
@@ -19,6 +20,11 @@ export function saveWidgetVisibility() {
 }
 
 export function applyWidgetVisibility() {
+  if (isGridMode()) {
+    applyGridAssignments();
+    if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+    return;
+  }
   WIDGET_DEFS.forEach(w => {
     const el = document.getElementById(w.id);
     if (!el) return;
@@ -325,6 +331,10 @@ function setupDrag(widget, handle) {
 
   handle.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
+    if (isGridMode()) {
+      handleGridDragStart(widget, e);
+      return;
+    }
     e.preventDefault();
     bringToFront(widget);
     startX = e.clientX;
@@ -362,6 +372,7 @@ function setupResize(widget, handle) {
 
   handle.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
+    if (isGridMode()) return; // no manual resize in grid mode
     e.preventDefault();
     e.stopPropagation();
     bringToFront(widget);
@@ -415,6 +426,12 @@ function applyLayout(layout) {
 }
 
 function resetLayout() {
+  if (isGridMode()) {
+    resetGridAssignments();
+    centerMapOnUser();
+    updateUserMarker();
+    return;
+  }
   localStorage.removeItem(WIDGET_STORAGE_KEY);
   const userSaved = localStorage.getItem(USER_LAYOUT_KEY);
   if (userSaved) {
@@ -436,6 +453,12 @@ let prevAreaW = 0;
 let prevAreaH = 0;
 
 function reflowWidgets() {
+  if (isGridMode()) {
+    // CSS Grid auto-reflows; reposition resize handles and fix map
+    repositionGridHandles();
+    if (state.map) state.map.invalidateSize();
+    return;
+  }
   const { width: aW, height: aH } = getWidgetArea();
   if (prevAreaW === 0 || prevAreaH === 0) {
     prevAreaW = aW;
@@ -534,6 +557,7 @@ export function initWidgets() {
       closeBtn.textContent = '\u00D7'; // ×
       closeBtn.addEventListener('mousedown', e => e.stopPropagation()); // don't trigger drag
       closeBtn.addEventListener('click', () => {
+        if (isGridMode() && widget.id === 'widget-map') return; // map can't be hidden in grid mode
         state.widgetVisibility[widget.id] = false;
         saveWidgetVisibility();
         applyWidgetVisibility();
@@ -558,5 +582,10 @@ export function initWidgets() {
       clearTimeout(reflowTimer);
       reflowTimer = setTimeout(reflowWidgets, 150);
     }).observe(document.getElementById('widgetArea'));
+  }
+
+  // Activate grid mode if saved
+  if (isGridMode()) {
+    activateGridMode(state.gridPermutation);
   }
 }

@@ -85,6 +85,9 @@ main ──────────────────────── SH
 | `Dockerfile` | Container image for Cloudflare Containers |
 | `src/settings-sync.js` | Client-side settings sync via Workers KV |
 | `.github/workflows/deploy.yml` | CI/CD — auto-deploy on push to hostedmode |
+| `public/sitemap.xml` | Search engine sitemap (SEO) |
+| `public/robots.txt` | Crawler directives (SEO) |
+| `public/og-image.png` | Social media share preview (SEO) |
 
 ## Commenting Style
 
@@ -135,7 +138,7 @@ main ──────────────────────── SH
 3. **Hostedmode-only features:**
    - ✅ Develop on `hostedmode` branch ONLY
    - ❌ **NEVER merge to `main`** (causes conflicts)
-   - Examples: Workers KV, CI/CD, Cloudflare Access integration
+   - Examples: Workers KV, CI/CD, Cloudflare Access integration, SEO updates (sitemap, robots.txt, og-image)
 
 4. **Features needing different implementations:**
    - ✅ Shared UI/logic on `main`
@@ -167,6 +170,8 @@ main ──────────────────────── SH
   git checkout hostedmode
   git pull origin hostedmode
   git merge main -m "Merge main into hostedmode"
+  # 5a. SEO review — if new features were added, run the SEO Update Checklist
+  #     (update sitemap.xml lastmod, JSON-LD featureList, noscript section, etc.)
   git push origin hostedmode
 
   # 6. Return to main and sync
@@ -228,6 +233,53 @@ main ──────────────────────── SH
 - No in-app update system — deployments are fully automated via GitHub Actions CI/CD
 - Every push to `hostedmode` triggers a build and deploy to Cloudflare
 - Version displayed as static label for reference only
+
+## SEO & Discoverability (Hostedmode Only)
+
+SEO only matters for hamtab.net — lanmode runs on private LANs where search engines never reach. All SEO-related changes are developed and maintained on the `hostedmode` branch.
+
+**Positioning:** HamTab is a **free, modern, web-based alternative to HamClock**. With HamClock installations ceasing to function in June 2026, HamTab targets the ~10,000+ displaced HamClock users. Every SEO touchpoint should reinforce this.
+
+**Target keywords:** amateur radio dashboard, ham radio dashboard, HamClock alternative, POTA dashboard, SOTA dashboard, DX cluster, propagation, satellite tracking, space weather, Parks on the Air, Summits on the Air
+
+### SEO Files
+
+| File | Purpose | Branch |
+|------|---------|--------|
+| `public/index.html` | Meta tags, Open Graph, Twitter cards, JSON-LD structured data, `<noscript>` fallback | `main` (shared — meta tags don't affect lanmode) |
+| `public/sitemap.xml` | Search engine sitemap | `hostedmode` only |
+| `public/robots.txt` | Crawler directives | `hostedmode` only |
+| `public/og-image.png` | Social share preview image (1200×630px) | `hostedmode` only |
+| `README.md` | GitHub search & discoverability | `main` (GitHub-facing) |
+| `package.json` | npm/GitHub metadata (`description`, `keywords`) | `main` |
+
+### SEO Update Checklist (on every feature push)
+
+**After syncing a feature to hostedmode, review these before pushing the branch:**
+
+- [ ] `<title>` in index.html still accurately describes the app
+- [ ] `<meta name="description">` reflects current feature set
+- [ ] JSON-LD `featureList` array includes any new major features
+- [ ] `<noscript>` fallback section lists any new features (this is what crawlers see for JS apps)
+- [ ] `sitemap.xml` `<lastmod>` date updated to today
+- [ ] `README.md` features list includes any new user-facing features
+- [ ] `package.json` `description` still accurate
+
+**When adding a new widget or major feature:**
+- Add it to JSON-LD `featureList` in index.html
+- Add it to the `<noscript>` features list in index.html
+- Add it to the README.md features section
+- Update the meta description if the feature is significant enough
+
+### Missing SEO Assets (TODO)
+
+- [ ] `public/og-image.png` — Social share preview (referenced in OG/Twitter meta tags but file missing). Create 1200×630px screenshot showing the dashboard
+- [ ] `public/manifest.json` — PWA metadata (app name, icons, theme). Enables "Add to Home Screen" on mobile/desktop
+- [ ] `package.json` `keywords` field — npm/GitHub keyword array
+
+### File Location Note
+
+`sitemap.xml` and `robots.txt` currently live on `main` in `public/`. Since they serve no purpose on lanmode, they should be moved to `hostedmode` only. Until then, updating them on main is fine — they're harmless on LAN installs.
 
 ## Security (Priority)
 

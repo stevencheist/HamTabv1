@@ -71,9 +71,11 @@ html, body {
 
 .config-tabs {
   display: flex;
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
   margin-bottom: 16px;
-  gap: 4px;
+  gap: 4px 8px;
+  justify-content: center;
 }
 
 .config-box .config-tab {
@@ -81,7 +83,7 @@ html, body {
   color: var(--text-dim);
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 6px 16px;
+  padding: 6px 12px;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
@@ -3298,31 +3300,208 @@ header {
   font-size: 0.82rem;
   padding: 5px 14px;
   border-radius: 14px 14px 0 0;
+  color: #000;
+}
+
+/* Ensure header buttons/controls stay readable against colored header */
+.theme-lcars .widget-header .widget-help-btn,
+.theme-lcars .widget-header .widget-cfg-btn,
+.theme-lcars .widget-header .spot-count {
+  color: #000;
 }
 
 .theme-lcars .widget-body {
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
 
-/* Header bar — LCARS elbow/bar feel */
+/* Header — LCARS structural frame: left elbow + thin bars
+   Technique from joernweissenborn/lcars: colored rectangle + black ::after
+   cutout with border-radius creates the characteristic inner curve. */
 .theme-lcars header {
-  border-bottom-width: 3px;
+  background: #000;
+  padding: 0;
+  gap: 3px;                      /* 3px black notch between segments */
+  border-bottom: none;
+  align-items: stretch;
   letter-spacing: 1px;
+  color: var(--accent);
+  position: relative;
+}
+
+/* Left elbow — colored vertical arm with inner curve cutout.
+   The top 18px is the horizontal arm (matches bar height in center/right).
+   Below that, a black ::after creates the inner curve. */
+.theme-lcars .header-left {
+  background: var(--surface2);   /* #9999CC blue-bell */
+  border-radius: 0;             /* rectangular — cutout creates the curve */
+  padding: 8px 44px 8px 20px;   /* 44px right clears the 36px cutout */
+  position: relative;
+  min-width: 280px;             /* firm floor — container-type prevents auto-sizing from children */
+  max-width: 360px;
+  flex: 0 0 auto;               /* don't grow, don't shrink */
+  flex-direction: column;        /* stack info + buttons vertically */
+  align-items: flex-start;       /* left-align — keeps content away from right cutout */
+  gap: 4px;
+}
+
+/* Buttons row inside the column layout */
+.theme-lcars .header-left .op-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+}
+
+/* Black cutout — creates the LCARS inner curve */
+.theme-lcars .header-left::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 36px;
+  height: calc(100% - 18px);    /* 18px top = horizontal arm of elbow */
+  background: #000;
+  border-top-left-radius: 24px; /* characteristic LCARS inner curve */
+}
+
+/* Text on blue-bell background */
+.theme-lcars .header-left .op-call,
+.theme-lcars .header-left .op-call a {
+  color: var(--accent);          /* gold callsign — stands out on blue-bell */
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
+}
+.theme-lcars .header-left .op-name   { color: #000; }
+.theme-lcars .header-left .op-loc    { color: rgba(0, 0, 0, 0.6); white-space: nowrap; }
+
+.theme-lcars .header-left .op-btn {
+  background: var(--accent);     /* gold pills on blue-bell */
+  border-color: transparent;
+}
+
+/* Center — dark content area with thin bar at top */
+.theme-lcars .header-center {
+  background: #000;
+  border-bottom: none;
+  padding: 24px 20px 6px;       /* 24px top clears the 18px bar */
+  flex: 1;
+  position: relative;
+}
+
+/* Thin horizontal bar — visual continuation of elbow's horizontal arm */
+.theme-lcars .header-center::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 18px;
+  background: var(--accent);    /* gold bar */
+}
+
+/* Right — dark content area with thin bar + end cap */
+.theme-lcars .header-right {
+  background: #000;
+  border-radius: 0;
+  padding: 24px 16px 6px;       /* 24px top clears the 18px bar */
+  position: relative;
+  gap: 8px;
+  max-width: none;
+}
+
+/* Lilac bar segment */
+.theme-lcars .header-right::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 22px;                  /* room for end cap + gap */
+  height: 18px;
+  background: var(--surface3);  /* #CC99CC lilac */
+}
+
+/* End cap — rounded pill terminator */
+.theme-lcars .header-right::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 18px;
+  height: 18px;
+  background: var(--surface3);  /* lilac pill cap */
+  border-radius: 0 0 9px 9px;  /* rounded bottom = semicircle end cap */
+}
+
+/* Buttons on black — need visible colored backgrounds */
+.theme-lcars #refreshBtn,
+.theme-lcars #resetLayoutBtn,
+.theme-lcars #fullscreenBtn {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.theme-lcars .feedback-btn {
+  background: var(--surface2);
+  color: #000;
+}
+.theme-lcars .coffee-btn {
+  background: var(--accent);
+  color: #000;
+}
+
+/* Header buttons readable on colored backgrounds */
+.theme-lcars .op-btn,
+.theme-lcars #refreshBtn,
+.theme-lcars #resetLayoutBtn,
+.theme-lcars #fullscreenBtn {
+  color: #000;
+}
+
+/* Day/Night toggle, prop metric, map center buttons inside widget headers
+   base has background:none which shows dark body through — needs explicit bg */
+.theme-lcars .toggle-btn,
+.theme-lcars .prop-metric-btn,
+.theme-lcars .map-center-btn {
+  color: #000;
+  background: var(--surface2); /* blue-bell so black text is readable */
 }
 
 .theme-lcars .op-call a {
   letter-spacing: 2px;
 }
 
-/* Clock panels — more angular, monospace numbers */
+/* Clock panels — LCARS colored panels with gold framing */
 .theme-lcars .header-clock {
   border-radius: 0 0 16px 16px;
   letter-spacing: 1px;
+  background: var(--surface2); /* blue-bell panel */
+  border-color: var(--accent); /* gold frame */
+  border-width: 2px;
+}
+
+.theme-lcars .header-clock-label {
+  font-family: 'Arial Narrow', Arial, sans-serif;
+  color: #000;
+  letter-spacing: 2px;
 }
 
 .theme-lcars .header-clock-time {
   font-family: 'Courier New', monospace;
   letter-spacing: 2px;
+  color: #000;
+  text-shadow: none;
+}
+
+/* Override weather-themed backgrounds — LCARS keeps uniform blue-bell panels */
+.theme-lcars #headerClockLocal[class*="wx-"] {
+  background: var(--surface2);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+.theme-lcars #headerClockLocal[class*="wx-"] .header-clock-label,
+.theme-lcars #headerClockLocal[class*="wx-"] .header-clock-time,
+.theme-lcars #headerClockLocal[class*="wx-"] .header-clock-weather {
+  color: #000;
+  text-shadow: none;
 }
 
 /* Buttons — pill shaped */
@@ -3338,12 +3517,14 @@ header {
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
 
-/* Source tabs — rounded top */
+/* Source tabs — rounded top, surface2 bg so black text is readable */
 .theme-lcars .source-tab {
   border-radius: 10px 10px 0 0;
   text-transform: uppercase;
   letter-spacing: 2px;
   font-family: 'Arial Narrow', Arial, sans-serif;
+  color: #000;
+  background: var(--surface2);
 }
 
 .theme-lcars .source-tab.active {
@@ -3365,12 +3546,27 @@ header {
   color: #000;
 }
 
-/* Spot table */
+/* Filter hover — black text on surface2 bg for contrast */
+.theme-lcars .band-filters button:hover,
+.theme-lcars .mode-filters button:hover {
+  background: var(--surface2);
+  color: #000;
+}
+
+/* Spot table — gold headers for contrast (base uses surface2 bg + text-dim = ~1.2:1) */
 .theme-lcars #spotsTable th {
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: 'Arial Narrow', Arial, sans-serif;
   font-size: 0.7rem;
+  background: var(--accent);
+  color: #000;
+  border-bottom-color: #000;
+}
+
+.theme-lcars #spotsTable th.sortable:hover {
+  background: #FFDD88; /* lighter gold */
+  color: #000;
 }
 
 .theme-lcars #spotsTable td {
@@ -3378,11 +3574,33 @@ header {
   letter-spacing: 0.5px;
 }
 
-/* Solar indices */
+/* Row hover/selected — subtle tint instead of solid surface2 (text goes invisible) */
+.theme-lcars #spotsTable tbody tr:hover {
+  background: rgba(153, 153, 204, 0.15); /* subtle blue-bell tint */
+}
+
+.theme-lcars #spotsTable tbody tr.selected {
+  background: rgba(153, 153, 204, 0.25);
+}
+
+/* Solar indices — black text on surface2 cards for contrast */
 .theme-lcars .solar-card-label {
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars .solar-card .label { color: #000; }
+.theme-lcars .solar-card .value { color: #000; font-weight: 700; }
+
+/* Propagation summary — dark bg so labels/values stay readable */
+.theme-lcars .prop-summary {
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+}
+
+.theme-lcars .prop-summary-label {
+  color: var(--surface2); /* blue-bell labels on dark bg */
 }
 
 /* Propagation widget */
@@ -3414,6 +3632,13 @@ header {
   letter-spacing: 1px;
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
+
+.theme-lcars .reference-tab:hover {
+  background: #FFFF99; /* pale-canary */
+  color: #000;
+}
+
+.theme-lcars .reference-tab.active { color: #000; }
 
 /* Config/splash modal */
 .theme-lcars .splash-box {
@@ -3475,6 +3700,13 @@ header {
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
 
+.theme-lcars #savePresetBtn:hover,
+.theme-lcars #deletePresetBtn:hover,
+.theme-lcars #clearFiltersBtn:hover {
+  background: var(--surface2);
+  color: #000;
+}
+
 /* Widget help and config buttons */
 .theme-lcars .widget-help-btn {
   border-radius: 50%;
@@ -3485,26 +3717,109 @@ header {
   border-radius: 50%;
 }
 
-/* LCARS decorative bar under header — via pseudo-element */
+/* Thin bottom bar — completes the LCARS frame under the header */
 .theme-lcars header::after {
   content: '';
   position: absolute;
-  bottom: -3px;
+  bottom: 0;
   left: 0;
   right: 0;
-  height: 3px;
-  background: linear-gradient(90deg,
-    var(--border) 0%, var(--border) 15%,
-    transparent 15%, transparent 18%,
-    var(--accent) 18%, var(--accent) 55%,
-    transparent 55%, transparent 58%,
-    var(--text-dim) 58%, var(--text-dim) 100%);
+  height: 4px;
+  background: var(--surface2);  /* blue-bell bottom frame line */
 }
 
-/* Ensure header has relative positioning for the pseudo-element */
-.theme-lcars header {
-  position: relative;
+/* Scrollbar theming */
+.theme-lcars ::-webkit-scrollbar { width: 10px; }
+.theme-lcars ::-webkit-scrollbar-track { background: #000; }
+.theme-lcars ::-webkit-scrollbar-thumb { background: #444; border-radius: 5px; }
+.theme-lcars ::-webkit-scrollbar-thumb:hover { background: #666; }
+
+/* Button active state — hopbush pink flash (canonical LCARS click feedback) */
+.theme-lcars .op-btn:active,
+.theme-lcars .source-tab:active,
+.theme-lcars .toggle-btn:active,
+.theme-lcars .band-btn:active,
+.theme-lcars .mode-btn:active,
+.theme-lcars .prop-metric-btn:active,
+.theme-lcars .map-center-btn:active,
+.theme-lcars #refreshBtn:active,
+.theme-lcars #resetLayoutBtn:active,
+.theme-lcars #fullscreenBtn:active {
+  background: #CC6699 !important; /* hopbush — canonical LCARS click color */
 }
+
+/* Button hover — brighten to pale-canary */
+.theme-lcars .op-btn:hover,
+.theme-lcars .source-tab:hover,
+.theme-lcars #refreshBtn:hover,
+.theme-lcars #resetLayoutBtn:hover,
+.theme-lcars #fullscreenBtn:hover {
+  background: #FFFF99; /* pale-canary */
+  color: #000;
+}
+
+/* Toggle/metric/map-center hover — pale-canary for contrast on surface2 */
+.theme-lcars .toggle-btn:hover,
+.theme-lcars .prop-metric-btn:hover,
+.theme-lcars .map-center-btn:hover {
+  background: #FFFF99; /* pale-canary */
+  color: #000;
+}
+
+/* Active metric/reference buttons — black on gold for contrast */
+.theme-lcars .prop-metric-btn.active { color: #000; }
+
+/* Callsign — gold for LCARS feel */
+.theme-lcars .callsign { color: var(--accent); }
+
+/* Source tab black notch separator (LCARS "decorated bar" pattern) */
+.theme-lcars .source-tab + .source-tab {
+  border-left: 2px solid #000;
+}
+
+/* Active button distinct palette colors per group */
+.theme-lcars .band-btn.active {
+  background: #FF9933; /* neon-carrot */
+}
+
+.theme-lcars .mode-btn.active {
+  background: #CC99CC; /* lilac */
+}
+
+/* Spot table row-scan animation — subtle LCARS data display effect */
+@keyframes lcars-rowscan {
+  0%   { filter: brightness(1.0); }
+  3%   { filter: brightness(1.4); }
+  10%  { filter: brightness(1.4); }
+  14%  { filter: brightness(1.0); }
+  100% { filter: brightness(1.0); }
+}
+
+.theme-lcars #spotsTable tbody tr {
+  animation: lcars-rowscan 10s infinite;
+}
+
+/* Stagger each row by 0.5s for cascading scan effect */
+.theme-lcars #spotsTable tbody tr:nth-child(1)  { animation-delay: 0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(2)  { animation-delay: 0.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(3)  { animation-delay: 1.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(4)  { animation-delay: 1.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(5)  { animation-delay: 2.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(6)  { animation-delay: 2.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(7)  { animation-delay: 3.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(8)  { animation-delay: 3.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(9)  { animation-delay: 4.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(10) { animation-delay: 4.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(11) { animation-delay: 5.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(12) { animation-delay: 5.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(13) { animation-delay: 6.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(14) { animation-delay: 6.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(15) { animation-delay: 7.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(16) { animation-delay: 7.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(17) { animation-delay: 8.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(18) { animation-delay: 8.5s; }
+.theme-lcars #spotsTable tbody tr:nth-child(19) { animation-delay: 9.0s; }
+.theme-lcars #spotsTable tbody tr:nth-child(20) { animation-delay: 9.5s; }
 
 /* ---- Theme: HamClock ---- */
 /* Monospace terminal feel, green-on-black, tighter spacing.
@@ -3743,5 +4058,57 @@ header {
   font-size: 0.65rem;
   color: var(--text-dim);
   margin-top: 2px;
+}
+
+/* ---- About Tab ---- */
+.about-content h3 {
+  margin: 0 0 4px 0;
+  font-size: 1.25rem;
+}
+
+.about-version {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.about-content h4 {
+  margin: 16px 0 8px 0;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+.about-content p {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.about-content a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.about-content a:hover {
+  text-decoration: underline;
+}
+
+.about-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.about-links li {
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.about-links a {
+  color: var(--text);
+}
+
+.about-links a:hover {
+  color: var(--accent);
 }
 

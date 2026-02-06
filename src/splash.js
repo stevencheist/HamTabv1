@@ -268,6 +268,7 @@ export function showSplash() {
   }
 
   $('splashVersion').textContent = __APP_VERSION__;
+  $('aboutVersion').textContent = __APP_VERSION__;
 
   // --- Layout section state ---
   const hasSaved = hasUserLayout();

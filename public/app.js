@@ -3751,16 +3751,26 @@
       vars: {
         "--bg": "#000000",
         "--surface": "#0a0a14",
-        "--surface2": "#9999ff",
-        "--surface3": "#cc99cc",
-        "--accent": "#ff9966",
-        "--text": "#ff9966",
-        "--text-dim": "#cc99cc",
-        "--green": "#66cc66",
-        "--yellow": "#ffcc00",
-        "--red": "#cc6666",
-        "--orange": "#ff9966",
-        "--border": "#9999ff",
+        "--surface2": "#9999CC",
+        // blue-bell (Drexler palette)
+        "--surface3": "#CC99CC",
+        // lilac
+        "--accent": "#FFCC66",
+        // golden-tanoi — signature LCARS gold
+        "--text": "#FF9966",
+        // orange-peel
+        "--text-dim": "#CCBBDD",
+        // light-lavender (brighter for contrast on dark bg)
+        "--green": "#99CCFF",
+        // anakiwa — LCARS uses blue for "go"
+        "--yellow": "#FFFF99",
+        // pale-canary
+        "--red": "#CC6666",
+        // chestnut-rose
+        "--orange": "#FF9933",
+        // neon-carrot
+        "--border": "#9999CC",
+        // blue-bell (matches surface2)
         "--bg-secondary": "#0a0a14",
         "--bg-tertiary": "#111122"
       }
@@ -5002,7 +5012,8 @@
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.21.5";
+    $("splashVersion").textContent = "0.22.5";
+    $("aboutVersion").textContent = "0.22.5";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

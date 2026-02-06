@@ -43,7 +43,7 @@ const THEMES = {
       '--surface3': '#CC99CC',     // lilac
       '--accent': '#FFCC66',       // golden-tanoi — signature LCARS gold
       '--text': '#FF9966',         // orange-peel
-      '--text-dim': '#CC99CC',     // lilac
+      '--text-dim': '#CCBBDD',     // light-lavender (brighter for contrast on dark bg)
       '--green': '#99CCFF',        // anakiwa — LCARS uses blue for "go"
       '--yellow': '#FFFF99',       // pale-canary
       '--red': '#CC6666',          // chestnut-rose

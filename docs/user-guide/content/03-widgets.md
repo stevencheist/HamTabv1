@@ -195,6 +195,36 @@ Click the gear icon to show/hide fields. Default fields: SFI, Sunspots, A-Index,
 
 ---
 
+## Space Wx Widget
+
+Historical graphs of key space weather indices. While the Solar widget shows current snapshot values, the Space Wx widget shows trends over the past 7 days (or 90 days for Solar Flux), helping you understand how conditions are changing.
+
+### Tabs
+
+Switch between five measurements using the tabs at the top of the widget:
+
+| Tab | What It Shows | Time Range |
+|-----|--------------|------------|
+| **Kp** | Geomagnetic activity (0–9 scale) | 7 days |
+| **X-Ray** | Solar flare intensity (log scale) | 7 days |
+| **SFI** | Solar Flux Index (overall solar activity) | 90 days |
+| **Wind** | Solar wind speed (km/s) | 7 days |
+| **Bz** | Interplanetary magnetic field direction (nT) | 7 days |
+
+### Reading the Graphs
+
+- **Kp**: Bar chart colored green (quiet), yellow (unsettled), red (storm). Values above 4 mean geomagnetic storms that can disrupt HF propagation.
+- **X-Ray**: Line chart on a logarithmic scale with A/B/C/M/X flare class boundaries marked. Higher classes mean stronger solar flares.
+- **SFI**: 90-day trend line. Values above 100 generally mean good HF conditions; above 150 is excellent.
+- **Wind**: Solar wind speed with color zones — green below 400 km/s (quiet), yellow 400–600 km/s, red above 600 km/s (disturbed).
+- **Bz**: Signed line chart showing the north-south component of the interplanetary magnetic field. Green (positive/northward) is good for radio; red (negative/southward) allows solar wind to disturb Earth's magnetosphere.
+
+### Data Source
+
+All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 15 minutes.
+
+---
+
 ## Band Conditions Widget
 
 Global propagation forecast showing conditions by band and region.

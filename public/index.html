@@ -198,6 +198,20 @@
           </div>
 
           <div class="splash-divider"></div>
+          <div class="splash-grid-mode-section" id="gridModeSection">
+            <span class="splash-loc-title">Layout Mode</span>
+            <div class="splash-layout-mode-toggle">
+              <label><input type="radio" name="layoutMode" value="float" id="layoutModeFloat"> Free Float</label>
+              <label><input type="radio" name="layoutMode" value="grid" id="layoutModeGrid"> Grid</label>
+            </div>
+            <div class="splash-grid-perm-section" id="gridPermSection" style="display:none;">
+              <label for="gridPermSelect">Grid Layout</label>
+              <select id="gridPermSelect"></select>
+              <div class="grid-perm-preview" id="gridPermPreview"></div>
+            </div>
+          </div>
+
+          <div class="splash-divider"></div>
           <div class="splash-layout-section">
             <span class="splash-loc-title">Layout</span>
             <div class="splash-layout-actions">

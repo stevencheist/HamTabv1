@@ -155,6 +155,11 @@ const state = {
   heatmapLayer: null,       // L.imageOverlay instance
   heatmapRenderTimer: null, // debounce timer for pan/zoom re-render
 
+  // Beacons / DXpeditions / Contests
+  beaconTimer: null,          // setInterval ID for 1-second beacon updates
+  lastDxpeditionData: null,   // cached /api/dxpeditions response
+  lastContestData: null,      // cached /api/contests response
+
   // Init flag
   appInitialized: false,
 

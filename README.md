@@ -22,9 +22,18 @@ A real-time amateur radio dashboard for [Parks on the Air (POTA)](https://pota.a
 - **Clock Styles** — Digital or analog clock face for both Local Time and UTC widgets
 - **License Privilege Filter** — For US callsigns, filter spots to only show frequencies and modes your license class allows
 - **Band Reference** — Built-in band plan reference popup showing frequency privileges by license class
-- **Widget Layout** — All panels are draggable and resizable with snap-to-edge, persisted across sessions
+- **VOACAP Propagation** — Real HF propagation predictions powered by dvoacap-python (Python 3.11+). 24-hour reliability matrix, REL heatmap and circle map overlays, configurable power/mode/takeoff angle/path. Falls back to a simplified server-side model when Python is not available.
+- **Space Weather History** — Canvas-drawn graphs for 90-day solar flux, 7-day K-index, 7-day X-ray, solar wind speed, and Bz/Bt history
+- **DE/DX Info** — Station info panels showing DE and DX details with sunrise/sunset countdowns
+- **Contests** — Upcoming and active contest calendar from WA7BNM with clickable cards
+- **DXpeditions** — Active and upcoming DXpedition tracker from NG3K
+- **NCDXF Beacons** — Real-time NCDXF/IARU beacon rotation schedule with color-coded map markers
+- **Themes** — Built-in theme engine with Default (dark), LCARS (Star Trek TNG), Terminal (retro green), and HamClock themes. CSS variable swapping with per-theme shape overrides.
+- **Grid Layout** — Optional CSS Grid + Flex layout mode with map locked center, 5 permutations, drag-and-drop widget swapping, flex handles for independent vertical sizing, and track handles for column widths
+- **Widget Layout** — All panels are draggable and resizable with snap-to-edge, persisted across sessions (float mode), or structured grid cells (grid mode)
 - **Auto-Update** — Server checks for git updates at a configurable interval and can apply them with one click
 - **Operator Identity** — Callsign prompt at startup with geolocation and Maidenhead grid square display
+- **Mobile-Friendly** — Responsive layout with stacked widgets, enlarged touch targets, and header reflow on phones/tablets
 
 ---
 
@@ -34,7 +43,7 @@ A real-time amateur radio dashboard for [Parks on the Air (POTA)](https://pota.a
 
 ### macOS
 
-**Prerequisites:** Node.js 18+ and Git.
+**Prerequisites:** Node.js 18+ and Git. Python 3.11+ optional for VOACAP propagation.
 
 ```bash
 # Install Node.js via Homebrew
@@ -47,6 +56,9 @@ nvm install 20
 
 # Git (if not already installed)
 xcode-select --install
+
+# Optional: Python for full VOACAP propagation (see VOACAP section below)
+brew install python@3.12
 ```
 
 **Install and run:**
@@ -69,6 +81,9 @@ Open **http://localhost:3000** in your browser.
 # Node.js via NodeSource
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs git
+
+# Optional: Python 3.11+ for full VOACAP propagation (see VOACAP section below)
+sudo apt-get install -y python3 python3-pip python3-numpy
 ```
 
 Or via nvm:
@@ -95,7 +110,7 @@ npm start
 ### Linux (Fedora / RHEL)
 
 ```bash
-sudo dnf install nodejs git
+sudo dnf install nodejs git python3 python3-pip python3-numpy  # python3 optional, for VOACAP
 git clone https://github.com/stevencheist/HamTabv1.git
 cd HamTabv1
 git checkout lanmode
@@ -122,7 +137,9 @@ The installer will prompt you to:
 2. **Weather Underground** — Choose whether to use WU for weather data, and enter your API key (or add it later via the Config screen in the browser)
 3. **Start on boot** — If yes, installs a systemd service that starts HamTab automatically and restarts on failure
 
-After install, the app runs from `/opt/hamtab`. Manage it with:
+After install, the app runs from `/opt/hamtab`. For full VOACAP propagation predictions, see [VOACAP Propagation Setup](#voacap-propagation-setup-optional) — this is optional but recommended.
+
+Manage with:
 
 ```bash
 sudo systemctl status hamtab      # check status
@@ -228,6 +245,130 @@ Open **http://localhost:3000** and you'll be prompted to configure your callsign
 
 ---
 
+## VOACAP Propagation Setup (Optional)
+
+HamTab includes a real HF propagation prediction engine powered by [dvoacap-python](https://github.com/skyelaird/dvoacap-python). When available, it provides accurate 24-hour band reliability predictions, REL heatmap overlays, and circle range overlays on the map. **Without Python, HamTab still works** — it falls back to a simplified server-side propagation model with less accuracy.
+
+### Prerequisites
+
+**Python 3.11 or higher** is required. dvoacap-python will not work with older Python versions.
+
+Check your Python version:
+
+```bash
+python3 --version
+```
+
+If you don't have Python 3.11+, install it:
+
+- **Ubuntu/Debian:**
+  ```bash
+  sudo apt update
+  sudo apt install python3 python3-pip python3-numpy
+  ```
+  On older Ubuntu releases (22.04 and earlier), the system Python may be too old. Use the deadsnakes PPA:
+  ```bash
+  sudo add-apt-repository ppa:deadsnakes/ppa
+  sudo apt update
+  sudo apt install python3.12 python3.12-venv python3.12-dev
+  ```
+
+- **Fedora/RHEL:**
+  ```bash
+  sudo dnf install python3 python3-pip python3-numpy
+  ```
+
+- **macOS:**
+  ```bash
+  brew install python@3.12
+  ```
+
+- **Windows:**
+  Download from [python.org](https://www.python.org/downloads/) (check "Add to PATH" during install)
+
+- **Raspberry Pi OS (Bookworm):**
+  ```bash
+  sudo apt install python3 python3-pip python3-numpy
+  ```
+  Bookworm ships Python 3.11 by default. Older Raspberry Pi OS (Bullseye) ships 3.9 — you'll need to build from source or use the simplified fallback model.
+
+### Install dvoacap-python
+
+```bash
+# Clone the dvoacap-python repository
+git clone https://github.com/skyelaird/dvoacap-python.git
+cd dvoacap-python
+
+# Install (core library only — HamTab doesn't need the dashboard)
+pip install -e .
+```
+
+> **Note:** If `pip install` warns about packages being installed to a user directory (e.g. `~/.local/lib/python3.12/site-packages`), that's normal. HamTab's VOACAP bridge automatically adds the user site-packages directory to `PYTHONPATH` based on the detected Python version.
+
+If you get a "pip not found" or "externally-managed-environment" error (common on newer Ubuntu/Debian):
+
+```bash
+# Option A: Use --user flag (recommended for lanmode)
+pip install --user -e .
+
+# Option B: Use --break-system-packages (if you know what you're doing)
+pip install --break-system-packages -e .
+
+# Option C: Use a venv (most isolated)
+python3 -m venv ~/hamtab-venv
+source ~/hamtab-venv/bin/activate
+pip install -e .
+```
+
+If using a venv (Option C), you'll need to ensure the venv's Python is in PATH when HamTab starts. The simplest way is to activate the venv before running `npm start`, or set the `PATH` in your `.env` file.
+
+### Verify Installation
+
+After installing dvoacap-python, restart HamTab and check the server logs:
+
+```bash
+npm start
+```
+
+You should see:
+
+```
+[VOACAP] dvoacap-python engine ready
+```
+
+If Python or dvoacap isn't found, you'll see:
+
+```
+[VOACAP] Python not found — using simplified propagation model
+```
+
+You can also check the VOACAP status endpoint:
+
+```bash
+curl http://localhost:3000/api/voacap/status
+```
+
+This returns a JSON object showing whether the engine is available, spawn attempts, and any errors.
+
+### Troubleshooting VOACAP
+
+- **"dvoacap-python not installed"** — The Python process started but couldn't import dvoacap. Make sure you ran `pip install -e .` in the dvoacap-python directory and that the install completed without errors.
+
+- **"Python not found"** — No Python 3.11+ executable was found. The bridge tries `python3.13`, `python3.12`, `python3.11`, `python3`, and `python` in order. Verify one of these is in your PATH with `which python3`.
+
+- **"Python not available after 5 minutes"** — Python was found but the worker didn't respond in time. This can happen if numpy is very slow to import (first run on Raspberry Pi). Try running `python3 -c "import numpy"` to pre-compile numpy, then restart HamTab.
+
+- **Import errors for numpy** — Install numpy separately: `pip install numpy` (or `sudo apt install python3-numpy` on Debian/Ubuntu).
+
+- **PYTHONPATH issues** — If you installed dvoacap with `pip install --user`, the packages go to `~/.local/lib/pythonX.Y/site-packages`. The bridge auto-detects this for versioned Python executables (e.g. `python3.12`). If you're using a generic `python3` that's actually 3.12, you may need to set `PYTHONPATH` manually in your `.env`:
+  ```
+  PYTHONPATH=/home/youruser/.local/lib/python3.12/site-packages
+  ```
+
+- **Simplified model is fine** — If you can't get Python working, HamTab's built-in simplified propagation model still provides reasonable band condition estimates. The main differences: dvoacap uses the full VOACAP ionospheric model with ITU coefficients, while the simplified model uses basic MUF geometry. Both respond to solar cycle (SSN) and time of day.
+
+---
+
 ## Configuration
 
 On first launch (or any time you click the **Config** button in the header), a configuration dialog appears with the following options.
@@ -255,6 +396,15 @@ Choose **12-hour** or **24-hour** display for both clock widgets.
 
 If both are provided, weather data comes from your chosen WU station. If left blank, weather data automatically falls back to the **National Weather Service** API using your lat/lon — no key required (US locations only).
 
+### Theme
+
+Choose from built-in themes: **Default** (dark), **LCARS** (Star Trek TNG-inspired), **Terminal** (retro green CRT), or **HamClock** (familiar to HamClock users). Themes swap CSS variables for colors, borders, and shapes.
+
+### Layout Mode
+
+- **Float** (default) — Free-floating widgets that you drag and resize anywhere
+- **Grid** — Structured CSS Grid layout with map locked in the center. Choose a permutation (2L-2R, 3L-3R, etc.) to set how many widget cells surround the map. Drag widgets between cells to swap positions. Use flex handles between widgets to resize vertically, and track handles on column borders to resize horizontally.
+
 ### Widgets
 
 Toggle each widget on or off:
@@ -263,7 +413,13 @@ Toggle each widget on or off:
 - On the Air
 - HamMap
 - Solar & Propagation
+- Space Weather History
 - Lunar / EME
+- VOACAP Propagation
+- DE/DX Info
+- Contests
+- DXpeditions
+- NCDXF Beacons
 
 ### Update Check Interval
 
@@ -626,21 +782,27 @@ sudo ufw allow 3443/tcp
 - **Weather not showing** — If you don't have a Weather Underground API key, weather falls back to the NWS API which only covers US locations. Verify your lat/lon is set in the config.
 - **NWS alerts not appearing** — The NWS alerts API only returns alerts for your exact lat/lon point. If there are no active alerts in your area, the badge is hidden.
 - **GPS not working** — Browser geolocation requires HTTPS. If accessing over plain HTTP, enter your coordinates manually or use the Grid Square field.
+- **VOACAP not working** — See the [VOACAP Propagation Setup](#voacap-propagation-setup-optional) section for installation and troubleshooting. Check the status endpoint: `curl http://localhost:3000/api/voacap/status`
 
 ## Project Structure
 
 ```
 HamTabv1/
-  server.js           Express server with API proxy endpoints
-  package.json        Node.js project config
-  start.sh            Restart wrapper for auto-update
-  .env                Environment variables (PORT, HTTPS_PORT, HOST)
-  certs/              Auto-generated TLS certificates (gitignored)
+  server.js             Express server with API proxy endpoints
+  voacap-bridge.js      Node.js ↔ Python bridge for VOACAP predictions
+  voacap-worker.py      Python worker process (dvoacap-python)
+  package.json          Node.js project config
+  esbuild.mjs           Client JS bundler config (ES modules → IIFE)
+  start.sh              Restart wrapper for auto-update
+  .env                  Environment variables (PORT, HTTPS_PORT, HOST)
+  certs/                Auto-generated TLS certificates (gitignored)
+  src/                  ES module source files (bundled into public/app.js)
   public/
-    index.html        Main HTML page
-    style.css         All styles (dark theme, widgets, map, tables)
-    app.js            Client-side application logic
-    vendor/           Leaflet and marker clustering libraries (bundled locally)
+    index.html          Main HTML page
+    style.css           All styles (dark theme, widgets, map, tables)
+    app.js              Bundled client application (built from src/)
+    vendor/             Leaflet and marker clustering libraries (bundled locally)
+  docs/user-guide/      User guide source files (Markdown → PDF)
 ```
 
 ## License

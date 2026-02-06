@@ -1,0 +1,8 @@
+# robots.txt for HamTab — https://hamtab.net
+# Free modern alternative to HamClock for amateur radio operators
+
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://hamtab.net/sitemap.xml

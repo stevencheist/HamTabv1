@@ -54,11 +54,11 @@ const THEMES = {
     },
   },
 
-  hamclock: {
-    id: 'hamclock',
-    name: 'HamClock',
-    description: 'Classic HamClock style',
-    bodyClass: 'theme-hamclock',
+  terminal: {
+    id: 'terminal',
+    name: 'Terminal',
+    description: 'Retro terminal style',
+    bodyClass: 'theme-terminal',
     vars: {
       '--bg': '#000000',
       '--surface': '#0a1a0a',
@@ -74,6 +74,29 @@ const THEMES = {
       '--border': '#1a4a2a',
       '--bg-secondary': '#0a1a0a',
       '--bg-tertiary': '#0d200d',
+    },
+  },
+
+  hamclock: {
+    id: 'hamclock',
+    name: 'HamClock',
+    description: 'Inspired by HamClock by WB0OEW',
+    bodyClass: 'theme-hamclock',
+    vars: {
+      '--bg': '#000000',
+      '--surface': '#0a0a14',
+      '--surface2': '#1a1a2e',
+      '--surface3': '#252540',
+      '--accent': '#00ffff',      // cyan — HamClock uses cyan for headings/labels
+      '--text': '#e0e0e0',        // white-ish — HamClock main text
+      '--text-dim': '#888899',
+      '--green': '#00ff00',       // bright green — active/positive values
+      '--yellow': '#ffff00',      // yellow — warnings, highlighted values
+      '--red': '#ff0000',         // red — alerts
+      '--orange': '#ff8800',
+      '--border': '#333355',
+      '--bg-secondary': '#0a0a14',
+      '--bg-tertiary': '#111122',
     },
   },
 };

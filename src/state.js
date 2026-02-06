@@ -162,6 +162,15 @@ const state = {
   // Init flag
   appInitialized: false,
 
+  // Sun/Moon sub-point positions
+  sunLat: null,         // sub-solar latitude (degrees) — declination
+  sunLon: null,         // sub-solar longitude (degrees)
+  moonLat: null,        // sub-lunar latitude (degrees) — declination
+  moonLon: null,        // sub-lunar longitude (degrees)
+  sunMarker: null,      // L.marker for sun position on map
+  moonMarker: null,     // L.marker for moon position on map
+  beaconMarkers: {},    // { freq: L.circleMarker } for active NCDXF beacon map markers
+
   // Day/night
   lastLocalDay: null,
   lastUtcDay: null,

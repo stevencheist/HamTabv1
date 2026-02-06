@@ -7,7 +7,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 
 // 18 beacons in transmission order (per NCDXF schedule)
-const BEACONS = [
+export const BEACONS = [
   { call: '4U1UN',  location: 'New York',     lat: 40.75,  lon: -73.97 },
   { call: 'VE8AT',  location: 'Inuvik',       lat: 68.32,  lon: -133.52 },
   { call: 'W6WX',   location: 'Mt. Umunhum',  lat: 37.16,  lon: -121.90 },
@@ -34,7 +34,7 @@ const CYCLE = 180; // seconds — full rotation period
 const SLOT  = 10;  // seconds — each beacon transmits per frequency
 
 // Calculate which beacon is active on each frequency right now
-function getActiveBeacons() {
+export function getActiveBeacons() {
   const now = new Date();
   const T = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
   const slot = Math.floor((T % CYCLE) / SLOT); // 0–17: which slot in the 3-min cycle

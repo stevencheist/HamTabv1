@@ -5423,7 +5423,8 @@
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, w, h);
     const tab = state_default.spacewxTab || "kp";
-    const data = state_default.spacewxData && state_default.spacewxData[tab];
+    const dataKey = tab === "bz" ? "mag" : tab;
+    const data = state_default.spacewxData && state_default.spacewxData[dataKey];
     if (!data || data.length === 0) {
       drawNoData(ctx, w, h);
       return;

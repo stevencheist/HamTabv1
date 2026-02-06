@@ -16,37 +16,77 @@ export class HamTab extends Container {
       const diag = { steps: [], timestamp: new Date().toISOString() };
       try {
         diag.steps.push('1. Inside Container class fetch()');
-        diag.steps.push(`2. ctx.container exists: ${!!this.ctx.container}`);
 
-        // Try to get container status
-        try {
-          const monitor = this.ctx.container.monitor();
-          diag.steps.push(`3. monitor() returned: ${JSON.stringify(monitor)}`);
-        } catch (e) {
-          diag.steps.push(`3. monitor() error: ${e.message}`);
-        }
+        // Enumerate ctx.container methods/properties
+        const ctxKeys = Object.getOwnPropertyNames(Object.getPrototypeOf(this.ctx.container));
+        diag.steps.push(`2. ctx.container methods: ${JSON.stringify(ctxKeys)}`);
 
-        // Try explicit start
-        diag.steps.push('4. Calling this.ctx.container.start()');
+        // List all own properties
+        const ownKeys = Object.keys(this.ctx.container);
+        diag.steps.push(`3. ctx.container ownKeys: ${JSON.stringify(ownKeys)}`);
+
+        // Try start with explicit options
+        diag.steps.push('4. Calling start()');
         this.ctx.container.start();
-        diag.steps.push('5. start() called (no error)');
+        diag.steps.push('5. start() returned');
 
-        // Wait a moment then check
-        await new Promise(r => setTimeout(r, 5000));
+        // Read monitor stream for events (with timeout)
+        diag.steps.push('6. Reading monitor() stream...');
+        const monitorStream = this.ctx.container.monitor();
+        const reader = monitorStream.getReader();
+        const events = [];
+        const readWithTimeout = async (ms) => {
+          const timeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('timeout')), ms)
+          );
+          try {
+            const result = await Promise.race([reader.read(), timeout]);
+            return result;
+          } catch {
+            return { done: true, value: undefined, timedOut: true };
+          }
+        };
 
-        // Try to get container status again
+        // Read up to 5 events with 10s total timeout
+        for (let i = 0; i < 5; i++) {
+          const chunk = await readWithTimeout(10000);
+          if (chunk.timedOut) {
+            events.push('(timed out waiting for event)');
+            break;
+          }
+          if (chunk.done) {
+            events.push('(stream ended)');
+            break;
+          }
+          // chunk.value could be a Uint8Array or string
+          const text = typeof chunk.value === 'string'
+            ? chunk.value
+            : new TextDecoder().decode(chunk.value);
+          events.push(text);
+        }
+        reader.releaseLock();
+        diag.steps.push(`7. Monitor events: ${JSON.stringify(events)}`);
+
+        // Try getTcpPort
         try {
-          const monitor = this.ctx.container.monitor();
-          diag.steps.push(`6. After start, monitor(): ${JSON.stringify(monitor)}`);
+          const tcpPort = this.ctx.container.getTcpPort(8080);
+          diag.steps.push(`8. getTcpPort(8080): ${JSON.stringify(tcpPort)}, type: ${typeof tcpPort}`);
+          if (tcpPort && tcpPort.fetch) {
+            const resp = await tcpPort.fetch('http://localhost/api/health');
+            diag.steps.push(`9. tcpPort.fetch: HTTP ${resp.status}`);
+          }
         } catch (e) {
-          diag.steps.push(`6. After start, monitor() error: ${e.message}`);
+          diag.steps.push(`8. getTcpPort error: ${e.message}`);
         }
 
-        // Try containerFetch
-        diag.steps.push('7. Calling this.containerFetch()');
-        const resp = await this.containerFetch(new Request('http://localhost:8080/api/health'));
-        const body = await resp.text();
-        diag.steps.push(`8. containerFetch responded: HTTP ${resp.status} — ${body}`);
+        // Try getIPAddress
+        try {
+          const ip = this.ctx.container.getIPAddress();
+          diag.steps.push(`10. getIPAddress(): ${ip}`);
+        } catch (e) {
+          diag.steps.push(`10. getIPAddress error: ${e.message}`);
+        }
+
         diag.ok = true;
       } catch (err) {
         diag.error = err.message;

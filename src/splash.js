@@ -9,7 +9,9 @@ import { renderSpots } from './spots.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
 import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
-import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors } from './themes.js';
+import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
+import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS } from './constants.js';
+import { activateGridMode, deactivateGridMode, saveGridAssignments, getGridPermutation } from './grid-layout.js';
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -270,6 +272,20 @@ export function showSplash() {
         applyTheme(t.id);
         themeSelector.querySelectorAll('.theme-swatch').forEach(s => s.classList.remove('active'));
         swatch.classList.add('active');
+
+        // Update grid section visibility based on new theme
+        const gridSec = document.getElementById('gridModeSection');
+        if (gridSec) {
+          const supports = currentThemeSupportsGrid();
+          gridSec.style.display = supports ? '' : 'none';
+          if (!supports) {
+            // Force float mode radio when switching to non-grid theme
+            const floatRadio = document.getElementById('layoutModeFloat');
+            if (floatRadio) floatRadio.checked = true;
+            const permSec = document.getElementById('gridPermSection');
+            if (permSec) permSec.style.display = 'none';
+          }
+        }
       });
 
       themeSelector.appendChild(swatch);
@@ -278,6 +294,39 @@ export function showSplash() {
 
   $('splashVersion').textContent = __APP_VERSION__;
   $('aboutVersion').textContent = __APP_VERSION__;
+
+  // --- Grid mode section ---
+  const gridSection = document.getElementById('gridModeSection');
+  const gridPermSection = document.getElementById('gridPermSection');
+  if (gridSection) {
+    // Hide grid section if current theme doesn't support it
+    gridSection.style.display = currentThemeSupportsGrid() ? '' : 'none';
+
+    // Set radio buttons from state
+    $('layoutModeFloat').checked = state.gridMode !== 'grid';
+    $('layoutModeGrid').checked = state.gridMode === 'grid';
+
+    // Populate permutation select
+    const permSelect = document.getElementById('gridPermSelect');
+    if (permSelect) {
+      permSelect.innerHTML = '';
+      GRID_PERMUTATIONS.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id;
+        opt.textContent = `${p.name} (${p.slots} slots)`;
+        permSelect.appendChild(opt);
+      });
+      permSelect.value = state.gridPermutation;
+    }
+
+    // Show/hide perm section based on mode
+    if (gridPermSection) {
+      gridPermSection.style.display = state.gridMode === 'grid' ? '' : 'none';
+    }
+
+    // Render preview
+    renderGridPreview(state.gridPermutation);
+  }
 
   // --- Layout section state ---
   const hasSaved = hasUserLayout();
@@ -368,6 +417,29 @@ function dismissSplash() {
     fetchLicenseClass(state.myCallsign);
   } catch (e) {
     console.warn('Error updating display after dismiss:', e);
+  }
+
+  // --- Grid mode changes ---
+  if (currentThemeSupportsGrid()) {
+    const newMode = $('layoutModeGrid') && $('layoutModeGrid').checked ? 'grid' : 'float';
+    const permSelect = document.getElementById('gridPermSelect');
+    const newPerm = permSelect ? permSelect.value : state.gridPermutation;
+
+    if (newMode === 'grid' && state.gridMode !== 'grid') {
+      state.gridPermutation = newPerm;
+      const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
+      state.gridAssignments = defaults ? { ...defaults } : {};
+      saveGridAssignments();
+      activateGridMode(newPerm);
+    } else if (newMode === 'grid' && newPerm !== state.gridPermutation) {
+      state.gridPermutation = newPerm;
+      const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
+      state.gridAssignments = defaults ? { ...defaults } : {};
+      saveGridAssignments();
+      activateGridMode(newPerm);
+    } else if (newMode === 'float' && state.gridMode === 'grid') {
+      deactivateGridMode();
+    }
   }
 }
 
@@ -527,6 +599,27 @@ export function initSplashListeners() {
     $('splashClearLayout').disabled = true;
   });
 
+  // --- Grid mode listeners ---
+  const layoutModeFloat = document.getElementById('layoutModeFloat');
+  const layoutModeGrid = document.getElementById('layoutModeGrid');
+  const gridPermSelect = document.getElementById('gridPermSelect');
+  const gridPermSection = document.getElementById('gridPermSection');
+
+  if (layoutModeFloat && layoutModeGrid) {
+    layoutModeFloat.addEventListener('change', () => {
+      if (gridPermSection) gridPermSection.style.display = 'none';
+    });
+    layoutModeGrid.addEventListener('change', () => {
+      if (gridPermSection) gridPermSection.style.display = '';
+      if (gridPermSelect) renderGridPreview(gridPermSelect.value);
+    });
+  }
+  if (gridPermSelect) {
+    gridPermSelect.addEventListener('change', () => {
+      renderGridPreview(gridPermSelect.value);
+    });
+  }
+
   $('editCallBtn').addEventListener('click', () => {
     showSplash();
   });
@@ -538,5 +631,32 @@ export function initSplashListeners() {
       $('opLoc').textContent = 'Locating...';
       fetchLocation();
     }
+  });
+}
+
+// Build a mini CSS Grid preview showing the permutation layout
+function renderGridPreview(permId) {
+  const container = document.getElementById('gridPermPreview');
+  if (!container) return;
+  const perm = getGridPermutation(permId);
+  container.innerHTML = '';
+  container.style.gridTemplateAreas = perm.areas;
+  container.style.gridTemplateColumns = perm.columns;
+  container.style.gridTemplateRows = perm.rows;
+
+  // Map cell
+  const mapCell = document.createElement('div');
+  mapCell.className = 'grid-preview-cell grid-preview-map';
+  mapCell.style.gridArea = 'map';
+  mapCell.textContent = 'MAP';
+  container.appendChild(mapCell);
+
+  // Widget cells
+  perm.cellNames.forEach(name => {
+    const cell = document.createElement('div');
+    cell.className = 'grid-preview-cell';
+    cell.style.gridArea = name;
+    cell.textContent = name;
+    container.appendChild(cell);
   });
 }

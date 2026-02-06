@@ -14,6 +14,32 @@ jobs:
       - run: npm ci
       - run: npm run build
 
+      # Pre-deploy validation — catch merge artifacts before they reach production
+      - name: Validate server.js syntax
+        run: node -c server.js
+
+      - name: Scan for duplicate declarations
+        run: |
+          echo "Checking for duplicate let/const/var declarations..."
+          DUPES=$(grep -oP '(?<=^(let|const|var) )\w+' server.js | sort | uniq -d)
+          if [ -n "$DUPES" ]; then
+            echo "DUPLICATE DECLARATIONS FOUND:"
+            echo "$DUPES"
+            exit 1
+          fi
+          echo "No duplicates found."
+
+      - name: Scan for duplicate section headers
+        run: |
+          echo "Checking for duplicate section headers..."
+          DUPES=$(grep -oP '// --- .+ ---' server.js | sort | uniq -d)
+          if [ -n "$DUPES" ]; then
+            echo "DUPLICATE SECTIONS FOUND:"
+            echo "$DUPES"
+            exit 1
+          fi
+          echo "No duplicate sections."
+
       # Disable preview URLs before deploy — Durable Objects are incompatible with them
       - name: Disable preview URLs
         run: |
@@ -28,21 +54,35 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           wranglerVersion: "4.63.0"
 
-      # Health check — verify hamtab.net responds after deploy
+      # Post-deploy health checks — verify both Worker and Container are running
       # Container needs time to boot (sleepAfter wakes it on first request)
       - name: Wait for container startup
         run: sleep 30
 
-      - name: Health check hamtab.net
+      - name: Worker health check
         run: |
           for i in 1 2 3 4 5 6; do
             STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://hamtab.net/healthz || true)
             if [ "$STATUS" = "200" ]; then
-              echo "Health check passed (attempt $i)"
+              echo "Worker health check passed (attempt $i)"
               exit 0
             fi
-            echo "Attempt $i: HTTP $STATUS — retrying in 15s..."
+            echo "Worker not ready (HTTP $STATUS), waiting 15s... (attempt $i/6)"
             sleep 15
           done
-          echo "Health check failed after 6 attempts"
+          echo "WORKER HEALTH CHECK FAILED"
+          exit 1
+
+      - name: Container health check
+        run: |
+          for i in 1 2 3 4 5 6; do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://hamtab.net/api/health || true)
+            if [ "$STATUS" = "200" ]; then
+              echo "Container health check passed (attempt $i)"
+              exit 0
+            fi
+            echo "Container not ready (HTTP $STATUS), waiting 15s... (attempt $i/6)"
+            sleep 15
+          done
+          echo "CONTAINER HEALTH CHECK FAILED — server.js may have crashed"
           exit 1

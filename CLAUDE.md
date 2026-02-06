@@ -262,7 +262,7 @@ main ──────────────────────── SH
 - Test changes by running `npm start` and verifying in browser
 - New functions, intervals, and state fields must include comments per the Commenting Style rules above (citations, magic numbers, purpose)
 - **Toggleable error handling** — All generated code should include error handling that can be enabled for debugging. Use a debug flag or verbose mode that's off by default but can be turned on to surface errors (e.g. `if (state.debug) console.error(...)`). The capability must exist even if disabled in production.
-- **Documentation required** — Every user-facing feature must include user guide updates and widget help text updates before the feature is considered complete. See the User Guide Documentation section below.
+- **Documentation required** — Every user-facing feature must include **README.md**, user guide, and widget help text updates before the feature is considered complete. A feature without updated docs is not done. See the User Guide Documentation and README.md Updates sections below.
 
 ## Versioning & Updates
 
@@ -497,7 +497,7 @@ When working on multiple related features or a feature set with more than one ta
 
 HamTab has a PDF user guide generated from Markdown files.
 
-**CRITICAL: Documentation is mandatory for every feature.** No feature is complete until the user guide is updated. Documentation updates must be included in the same commit (or commit series) as the feature code — never "come back to it later". If a feature is user-facing, it gets documented. No exceptions.
+**CRITICAL: Documentation is mandatory for every feature.** No feature is complete until **all three** are updated: (1) README.md features/widgets sections, (2) user guide content files, and (3) widget help text in `src/constants.js`. Documentation updates must be included in the same commit (or commit series) as the feature code — never "come back to it later". If a feature is user-facing, it gets documented. No exceptions.
 
 ### Location
 ```
@@ -528,7 +528,10 @@ Output: `public/HamTab-User-Guide.pdf`
 - Modify existing behavior users rely on → Update the relevant section
 
 **Documentation checklist (before committing a feature):**
-- [ ] Identified which doc file(s) need updating
+- [ ] Updated README.md Features section (new widget or feature)
+- [ ] Updated README.md Widgets config list (new toggleable widget)
+- [ ] Updated README.md Dependencies/APIs tables (new package or API)
+- [ ] Identified which user guide doc file(s) need updating
 - [ ] Described the feature in user-friendly language (no code jargon)
 - [ ] Included how to use it (step-by-step if needed)
 - [ ] Updated widget help text in `src/constants.js` if applicable

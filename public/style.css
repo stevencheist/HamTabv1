@@ -3314,14 +3314,95 @@ header {
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
 
-/* Header bar — LCARS elbow/bar feel */
+/* Header bar — LCARS cap-bar-cap layout */
 .theme-lcars header {
-  border-bottom-width: 3px;
+  background: #000;              /* pure black — shows through gap as notch separators */
+  padding: 0;                    /* caps handle their own padding */
+  gap: 3px;                      /* 3px black notch between segments */
+  border-bottom: none;           /* caps replace the bottom border */
+  align-items: stretch;          /* caps fill full height */
   letter-spacing: 1px;
   color: var(--accent);
+  position: relative;
 }
 
-/* Header buttons readable on dark header */
+/* Left cap — blue-bell with bottom-left elbow */
+.theme-lcars .header-left {
+  background: var(--surface2);   /* #9999CC blue-bell */
+  border-radius: 0 0 0 30px;    /* bottom-left elbow */
+  padding: 8px 16px 8px 24px;   /* extra left for elbow curve */
+  max-width: 400px;
+}
+
+.theme-lcars .header-left .op-call,
+.theme-lcars .header-left .op-call a { color: #000; }
+.theme-lcars .header-left .op-name   { color: #000; }
+.theme-lcars .header-left .op-loc    { color: rgba(0, 0, 0, 0.6); }
+
+.theme-lcars .header-left .op-btn {
+  background: var(--accent);     /* gold pills on blue-bell */
+  border-color: transparent;
+}
+
+/* Center bar — dark with blue-bell continuation line */
+.theme-lcars .header-center {
+  background: #000;
+  border-bottom: 3px solid var(--surface2); /* blue-bell line */
+  padding: 6px 20px;
+  flex: 1;
+}
+
+/* Right cap — lilac with bottom-right elbow */
+.theme-lcars .header-right {
+  background: var(--surface3);   /* #CC99CC lilac */
+  border-radius: 0 0 30px 0;    /* bottom-right elbow */
+  padding: 6px 24px 6px 12px;   /* extra right for elbow curve */
+  gap: 8px;
+  max-width: 600px;
+}
+
+.theme-lcars .header-right .last-updated,
+.theme-lcars .header-right .countdown,
+.theme-lcars .header-right .auto-refresh-toggle,
+.theme-lcars .header-right .platform-label,
+.theme-lcars .header-right .update-label {
+  color: #000;
+}
+
+.theme-lcars .header-right #refreshBtn,
+.theme-lcars .header-right #resetLayoutBtn,
+.theme-lcars .header-right #fullscreenBtn {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.theme-lcars .header-right .feedback-btn {
+  background: var(--surface2);   /* blue-bell on lilac */
+  color: #000;
+}
+.theme-lcars .header-right .coffee-btn {
+  background: var(--accent);
+  color: #000;
+}
+
+.theme-lcars .header-right .update-indicator {
+  background: rgba(0, 0, 0, 0.15);
+  border-color: rgba(0, 0, 0, 0.3);
+  color: #000;
+}
+.theme-lcars .header-right .update-dot {
+  box-shadow: 0 0 0 1px #000;   /* black outline for visibility on lilac */
+}
+.theme-lcars .header-right .restart-btn {
+  border-color: #000;
+  color: #000;
+}
+
+.theme-lcars .header-right .auto-refresh-toggle input[type="checkbox"] {
+  accent-color: #000;
+}
+
+/* Header buttons readable on caps */
 .theme-lcars .op-btn,
 .theme-lcars #refreshBtn,
 .theme-lcars #resetLayoutBtn,
@@ -3591,25 +3672,9 @@ header {
   border-radius: 50%;
 }
 
-/* LCARS decorative bar under header — via pseudo-element */
+/* Remove old decorative bar — replaced by cap-bar-cap structure */
 .theme-lcars header::after {
-  content: '';
-  position: absolute;
-  bottom: -3px;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg,
-    var(--border) 0%, var(--border) 15%,
-    transparent 15%, transparent 18%,
-    var(--accent) 18%, var(--accent) 55%,
-    transparent 55%, transparent 58%,
-    var(--text-dim) 58%, var(--text-dim) 100%);
-}
-
-/* Ensure header has relative positioning for the pseudo-element */
-.theme-lcars header {
-  position: relative;
+  display: none;
 }
 
 /* Scrollbar theming */

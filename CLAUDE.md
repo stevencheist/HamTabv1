@@ -175,13 +175,15 @@ main ──────────────────────── SH
   git checkout lanmode
   git pull origin lanmode
   git merge main -m "Merge main into lanmode"
+  # 4a. Post-merge validation (see below)
   git push origin lanmode
 
   # 5. Sync hostedmode (pull remote, merge main, push)
   git checkout hostedmode
   git pull origin hostedmode
   git merge main -m "Merge main into hostedmode"
-  # 5a. SEO review — if new features were added, run the SEO Update Checklist
+  # 5a. Post-merge validation (see below)
+  # 5b. SEO review — if new features were added, run the SEO Update Checklist
   #     (update sitemap.xml lastmod, JSON-LD featureList, noscript section, etc.)
   git push origin hostedmode
 
@@ -210,6 +212,13 @@ main ──────────────────────── SH
   - **splash.js:** DOM access uses null-safe pattern (`const el = $('id'); if (el) ...`). Keep the null-checks — they prevent crashes when elements differ between modes.
   - **public/app.js:** Build artifact — resolve by accepting either side, then rebuild on the branch if needed.
   - See BRANCH_STRATEGY.md for full conflict resolution protocol
+
+- **Post-merge validation (MANDATORY after every merge to deployment branches):**
+  After merging main into lanmode or hostedmode, run these checks BEFORE pushing:
+  1. **Syntax check:** `node -c server.js` — catches SyntaxErrors (duplicate declarations, missing brackets)
+  2. **Duplicate detection:** `grep -c 'let \|const \|function ' server.js` — compare count against main. Large increase = likely duplicated sections
+  3. **Section header scan:** `grep -n '^// ---' server.js` — look for duplicate section headers (e.g. two `// --- N2YO Satellite Tracking API ---`)
+  4. **If any check fails:** Fix the issue on the deployment branch before pushing. Do NOT push broken code — CI/CD will deploy it immediately to production
 
 ### Documentation Edits
 
@@ -564,3 +573,66 @@ When commenting on issues or asking questions of users:
 - **Ask clear, specific questions** — use numbered lists so users can answer point by point.
 - **Offer concrete examples** — when asking about preferences, give options rather than open-ended questions.
 - **Follow up on implemented features** — when work is done, comment asking the requester to try it and give feedback.
+
+## Root Cause Analysis Protocol
+
+**MANDATORY: After resolving any major issue (production outage, multi-hour debug session, data loss, or broken deployment), perform a root cause analysis before moving on.**
+
+### When to Trigger RCA
+
+- Production site down or returning errors
+- Bug that took more than 3 debugging iterations to identify
+- Merge or deployment that broke a branch
+- Any issue caused by process failure (wrong branch, missing validation, skipped step)
+
+### RCA Format
+
+Write the RCA to auto memory (`memory/rca/YYYY-MM-DD-short-title.md`) so it persists across sessions. Include:
+
+```markdown
+# RCA: <Short Title>
+**Date:** YYYY-MM-DD
+**Duration:** How long from discovery to fix
+**Severity:** Production outage / Broken deploy / Dev-only
+
+## What Happened
+One-paragraph summary of the observable problem.
+
+## Root Cause
+The actual underlying technical cause.
+
+## Why It Wasn't Caught
+What safeguards should have prevented this but didn't.
+
+## Fix Applied
+What was done to resolve the immediate issue.
+
+## Preventive Measures
+Specific changes to process, tooling, or code to prevent recurrence.
+Each measure should reference the file/section updated (e.g. "Added post-merge validation to CLAUDE.md § Branch Sync Protocol").
+
+## Lessons Learned
+Broader insights for future debugging or development.
+```
+
+### After Writing the RCA
+
+1. **Update CLAUDE.md** — Add any new rules, checklists, or validation steps identified in Preventive Measures
+2. **Update instructions.md** — If the lesson applies across all projects, add it to shared instructions
+3. **Update MEMORY.md** — Add a brief note linking to the RCA file
+4. **Commit the RCA and all updated files** in a single commit
+
+---
+
+## Past Incident Learnings
+
+Rules added from past RCAs. Each links to the original analysis.
+
+### Hostedmode Container Crash (2026-02-06)
+**Cause:** Merge from main duplicated the N2YO satellite section in server.js on hostedmode. Two `let satListCache` declarations caused a SyntaxError — Node.js crashed before `app.listen()`, so the container ran but nothing listened on port 8080.
+**Duration:** ~2 hours of systematic debugging (bare-bones HTTP test, startup-diag wrapper, progressive elimination).
+**Preventive measures added:**
+- Pre-commit branch check (CLAUDE.md § Pre-Commit Branch Check) — prevents accidental commits to wrong branch
+- Post-merge validation (CLAUDE.md § Branch Sync Protocol) — `node -c server.js` + duplicate section scan after every merge
+- RCA protocol (this section) — forces analysis after every major incident
+**See:** `memory/rca/2026-02-06-hostedmode-container-crash.md`

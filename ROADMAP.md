@@ -4,7 +4,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 **Mission:** Provide a modern, web-based amateur radio dashboard for the ~10,000+ HamClock users whose installations will stop functioning in June 2026, while serving the broader ham radio community.
 
-**Last updated:** 2026-02-05
+**Last updated:** 2026-02-06
 
 ---
 
@@ -204,24 +204,24 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 ---
 
-### 📅 Phase 5: Contests & DXpeditions (Jun-Jul 2026)
+### 🟡 Phase 5: Contests & DXpeditions (Jun-Jul 2026)
 **Goal:** Operating event tracking and planning
-**Timeline:** 4-6 weeks
+**Timeline:** 4-6 weeks — Core widgets delivered Feb 2026, advanced features pending
 
 #### P5.1: Contest Features 🔥
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| WA7BNM calendar integration | ❌ | HIGH | 🌐 | Server proxies contest calendar |
+| WA7BNM calendar integration | ✅ | HIGH | 🌐 | Server proxies WA7BNM RSS → `/api/contests`, card list widget |
 | Highlight contests in progress | ❌ | HIGH | 🌐 | Client-side real-time status |
 | Remove past contests | ❌ | MEDIUM | 🌐 | Client-side auto-cleanup |
 | Click to set alarm | ❌ | MEDIUM | 🌐 | Browser notifications |
-| Click to open contest page | ❌ | LOW | 🌐 | External link |
+| Click to open contest page | ✅ | LOW | 🌐 | Click card opens contest link in new tab |
 | Show dates on 2nd line | ❌ | LOW | 🌐 | UI preference |
 
 #### P5.2: DXpedition Tracking 🔥
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| NG3K integration | ❌ | HIGH | 🌐 | Server proxies NG3K data |
+| NG3K integration | ✅ | HIGH | 🌐 | Server proxies NG3K RSS → `/api/dxpeditions`, card list widget |
 | DXNews integration | ❌ | HIGH | 🌐 | Server proxies DXNews |
 | Map markers | ❌ | HIGH | 🌐 | Client-side rendering |
 | Hide individual DXpeds | ❌ | MEDIUM | 🌐 | localStorage preference |
@@ -230,14 +230,14 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P5.3: Beacons
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| NCDXF beacon display | ❌ | MEDIUM | 🌐 | 18 beacon locations (static data) |
-| Frequency rotation schedule | ❌ | MEDIUM | 🌐 | Client-side time calculations |
-| Map markers | ❌ | LOW | 🌐 | Client-side rendering |
+| NCDXF beacon display | ✅ | MEDIUM | 🌐 | 18 beacons with real-time rotation schedule widget |
+| Frequency rotation schedule | ✅ | MEDIUM | 🌐 | Client-side 3-min cycle across 5 HF frequencies |
+| Map markers | ✅ | LOW | 🌐 | Color-coded beacon markers on map with active frequency |
 
 **Phase 5 Deliverables:**
-- Contest calendar with real-time status
-- DXpedition tracker with map markers
-- NCDXF beacon display
+- ✅ Contest calendar widget (WA7BNM RSS)
+- 🟡 DXpedition tracker (NG3K RSS, map markers pending)
+- ✅ NCDXF beacon display with rotation schedule and map markers
 
 ---
 
@@ -267,8 +267,8 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
 | Cursor info table (hover) | 🟡 | MEDIUM | 🌐 | Location details on hover |
-| Sun sub-earth position | ❌ | MEDIUM | 🌐 | Client-side solar calculations |
-| Moon sub-earth position | ❌ | MEDIUM | 🌐 | Client-side lunar calculations |
+| Sun sub-earth position | ✅ | MEDIUM | 🌐 | Sun marker on map at sub-solar point |
+| Moon sub-earth position | ✅ | MEDIUM | 🌐 | Moon marker on map with phase tooltip |
 | City labels | ❌ | LOW | 🌐 | Static data or map tiles |
 | Symbol legend | ❌ | LOW | 🌐 | UI element |
 
@@ -373,17 +373,17 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 **Theme Phase 2: Grid Layout Engine + Layout Profiles**
 
-**Grid Layout Engine** — Replaces free-floating widget positioning with a structured CSS Grid layout. Map widget is permanently anchored in a large center rectangle. Surrounding grid cells (left column, right column, top row, bottom row) hold widgets. Multiple grid permutations available (e.g., 2L-2R, 3L-1R, 1T-2L-2R-1B, etc.). Widgets drag-and-drop between grid cells, swapping positions with the occupant. Grid layout is theme-agnostic and works with all themes **except HamClock theme**, which retains its own fixed layout. Config modal Display tab gets grid permutation selector alongside theme picker and widget visibility toggles.
+**Grid Layout Engine** (✅ Implemented) — CSS Grid + Flex Column hybrid architecture. Outer CSS Grid defines 3 columns (`left map right`) with optional `top`/`bottom` bar rows. Left and right columns are flex wrappers (`display: flex; flex-direction: column`) enabling independent vertical sizing — resizing a widget in the left column does not affect the right column. Flex handles (6px drag bars) between widgets in each column allow users to resize adjacent widgets by redistributing flex-grow ratios. Track handles on outer grid boundaries resize column widths. 5 permutations available (2L-2R, 3L-3R, 1T-2L-2R-1B, 1T-3L-3R-1B, 2T-3L-3R-2B). All sizes persist in localStorage. Grid mode is theme-gated via `supportsGrid` flag — HamClock theme retains its own fixed layout.
 
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| Grid layout engine (CSS Grid) | ❌ | CRITICAL | 🌐 | Map locked center, surrounding cells for widgets. Replaces free-float for grid mode. |
-| Grid permutation selector | ❌ | CRITICAL | 🌐 | Config modal Display tab — choose layout shape (e.g., 2L-2R, 3L-1R, 1T-2L-2R-1B) |
-| Widget grid drag-and-drop swap | ❌ | HIGH | 🌐 | Drag widget to occupied cell → widgets swap positions; drag to empty cell → widget moves |
-| HamClock theme exemption | ❌ | HIGH | 🌐 | HamClock theme keeps its own layout engine, grid system not applied |
+| Grid layout engine (CSS Grid + Flex) | ✅ | CRITICAL | 🌐 | Grid+Flex column hybrid: outer CSS Grid (left/map/right), flex wrappers for independent vertical sizing, flex handles for resizing |
+| Grid permutation selector | ✅ | CRITICAL | 🌐 | Config modal Display tab — 5 permutations (2L-2R, 3L-3R, 1T-2L-2R-1B, 1T-3L-3R-1B, 2T-3L-3R-2B) |
+| Widget grid drag-and-drop swap | ✅ | HIGH | 🌐 | Drag widget to occupied cell → swap; drag to placeholder → move. Cross-wrapper swaps supported. |
+| HamClock theme exemption | ✅ | HIGH | 🌐 | `supportsGrid` flag per theme; HamClock theme retains fixed layout |
 | Grid cell widget assignment UI | ❌ | HIGH | 🌐 | Config modal lets user assign which widget goes in which cell |
 | Responsive grid reflow | ❌ | HIGH | 🌐 | Grid adapts to viewport — collapses columns on narrow screens |
-| Empty cell handling | ❌ | MEDIUM | 🌐 | Empty grid cells collapse or show placeholder; map expands to fill if neighbors empty |
+| Empty cell handling | ✅ | MEDIUM | 🌐 | Empty cells show placeholder divs; drag-to-placeholder moves widget |
 | Named layout profiles | ❌ | HIGH | 🌐 | `hamtab_layouts` — JSON map of name → {grid permutation, cell assignments, visibility} |
 | POTA Hunter preset | ❌ | HIGH | 🌐 | Big spots table + map + filters, hide solar/lunar/satellites |
 | POTA Activator preset | ❌ | HIGH | 🌐 | Big map + live spots + band conditions, smaller spots table |
@@ -429,16 +429,18 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Time shift planning | ❌ | LOW | 🌐 | Client-side historical calculations |
 
 **Phase 8 Deliverables:**
-- Theme engine with CSS variable swapping and shape overrides
-- Built-in themes: Default, LCARS (TNG), HamClock
-- **Grid layout engine** — CSS Grid with map locked center, configurable surrounding cells
-- **Grid permutation selector** in config modal Display tab
-- **Widget drag-and-drop swap** between grid cells
+- ✅ Theme engine with CSS variable swapping and shape overrides
+- ✅ Built-in themes: Default, LCARS (TNG), Terminal, HamClock
+- ✅ **Grid layout engine** — CSS Grid + Flex Column hybrid with independent vertical sizing
+- ✅ **Grid permutation selector** in config modal Display tab (5 permutations)
+- ✅ **Widget drag-and-drop swap** between grid cells (including cross-wrapper)
+- ✅ **Flex handles** for independent row resizing within columns
+- ✅ **Track handles** for outer grid column width resizing
 - Named layout profiles with purpose-specific presets (POTA Hunter, POTA Activator, DX/Contest, EME)
 - Custom color picker with live preview
 - Configuration export/import (themes + layouts + settings)
-- Non-overlapping widget layout with auto-size and snap behavior
-- Proportional widget resizing on window resize
+- ✅ Non-overlapping widget layout with auto-size and snap behavior
+- ✅ Proportional widget resizing on window resize
 - Stopwatch and countdown timers
 
 ---
@@ -519,7 +521,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 
 | Category | Total | Implemented | Partial | Not Impl | Completion |
 |----------|-------|-------------|---------|----------|------------|
-| Map Features & Projections | 32 | 9 | 4 | 19 | 28% |
+| Map Features & Projections | 32 | 11 | 4 | 17 | 34% |
 | Spot Sources & Integration | 21 | 6 | 1 | 14 | 29% |
 | Filtering & Watch Lists | 14 | 9 | 0 | 5 | 64% |
 | Solar & Space Weather | 19 | 16 | 1 | 2 | 84% |
@@ -528,13 +530,13 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Satellite Tracking | 15 | 5 | 2 | 8 | 33% |
 | Weather Integration | 9 | 7 | 0 | 2 | 78% |
 | Time & Location | 21 | 10 | 1 | 10 | 48% |
-| UI/UX & Theming | 30 | 6 | 0 | 24 | 20% |
+| UI/UX & Theming | 30 | 11 | 0 | 19 | 37% |
 | Configuration & Persistence | 13 | 10 | 0 | 3 | 77% |
 | Hardware Integration | 9 | 0 | 0 | 9 | 0% |
 | Reference Materials | 7 | 3 | 0 | 4 | 43% |
 | Deployment & Installation | 11 | 8 | 0 | 3 | 73% |
 | Other Features | 3 | 1 | 1 | 1 | 33% |
-| **TOTAL** | **223** | **94** | **17** | **112** | **42%** |
+| **TOTAL** | **223** | **107** | **17** | **99** | **48%** |
 
 ### By Priority (High Demand 🔥 Features)
 
@@ -550,8 +552,8 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Watch list modes | P2 | 🟡 | HIGH |
 | ADIF integration | P2 | ❌ | HIGH |
 | hamlib/flrig | P4 | ❌ | HIGH |
-| Contest calendar | P5 | ❌ | HIGH |
-| DXpeditions tracker | P5 | ❌ | HIGH |
+| Contest calendar | P5 | ✅ | HIGH |
+| DXpeditions tracker | P5 | ✅ | HIGH |
 | Azimuthal projection | P6 | ❌ | HIGH |
 | Satellite sky plot | P7 | ❌ | HIGH |
 | Moon Az/El | P7 | ❌ | HIGH |
@@ -566,6 +568,14 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Configurable port | ✅ | P1 | HIGH |
 | [#90](https://github.com/stevencheist/HamTabv1/issues/90) | Uninstall script | ✅ | P1 | HIGH |
 | [#91](https://github.com/stevencheist/HamTabv1/issues/91) | VOACAP propagation + Live Spots | ✅ | P3/P9 | CRITICAL |
+| [#100](https://github.com/stevencheist/HamTabv1/issues/100) | install.sh not prompting for service | 🔴 Open | P1 | LOW |
+| [#101](https://github.com/stevencheist/HamTabv1/issues/101) | install.sh not prompting for service (Ubuntu 24.04) | 🔴 Open | P1 | MEDIUM |
+| [#102](https://github.com/stevencheist/HamTabv1/issues/102) | Widget snapping inconsistent | 🟢 Addressed | P8 | MEDIUM |
+| [#103](https://github.com/stevencheist/HamTabv1/issues/103) | Feedback rate limit too aggressive | 🔴 Open | P1 | LOW |
+| [#104](https://github.com/stevencheist/HamTabv1/issues/104) | Header bar too tall | 🔴 Open | P8 | LOW |
+| [#105](https://github.com/stevencheist/HamTabv1/issues/105) | /api redirect in hostedmode Worker | 🔴 Open | — | LOW |
+| [#106](https://github.com/stevencheist/HamTabv1/issues/106) | og-image.png for social previews | 🔴 Open | P10 | LOW |
+| [#107](https://github.com/stevencheist/HamTabv1/issues/107) | Favicon and app icons | 🔴 Open | P10 | MEDIUM |
 
 ---
 
@@ -577,7 +587,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Required for HamClock migration:**
 - ✅ Basic spot sources (POTA/SOTA/DXC/PSK)
 - ✅ Map with gray line and markers
-- ✅ Solar/lunar data
+- ✅ Solar/lunar data + sun/moon map markers
 - ✅ Satellite tracking
 - ✅ Weather integration
 - ✅ Filter system
@@ -585,6 +595,10 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 - ❌ UDP spot input (P4)
 - ✅ Space weather graphs (P1)
 - ✅ Mobile Phase 1 — usable on phones (P8.0a)
+- ✅ Theme engine — Default, LCARS, Terminal, HamClock themes (P8.1)
+- ✅ Grid layout engine — CSS Grid + Flex Column hybrid with 5 permutations (P8.1)
+- ✅ Contests, DXpeditions, NCDXF Beacons widgets (P5)
+- ✅ DE/DX Info widget with countdowns
 - ❌ Watch list modes (P2)
 
 ### September 2026: Feature Parity
@@ -975,7 +989,7 @@ HamTab supports two deployment modes with a shared codebase on `main` and mode-s
 
 ## Conclusion
 
-This roadmap provides a clear path from the current 43% feature completion to a comprehensive amateur radio dashboard by December 2026. The phased approach prioritizes:
+This roadmap provides a clear path from the current 48% feature completion to a comprehensive amateur radio dashboard by December 2026. The phased approach prioritizes:
 
 1. **User needs** (Phases 1-2) — Address active issues and common pain points
 2. **Core functionality** (Phases 3-5) — Propagation, hardware integration, events
@@ -991,9 +1005,13 @@ By June 2026, HamTab will provide a viable alternative for ~10,000 HamClock user
 3. ~~Add space weather history graphs (Phase 1.3)~~ ✅ Done — Kp/X-Ray/SFI/Wind/Bz canvas graphs
 4. ~~VOACAP integration (Phase 3.1)~~ ✅ Done — full dvoacap-python engine deployed
 5. ~~Mobile Phase 1 (Phase 8.0a)~~ ✅ Done — stacked layout, touch targets, responsive header
-6. Mobile Phase 2 (Phase 8.0a) — hamburger menu, collapsible widgets, fullscreen map
-7. Watch list modes (Phase 2.1) — Red/Only/Not filtering
-8. Real-time propagation enhancements (Phase 3.2) — K-index corrections, effective SSN from foF2
+6. ~~Theme engine + built-in presets (Phase 8.1)~~ ✅ Done — Default, LCARS, Terminal, HamClock themes
+7. ~~Grid layout engine (Phase 8.1)~~ ✅ Done — CSS Grid + Flex Column hybrid with independent vertical sizing
+8. ~~Contests, DXpeditions, Beacons widgets (Phase 5)~~ ✅ Done — core widgets, advanced features pending
+9. Mobile Phase 2 (Phase 8.0a) — hamburger menu, collapsible widgets, fullscreen map
+10. Watch list modes (Phase 2.1) — Red/Only/Not filtering
+11. Real-time propagation enhancements (Phase 3.2) — K-index corrections, effective SSN from foF2
+12. Layout profiles + presets (Phase 8.1) — named profiles, POTA Hunter/Activator presets
 
 ---
 

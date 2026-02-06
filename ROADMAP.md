@@ -336,10 +336,20 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Theme persistence | ✅ | HIGH | 🌐 | Active theme stored in `hamtab_theme` localStorage key |
 | Theme selector UI | ✅ | HIGH | 🌐 | New "Appearance" tab in config modal with visual theme swatches |
 
-**Theme Phase 2: Multi-Layout Profiles + Purpose Presets**
+**Theme Phase 2: Grid Layout Engine + Layout Profiles**
+
+**Grid Layout Engine** — Replaces free-floating widget positioning with a structured CSS Grid layout. Map widget is permanently anchored in a large center rectangle. Surrounding grid cells (left column, right column, top row, bottom row) hold widgets. Multiple grid permutations available (e.g., 2L-2R, 3L-1R, 1T-2L-2R-1B, etc.). Widgets drag-and-drop between grid cells, swapping positions with the occupant. Grid layout is theme-agnostic and works with all themes **except HamClock theme**, which retains its own fixed layout. Config modal Display tab gets grid permutation selector alongside theme picker and widget visibility toggles.
+
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| Named layout profiles | ❌ | HIGH | 🌐 | `hamtab_layouts` — JSON map of name → {positions, visibility} |
+| Grid layout engine (CSS Grid) | ❌ | CRITICAL | 🌐 | Map locked center, surrounding cells for widgets. Replaces free-float for grid mode. |
+| Grid permutation selector | ❌ | CRITICAL | 🌐 | Config modal Display tab — choose layout shape (e.g., 2L-2R, 3L-1R, 1T-2L-2R-1B) |
+| Widget grid drag-and-drop swap | ❌ | HIGH | 🌐 | Drag widget to occupied cell → widgets swap positions; drag to empty cell → widget moves |
+| HamClock theme exemption | ❌ | HIGH | 🌐 | HamClock theme keeps its own layout engine, grid system not applied |
+| Grid cell widget assignment UI | ❌ | HIGH | 🌐 | Config modal lets user assign which widget goes in which cell |
+| Responsive grid reflow | ❌ | HIGH | 🌐 | Grid adapts to viewport — collapses columns on narrow screens |
+| Empty cell handling | ❌ | MEDIUM | 🌐 | Empty grid cells collapse or show placeholder; map expands to fill if neighbors empty |
+| Named layout profiles | ❌ | HIGH | 🌐 | `hamtab_layouts` — JSON map of name → {grid permutation, cell assignments, visibility} |
 | POTA Hunter preset | ❌ | HIGH | 🌐 | Big spots table + map + filters, hide solar/lunar/satellites |
 | POTA Activator preset | ❌ | HIGH | 🌐 | Big map + live spots + band conditions, smaller spots table |
 | DX/Contest preset | ❌ | MEDIUM | 🌐 | Big spots table + DX detail + band conditions + VOACAP |
@@ -386,6 +396,9 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 **Phase 8 Deliverables:**
 - Theme engine with CSS variable swapping and shape overrides
 - Built-in themes: Default, LCARS (TNG), HamClock
+- **Grid layout engine** — CSS Grid with map locked center, configurable surrounding cells
+- **Grid permutation selector** in config modal Display tab
+- **Widget drag-and-drop swap** between grid cells
 - Named layout profiles with purpose-specific presets (POTA Hunter, POTA Activator, DX/Contest, EME)
 - Custom color picker with live preview
 - Configuration export/import (themes + layouts + settings)
@@ -480,13 +493,13 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Satellite Tracking | 15 | 5 | 2 | 8 | 33% |
 | Weather Integration | 9 | 7 | 0 | 2 | 78% |
 | Time & Location | 21 | 10 | 1 | 10 | 48% |
-| UI/UX & Theming | 23 | 6 | 0 | 17 | 26% |
+| UI/UX & Theming | 30 | 6 | 0 | 24 | 20% |
 | Configuration & Persistence | 13 | 10 | 0 | 3 | 77% |
 | Hardware Integration | 9 | 0 | 0 | 9 | 0% |
 | Reference Materials | 7 | 3 | 0 | 4 | 43% |
 | Deployment & Installation | 11 | 8 | 0 | 3 | 73% |
 | Other Features | 3 | 1 | 1 | 1 | 33% |
-| **TOTAL** | **216** | **94** | **17** | **105** | **44%** |
+| **TOTAL** | **223** | **94** | **17** | **112** | **42%** |
 
 ### By Priority (High Demand 🔥 Features)
 

@@ -115,6 +115,11 @@ const state = {
   // Widgets
   zCounter: 10, // next z-index to assign when a widget is focused (increments on each click)
 
+  // Grid layout mode
+  gridMode: localStorage.getItem('hamtab_grid_mode') || 'float', // 'float' or 'grid'
+  gridPermutation: localStorage.getItem('hamtab_grid_permutation') || '3L-3R', // active permutation ID
+  gridAssignments: null, // loaded at grid activation — maps cell names to widget IDs
+
   // Reference widget
   currentReferenceTab: 'rst', // active reference tab (rst, phonetic, etc.)
 

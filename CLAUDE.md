@@ -267,6 +267,41 @@ main ──────────────────────── SH
 - Rebuild (`npm run build`) after bumping to update the client bundle
 - **Version collision** — If pulling main brings in a version bump that matches yours (both devs independently bumped to same version), bump again after merge and rebuild. This is expected when multiple devs work in parallel.
 
+### Wiki Release Notes (mandatory on version bump)
+
+**Every version bump must include a corresponding entry in the [Release Notes wiki page](https://github.com/stevencheist/HamTabv1/wiki/Release-Notes).**
+
+The wiki is a separate git repo. To update:
+
+```bash
+# Clone wiki (or pull if already cloned)
+git clone git@github.com:stevencheist/HamTabv1.wiki.git /tmp/hamtab-wiki
+
+# Edit Release-Notes.md — add new version entry at the top (below the header)
+# Format:
+#   ## vX.Y.Z (YYYY-MM-DD)
+#   **Short Theme Title**
+#   - Bullet points describing features, fixes, and changes
+#   - Reference issue numbers where applicable ([#NNN](url))
+
+# Commit and push
+cd /tmp/hamtab-wiki
+git add Release-Notes.md
+git commit -m "Add vX.Y.Z release notes"
+git push
+
+# Clean up
+rm -rf /tmp/hamtab-wiki
+```
+
+**What to include in each entry:**
+- New features with brief description
+- Bug fixes with issue references
+- Breaking changes or behavior changes
+- Version bumps that are just collision fixes can share an entry with the feature they accompany
+
+**When to batch entries:** If multiple patch bumps happen in rapid succession for a single feature (e.g. v0.19.0 → v0.19.1 → v0.19.2 all for VOACAP), they can be individual entries or consolidated — use judgment. Minor/major bumps always get their own entry.
+
 **Lanmode updates:**
 - Auto-update: clicking the green update dot downloads the lanmode branch zip, extracts, copies files (preserving `.env`, `certs`, `node_modules`), runs `npm install --production` + `npm run build`, and restarts the server
 - Update detection compares local version against the latest GitHub Release tag (via `api.github.com`)

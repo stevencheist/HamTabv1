@@ -1,12 +1,12 @@
 // --- Deployment mode configuration ---
 // Detects deployment mode from environment and returns config.
 // Hostedmode: PORT=8080 (set by Cloudflare Container runtime)
-// Lanmode: PORT unset or 3001 (default)
+// Lanmode: PORT unset or 3000 (default)
 
 const HOSTEDMODE_PORT = 8080;
 
 function getConfig() {
-  const port = parseInt(process.env.PORT, 10) || 3001;
+  const port = parseInt(process.env.PORT, 10) || 3000;
   const isHostedmode = port === HOSTEDMODE_PORT;
 
   return {

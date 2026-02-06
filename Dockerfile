@@ -23,5 +23,7 @@ COPY --from=builder /app/voacap-bridge.js ./
 COPY --from=builder /app/voacap-worker.py ./
 COPY --from=builder /app/public ./public
 
+COPY --from=builder /app/startup-diag.js ./
+
 EXPOSE 8080
-CMD ["node", "server.js"]
+CMD ["node", "startup-diag.js"]

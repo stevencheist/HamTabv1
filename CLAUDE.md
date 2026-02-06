@@ -193,9 +193,12 @@ main ──────────────────────── SH
   - Code conflicts — review carefully, may indicate overlapping work
 
 - **If merge conflicts occur on deployment branches:**
-  - ⚠️ **STOP!** This indicates mode-specific code on `main`
-  - Review BRANCH_STRATEGY.md conflict resolution protocol
-  - Fix the issue, don't force the merge
+  - Most common in `server.js` imports and startup sections
+  - **server.js imports:** Main has `// --- Shared imports ---` and `// --- Lanmode-only imports ---` sections. On hostedmode, delete the entire lanmode-only block. On lanmode, keep both but check for `exec` (lanmode adds it for restart).
+  - **server.js startup:** Main has `// --- Lanmode-only: HTTPS ---` at the bottom. Hostedmode should keep only the HTTP listener. Lanmode keeps both.
+  - **splash.js:** DOM access uses null-safe pattern (`const el = $('id'); if (el) ...`). Keep the null-checks — they prevent crashes when elements differ between modes.
+  - **public/app.js:** Build artifact — resolve by accepting either side, then rebuild on the branch if needed.
+  - See BRANCH_STRATEGY.md for full conflict resolution protocol
 
 ### Documentation Edits
 

@@ -2,6 +2,7 @@
   "name": "hamtabv1",
   "main": "worker.js",
   "compatibility_date": "2026-01-16",
+  "compatibility_flags": ["nodejs_compat"],
   "account_id": "2d96977bf715fc9bc0432ed71154d550",
   "workers_dev": false,
   "preview_urls": false, // Required — preview URLs incompatible with Durable Objects

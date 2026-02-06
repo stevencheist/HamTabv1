@@ -3342,15 +3342,40 @@ header {
   letter-spacing: 2px;
 }
 
-/* Clock panels — more angular, monospace numbers */
+/* Clock panels — LCARS colored panels with gold framing */
 .theme-lcars .header-clock {
   border-radius: 0 0 16px 16px;
   letter-spacing: 1px;
+  background: var(--surface2); /* blue-bell panel */
+  border-color: var(--accent); /* gold frame */
+  border-width: 2px;
+}
+
+.theme-lcars .header-clock-label {
+  font-family: 'Arial Narrow', Arial, sans-serif;
+  color: #000;
+  letter-spacing: 2px;
 }
 
 .theme-lcars .header-clock-time {
   font-family: 'Courier New', monospace;
   letter-spacing: 2px;
+  color: #000;
+  text-shadow: none;
+}
+
+/* Override weather-themed backgrounds — LCARS keeps uniform blue-bell panels */
+.theme-lcars #headerClockLocal[class*="wx-"] {
+  background: var(--surface2);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+.theme-lcars #headerClockLocal[class*="wx-"] .header-clock-label,
+.theme-lcars #headerClockLocal[class*="wx-"] .header-clock-time,
+.theme-lcars #headerClockLocal[class*="wx-"] .header-clock-weather {
+  color: #000;
+  text-shadow: none;
 }
 
 /* Buttons — pill shaped */

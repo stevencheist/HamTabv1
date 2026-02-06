@@ -1,8 +1,7 @@
 require('dotenv').config();
 
-// --- Shared imports (all deployment modes) ---
+// --- Imports ---
 const express = require('express');
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
@@ -10,16 +9,18 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { XMLParser } = require('fast-xml-parser');
 const dns = require('dns');
+const cors = require('cors');
 const voacap = require('./voacap-bridge.js');
 const satellite = require('satellite.js');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
+const { getConfig } = require('./server-config.js');
+const { startListeners } = require('./server-startup.js');
 
 const app = express();
-const PORT = process.env.PORT || 8080;
-const HOST = process.env.HOST || '0.0.0.0';
+const config = getConfig();
 
-app.set('trust proxy', 1); // Cloudflare Worker proxy — enables real client IPs for rate limiting
+if (config.trustProxy) app.set('trust proxy', 1);
 
 // --- Security middleware ---
 
@@ -33,22 +34,33 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com"],
-      connectSrc: ["'self'"],
-      frameSrc: ["'none'"],
+app.use(helmet(config.helmetOptions));
+
+// CORS — lanmode only (restrict to same-origin, localhost, and RFC 1918 private ranges)
+// Hostedmode is same-origin behind Cloudflare — no CORS needed
+if (!config.isHostedmode) {
+  app.use(cors({
+    origin(origin, callback) {
+      // Allow requests with no Origin header (same-origin, curl, etc.)
+      if (!origin) return callback(null, true);
+
+      try {
+        const { hostname } = new URL(origin);
+        if (hostname === 'localhost' || isPrivateIP(hostname)) {
+          return callback(null, true);
+        }
+        callback(new Error('CORS not allowed'));
+      } catch {
+        callback(new Error('CORS not allowed'));
+      }
     },
-  },
-  strictTransportSecurity: { maxAge: 31536000 }, // 1 year
-}));
+  }));
+}
 
 // Health check — before rate limiter so probes aren't counted
-app.get('/api/health', (_req, res) => res.json({ ok: true }));
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, uptime: process.uptime() });
+});
 
 // Rate limiting — /api/ routes only, 60 requests per minute per IP
 const apiLimiter = rateLimit({
@@ -2679,7 +2691,7 @@ setInterval(() => {
   }
 }, 30 * 60 * 1000); // 30 minutes
 
-// --- Server startup (shared) ---
+// --- Server startup ---
 
 // Initialize VOACAP bridge (Python child process for real predictions)
 voacap.init();
@@ -2691,6 +2703,5 @@ process.on('exit', () => {
   try { fs.unlinkSync(path.join(__dirname, 'server.pid')); } catch {}
 });
 
-app.listen(PORT, HOST, () => {
-  console.log(`HTTP server running at http://${HOST}:${PORT}`);
-});
+// Start HTTP (always) and HTTPS (lanmode only)
+startListeners(app, config);

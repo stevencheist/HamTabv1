@@ -542,6 +542,16 @@ export const REFERENCE_TABS = {
 
 export const DEFAULT_REFERENCE_TAB = 'rst';
 
+// --- Responsive breakpoints ---
+export const BREAKPOINT_MOBILE = 768;
+export const BREAKPOINT_TABLET = 1024;
+export function getLayoutMode() {
+  const w = window.innerWidth;
+  if (w < BREAKPOINT_MOBILE) return 'mobile';
+  if (w < BREAKPOINT_TABLET) return 'tablet';
+  return 'desktop';
+}
+
 export const WIDGET_STORAGE_KEY = 'hamtab_widgets';
 export const USER_LAYOUT_KEY = 'hamtab_widgets_user';
 export const SNAP_DIST = 20; // px — edge-snap threshold for widget dragging

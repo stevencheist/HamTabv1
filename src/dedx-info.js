@@ -1,11 +1,11 @@
 // --- DE/DX Info Widget ---
 // Displays operator (DE) info and selected spot (DX) info side by side.
-// Shows callsign, grid, lat/lon, sunrise/sunset, bearing, distance.
+// Shows callsign, grid, lat/lon, sunrise/sunset countdowns, bearing, distance.
 // All data is client-side — no server fetch needed.
 
 import state from './state.js';
 import { $ } from './dom.js';
-import { latLonToGrid, getSunTimes, bearingTo, bearingToCardinal, distanceMi } from './geo.js';
+import { latLonToGrid, getSunTimes, bearingTo, bearingToCardinal, distanceMi, latLonToCardinal, utcOffsetFromLon } from './geo.js';
 import { esc } from './utils.js';
 import { freqToBand } from './filters.js';
 
@@ -34,29 +34,55 @@ export function renderDedxInfo() {
   renderDedxDx();
 }
 
+// --- Sun countdown formatter ---
+// Returns "R in H:MM" / "R H:MM ago" for sunrise, "S in H:MM" / "S H:MM ago" for sunset
+function fmtSunCountdown(target, now, prefix) {
+  if (!target) return null;
+  const diffMs = target.getTime() - now.getTime();
+  const absDiff = Math.abs(diffMs);
+  const h = Math.floor(absDiff / 3600000);
+  const m = Math.floor((absDiff % 3600000) / 60000);
+  const mm = String(m).padStart(2, '0');
+  if (diffMs > 0) {
+    return `${prefix} in ${h}:${mm}`;
+  }
+  return `${prefix} ${h}:${mm} ago`;
+}
+
 // --- DE (operator) panel ---
 function renderDedxDe() {
   const el = $('dedxDeContent');
   if (!el) return;
 
-  const call = state.myCallsign || '—';
+  const call = state.myCallsign || '\u2014';
   const lat = state.myLat;
   const lon = state.myLon;
 
-  let rows = `<div class="dedx-row"><span class="dedx-label-sm">Call</span><span class="dedx-value">${esc(call)}</span></div>`;
+  let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
 
   if (lat !== null && lon !== null) {
+    // Local time (browser local for DE)
+    const now = new Date();
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dayStr = days[now.getDay()];
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    rows += `<div class="dedx-row"><span class="dedx-label-sm">Time</span><span class="dedx-value">${dayStr} ${hh}:${mm}</span></div>`;
+
     const grid = latLonToGrid(lat, lon).substring(0, 6).toUpperCase();
     rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
-    rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${lat.toFixed(2)}, ${lon.toFixed(2)}</span></div>`;
 
-    const now = new Date();
+    const cardinal = latLonToCardinal(lat, lon);
+    rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
+
     const sun = getSunTimes(lat, lon, now);
-    if (sun.sunrise) {
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Rise</span><span class="dedx-value dedx-sunrise">${fmtSunTime(sun.sunrise)}</span></div>`;
+    const rise = fmtSunCountdown(sun.sunrise, now, 'R');
+    const set = fmtSunCountdown(sun.sunset, now, 'S');
+    if (rise) {
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunrise">${rise}</span></div>`;
     }
-    if (sun.sunset) {
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Set</span><span class="dedx-value dedx-sunset">${fmtSunTime(sun.sunset)}</span></div>`;
+    if (set) {
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunset">${set}</span></div>`;
     }
   } else {
     rows += `<div class="dedx-row dedx-empty">Set location in Config</div>`;
@@ -76,20 +102,22 @@ function renderDedxDx() {
   }
 
   const spot = selectedSpot;
-  const call = spot.callsign || spot.activator || '—';
+  const call = spot.callsign || spot.activator || '\u2014';
   const freq = spot.frequency || '';
   const mode = spot.mode || '';
   const band = freqToBand(freq) || '';
   const lat = parseFloat(spot.latitude);
   const lon = parseFloat(spot.longitude);
 
-  let rows = `<div class="dedx-row"><span class="dedx-label-sm">Call</span><span class="dedx-value">${esc(call)}</span></div>`;
+  let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
 
+  // Freq + band + mode on one line
   if (freq) {
-    const bandStr = band ? ` (${band})` : '';
-    rows += `<div class="dedx-row"><span class="dedx-label-sm">Freq</span><span class="dedx-value">${esc(freq)}${esc(bandStr)}</span></div>`;
-  }
-  if (mode) {
+    const parts = [freq];
+    if (band) parts.push(`(${band})`);
+    if (mode) parts.push(mode);
+    rows += `<div class="dedx-row"><span class="dedx-label-sm">Freq</span><span class="dedx-value">${esc(parts.join(' '))}</span></div>`;
+  } else if (mode) {
     rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode)}</span></div>`;
   }
 
@@ -97,33 +125,35 @@ function renderDedxDx() {
     const grid = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
     rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
 
-    // Bearing & distance from DE
+    const cardinal = latLonToCardinal(lat, lon);
+    rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
+
+    // Bearing & distance from DE — compact single line
     if (state.myLat !== null && state.myLon !== null) {
       const deg = bearingTo(state.myLat, state.myLon, lat, lon);
       const mi = distanceMi(state.myLat, state.myLon, lat, lon);
       const dist = state.distanceUnit === 'km' ? Math.round(mi * 1.60934) : Math.round(mi);
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Brg</span><span class="dedx-value">${Math.round(deg)}\u00B0 ${bearingToCardinal(deg)}</span></div>`;
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Dist</span><span class="dedx-value">${dist.toLocaleString()} ${state.distanceUnit}</span></div>`;
+      const card = bearingToCardinal(deg);
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">D/B</span><span class="dedx-value dedx-compact">${dist.toLocaleString()}${state.distanceUnit}@${Math.round(deg)}\u00B0${card}</span></div>`;
     }
 
-    // DX sunrise/sunset
+    // DX sunrise/sunset countdowns
     const now = new Date();
     const sun = getSunTimes(lat, lon, now);
-    if (sun.sunrise) {
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Rise</span><span class="dedx-value dedx-sunrise">${fmtSunTime(sun.sunrise)}</span></div>`;
+    const rise = fmtSunCountdown(sun.sunrise, now, 'R');
+    const set = fmtSunCountdown(sun.sunset, now, 'S');
+    if (rise) {
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunrise">${rise}</span></div>`;
     }
-    if (sun.sunset) {
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Set</span><span class="dedx-value dedx-sunset">${fmtSunTime(sun.sunset)}</span></div>`;
+    if (set) {
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunset">${set}</span></div>`;
     }
+
+    // UTC offset badge (approximate from longitude)
+    const offset = utcOffsetFromLon(lon);
+    const sign = offset >= 0 ? '+' : '';
+    rows += `<div class="dedx-row"><span class="dedx-label-sm">TZ</span><span class="dedx-value dedx-utc-badge">UTC${sign}${offset}</span></div>`;
   }
 
   el.innerHTML = rows;
-}
-
-// Format sun time as HH:MM UTC
-function fmtSunTime(date) {
-  if (!date) return '—';
-  const h = String(date.getUTCHours()).padStart(2, '0');
-  const m = String(date.getUTCMinutes()).padStart(2, '0');
-  return `${h}:${m}z`;
 }

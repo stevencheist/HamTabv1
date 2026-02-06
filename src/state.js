@@ -76,6 +76,7 @@ const state = {
 
   // Map
   map: null,
+  tileLayer: null, // L.tileLayer reference for dynamic tile swaps (e.g. HamClock political map)
   clusterGroup: null,
   grayLinePolygon: null,
   dayPolygon: null,

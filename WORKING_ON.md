@@ -26,6 +26,8 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Steven + Claude | DE/DX widget countdowns, theme DE/DX colors, HamClock theme polish, map tile swap | main | 2026-02-05 |
+| Francisco + Claude | HamClock source analysis (ESPHamClock v4.22) — feature gap analysis for widget improvements | main | 2026-02-05 |
 | Francisco + Claude | HamClock theme rename→Terminal, new HamClock theme, DE/DX widget, sun/moon/beacon markers | main | 2026-02-05 |
 | Francisco + Claude | Phase 5 — Contests, DXpeditions & NCDXF Beacons widgets | main | 2026-02-05 |
 | Francisco + Claude | Mobile Phase 1 — responsive layout, stacked widgets, touch targets, header reflow | main | 2026-02-05 |

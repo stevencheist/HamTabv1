@@ -124,6 +124,9 @@ setInterval(fetchVoacapMatrixThrottled, 60 * 1000);
 // Beacon map markers — refresh every 10s (same as beacon rotation)
 setInterval(updateBeaconMarkers, 10000);
 
+// DE/DX countdown refresh — update sunrise/sunset countdowns every 60s
+setInterval(renderDedxInfo, 60000);
+
 setInitApp(initApp);
 
 // Initialize widgets

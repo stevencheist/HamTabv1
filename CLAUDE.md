@@ -113,6 +113,17 @@ main ──────────────────────── SH
 
 ## Commit & Branch Conventions
 
+### Pre-Commit Branch Check
+
+**MANDATORY: Before EVERY `git commit`, run `git branch --show-current` and verify you are on the correct branch.**
+
+- If the commit is for shared code, you MUST be on `main`
+- If the commit is for hostedmode, you MUST be on `hostedmode`
+- If the commit is for lanmode, you MUST be on `lanmode`
+- **NEVER commit without checking first** — accidental commits to the wrong branch cause merge artifacts and wasted debugging time
+- If you are on the wrong branch: stash changes, switch to the correct branch, then unstash and commit
+- This check is non-negotiable. It applies to every single commit, no exceptions.
+
 ### Commit Messages
 - Imperative mood ("Add X", "Fix Y")
 - Match existing style from git log

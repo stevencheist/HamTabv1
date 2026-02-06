@@ -356,7 +356,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Bottom navigation bar | ❌ | MEDIUM | 🌐 | Fixed bottom bar with quick-access widget icons |
 | Mobile-optimized map controls | ❌ | MEDIUM | 🌐 | Larger zoom buttons, thumb-friendly position |
 | Smooth breakpoint transitions | ❌ | LOW | 🌐 | Detect desktop↔mobile crossing, re-init layout |
-| PWA manifest | ❌ | LOW | 🌐 | Installable on home screen with app icons |
+| PWA manifest | 🟡 | LOW | 🌐 | manifest.json created (hostedmode), needs favicon + app icons ([#107](https://github.com/stevencheist/HamTabv1/issues/107)) |
 
 #### P8.1: Theme Engine & Built-in Presets (Pulled Forward — Feb 2026) 📅
 **Implementation: 3 phases**
@@ -873,6 +873,17 @@ HamTab supports two deployment modes with a shared codebase on `main` and mode-s
 - ❌ API documentation (RESTful endpoints)
 - ❌ Architecture guide (system design)
 - ❌ Contributing guide (for community)
+
+### SEO & Discoverability (Hostedmode)
+- ✅ HTML meta tags (title, description, keywords, Open Graph, Twitter Cards)
+- ✅ JSON-LD structured data (SoftwareApplication schema)
+- ✅ `<noscript>` fallback content for crawlers
+- ✅ robots.txt and sitemap.xml (moved to hostedmode only)
+- ✅ manifest.json for PWA (hostedmode only)
+- ✅ package.json keywords for GitHub SEO
+- ✅ README.md optimized for GitHub search
+- ❌ og-image.png — social share preview ([#106](https://github.com/stevencheist/HamTabv1/issues/106))
+- ❌ Favicon and app icons ([#107](https://github.com/stevencheist/HamTabv1/issues/107))
 
 ### Migration Guides
 - ❌ HamClock to HamTab migration guide

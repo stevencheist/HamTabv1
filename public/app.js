@@ -478,6 +478,8 @@
   // src/constants.js
   var constants_exports = {};
   __export(constants_exports, {
+    BREAKPOINT_MOBILE: () => BREAKPOINT_MOBILE,
+    BREAKPOINT_TABLET: () => BREAKPOINT_TABLET,
     DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
     DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
     HEADER_H: () => HEADER_H,
@@ -491,9 +493,16 @@
     US_PRIVILEGES: () => US_PRIVILEGES,
     WIDGET_DEFS: () => WIDGET_DEFS,
     WIDGET_HELP: () => WIDGET_HELP,
-    WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY
+    WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY,
+    getLayoutMode: () => getLayoutMode
   });
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H;
+  function getLayoutMode() {
+    const w = window.innerWidth;
+    if (w < BREAKPOINT_MOBILE) return "mobile";
+    if (w < BREAKPOINT_TABLET) return "tablet";
+    return "desktop";
+  }
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -1048,6 +1057,8 @@
         }
       };
       DEFAULT_REFERENCE_TAB = "rst";
+      BREAKPOINT_MOBILE = 768;
+      BREAKPOINT_TABLET = 1024;
       WIDGET_STORAGE_KEY = "hamtab_widgets";
       USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
@@ -4304,6 +4315,10 @@
     });
   }
   function applyLayout(layout) {
+    if (getLayoutMode() !== "desktop") {
+      if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 200);
+      return;
+    }
     const defaults = getDefaultLayout();
     document.querySelectorAll(".widget").forEach((widget) => {
       const pos = layout[widget.id] || defaults[widget.id];
@@ -4336,6 +4351,7 @@
   var prevAreaW = 0;
   var prevAreaH = 0;
   function reflowWidgets() {
+    if (getLayoutMode() !== "desktop") return;
     const { width: aW, height: aH } = getWidgetArea();
     if (prevAreaW === 0 || prevAreaH === 0) {
       prevAreaW = aW;
@@ -4400,11 +4416,12 @@
     const area = getWidgetArea();
     prevAreaW = area.width;
     prevAreaH = area.height;
+    const isDesktop = getLayoutMode() === "desktop";
     document.querySelectorAll(".widget").forEach((widget) => {
       const header = widget.querySelector(".widget-header");
       const resizer = widget.querySelector(".widget-resize");
       if (header) {
-        setupDrag(widget, header);
+        if (isDesktop) setupDrag(widget, header);
         const closeBtn = document.createElement("button");
         closeBtn.className = "widget-close-btn";
         closeBtn.title = "Hide widget";
@@ -4417,8 +4434,8 @@
         });
         header.insertBefore(closeBtn, header.firstChild);
       }
-      if (resizer) setupResize(widget, resizer);
-      widget.addEventListener("mousedown", () => bringToFront(widget));
+      if (resizer && isDesktop) setupResize(widget, resizer);
+      if (isDesktop) widget.addEventListener("mousedown", () => bringToFront(widget));
     });
     const mapWidget = document.getElementById("widget-map");
     if (state_default.map && mapWidget && window.ResizeObserver) {
@@ -5027,8 +5044,8 @@
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.23.0";
-    $("aboutVersion").textContent = "0.23.0";
+    $("splashVersion").textContent = "0.24.0";
+    $("aboutVersion").textContent = "0.24.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

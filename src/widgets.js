@@ -1,5 +1,5 @@
 import state from './state.js';
-import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H } from './constants.js';
+import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, getLayoutMode } from './constants.js';
 import { centerMapOnUser, updateUserMarker } from './map-init.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
@@ -399,6 +399,11 @@ function setupResize(widget, handle) {
 }
 
 function applyLayout(layout) {
+  if (getLayoutMode() !== 'desktop') {
+    // On mobile/tablet, CSS handles layout — just ensure map resizes
+    if (state.map) setTimeout(() => state.map.invalidateSize(), 200);
+    return;
+  }
   // Build fallback positions for widgets missing from saved layout
   const defaults = getDefaultLayout();
   document.querySelectorAll('.widget').forEach(widget => {
@@ -436,6 +441,7 @@ let prevAreaW = 0;
 let prevAreaH = 0;
 
 function reflowWidgets() {
+  if (getLayoutMode() !== 'desktop') return; // CSS handles mobile/tablet layout
   const { width: aW, height: aH } = getWidgetArea();
   if (prevAreaW === 0 || prevAreaH === 0) {
     prevAreaW = aW;
@@ -521,11 +527,13 @@ export function initWidgets() {
   prevAreaW = area.width;
   prevAreaH = area.height;
 
+  const isDesktop = getLayoutMode() === 'desktop';
+
   document.querySelectorAll('.widget').forEach(widget => {
     const header = widget.querySelector('.widget-header');
     const resizer = widget.querySelector('.widget-resize');
     if (header) {
-      setupDrag(widget, header);
+      if (isDesktop) setupDrag(widget, header);
 
       // Inject close button (× at far right of header)
       const closeBtn = document.createElement('button');
@@ -540,8 +548,8 @@ export function initWidgets() {
       });
       header.insertBefore(closeBtn, header.firstChild);
     }
-    if (resizer) setupResize(widget, resizer);
-    widget.addEventListener('mousedown', () => bringToFront(widget));
+    if (resizer && isDesktop) setupResize(widget, resizer);
+    if (isDesktop) widget.addEventListener('mousedown', () => bringToFront(widget));
   });
 
   const mapWidget = document.getElementById('widget-map');

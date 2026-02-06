@@ -3314,26 +3314,45 @@ header {
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
 
-/* Header bar — LCARS cap-bar-cap layout */
+/* Header — LCARS structural frame: left elbow + thin bars
+   Technique from joernweissenborn/lcars: colored rectangle + black ::after
+   cutout with border-radius creates the characteristic inner curve. */
 .theme-lcars header {
-  background: #000;              /* pure black — shows through gap as notch separators */
-  padding: 0;                    /* caps handle their own padding */
+  background: #000;
+  padding: 0;
   gap: 3px;                      /* 3px black notch between segments */
-  border-bottom: none;           /* caps replace the bottom border */
-  align-items: stretch;          /* caps fill full height */
+  border-bottom: none;
+  align-items: stretch;
   letter-spacing: 1px;
   color: var(--accent);
   position: relative;
 }
 
-/* Left cap — blue-bell with bottom-left elbow */
+/* Left elbow — colored vertical arm with inner curve cutout.
+   The top 18px is the horizontal arm (matches bar height in center/right).
+   Below that, a black ::after creates the inner curve. */
 .theme-lcars .header-left {
   background: var(--surface2);   /* #9999CC blue-bell */
-  border-radius: 0 0 0 30px;    /* bottom-left elbow */
-  padding: 8px 16px 8px 24px;   /* extra left for elbow curve */
-  max-width: 400px;
+  border-radius: 0;             /* rectangular — cutout creates the curve */
+  padding: 8px 52px 8px 20px;   /* 52px right clears the 36px cutout */
+  position: relative;
+  min-width: 200px;
+  max-width: 260px;
 }
 
+/* Black cutout — creates the LCARS inner curve */
+.theme-lcars .header-left::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 36px;
+  height: calc(100% - 18px);    /* 18px top = horizontal arm of elbow */
+  background: #000;
+  border-top-left-radius: 24px; /* characteristic LCARS inner curve */
+}
+
+/* Text on blue-bell background */
 .theme-lcars .header-left .op-call,
 .theme-lcars .header-left .op-call a { color: #000; }
 .theme-lcars .header-left .op-name   { color: #000; }
@@ -3344,65 +3363,77 @@ header {
   border-color: transparent;
 }
 
-/* Center bar — dark with blue-bell continuation line */
+/* Center — dark content area with thin bar at top */
 .theme-lcars .header-center {
   background: #000;
-  border-bottom: 3px solid var(--surface2); /* blue-bell line */
-  padding: 6px 20px;
+  border-bottom: none;
+  padding: 24px 20px 6px;       /* 24px top clears the 18px bar */
   flex: 1;
+  position: relative;
 }
 
-/* Right cap — lilac with bottom-right elbow */
+/* Thin horizontal bar — visual continuation of elbow's horizontal arm */
+.theme-lcars .header-center::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 18px;
+  background: var(--accent);    /* gold bar */
+}
+
+/* Right — dark content area with thin bar + end cap */
 .theme-lcars .header-right {
-  background: var(--surface3);   /* #CC99CC lilac */
-  border-radius: 0 0 30px 0;    /* bottom-right elbow */
-  padding: 6px 24px 6px 12px;   /* extra right for elbow curve */
+  background: #000;
+  border-radius: 0;
+  padding: 24px 16px 6px;       /* 24px top clears the 18px bar */
+  position: relative;
   gap: 8px;
-  max-width: 600px;
+  max-width: none;
 }
 
-.theme-lcars .header-right .last-updated,
-.theme-lcars .header-right .countdown,
-.theme-lcars .header-right .auto-refresh-toggle,
-.theme-lcars .header-right .platform-label,
-.theme-lcars .header-right .update-label {
-  color: #000;
+/* Lilac bar segment */
+.theme-lcars .header-right::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 22px;                  /* room for end cap + gap */
+  height: 18px;
+  background: var(--surface3);  /* #CC99CC lilac */
 }
 
-.theme-lcars .header-right #refreshBtn,
-.theme-lcars .header-right #resetLayoutBtn,
-.theme-lcars .header-right #fullscreenBtn {
+/* End cap — rounded pill terminator */
+.theme-lcars .header-right::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 18px;
+  height: 18px;
+  background: var(--surface3);  /* lilac pill cap */
+  border-radius: 0 0 9px 9px;  /* rounded bottom = semicircle end cap */
+}
+
+/* Buttons on black — need visible colored backgrounds */
+.theme-lcars #refreshBtn,
+.theme-lcars #resetLayoutBtn,
+.theme-lcars #fullscreenBtn {
   background: var(--accent);
   border-color: transparent;
 }
 
-.theme-lcars .header-right .feedback-btn {
-  background: var(--surface2);   /* blue-bell on lilac */
+.theme-lcars .feedback-btn {
+  background: var(--surface2);
   color: #000;
 }
-.theme-lcars .header-right .coffee-btn {
+.theme-lcars .coffee-btn {
   background: var(--accent);
   color: #000;
 }
 
-.theme-lcars .header-right .update-indicator {
-  background: rgba(0, 0, 0, 0.15);
-  border-color: rgba(0, 0, 0, 0.3);
-  color: #000;
-}
-.theme-lcars .header-right .update-dot {
-  box-shadow: 0 0 0 1px #000;   /* black outline for visibility on lilac */
-}
-.theme-lcars .header-right .restart-btn {
-  border-color: #000;
-  color: #000;
-}
-
-.theme-lcars .header-right .auto-refresh-toggle input[type="checkbox"] {
-  accent-color: #000;
-}
-
-/* Header buttons readable on caps */
+/* Header buttons readable on colored backgrounds */
 .theme-lcars .op-btn,
 .theme-lcars #refreshBtn,
 .theme-lcars #resetLayoutBtn,
@@ -3672,9 +3703,15 @@ header {
   border-radius: 50%;
 }
 
-/* Remove old decorative bar — replaced by cap-bar-cap structure */
+/* Thin bottom bar — completes the LCARS frame under the header */
 .theme-lcars header::after {
-  display: none;
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--surface2);  /* blue-bell bottom frame line */
 }
 
 /* Scrollbar theming */

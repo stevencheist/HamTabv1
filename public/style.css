@@ -3339,6 +3339,16 @@ header {
   min-width: 280px;             /* firm floor — container-type prevents auto-sizing from children */
   max-width: 360px;
   flex: 0 0 auto;               /* don't grow, don't shrink */
+  flex-direction: column;        /* stack info + buttons vertically */
+  align-items: flex-start;       /* left-align — keeps content away from right cutout */
+  gap: 4px;
+}
+
+/* Buttons row inside the column layout */
+.theme-lcars .header-left .op-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
 }
 
 /* Black cutout — creates the LCARS inner curve */
@@ -3351,14 +3361,6 @@ header {
   height: calc(100% - 18px);    /* 18px top = horizontal arm of elbow */
   background: #000;
   border-top-left-radius: 24px; /* characteristic LCARS inner curve */
-  z-index: 0;
-}
-
-/* Content must stack above the ::after cutout */
-.theme-lcars .header-left .op-info,
-.theme-lcars .header-left .op-buttons {
-  position: relative;
-  z-index: 1;
 }
 
 /* Text on blue-bell background */

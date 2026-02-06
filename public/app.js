@@ -193,6 +193,13 @@
         // L.imageOverlay instance
         heatmapRenderTimer: null,
         // debounce timer for pan/zoom re-render
+        // Beacons / DXpeditions / Contests
+        beaconTimer: null,
+        // setInterval ID for 1-second beacon updates
+        lastDxpeditionData: null,
+        // cached /api/dxpeditions response
+        lastContestData: null,
+        // cached /api/contests response
         // Init flag
         appInitialized: false,
         // Day/night
@@ -519,7 +526,10 @@
         { id: "widget-lunar", name: "Lunar / EME" },
         { id: "widget-satellites", name: "Satellites" },
         { id: "widget-rst", name: "Reference" },
-        { id: "widget-spot-detail", name: "DX Detail" }
+        { id: "widget-spot-detail", name: "DX Detail" },
+        { id: "widget-contests", name: "Contests" },
+        { id: "widget-dxpeditions", name: "DXpeditions" },
+        { id: "widget-beacons", name: "NCDXF Beacons" }
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -922,6 +932,42 @@
             { heading: "Distance & Bearing", content: "Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config." },
             { heading: "Frequency & Mode", content: "The frequency and mode the station is operating on, so you know exactly where to tune your radio." },
             { heading: "Weather", content: "Shows current weather conditions at the station's location, if available." }
+          ]
+        },
+        "widget-contests": {
+          title: "Contests",
+          description: "A calendar of upcoming and active amateur radio contests. Contests are time-limited on-air competitions where operators try to make as many contacts as possible. They're a great way to fill your logbook and practice your operating skills.",
+          sections: [
+            { heading: "What Are Contests?", content: "Ham radio contests run for a set period (usually a weekend). Operators exchange brief messages and try to contact as many stations or regions as possible. Contests happen nearly every weekend \u2014 from casual events to major international competitions." },
+            { heading: "Reading the List", content: 'Each card shows the contest name, date/time window, and operating mode. Cards marked "NOW" are currently running. Click any card to view the full rules and exchange format on the contest website.' },
+            { heading: "Mode Badges", content: "CW = Morse code only. PHONE = voice modes (SSB/FM). DIGITAL = digital modes (RTTY, FT8, etc.). Contests without a badge accept mixed modes." }
+          ],
+          links: [
+            { label: "WA7BNM Contest Calendar", url: "https://www.contestcalendar.com/" }
+          ]
+        },
+        "widget-dxpeditions": {
+          title: "DXpeditions",
+          description: "Track upcoming and active DXpeditions \u2014 organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.",
+          sections: [
+            { heading: "What Is a DXpedition?", content: "A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade." },
+            { heading: "Reading the Cards", content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details.' },
+            { heading: "QSL Information", content: `QSL means "I confirm" \u2014 it's how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).` }
+          ],
+          links: [
+            { label: "NG3K DXpedition Calendar", url: "https://www.ng3k.com/Misc/adxo.html" }
+          ]
+        },
+        "widget-beacons": {
+          title: "NCDXF Beacons",
+          description: "Real-time display of the NCDXF/IARU International Beacon Project \u2014 a network of 18 synchronized beacons worldwide that transmit on 5 HF frequencies in a repeating 3-minute cycle. Listening for these beacons is the quickest way to check which bands are open to which parts of the world.",
+          sections: [
+            { heading: "How It Works", content: "Every 3 minutes, each of the 18 beacons transmits for 10 seconds on each of 5 frequencies (14.100, 18.110, 21.150, 24.930, and 28.200 MHz). Five beacons transmit simultaneously \u2014 one per frequency. The table shows which beacon is active on each frequency right now, with a countdown to the next rotation." },
+            { heading: "Checking Propagation", content: "Tune your radio to one of the beacon frequencies and listen. If you hear a beacon, the band is open to that beacon's location. Scan all five frequencies to quickly map which bands are open to which parts of the world." },
+            { heading: "Beacon Transmission", content: "Each beacon transmits its callsign in CW (Morse code) at 100 watts, followed by four 1-second dashes at decreasing power levels (100W, 10W, 1W, 0.1W). If you can copy the callsign but not the last dashes, you know the band is open but marginal to that location." }
+          ],
+          links: [
+            { label: "NCDXF Beacon Project", url: "https://www.ncdxf.org/beacon/" }
           ]
         },
         "widget-live-spots": {
@@ -4036,7 +4082,7 @@
     const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
     const rightX = parseInt(solarEl.style.left) || 0;
     const rightW = parseInt(solarEl.style.width) || 0;
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons"];
     const vis = state_default.widgetVisibility || {};
     const visible = rightBottomIds.filter((id) => vis[id] !== false);
     if (visible.length === 0) return;
@@ -4075,7 +4121,7 @@
       "widget-map": { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
       "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
     };
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons"];
     const vis = state_default.widgetVisibility || {};
     const visibleBottom = rightBottomIds.filter((id) => vis[id] !== false);
     const bottomSpace = H - rightHalf - pad * 2;
@@ -5044,8 +5090,8 @@
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.24.0";
-    $("aboutVersion").textContent = "0.24.0";
+    $("splashVersion").textContent = "0.25.0";
+    $("aboutVersion").textContent = "0.25.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -5764,6 +5810,149 @@
     }
   }
 
+  // src/dxpeditions.js
+  init_state();
+  init_dom();
+  function initDxpeditionListeners() {
+    const list = $("dxpedList");
+    if (!list) return;
+    list.addEventListener("click", (e) => {
+      const card = e.target.closest(".dxped-card");
+      if (!card) return;
+      const url = card.dataset.link;
+      if (url) window.open(url, "_blank", "noopener");
+    });
+  }
+  async function fetchDxpeditions() {
+    try {
+      const resp = await fetch("/api/dxpeditions");
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      state_default.lastDxpeditionData = await resp.json();
+      renderDxpeditions();
+    } catch (err) {
+      if (state_default.debug) console.error("Failed to fetch DXpeditions:", err);
+    }
+  }
+  function renderDxpeditions() {
+    const list = $("dxpedList");
+    const countEl = $("dxpeditionCount");
+    if (!list) return;
+    const data = state_default.lastDxpeditionData;
+    if (!Array.isArray(data) || data.length === 0) {
+      list.textContent = "";
+      const empty = document.createElement("div");
+      empty.className = "dxped-empty";
+      empty.textContent = "No DXpeditions found";
+      list.appendChild(empty);
+      if (countEl) countEl.textContent = "";
+      return;
+    }
+    if (countEl) countEl.textContent = data.length;
+    list.textContent = "";
+    for (const dx of data) {
+      const card = document.createElement("div");
+      card.className = "dxped-card";
+      if (dx.active) card.classList.add("dxped-active-card");
+      if (dx.link) card.dataset.link = dx.link;
+      const header = document.createElement("div");
+      header.className = "dxped-header";
+      const call = document.createElement("span");
+      call.className = "dxped-call";
+      call.textContent = dx.callsign || "??";
+      header.appendChild(call);
+      const entity = document.createElement("span");
+      entity.className = "dxped-entity";
+      entity.textContent = dx.entity || "";
+      header.appendChild(entity);
+      if (dx.active) {
+        const badge = document.createElement("span");
+        badge.className = "dxped-badge";
+        badge.textContent = "ACTIVE";
+        header.appendChild(badge);
+      }
+      card.appendChild(header);
+      const detail = document.createElement("div");
+      detail.className = "dxped-detail";
+      const parts = [];
+      if (dx.dateStr) parts.push(dx.dateStr);
+      if (dx.qsl) parts.push("QSL: " + dx.qsl);
+      detail.textContent = parts.join("  \xB7  ");
+      card.appendChild(detail);
+      list.appendChild(card);
+    }
+  }
+
+  // src/contests.js
+  init_state();
+  init_dom();
+  function initContestListeners() {
+    const list = $("contestList");
+    if (!list) return;
+    list.addEventListener("click", (e) => {
+      const card = e.target.closest(".contest-card");
+      if (!card) return;
+      const url = card.dataset.link;
+      if (url) window.open(url, "_blank", "noopener");
+    });
+  }
+  async function fetchContests() {
+    try {
+      const resp = await fetch("/api/contests");
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      state_default.lastContestData = await resp.json();
+      renderContests();
+    } catch (err) {
+      if (state_default.debug) console.error("Failed to fetch contests:", err);
+    }
+  }
+  function renderContests() {
+    const list = $("contestList");
+    const countEl = $("contestCount");
+    if (!list) return;
+    const data = state_default.lastContestData;
+    if (!Array.isArray(data) || data.length === 0) {
+      list.textContent = "";
+      const empty = document.createElement("div");
+      empty.className = "contest-empty";
+      empty.textContent = "No upcoming contests found";
+      list.appendChild(empty);
+      if (countEl) countEl.textContent = "";
+      return;
+    }
+    if (countEl) countEl.textContent = data.length;
+    list.textContent = "";
+    for (const c of data) {
+      const card = document.createElement("div");
+      card.className = "contest-card";
+      if (c.status === "active") card.classList.add("contest-active-card");
+      if (c.link) card.dataset.link = c.link;
+      const header = document.createElement("div");
+      header.className = "contest-header";
+      const name = document.createElement("span");
+      name.className = "contest-name";
+      name.textContent = c.name || "??";
+      header.appendChild(name);
+      if (c.mode && c.mode !== "mixed") {
+        const modeBadge = document.createElement("span");
+        modeBadge.className = "contest-mode contest-mode-" + c.mode;
+        modeBadge.textContent = c.mode.toUpperCase();
+        header.appendChild(modeBadge);
+      }
+      if (c.status === "active") {
+        const badge = document.createElement("span");
+        badge.className = "contest-now-badge";
+        badge.textContent = "NOW";
+        header.appendChild(badge);
+      }
+      card.appendChild(header);
+      const detail = document.createElement("div");
+      detail.className = "contest-detail";
+      detail.textContent = c.dateStr || "";
+      card.appendChild(detail);
+      list.appendChild(card);
+    }
+  }
+
   // src/refresh.js
   async function fetchSourceData(source) {
     const def = SOURCE_DEFS[source];
@@ -5805,6 +5994,8 @@
     fetchPropagation();
     fetchVoacapMatrixThrottled();
     fetchSpaceWxData();
+    fetchDxpeditions();
+    fetchContests();
     resetCountdown();
   }
   function resetCountdown() {
@@ -6956,6 +7147,87 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   // src/main.js
   init_voacap();
   init_rel_heatmap();
+
+  // src/beacons.js
+  init_state();
+  init_dom();
+  var BEACONS = [
+    { call: "4U1UN", location: "New York", lat: 40.75, lon: -73.97 },
+    { call: "VE8AT", location: "Inuvik", lat: 68.32, lon: -133.52 },
+    { call: "W6WX", location: "Mt. Umunhum", lat: 37.16, lon: -121.9 },
+    { call: "KH6RS", location: "Maui", lat: 20.75, lon: -156.43 },
+    { call: "ZL6B", location: "Masterton", lat: -41.06, lon: 175.58 },
+    { call: "VK6RBP", location: "Rolystone", lat: -32.11, lon: 116.05 },
+    { call: "JA2IGY", location: "Mt. Asama", lat: 34.46, lon: 136.78 },
+    { call: "RR9O", location: "Novosibirsk", lat: 54.98, lon: 82.9 },
+    { call: "VR2B", location: "Hong Kong", lat: 22.28, lon: 114.17 },
+    { call: "4S7B", location: "Colombo", lat: 6.88, lon: 79.87 },
+    { call: "ZS6DN", location: "Pretoria", lat: -25.73, lon: 28.18 },
+    { call: "5Z4B", location: "Kikuyu", lat: -1.25, lon: 36.67 },
+    { call: "4X6TU", location: "Tel Aviv", lat: 32.08, lon: 34.78 },
+    { call: "OH2B", location: "Lohja", lat: 60.25, lon: 24.03 },
+    { call: "CS3B", location: "Madeira", lat: 32.65, lon: -16.9 },
+    { call: "LU4AA", location: "Buenos Aires", lat: -34.62, lon: -58.44 },
+    { call: "OA4B", location: "Lima", lat: -12.08, lon: -76.98 },
+    { call: "YV5B", location: "Caracas", lat: 10.5, lon: -66.92 }
+  ];
+  var FREQUENCIES = [14100, 18110, 21150, 24930, 28200];
+  var CYCLE = 180;
+  var SLOT = 10;
+  function getActiveBeacons() {
+    const now = /* @__PURE__ */ new Date();
+    const T = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
+    const slot = Math.floor(T % CYCLE / SLOT);
+    const elapsed = T % SLOT;
+    return FREQUENCIES.map((freq, f) => ({
+      freq,
+      beacon: BEACONS[(slot - f + 18) % 18],
+      // each freq is offset by one beacon in the rotation
+      secondsLeft: SLOT - elapsed
+    }));
+  }
+  function renderBeacons() {
+    const tbody = $("beaconTbody");
+    if (!tbody) return;
+    const active = getActiveBeacons();
+    if (tbody.children.length !== active.length) {
+      tbody.textContent = "";
+      for (const entry of active) {
+        const tr = document.createElement("tr");
+        const tdFreq = document.createElement("td");
+        tdFreq.textContent = (entry.freq / 1e3).toFixed(3);
+        tr.appendChild(tdFreq);
+        const tdCall = document.createElement("td");
+        tdCall.className = "beacon-call";
+        tdCall.textContent = entry.beacon.call;
+        tr.appendChild(tdCall);
+        const tdLoc = document.createElement("td");
+        tdLoc.className = "beacon-loc";
+        tdLoc.textContent = entry.beacon.location;
+        tr.appendChild(tdLoc);
+        const tdTime = document.createElement("td");
+        tdTime.className = "beacon-time";
+        tdTime.textContent = entry.secondsLeft + "s";
+        tr.appendChild(tdTime);
+        tbody.appendChild(tr);
+      }
+    } else {
+      for (let i = 0; i < active.length; i++) {
+        const cells = tbody.children[i].children;
+        cells[1].textContent = active[i].beacon.call;
+        cells[2].textContent = active[i].beacon.location;
+        cells[3].textContent = active[i].secondsLeft + "s";
+      }
+    }
+  }
+  function initBeaconListeners() {
+  }
+  function startBeaconTimer() {
+    renderBeacons();
+    state_default.beaconTimer = setInterval(renderBeacons, 1e3);
+  }
+
+  // src/main.js
   migrate();
   initTheme();
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
@@ -6991,6 +7263,9 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initVoacapListeners();
   initHeatmapListeners();
   initSpaceWxListeners();
+  initBeaconListeners();
+  initDxpeditionListeners();
+  initContestListeners();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;
@@ -7004,6 +7279,9 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     fetchLiveSpots();
     fetchVoacapMatrix();
     fetchSpaceWxData();
+    startBeaconTimer();
+    fetchDxpeditions();
+    fetchContests();
   }
   setInterval(fetchLiveSpots, 5 * 60 * 1e3);
   setInterval(renderVoacapMatrix, 60 * 1e3);

@@ -3313,6 +3313,116 @@ header {
   }
 }
 
+/* ---- NCDXF Beacons Widget ---- */
+
+.beacon-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.beacon-table th { text-align: left; color: var(--text-dim); font-weight: 600; padding: 2px 6px; border-bottom: 1px solid var(--border); }
+.beacon-table td { padding: 3px 6px; border-bottom: 1px solid var(--border); }
+.beacon-call { font-weight: 700; color: var(--green); }
+.beacon-loc { color: var(--text-dim); font-size: 0.7rem; }
+.beacon-time { color: var(--text-dim); font-size: 0.7rem; text-align: right; }
+
+/* ---- DXpeditions Widget ---- */
+
+#widget-dxpeditions .widget-body { padding: 6px; overflow-y: auto; }
+
+.dxped-list { display: flex; flex-direction: column; gap: 4px; }
+
+.dxped-empty { text-align: center; color: var(--text-dim); font-size: 0.8rem; padding: 12px; font-style: italic; }
+
+.dxped-card {
+  padding: 6px 8px;
+  background: var(--surface2);
+  border-radius: 4px;
+  border-left: 3px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dxped-card:hover { background: var(--bg); }
+
+.dxped-active-card { border-left-color: var(--green); }
+
+.dxped-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.dxped-call { font-weight: 700; font-size: 0.82rem; color: var(--text); }
+
+.dxped-entity { color: var(--text-dim); font-size: 0.75rem; }
+
+.dxped-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #000;
+  background: var(--green);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+.dxped-detail { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+
+/* ---- Contests Widget ---- */
+
+#widget-contests .widget-body { padding: 6px; overflow-y: auto; display: flex; flex-direction: column; }
+
+.contest-list { display: flex; flex-direction: column; gap: 4px; flex: 1; overflow-y: auto; }
+
+.contest-empty { text-align: center; color: var(--text-dim); font-size: 0.8rem; padding: 12px; font-style: italic; }
+
+.contest-card {
+  padding: 6px 8px;
+  background: var(--surface2);
+  border-radius: 4px;
+  border-left: 3px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.contest-card:hover { background: var(--bg); }
+
+.contest-active-card { border-left-color: var(--green); }
+
+.contest-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.contest-name { font-weight: 700; font-size: 0.78rem; color: var(--text); }
+
+.contest-mode {
+  font-size: 0.58rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.contest-mode-cw      { background: #ff9800; color: #000; }
+.contest-mode-phone   { background: #2196f3; color: #fff; }
+.contest-mode-digital { background: #9c27b0; color: #fff; }
+.contest-mode-mixed   { background: var(--text-dim); color: #000; }
+
+.contest-now-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #000;
+  background: var(--green);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+.contest-detail { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+
+.contest-attribution {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 4px 0 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.contest-attribution a { color: var(--accent); text-decoration: none; }
+.contest-attribution a:hover { text-decoration: underline; }
+
 /* ---- Theme: LCARS (Star Trek TNG) ---- */
 /* Shape, font, and layout overrides applied via body.theme-lcars class.
    Colors are handled by CSS variable swapping in themes.js. */
@@ -4414,5 +4524,11 @@ header {
     padding: 4px 6px;
     font-size: 0.65rem;
   }
+
+  /* --- New widgets: cap height on mobile --- */
+
+  #widget-beacons .widget-body,
+  #widget-contests .widget-body,
+  #widget-dxpeditions .widget-body { max-height: 250px; }
 }
 

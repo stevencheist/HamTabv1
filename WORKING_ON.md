@@ -26,6 +26,7 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Francisco + Claude | Space Weather History widget (P1.3) — Kp/X-Ray/SFI/Wind/Bz graphs | main | 2026-02-05 |
 | Francisco + Claude | LCARS theme readability — contrast overrides for surface2 backgrounds | main | 2026-02-05 |
 | Francisco + Claude | LCARS theme polish — canonical Drexler colors, animations, hover/active states | main | 2026-02-05 |
 | Francisco + Claude | Theme engine + built-in presets (P8.2 Phase 1) — Default, LCARS, HamClock themes | main | 2026-02-05 |

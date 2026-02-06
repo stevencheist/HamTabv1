@@ -555,6 +555,114 @@ app.get('/api/solar', async (req, res) => {
   }
 });
 
+// --- Space Weather History (NOAA SWPC) ---
+
+// Per-type in-memory cache, 15-minute TTL
+const spacewxCache = {}; // { type: { data, expires } }
+const SPACEWX_TTL = 15 * 60 * 1000; // 15 minutes
+
+const SPACEWX_URLS = {
+  kp:   'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json',
+  xray: 'https://services.swpc.noaa.gov/json/goes/primary/xrays-7-day.json',
+  sfi:  'https://services.swpc.noaa.gov/json/f107_cm_flux.json',
+  wind: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json',
+  mag:  'https://services.swpc.noaa.gov/products/solar-wind/mag-7-day.json',
+};
+
+// Downsample high-resolution data by bucket-averaging into ~targetPts points
+function downsampleSpacewx(arr, targetPts) {
+  if (arr.length <= targetPts) return arr;
+  const bucketSize = Math.ceil(arr.length / targetPts);
+  const result = [];
+  for (let i = 0; i < arr.length; i += bucketSize) {
+    const bucket = arr.slice(i, i + bucketSize);
+    const avgTime = bucket[Math.floor(bucket.length / 2)].time_tag;
+    // Average each numeric field in the bucket
+    const keys = Object.keys(bucket[0]).filter(k => k !== 'time_tag');
+    const avg = { time_tag: avgTime };
+    for (const k of keys) {
+      const vals = bucket.map(b => b[k]).filter(v => v !== null && !isNaN(v));
+      avg[k] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    }
+    result.push(avg);
+  }
+  return result;
+}
+
+// Normalize NOAA data into uniform { time_tag, value, [value2] } format
+function normalizeSpacewx(type, raw) {
+  switch (type) {
+    case 'kp': {
+      // First row is header: ["time_tag","Kp","Kp_fraction",...]
+      const rows = raw.slice(1);
+      return rows.map(r => ({
+        time_tag: r[0],
+        value: parseFloat(r[1]),
+      })).filter(r => !isNaN(r.value));
+    }
+    case 'xray': {
+      // Array of objects: { time_tag, flux }
+      const parsed = raw.map(r => ({
+        time_tag: r.time_tag,
+        value: parseFloat(r.flux),
+      })).filter(r => !isNaN(r.value) && r.value > 0);
+      return downsampleSpacewx(parsed, 500);
+    }
+    case 'sfi': {
+      // Array of objects: { time_tag, flux }
+      return raw.map(r => ({
+        time_tag: r.time_tag,
+        value: parseFloat(r.flux),
+      })).filter(r => !isNaN(r.value));
+    }
+    case 'wind': {
+      // First row is header: ["time_tag","density","speed","temperature"]
+      const rows = raw.slice(1);
+      const parsed = rows.map(r => ({
+        time_tag: r[0],
+        value: parseFloat(r[2]), // speed column
+      })).filter(r => !isNaN(r.value));
+      return downsampleSpacewx(parsed, 500);
+    }
+    case 'mag': {
+      // First row is header: ["time_tag","bx_gsm","by_gsm","bz_gsm","lon_gsm","lat_gsm","bt"]
+      const rows = raw.slice(1);
+      const parsed = rows.map(r => ({
+        time_tag: r[0],
+        value: parseFloat(r[3]),  // bz_gsm
+        value2: parseFloat(r[6]), // bt (total field magnitude)
+      })).filter(r => !isNaN(r.value));
+      return downsampleSpacewx(parsed, 500);
+    }
+    default:
+      return [];
+  }
+}
+
+app.get('/api/spacewx/history', async (req, res) => {
+  const type = req.query.type;
+  if (!type || !SPACEWX_URLS[type]) {
+    return res.status(400).json({ error: 'Invalid type. Use: kp, xray, sfi, wind, mag' });
+  }
+
+  try {
+    // Return cached data if fresh
+    const cached = spacewxCache[type];
+    if (cached && Date.now() < cached.expires) {
+      return res.json(cached.data);
+    }
+
+    const raw = await fetchJSON(SPACEWX_URLS[type]);
+    const data = normalizeSpacewx(type, raw);
+
+    spacewxCache[type] = { data, expires: Date.now() + SPACEWX_TTL };
+    res.json(data);
+  } catch (err) {
+    console.error(`Error fetching spacewx ${type}:`, err.message);
+    res.status(502).json({ error: `Failed to fetch space weather ${type} data` });
+  }
+});
+
 // --- N2YO Satellite Tracking API ---
 
 // Satellite list cache (category 18 = amateur radio)

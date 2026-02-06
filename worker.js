@@ -1,7 +1,7 @@
 // --- Cloudflare Worker entry point (hostedmode) ---
 // Routes /api/settings to Workers KV, everything else to the Container.
 
-import { Container } from '@cloudflare/containers';
+import { Container, getContainer } from '@cloudflare/containers';
 
 export class HamTab extends Container {
   defaultPort = 8080;
@@ -85,11 +85,9 @@ export default {
       }
 
       // --- Proxy everything else to the Container ---
-      const id = env.HAMTAB.idFromName('hamtab');
-      const instance = env.HAMTAB.get(id);
-
-      // Wait for container to be ready on port 8080
-      await instance.startAndWaitForPorts({ ports: [8080] });
+      // getContainer returns a named instance — Container base class
+      // handles lifecycle (auto-start, sleep, wake) via its fetch() method
+      const container = getContainer(env.HAMTAB, 'hamtab');
 
       // Clone headers and inject secrets for specific endpoints
       const headers = new Headers(request.headers);
@@ -99,12 +97,9 @@ export default {
         headers.set('X-GitHub-Token', env.GITHUB_FEEDBACK_TOKEN);
       }
 
-      // Proxy request to container
-      return instance.fetch(`http://container.internal${url.pathname}${url.search}`, {
-        method: request.method,
-        headers,
-        body: request.method !== 'GET' && request.method !== 'HEAD' ? request.body : undefined,
-      });
+      // Proxy request — Container.fetch() auto-starts and routes to defaultPort
+      const proxyRequest = new Request(request, { headers });
+      return await container.fetch(proxyRequest);
     } catch (err) {
       return new Response(JSON.stringify({ error: err.message, stack: err.stack }), {
         status: 500,

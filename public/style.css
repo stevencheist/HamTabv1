@@ -71,9 +71,11 @@ html, body {
 
 .config-tabs {
   display: flex;
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
   margin-bottom: 16px;
-  gap: 4px;
+  gap: 4px 8px;
+  justify-content: center;
 }
 
 .config-box .config-tab {
@@ -81,7 +83,7 @@ html, body {
   color: var(--text-dim);
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 6px 16px;
+  padding: 6px 12px;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
@@ -3362,13 +3364,14 @@ header {
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
 
-/* Source tabs — rounded top */
+/* Source tabs — rounded top, surface2 bg so black text is readable */
 .theme-lcars .source-tab {
   border-radius: 10px 10px 0 0;
   text-transform: uppercase;
   letter-spacing: 2px;
   font-family: 'Arial Narrow', Arial, sans-serif;
   color: #000;
+  background: var(--surface2);
 }
 
 .theme-lcars .source-tab.active {
@@ -3390,12 +3393,27 @@ header {
   color: #000;
 }
 
-/* Spot table */
+/* Filter hover — black text on surface2 bg for contrast */
+.theme-lcars .band-filters button:hover,
+.theme-lcars .mode-filters button:hover {
+  background: var(--surface2);
+  color: #000;
+}
+
+/* Spot table — gold headers for contrast (base uses surface2 bg + text-dim = ~1.2:1) */
 .theme-lcars #spotsTable th {
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: 'Arial Narrow', Arial, sans-serif;
   font-size: 0.7rem;
+  background: var(--accent);
+  color: #000;
+  border-bottom-color: #000;
+}
+
+.theme-lcars #spotsTable th.sortable:hover {
+  background: #FFDD88; /* lighter gold */
+  color: #000;
 }
 
 .theme-lcars #spotsTable td {
@@ -3403,11 +3421,33 @@ header {
   letter-spacing: 0.5px;
 }
 
-/* Solar indices */
+/* Row hover/selected — subtle tint instead of solid surface2 (text goes invisible) */
+.theme-lcars #spotsTable tbody tr:hover {
+  background: rgba(153, 153, 204, 0.15); /* subtle blue-bell tint */
+}
+
+.theme-lcars #spotsTable tbody tr.selected {
+  background: rgba(153, 153, 204, 0.25);
+}
+
+/* Solar indices — black text on surface2 cards for contrast */
 .theme-lcars .solar-card-label {
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars .solar-card .label { color: #000; }
+.theme-lcars .solar-card .value { color: #000; font-weight: 700; }
+
+/* Propagation summary — dark bg so labels/values stay readable */
+.theme-lcars .prop-summary {
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+}
+
+.theme-lcars .prop-summary-label {
+  color: var(--surface2); /* blue-bell labels on dark bg */
 }
 
 /* Propagation widget */
@@ -3439,6 +3479,13 @@ header {
   letter-spacing: 1px;
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
+
+.theme-lcars .reference-tab:hover {
+  background: #FFFF99; /* pale-canary */
+  color: #000;
+}
+
+.theme-lcars .reference-tab.active { color: #000; }
 
 /* Config/splash modal */
 .theme-lcars .splash-box {
@@ -3498,6 +3545,13 @@ header {
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars #savePresetBtn:hover,
+.theme-lcars #deletePresetBtn:hover,
+.theme-lcars #clearFiltersBtn:hover {
+  background: var(--surface2);
+  color: #000;
 }
 
 /* Widget help and config buttons */
@@ -3560,6 +3614,20 @@ header {
   background: #FFFF99; /* pale-canary */
   color: #000;
 }
+
+/* Toggle/metric/map-center hover — pale-canary for contrast on surface2 */
+.theme-lcars .toggle-btn:hover,
+.theme-lcars .prop-metric-btn:hover,
+.theme-lcars .map-center-btn:hover {
+  background: #FFFF99; /* pale-canary */
+  color: #000;
+}
+
+/* Active metric/reference buttons — black on gold for contrast */
+.theme-lcars .prop-metric-btn.active { color: #000; }
+
+/* Callsign — gold for LCARS feel */
+.theme-lcars .callsign { color: var(--accent); }
 
 /* Source tab black notch separator (LCARS "decorated bar" pattern) */
 .theme-lcars .source-tab + .source-tab {
@@ -3847,5 +3915,57 @@ header {
   font-size: 0.65rem;
   color: var(--text-dim);
   margin-top: 2px;
+}
+
+/* ---- About Tab ---- */
+.about-content h3 {
+  margin: 0 0 4px 0;
+  font-size: 1.25rem;
+}
+
+.about-version {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.about-content h4 {
+  margin: 16px 0 8px 0;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+.about-content p {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.about-content a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.about-content a:hover {
+  text-decoration: underline;
+}
+
+.about-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.about-links li {
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.about-links a {
+  color: var(--text);
+}
+
+.about-links a:hover {
+  color: var(--accent);
 }
 

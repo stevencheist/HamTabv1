@@ -3757,8 +3757,8 @@
         // golden-tanoi — signature LCARS gold
         "--text": "#FF9966",
         // orange-peel
-        "--text-dim": "#CC99CC",
-        // lilac
+        "--text-dim": "#CCBBDD",
+        // light-lavender (brighter for contrast on dark bg)
         "--green": "#99CCFF",
         // anakiwa — LCARS uses blue for "go"
         "--yellow": "#FFFF99",
@@ -5010,7 +5010,8 @@
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.22.3";
+    $("splashVersion").textContent = "0.22.5";
+    $("aboutVersion").textContent = "0.22.5";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";

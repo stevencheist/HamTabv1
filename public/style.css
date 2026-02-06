@@ -432,10 +432,11 @@ header {
   align-items: center;
   gap: 14px;
   flex: 1 1 auto;
-  min-width: 220px;
+  min-width: 0;
   max-width: 500px;
   container-type: inline-size;
   container-name: header-left;
+  overflow: hidden;
 }
 
 .op-info {
@@ -451,6 +452,9 @@ header {
   font-family: monospace;
   color: var(--accent);
   line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .op-call a {
@@ -476,6 +480,9 @@ header {
   color: var(--text);
   font-weight: 500;
   line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .op-name:empty {
@@ -487,12 +494,9 @@ header {
   font-size: clamp(1rem, 5cqw, 1.5rem);
   color: var(--text-dim);
   font-family: monospace;
-}
-
-.op-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .op-btn {
@@ -515,58 +519,19 @@ header {
 }
 
 .header-right {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 5px 8px;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  justify-items: center;
+  flex-shrink: 0;
 }
 
-.last-updated, .countdown {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-}
-
-.auto-refresh-toggle {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-#refreshBtn {
-  padding: 4px 12px;
-  font-size: 0.8rem;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-#refreshBtn:hover {
-  background: var(--accent);
-}
-
-#resetLayoutBtn {
-  padding: 4px 12px;
-  font-size: 0.8rem;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-#resetLayoutBtn:hover {
-  background: var(--accent);
-}
-
+/* Shared base for header-right buttons */
+#refreshBtn,
+#resetLayoutBtn,
 #fullscreenBtn {
-  padding: 4px 12px;
+  padding: 4px 10px;
   font-size: 0.8rem;
   border: 1px solid var(--border);
   background: var(--surface2);
@@ -574,8 +539,11 @@ header {
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s;
+  white-space: nowrap;
 }
 
+#refreshBtn:hover,
+#resetLayoutBtn:hover,
 #fullscreenBtn:hover {
   background: var(--accent);
 }
@@ -583,7 +551,7 @@ header {
 /* ---- Buy Me a Coffee button ---- */
 
 .coffee-btn {
-  padding: 4px 12px;
+  padding: 4px 10px;
   font-size: 0.8rem;
   border: 1px solid #ffdd00;
   background: linear-gradient(135deg, #ffdd00 0%, #ffc800 100%);
@@ -593,6 +561,7 @@ header {
   transition: all 0.15s;
   text-decoration: none;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .coffee-btn:hover {
@@ -602,7 +571,7 @@ header {
 }
 
 .feedback-btn {
-  padding: 4px 12px;
+  padding: 4px 10px;
   font-size: 0.8rem;
   border: 1px solid var(--accent);
   background: linear-gradient(135deg, var(--accent) 0%, #0099ff 100%);
@@ -611,6 +580,7 @@ header {
   cursor: pointer;
   transition: all 0.15s;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .feedback-btn:hover {
@@ -677,12 +647,6 @@ header {
   display: none;
 }
 
-.platform-label {
-  font-size: 0.65rem;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
 /* ---- Splash update interval ---- */
 
 .splash-update-section {
@@ -744,6 +708,27 @@ header {
   font-size: 0.75rem;
   color: var(--green);
   min-height: 1.2em;
+}
+
+/* -- Auto-refresh toggle in config modal -- */
+
+.splash-autorefresh-section {
+  text-align: left;
+  margin-bottom: 4px;
+}
+
+.config-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.config-toggle input[type="checkbox"] {
+  width: auto;
+  margin: 0;
 }
 
 /* ---- Widget system ---- */
@@ -1665,7 +1650,7 @@ header {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 14px 36px;
+  padding: 10px 24px;
   border-radius: 10px;
   background: rgba(15, 52, 96, 0.4);
   transition: all 0.4s ease;
@@ -3560,7 +3545,7 @@ header {
 .theme-lcars .header-center {
   background: #000;
   border-bottom: none;
-  padding: 24px 20px 6px;       /* 24px top clears the 18px bar */
+  padding: 18px 20px 6px;       /* 18px top clears the 18px bar */
   flex: 1;
   position: relative;
 }
@@ -3582,8 +3567,12 @@ header {
   border-radius: 0;
   padding: 24px 16px 6px;       /* 24px top clears the 18px bar */
   position: relative;
-  gap: 8px;
+  gap: 5px 8px;
   max-width: none;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  align-items: center;
+  justify-items: center;
 }
 
 /* Lilac bar segment */
@@ -4861,11 +4850,6 @@ header {
   .op-loc  { font-size: 0.85rem; }
   .op-class { font-size: 0.85rem; }
 
-  .op-btns {
-    flex-direction: row;
-    gap: 4px;
-  }
-
   .op-btn {
     padding: 6px 10px;
     font-size: 0.85rem;
@@ -4886,9 +4870,9 @@ header {
   }
 
   .header-right {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    justify-items: stretch;
     gap: 4px;
     font-size: 0.7rem;
   }

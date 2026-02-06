@@ -212,6 +212,14 @@
           </div>
 
           <div class="splash-divider"></div>
+          <div class="splash-autorefresh-section">
+            <label class="config-toggle">
+              <input type="checkbox" id="cfgAutoRefresh" checked />
+              Auto-refresh spots (every 60s)
+            </label>
+          </div>
+
+          <div class="splash-divider"></div>
           <div class="splash-layout-section">
             <span class="splash-loc-title">Layout</span>
             <div class="splash-layout-actions">
@@ -334,10 +342,7 @@
         <div class="op-name" id="opName"></div>
         <div class="op-loc" id="opLoc">Location unknown</div>
       </div>
-      <div class="op-btns">
-        <button class="op-btn" id="editCallBtn" title="Configuration">Config</button>
-        <button class="op-btn" id="refreshLocBtn" title="Refresh location">Loc</button>
-      </div>
+      <button class="op-btn" id="editCallBtn" title="Configuration">Config</button>
     </div>
     <div class="header-center">
       <div class="header-clock-group">
@@ -356,23 +361,16 @@
       </div>
     </div>
     <div class="header-right">
-      <span class="last-updated" id="lastUpdated"></span>
-      <span class="countdown" id="countdown"></span>
-      <label class="auto-refresh-toggle">
-        <input type="checkbox" id="autoRefresh" checked />
-        Auto-refresh
-      </label>
-      <button id="refreshBtn">Refresh</button>
+      <button id="refreshBtn" title="Click to refresh now">Refresh</button>
       <button id="resetLayoutBtn" title="Reset widget layout">Reset Layout</button>
       <button id="fullscreenBtn" title="Toggle fullscreen">Fullscreen</button>
-      <button id="feedbackBtn" class="feedback-btn" title="Send feedback to developers">💬 Feedback</button>
-      <a href="https://buymeacoffee.com/stevencheist" target="_blank" rel="noopener" class="coffee-btn" title="Support HamTab development">☕ Buy Me a Coffee</a>
+      <button id="feedbackBtn" class="feedback-btn" title="Send feedback">Feedback</button>
+      <a href="https://buymeacoffee.com/stevencheist" target="_blank" rel="noopener" class="coffee-btn" title="Support HamTab development">&#9749; Coffee</a>
       <div class="update-indicator" id="updateIndicator" title="Update status">
         <span class="update-dot gray" id="updateDot"></span>
         <span class="update-label" id="updateLabel">Checking...</span>
         <button class="restart-btn hidden" id="restartBtn">Restart</button>
       </div>
-      <span class="platform-label" id="platformLabel"></span>
     </div>
   </header>
 

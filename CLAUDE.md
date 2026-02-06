@@ -1,5 +1,13 @@
 # CLAUDE.md — HamTabV1
 
+## Instruction Routing
+
+This file is for **project-specific** instructions — architecture, code conventions, branch strategy, file locations, widgets, security rules, API patterns. Anything tied to HamTabV1.
+
+For **Claude behavior** instructions — coordination protocols, communication style, session habits, general patterns that apply across all SF Foundry projects — use `~/.claude/instructions.md` (symlinked to `sffoundry/ai-workflows`).
+
+**Quick test:** "Would this instruction matter if we started a completely different project?" If yes → `instructions.md`. If no → `CLAUDE.md`.
+
 ## Project Overview
 
 HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanilla JS frontend, Leaflet maps, esbuild bundling.

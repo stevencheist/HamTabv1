@@ -1,22 +1,25 @@
 require('dotenv').config();
 
+// --- Shared imports (all deployment modes) ---
 const express = require('express');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-const os = require('os');
-const { execSync } = require('child_process');
 const { URL } = require('url');
 const helmet = require('helmet');
-const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const selfsigned = require('selfsigned');
 const { XMLParser } = require('fast-xml-parser');
 const dns = require('dns');
 const voacap = require('./voacap-bridge.js');
 const satellite = require('satellite.js');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
+
+// --- Lanmode-only imports (removed in hostedmode) ---
+const os = require('os');
+const { execSync } = require('child_process');
+const cors = require('cors');
+const selfsigned = require('selfsigned');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -2647,7 +2650,7 @@ function parseSolarXML(xml) {
   return { indices, bands, vhf };
 }
 
-// --- TLS certificate management ---
+// --- Lanmode-only: TLS certificate management (removed in hostedmode) ---
 
 const CERTS_DIR = path.join(__dirname, 'certs');
 const KEY_PATH = path.join(CERTS_DIR, 'server.key');
@@ -2756,7 +2759,7 @@ setInterval(() => {
   }
 }, 30 * 60 * 1000); // 30 minutes
 
-// --- Start servers ---
+// --- Server startup (shared) ---
 
 // Initialize VOACAP bridge (Python child process for real predictions)
 voacap.init();
@@ -2772,6 +2775,7 @@ app.listen(PORT, HOST, () => {
   console.log(`HTTP  server running at http://${HOST}:${PORT}`);
 });
 
+// --- Lanmode-only: HTTPS with self-signed TLS (removed in hostedmode) ---
 const tlsOptions = ensureCerts();
 https.createServer(tlsOptions, app).listen(HTTPS_PORT, HOST, () => {
   console.log(`HTTPS server running at https://${HOST}:${HTTPS_PORT}`);

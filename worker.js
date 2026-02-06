@@ -54,6 +54,36 @@ export default {
         });
       }
 
+      // --- Container diagnostics ---
+      if (url.pathname === '/container-diag') {
+        const diag = { steps: [], timestamp: new Date().toISOString() };
+        try {
+          diag.steps.push('1. Getting container stub');
+          const container = getContainer(env.HAMTAB, 'hamtab');
+          diag.steps.push('2. Container stub obtained');
+
+          diag.steps.push('3. Calling startAndWaitForPorts');
+          await container.startAndWaitForPorts({
+            ports: [8080],
+            cancellationOptions: { portReadyTimeoutMS: 60000 },
+          });
+          diag.steps.push('4. startAndWaitForPorts completed');
+
+          diag.steps.push('5. Calling container.fetch for /api/health');
+          const resp = await container.fetch(new Request('http://container/api/health'));
+          const body = await resp.text();
+          diag.steps.push(`6. Container responded: HTTP ${resp.status} — ${body}`);
+          diag.ok = true;
+        } catch (err) {
+          diag.error = err.message;
+          diag.stack = err.stack;
+          diag.ok = false;
+        }
+        return new Response(JSON.stringify(diag, null, 2), {
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
       // --- Settings KV routes ---
       if (url.pathname === '/api/settings') {
         const email = getUserEmail(request);

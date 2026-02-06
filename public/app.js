@@ -6298,8 +6298,8 @@ ${beacon.location}`);
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.27.2";
-    $("aboutVersion").textContent = "0.27.2";
+    $("splashVersion").textContent = "0.28.0";
+    $("aboutVersion").textContent = "0.28.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

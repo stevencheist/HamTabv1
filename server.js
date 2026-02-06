@@ -1,8 +1,7 @@
 require('dotenv').config();
 
-// --- Shared imports (all deployment modes) ---
+// --- Imports ---
 const express = require('express');
-const https = require('https');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
@@ -10,21 +9,22 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { XMLParser } = require('fast-xml-parser');
 const dns = require('dns');
+const cors = require('cors');
 const voacap = require('./voacap-bridge.js');
 const satellite = require('satellite.js');
 const swaggerUi = require('swagger-ui-express');
 const YAML = require('yamljs');
+const { getConfig } = require('./server-config.js');
+const { startListeners } = require('./server-startup.js');
 
-// --- Lanmode-only imports (removed in hostedmode) ---
+// --- Lanmode-only imports ---
 const os = require('os');
-const { execSync, exec } = require('child_process');
-const cors = require('cors');
-const selfsigned = require('selfsigned');
+const { exec } = require('child_process');
 
 const app = express();
-const PORT = process.env.PORT || 3001;
-const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
-const HOST = process.env.HOST || '0.0.0.0';
+const config = getConfig();
+
+if (config.trustProxy) app.set('trust proxy', 1);
 
 // --- Security middleware ---
 
@@ -38,38 +38,33 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com"],
-      connectSrc: ["'self'"],
-      frameSrc: ["'none'"],
-      upgradeInsecureRequests: null,
-    },
-  },
-  strictTransportSecurity: false,
-}));
+app.use(helmet(config.helmetOptions));
 
-// CORS — restrict to same-origin, localhost, and RFC 1918 private ranges
-app.use(cors({
-  origin(origin, callback) {
-    // Allow requests with no Origin header (same-origin, curl, etc.)
-    if (!origin) return callback(null, true);
+// CORS — lanmode only (restrict to same-origin, localhost, and RFC 1918 private ranges)
+// Hostedmode is same-origin behind Cloudflare — no CORS needed
+if (!config.isHostedmode) {
+  app.use(cors({
+    origin(origin, callback) {
+      // Allow requests with no Origin header (same-origin, curl, etc.)
+      if (!origin) return callback(null, true);
 
-    try {
-      const { hostname } = new URL(origin);
-      if (hostname === 'localhost' || isPrivateIP(hostname)) {
-        return callback(null, true);
+      try {
+        const { hostname } = new URL(origin);
+        if (hostname === 'localhost' || isPrivateIP(hostname)) {
+          return callback(null, true);
+        }
+        callback(new Error('CORS not allowed'));
+      } catch {
+        callback(new Error('CORS not allowed'));
       }
-      callback(new Error('CORS not allowed'));
-    } catch {
-      callback(new Error('CORS not allowed'));
-    }
-  },
-}));
+    },
+  }));
+}
+
+// Health check — before rate limiter so probes aren't counted
+app.get('/api/health', (_req, res) => {
+  res.json({ ok: true, uptime: process.uptime() });
+});
 
 // Rate limiting — /api/ routes only, 60 requests per minute per IP
 const apiLimiter = rateLimit({
@@ -2928,102 +2923,6 @@ function parseSolarXML(xml) {
   return { indices, bands, vhf };
 }
 
-// --- Lanmode-only: TLS certificate management (removed in hostedmode) ---
-
-const CERTS_DIR = path.join(__dirname, 'certs');
-const KEY_PATH = path.join(CERTS_DIR, 'server.key');
-const CERT_PATH = path.join(CERTS_DIR, 'server.cert');
-
-function isRFC1918(ip) {
-  // Subset of isPrivateIP: only RFC 1918 LAN-routable ranges (for TLS cert SANs)
-  const parts = ip.split('.').map(Number);
-  if (parts.length !== 4 || parts.some(p => isNaN(p))) return false;
-  const [a, b] = parts;
-  return (a === 10) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
-}
-
-function getLocalIPs() {
-  const ips = new Set();
-
-  // Collect non-internal IPv4 addresses from local interfaces
-  const ifaces = os.networkInterfaces();
-  for (const addrs of Object.values(ifaces)) {
-    for (const addr of addrs) {
-      if (!addr.internal && addr.family === 'IPv4' && isRFC1918(addr.address)) {
-        ips.add(addr.address);
-      }
-    }
-  }
-
-  // In WSL, also discover Windows host IPs so the cert covers addresses
-  // that LAN clients actually connect to via portproxy
-  try {
-    const result = execSync(
-      'powershell.exe -NoProfile -Command "Get-NetIPAddress -AddressFamily IPv4 | Select-Object -ExpandProperty IPAddress"',
-      { timeout: 5000, encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-    for (const line of result.split(/\r?\n/)) {
-      const ip = line.trim();
-      if (ip && isRFC1918(ip)) {
-        ips.add(ip);
-      }
-    }
-  } catch {
-    // Not running in WSL or powershell.exe not available
-  }
-
-  return [...ips].sort();
-}
-
-const SANS_PATH = path.join(CERTS_DIR, '.sans');
-
-function ensureCerts() {
-  const currentIPs = getLocalIPs();
-  const allSANs = ['localhost', '127.0.0.1', '::1', ...currentIPs].sort().join(',');
-
-  // Reuse existing cert if SANs still match current network addresses
-  if (fs.existsSync(KEY_PATH) && fs.existsSync(CERT_PATH) && fs.existsSync(SANS_PATH)) {
-    const savedSANs = fs.readFileSync(SANS_PATH, 'utf-8').trim();
-    if (savedSANs === allSANs) {
-      console.log('TLS certificate SANs match current network — reusing existing cert.');
-      return {
-        key: fs.readFileSync(KEY_PATH),
-        cert: fs.readFileSync(CERT_PATH),
-      };
-    }
-    console.log('Network addresses changed — regenerating TLS certificate...');
-  } else {
-    console.log('Generating self-signed TLS certificate...');
-  }
-
-  const altNames = [
-    { type: 2, value: 'localhost' },
-    { type: 7, ip: '127.0.0.1' },
-    { type: 7, ip: '::1' },
-  ];
-
-  for (const ip of currentIPs) {
-    altNames.push({ type: 7, ip });
-  }
-
-  console.log('Certificate SANs:', ['localhost', '127.0.0.1', '::1', ...currentIPs].join(', '));
-
-  const attrs = [{ name: 'commonName', value: 'localhost' }];
-  const pems = selfsigned.generate(attrs, {
-    days: 365,
-    keySize: 2048,
-    extensions: [{ name: 'subjectAltName', altNames }],
-  });
-
-  fs.mkdirSync(CERTS_DIR, { recursive: true });
-  fs.writeFileSync(KEY_PATH, pems.private);
-  fs.writeFileSync(CERT_PATH, pems.cert);
-  fs.writeFileSync(SANS_PATH, allSANs);
-  console.log(`Certificates saved to ${CERTS_DIR}/`);
-
-  return { key: pems.private, cert: pems.cert };
-}
-
 // --- Cache eviction (runs every 30 minutes, removes expired entries) ---
 const allCaches = [dxcCallCache, pskHeardCache, satPassCache, satTleCache, nwsGridCache, sdoDirCache, sotaSummitCache, voacapCache, dxpeditionCache, contestCache];
 setInterval(() => {
@@ -3037,7 +2936,7 @@ setInterval(() => {
   }
 }, 30 * 60 * 1000); // 30 minutes
 
-// --- Server startup (shared) ---
+// --- Server startup ---
 
 // Initialize VOACAP bridge (Python child process for real predictions)
 voacap.init();
@@ -3049,16 +2948,9 @@ process.on('exit', () => {
   try { fs.unlinkSync(path.join(__dirname, 'server.pid')); } catch {}
 });
 
-app.listen(PORT, HOST, () => {
-  console.log(`HTTP  server running at http://${HOST}:${PORT}`);
-});
+// Start HTTP (always) and HTTPS (lanmode only)
+startListeners(app, config);
 
-// --- Lanmode-only: HTTPS with self-signed TLS (removed in hostedmode) ---
-const tlsOptions = ensureCerts();
-https.createServer(tlsOptions, app).listen(HTTPS_PORT, HOST, () => {
-  console.log(`HTTPS server running at https://${HOST}:${HTTPS_PORT}`);
-
-  // Start update checking after server is ready
-  checkForUpdates();
-  startUpdateTimer();
-});
+// Start update checking after server is ready (lanmode)
+checkForUpdates();
+startUpdateTimer();

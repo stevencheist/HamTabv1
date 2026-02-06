@@ -606,3 +606,147 @@ export const WIDGET_STORAGE_KEY = 'hamtab_widgets';
 export const USER_LAYOUT_KEY = 'hamtab_widgets_user';
 export const SNAP_DIST = 20; // px — edge-snap threshold for widget dragging
 export const HEADER_H = 30; // px — widget header/title-bar height used in snap calculations
+
+// --- Grid Layout Mode ---
+
+export const GRID_MODE_KEY = 'hamtab_grid_mode';
+export const GRID_PERM_KEY = 'hamtab_grid_permutation';
+export const GRID_ASSIGN_KEY = 'hamtab_grid_assignments';
+export const GRID_SIZES_KEY = 'hamtab_grid_sizes';
+
+// Grid permutation definitions — each defines a CSS Grid template with a fixed center map cell.
+// `areas` is the grid-template-areas string, `columns`/`rows` are the track sizes,
+// `cellNames` lists the assignable slot names (map is always fixed).
+export const GRID_PERMUTATIONS = [
+  {
+    id: '2L-2R',
+    name: '2 Left / 2 Right',
+    slots: 4,
+    // Legacy fields — used by config preview (splash.js:renderGridPreview)
+    areas: '"L1 map R1" "L2 map R2"',
+    columns: '1fr 2fr 1fr',
+    rows: '1fr 1fr',
+    cellNames: ['L1', 'L2', 'R1', 'R2'],
+    // Flex-column hybrid fields — used by grid-layout.js at runtime
+    left: ['L1', 'L2'],
+    right: ['R1', 'R2'],
+    top: [],
+    bottom: [],
+    outerAreas: '"left map right"',
+    outerColumns: '1fr 2fr 1fr',
+    outerRows: '1fr',
+  },
+  {
+    id: '3L-3R',
+    name: '3 Left / 3 Right',
+    slots: 6,
+    areas: '"L1 map R1" "L2 map R2" "L3 map R3"',
+    columns: '1fr 2fr 1fr',
+    rows: '1fr 1fr 1fr',
+    cellNames: ['L1', 'L2', 'L3', 'R1', 'R2', 'R3'],
+    left: ['L1', 'L2', 'L3'],
+    right: ['R1', 'R2', 'R3'],
+    top: [],
+    bottom: [],
+    outerAreas: '"left map right"',
+    outerColumns: '1fr 2fr 1fr',
+    outerRows: '1fr',
+  },
+  {
+    id: '1T-2L-2R-1B',
+    name: 'Top + 2L/2R + Bottom',
+    slots: 6,
+    areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "B1 B1 B1"',
+    columns: '1fr 2fr 1fr',
+    rows: 'auto 1fr 1fr auto',
+    cellNames: ['T1', 'L1', 'L2', 'R1', 'R2', 'B1'],
+    left: ['L1', 'L2'],
+    right: ['R1', 'R2'],
+    top: ['T1'],
+    bottom: ['B1'],
+    outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+    outerColumns: '1fr 2fr 1fr',
+    outerRows: 'auto 1fr auto',
+  },
+  {
+    id: '1T-3L-3R-1B',
+    name: 'Top + 3L/3R + Bottom',
+    slots: 8,
+    areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "L3 map R3" "B1 B1 B1"',
+    columns: '1fr 2fr 1fr',
+    rows: 'auto 1fr 1fr 1fr auto',
+    cellNames: ['T1', 'L1', 'L2', 'L3', 'R1', 'R2', 'R3', 'B1'],
+    left: ['L1', 'L2', 'L3'],
+    right: ['R1', 'R2', 'R3'],
+    top: ['T1'],
+    bottom: ['B1'],
+    outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+    outerColumns: '1fr 2fr 1fr',
+    outerRows: 'auto 1fr auto',
+  },
+  {
+    id: '2T-3L-3R-2B',
+    name: '2 Top + 3L/3R + 2 Bottom',
+    slots: 10,
+    areas: '"T1 T1 T2 T2" "L1 map map R1" "L2 map map R2" "L3 map map R3" "B1 B1 B2 B2"',
+    columns: '1fr 1fr 1fr 1fr',
+    rows: 'auto 1fr 1fr 1fr auto',
+    cellNames: ['T1', 'T2', 'L1', 'L2', 'L3', 'R1', 'R2', 'R3', 'B1', 'B2'],
+    left: ['L1', 'L2', 'L3'],
+    right: ['R1', 'R2', 'R3'],
+    top: ['T1', 'T2'],
+    bottom: ['B1', 'B2'],
+    outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+    outerColumns: '1fr 2fr 1fr',
+    outerRows: 'auto 1fr auto',
+  },
+];
+
+// Default widget-to-cell assignments per permutation.
+// Widget IDs are assigned to cell names; unassigned widgets are hidden.
+export const GRID_DEFAULT_ASSIGNMENTS = {
+  '2L-2R': {
+    L1: 'widget-filters',
+    L2: 'widget-activations',
+    R1: 'widget-solar',
+    R2: 'widget-propagation',
+  },
+  '3L-3R': {
+    L1: 'widget-filters',
+    L2: 'widget-activations',
+    L3: 'widget-live-spots',
+    R1: 'widget-solar',
+    R2: 'widget-propagation',
+    R3: 'widget-voacap',
+  },
+  '1T-2L-2R-1B': {
+    T1: 'widget-solar',
+    L1: 'widget-filters',
+    L2: 'widget-activations',
+    R1: 'widget-propagation',
+    R2: 'widget-voacap',
+    B1: 'widget-live-spots',
+  },
+  '1T-3L-3R-1B': {
+    T1: 'widget-solar',
+    L1: 'widget-filters',
+    L2: 'widget-activations',
+    L3: 'widget-live-spots',
+    R1: 'widget-propagation',
+    R2: 'widget-voacap',
+    R3: 'widget-spot-detail',
+    B1: 'widget-lunar',
+  },
+  '2T-3L-3R-2B': {
+    T1: 'widget-solar',
+    T2: 'widget-propagation',
+    L1: 'widget-filters',
+    L2: 'widget-activations',
+    L3: 'widget-live-spots',
+    R1: 'widget-voacap',
+    R2: 'widget-spot-detail',
+    R3: 'widget-satellites',
+    B1: 'widget-lunar',
+    B2: 'widget-rst',
+  },
+};

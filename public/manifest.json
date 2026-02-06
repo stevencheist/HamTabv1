@@ -1,0 +1,11 @@
+{
+  "name": "HamTab - Amateur Radio Dashboard",
+  "short_name": "HamTab",
+  "description": "Free modern alternative to HamClock. Real-time POTA, SOTA, DX cluster, propagation, satellite tracking, and space weather for amateur radio operators.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#1a1a1a",
+  "categories": ["utilities", "education"],
+  "icons": []
+}

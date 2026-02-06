@@ -268,6 +268,9 @@
               <li><a href="https://www.n2yo.com" target="_blank" rel="noopener">N2YO</a> — Satellite tracking</li>
               <li><a href="https://www.voacap.com" target="_blank" rel="noopener">VOACAP</a> — HF propagation</li>
               <li><a href="https://www.hamqsl.com" target="_blank" rel="noopener">HamQSL</a> — Solar data</li>
+              <li><a href="https://www.contestcalendar.com/" target="_blank" rel="noopener">WA7BNM</a> — Contest calendar</li>
+              <li><a href="https://www.ng3k.com" target="_blank" rel="noopener">NG3K</a> — DXpeditions</li>
+              <li><a href="https://www.ncdxf.org/beacon/" target="_blank" rel="noopener">NCDXF</a> — HF beacons</li>
               <li><a href="https://www.weather.gov" target="_blank" rel="noopener">NOAA/NWS</a> — Weather</li>
               <li><a href="https://sdo.gsfc.nasa.gov" target="_blank" rel="noopener">SDO</a> — Solar imagery</li>
             </ul>
@@ -603,6 +606,47 @@
       <div class="widget-header">DX Detail <button class="widget-help-btn" data-widget="widget-spot-detail" title="Help">?</button></div>
       <div class="widget-body" id="spotDetailBody">
         <div class="spot-detail-empty">Select a DX</div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Contests -->
+    <div class="widget" id="widget-contests">
+      <div class="widget-header">Contests
+        <span id="contestCount" class="spot-count"></span>
+        <button class="widget-help-btn" data-widget="widget-contests" title="Help">?</button>
+      </div>
+      <div class="widget-body">
+        <div class="contest-list" id="contestList"></div>
+        <div class="contest-attribution">
+          Data: <a href="https://www.contestcalendar.com/" target="_blank" rel="noopener">WA7BNM Contest Calendar</a>
+        </div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- DXpeditions -->
+    <div class="widget" id="widget-dxpeditions">
+      <div class="widget-header">DXpeditions
+        <span id="dxpeditionCount" class="spot-count"></span>
+        <button class="widget-help-btn" data-widget="widget-dxpeditions" title="Help">?</button>
+      </div>
+      <div class="widget-body">
+        <div class="dxped-list" id="dxpedList"></div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- NCDXF Beacons -->
+    <div class="widget" id="widget-beacons">
+      <div class="widget-header">NCDXF Beacons
+        <button class="widget-help-btn" data-widget="widget-beacons" title="Help">?</button>
+      </div>
+      <div class="widget-body">
+        <table class="beacon-table" id="beaconTable">
+          <thead><tr><th>MHz</th><th>Beacon</th><th>Location</th><th></th></tr></thead>
+          <tbody id="beaconTbody"></tbody>
+        </table>
       </div>
       <div class="widget-resize"></div>
     </div>

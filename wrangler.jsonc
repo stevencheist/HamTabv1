@@ -16,10 +16,12 @@
   ],
 
   // Cloudflare Container — runs Node.js Express on port 8080
+  // "basic" required: Node.js + Python + numpy exceeds lite's 256 MiB limit
   "containers": [
     {
       "class_name": "HamTab",
       "image": "./Dockerfile",
+      "instance_type": "basic",
       "max_instances": 1
     }
   ],

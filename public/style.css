@@ -752,8 +752,8 @@ header {
   flex: 1;
   position: relative;
   overflow: hidden;
-  min-width: 800px;
-  min-height: 400px;
+  min-width: 0;
+  min-height: 0;
   background: var(--bg);
 }
 
@@ -3860,6 +3860,27 @@ header {
 .theme-lcars #spotsTable tbody tr:nth-child(19) { animation-delay: 9.0s; }
 .theme-lcars #spotsTable tbody tr:nth-child(20) { animation-delay: 9.5s; }
 
+/* LCARS mobile: disable elbow cutout, simplify to stacked layout */
+@media (max-width: 767px) {
+  .theme-lcars .header-left {
+    min-width: 0;
+    max-width: none;
+    padding: 8px 12px;
+  }
+
+  .theme-lcars .header-left::after {
+    display: none;
+  }
+
+  .theme-lcars .header-center {
+    padding: 6px 12px;
+  }
+
+  .theme-lcars .header-right {
+    padding: 4px 12px;
+  }
+}
+
 /* ---- Theme: HamClock ---- */
 /* Monospace terminal feel, green-on-black, tighter spacing.
    Colors are handled by CSS variable swapping in themes.js. */
@@ -4149,5 +4170,249 @@ header {
 
 .about-links a:hover {
   color: var(--accent);
+}
+
+/* ==== Responsive — Tablet (< 1024px) ==== */
+
+@media (max-width: 1023px) {
+  /* Enlarge touch targets for tappability (Apple HIG: 44px minimum) */
+  button, .op-btn, .source-tab, .toggle-btn,
+  .widget-help-btn, .widget-cfg-btn, .widget-close-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .band-btn, .mode-btn {
+    min-height: 36px;
+    padding: 6px 10px;
+  }
+
+  /* 16px font prevents iOS zoom on focus */
+  select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  input[type="text"], input[type="number"], input[type="email"], input[type="password"] {
+    font-size: 16px;
+    min-height: 44px;
+  }
+}
+
+/* ==== Responsive — Mobile (< 768px) ==== */
+
+@media (max-width: 767px) {
+
+  /* --- Header: stack vertically --- */
+
+  header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 4px 8px;
+    gap: 4px;
+    height: auto;
+    min-height: auto;
+  }
+
+  .header-left {
+    min-width: 0;
+    max-width: none;
+    gap: 8px;
+  }
+
+  .op-call { font-size: 1.6rem; }
+  .op-name { font-size: 1rem; }
+  .op-loc  { font-size: 0.85rem; }
+  .op-class { font-size: 0.85rem; }
+
+  .op-btns {
+    flex-direction: row;
+    gap: 4px;
+  }
+
+  .op-btn {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+
+  .header-center {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .header-clock {
+    min-width: 0;
+  }
+
+  .header-clock-time {
+    font-size: 1rem;
+  }
+
+  .header-right {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    font-size: 0.7rem;
+  }
+
+  /* --- Widget area: vertical scroll stack --- */
+
+  .widget-area {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .widget {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    left: auto !important;
+    top: auto !important;
+    min-height: 120px;
+    z-index: auto !important;
+  }
+
+  .widget-header {
+    cursor: default;
+  }
+
+  /* Hide resize handles — no drag/resize on mobile */
+  .widget-resize {
+    display: none;
+  }
+
+  /* --- Per-widget default heights --- */
+
+  #widget-map {
+    min-height: 300px;
+  }
+
+  #widget-map .widget-body,
+  #widget-map #map {
+    height: 280px;
+  }
+
+  #widget-activations {
+    min-height: 250px;
+  }
+
+  #widget-activations .widget-body {
+    max-height: 300px;
+  }
+
+  #widget-filters {
+    min-height: auto;
+  }
+
+  #widget-solar {
+    min-height: 200px;
+  }
+
+  #widget-spacewx {
+    min-height: 200px;
+  }
+
+  #widget-spacewx .widget-body {
+    height: 180px;
+  }
+
+  /* --- Table: horizontal scroll on mobile --- */
+
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #spotsTable {
+    font-size: 0.72rem;
+  }
+
+  #spotsTable th, #spotsTable td {
+    padding: 6px 4px;
+    white-space: nowrap;
+  }
+
+  /* --- Source tabs: wrap nicely --- */
+
+  .source-tabs {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .source-tab {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+  }
+
+  /* --- Filter row: wrap on narrow screens --- */
+
+  .filter-row {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .band-filters, .mode-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .band-btn, .mode-btn {
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    padding: 4px 6px;
+  }
+
+  .filter-row-range {
+    flex-direction: column;
+  }
+
+  #countryFilter, #stateFilter, #gridFilter, #continentFilter {
+    width: 100%;
+  }
+
+  /* --- Modals: fit small screens --- */
+
+  .splash-box {
+    min-width: 0;
+    width: 95vw;
+    max-width: 95vw;
+    padding: 16px 12px;
+    max-height: 90vh;
+  }
+
+  .config-box {
+    max-width: 95vw;
+    width: 95vw;
+  }
+
+  .help-box {
+    max-width: 95vw;
+  }
+
+  .feedback-box {
+    max-width: 95vw;
+  }
+
+  /* --- VOACAP widget: readable on mobile --- */
+
+  .voacap-param-bar {
+    flex-wrap: wrap;
+    gap: 2px;
+    font-size: 0.65rem;
+  }
+
+  /* --- Spacewx tabs: smaller on mobile --- */
+
+  .spacewx-tab {
+    padding: 4px 6px;
+    font-size: 0.65rem;
+  }
 }
 

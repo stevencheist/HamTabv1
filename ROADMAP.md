@@ -71,11 +71,11 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 #### P1.3: Space Weather History 🔥
 | Feature | Status | Priority | Mode | Notes |
 |---------|--------|----------|------|-------|
-| 30-day solar flux graph | ❌ | HIGH | 🌐 | Historical SFI trend |
-| 7-day K-index graph | ❌ | HIGH | 🌐 | Geomagnetic history |
-| 24-hour X-ray graph | ❌ | HIGH | 🌐 | Flare activity trend |
-| Bz/Bt history | ❌ | MEDIUM | 🌐 | IMF trends |
-| Solar wind history | ❌ | MEDIUM | 🌐 | Speed trends |
+| 90-day solar flux graph | ✅ | HIGH | 🌐 | SFI trend with good/excellent thresholds |
+| 7-day K-index graph | ✅ | HIGH | 🌐 | Color-coded bar chart (green/yellow/red) with storm thresholds |
+| 7-day X-ray graph | ✅ | HIGH | 🌐 | Log-scale line chart with A/B/C/M/X flare class boundaries |
+| Bz/Bt history | ✅ | MEDIUM | 🌐 | Signed line chart with Bt overlay |
+| Solar wind history | ✅ | MEDIUM | 🌐 | Color-segmented speed line (green/yellow/red zones) |
 | Aurora history | ❌ | MEDIUM | 🌐 | Auroral activity trends |
 
 **Phase 1 Deliverables:**
@@ -323,6 +323,41 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Responsive modals | ✅ | HIGH | 🌐 | viewport-relative sizing (min(92vw, XXpx)), small screen media query |
 | Accessibility standards | ❌ | HIGH | 🌐 | Define standards for visual impairments, color blindness, readability |
 
+#### P8.0a: Mobile-Friendly Layout 🔥
+**Implementation: 3 phases** (see MOBILE_PLAN.md for full details)
+
+**Mobile Phase 1: Make It Usable** (complete)
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Breakpoint constants | ✅ | HIGH | 🌐 | `getLayoutMode()` — desktop/tablet/mobile detection |
+| Remove 800px min-width | ✅ | HIGH | 🌐 | Stops forced horizontal scroll on mobile |
+| Stacked widget layout | ✅ | HIGH | 🌐 | `position: static !important` in flex-column at < 768px |
+| Header reflow | ✅ | HIGH | 🌐 | Header stacks vertically on mobile |
+| Enlarged touch targets | ✅ | HIGH | 🌐 | 44px minimum for buttons, 16px font prevents iOS zoom |
+| Disable drag/resize on mobile | ✅ | HIGH | 🌐 | JS guards in widgets.js skip setup on non-desktop |
+| Modal width capping | ✅ | HIGH | 🌐 | All modals capped to 95vw on mobile |
+| Table horizontal scroll | ✅ | MEDIUM | 🌐 | Spots table scrolls horizontally on narrow screens |
+| LCARS mobile header | ✅ | MEDIUM | 🌐 | Elbow cutout disabled, simplified stacked layout |
+
+**Mobile Phase 2: Make It Good**
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Hamburger menu | ❌ | HIGH | 🌐 | Slim top bar + slide-out menu replaces header-right on mobile |
+| Collapsible widgets | ❌ | HIGH | 🌐 | Tap header to expand/collapse; map + spots expanded by default |
+| Full-screen map mode | ❌ | MEDIUM | 🌐 | Maximize button for full-viewport map on mobile |
+| Card layout for spots | ❌ | MEDIUM | 🌐 | CSS grid cards instead of wide table on mobile |
+| Pull-to-refresh | ❌ | LOW | 🌐 | Touch gesture at top of widget area triggers refresh |
+| Orientation change handling | ❌ | LOW | 🌐 | Map invalidation on rotate |
+
+**Mobile Phase 3: Make It Great**
+| Feature | Status | Priority | Mode | Notes |
+|---------|--------|----------|------|-------|
+| Touch drag/resize on tablets | ❌ | MEDIUM | 🌐 | Touch events parallel to mouse in setupDrag/setupResize |
+| Bottom navigation bar | ❌ | MEDIUM | 🌐 | Fixed bottom bar with quick-access widget icons |
+| Mobile-optimized map controls | ❌ | MEDIUM | 🌐 | Larger zoom buttons, thumb-friendly position |
+| Smooth breakpoint transitions | ❌ | LOW | 🌐 | Detect desktop↔mobile crossing, re-init layout |
+| PWA manifest | ❌ | LOW | 🌐 | Installable on home screen with app icons |
+
 #### P8.1: Theme Engine & Built-in Presets (Pulled Forward — Feb 2026) 📅
 **Implementation: 3 phases**
 
@@ -474,7 +509,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Map Features & Projections | 32 | 9 | 4 | 19 | 28% |
 | Spot Sources & Integration | 21 | 6 | 1 | 14 | 29% |
 | Filtering & Watch Lists | 14 | 9 | 0 | 5 | 64% |
-| Solar & Space Weather | 19 | 11 | 6 | 2 | 58% |
+| Solar & Space Weather | 19 | 16 | 1 | 2 | 84% |
 | Propagation Modeling | 7 | 3 | 1 | 3 | 43% |
 | Lunar & EME | 12 | 6 | 1 | 5 | 50% |
 | Satellite Tracking | 15 | 5 | 2 | 8 | 33% |
@@ -498,7 +533,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | Uninstall script | P1 | ✅ | HIGH |
 | Units toggle | P1 | ✅ | HIGH |
 | Long path display | P1 | ✅ | HIGH |
-| Space weather graphs | P1 | ❌ | HIGH |
+| Space weather graphs | P1 | ✅ | HIGH |
 | Watch list modes | P2 | 🟡 | HIGH |
 | ADIF integration | P2 | ❌ | HIGH |
 | hamlib/flrig | P4 | ❌ | HIGH |
@@ -535,7 +570,8 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 - ✅ Filter system
 - ✅ VOACAP propagation (P3) — Full dvoacap-python engine with 24h matrix, interactive params, REL heatmap
 - ❌ UDP spot input (P4)
-- ❌ Space weather graphs (P1)
+- ✅ Space weather graphs (P1)
+- ✅ Mobile Phase 1 — usable on phones (P8.0a)
 - ❌ Watch list modes (P2)
 
 ### September 2026: Feature Parity
@@ -917,10 +953,12 @@ By June 2026, HamTab will provide a viable alternative for ~10,000 HamClock user
 **Next Actions:**
 1. ~~Complete Phase 1.1 features~~ ✅ Done (feedback, configurable port, uninstall)
 2. ~~Implement units toggle and long path display (Phase 1.2)~~ ✅ Done
-3. Add space weather history graphs (Phase 1.3)
+3. ~~Add space weather history graphs (Phase 1.3)~~ ✅ Done — Kp/X-Ray/SFI/Wind/Bz canvas graphs
 4. ~~VOACAP integration (Phase 3.1)~~ ✅ Done — full dvoacap-python engine deployed
-5. Real-time propagation enhancements (Phase 3.2) — K-index corrections, effective SSN from foF2
-6. WSPR/PSK observation-based propagation (Phase 3.3) — separate project, can run in parallel
+5. ~~Mobile Phase 1 (Phase 8.0a)~~ ✅ Done — stacked layout, touch targets, responsive header
+6. Mobile Phase 2 (Phase 8.0a) — hamburger menu, collapsible widgets, fullscreen map
+7. Watch list modes (Phase 2.1) — Red/Only/Not filtering
+8. Real-time propagation enhancements (Phase 3.2) — K-index corrections, effective SSN from foF2
 
 ---
 

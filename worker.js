@@ -86,8 +86,14 @@ export default {
       // --- Proxy everything else to the Container ---
       const container = getContainer(env.HAMTAB, 'hamtab');
 
-      // Clone headers and inject secrets for specific endpoints
+      // Clone headers, forward client IP, and inject secrets for specific endpoints
       const headers = new Headers(request.headers);
+
+      // Forward real client IP so Express rate limiter counts per-user, not per-container
+      const clientIP = request.headers.get('CF-Connecting-IP');
+      if (clientIP) {
+        headers.set('X-Forwarded-For', clientIP);
+      }
 
       if (url.pathname === '/api/feedback' && env.GITHUB_FEEDBACK_TOKEN) {
         headers.set('X-GitHub-Token', env.GITHUB_FEEDBACK_TOKEN);

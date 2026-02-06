@@ -1,14 +1,8 @@
 # Branch Strategy & Conflict Prevention
 
-## The Problem We Just Had
+## History
 
-**What went wrong:**
-- Main branch contains the update system (lanmode-specific feature)
-- We added feedback endpoint to main AFTER the update system code
-- Merging main→hostedmode created a 277-line conflict (lines 645-921)
-- Had to manually extract feedback endpoint from conflict region
-
-**Root cause:** Mode-specific code living on main branch creates merge conflicts when syncing.
+This strategy was created after a 277-line merge conflict caused by lanmode-specific code (update checker) living on main. The conflict has been resolved and the codebase reorganized (v0.27.1) to prevent recurrence.
 
 ---
 
@@ -57,49 +51,45 @@ Is this feature mode-specific?
 
 ---
 
-## Immediate Action: Clean Up Main
+## Current server.js Organization (v0.27.1+)
 
-### Step 1: Remove Update System from Main
+The import and startup sections of `server.js` are organized with clear section markers to minimize merge conflicts:
 
-**Problem:** Update system is lanmode-only but lives on main
-
-**Solution:**
-1. Identify all update system code in main's server.js
-2. Remove it from main (it stays on lanmode)
-3. Document that update features develop on lanmode only
-
-**Files to clean:**
-- `server.js` - Remove update checker endpoints and polling
-- Any other lanmode-specific code we find
-
-### Step 2: Reorganize server.js
-
-**Current problem:** Endpoints are scattered, making conflicts likely
-
-**New organization:**
 ```javascript
-// --- Core Setup ---
-// Imports, rate limiters, middleware
+// --- Shared imports (all deployment modes) ---
+const express = require('express');
+const https = require('https');
+// ... (all shared modules)
 
-// --- Shared API Endpoints (main branch) ---
-// Endpoints that work identically in both modes
-// - /api/spots
-// - /api/weather
-// - /api/solar
-// - /api/feedback
-// - etc.
+// --- Lanmode-only imports (removed in hostedmode) ---
+const os = require('os');
+const { execSync, exec } = require('child_process');  // lanmode adds exec
+const cors = require('cors');
+const selfsigned = require('selfsigned');
+
+// ... (shared endpoints, middleware, utilities) ...
 
 // --- Mode-Specific Endpoints ---
 // (Empty on main, populated on branches)
 // Lanmode adds: /api/update/*, /api/restart
-// Hostedmode adds: /api/settings-sync, etc.
+// Hostedmode adds: /api/settings-sync (future)
 
-// --- Static File Serving ---
-// SDO images, etc.
+// ... (more shared code) ...
 
-// --- Server Startup ---
-// HTTP/HTTPS listeners
+// --- Lanmode-only: TLS certificate management (removed in hostedmode) ---
+// ensureCerts(), getLocalIPs(), isRFC1918() — all lanmode only
+
+// --- Server startup (shared) ---
+voacap.init();
+app.listen(PORT, HOST, ...);
+
+// --- Lanmode-only: HTTPS with self-signed TLS (removed in hostedmode) ---
+const tlsOptions = ensureCerts();
+https.createServer(tlsOptions, app).listen(HTTPS_PORT, ...);
 ```
+
+**When merging main → hostedmode:** Delete the `// --- Lanmode-only ---` blocks entirely.
+**When merging main → lanmode:** Keep everything; lanmode may add `exec` to the child_process import.
 
 ---
 
@@ -156,57 +146,19 @@ Is this feature mode-specific?
 
 ---
 
-## File Organization for Mode-Specific Code
+## Defensive Coding Patterns
 
-### Option A: Conditional Imports (Recommended)
-
-**Create mode-specific files:**
-```
-src/
-├── shared/          # Main branch code
-│   ├── feedback.js
-│   ├── weather.js
-│   └── ...
-├── lanmode/         # Lanmode-only (gitignored on other branches)
-│   ├── update.js
-│   └── tls.js
-└── hostedmode/      # Hostedmode-only (gitignored on other branches)
-    ├── kv-sync.js
-    └── access.js
-```
-
-**In server.js (on each branch):**
+**Client-side (splash.js, etc.):** DOM elements that may differ between modes use null-safe access:
 ```javascript
-// Main branch
-const feedback = require('./shared/feedback.js');
-// (no mode-specific imports)
+// Good — safe across all deployment modes
+const el = $('splashUpdateInterval');
+if (el) el.value = savedInterval;
 
-// Lanmode branch
-const feedback = require('./shared/feedback.js');
-const update = require('./lanmode/update.js');    // lanmode only
-const tls = require('./lanmode/tls.js');          // lanmode only
-
-// Hostedmode branch
-const feedback = require('./shared/feedback.js');
-const kvSync = require('./hostedmode/kv-sync.js'); // hostedmode only
+// Bad — crashes if element doesn't exist in this mode
+$('splashUpdateInterval').value = savedInterval;
 ```
 
-### Option B: Environment Variables
-
-**For small differences:**
-```javascript
-// Main branch has both implementations
-if (process.env.DEPLOYMENT_MODE === 'lanmode') {
-  // Lanmode-specific code
-} else if (process.env.DEPLOYMENT_MODE === 'hostedmode') {
-  // Hostedmode-specific code
-}
-```
-
-**Pros:** Single codebase
-**Cons:** Mode-specific code clutters main branch
-
-**Verdict:** Use Option A for large features, Option B for small tweaks
+**Server-side (server.js):** Lanmode-only code is grouped in clearly marked sections (see "Current server.js Organization" above) so hostedmode can cleanly delete entire blocks rather than picking out individual lines.
 
 ---
 
@@ -282,32 +234,6 @@ git commit -m "Add CI/CD deployment (hostedmode)"
 git commit -m "Add config storage: localStorage (lanmode)"
 git commit -m "Add config storage: Workers KV (hostedmode)"
 ```
-
----
-
-## Next Steps: Implementation
-
-### 1. Clean Up Main Branch
-- [ ] Remove update system from main's server.js
-- [ ] Remove any other lanmode-specific code
-- [ ] Reorganize server.js with clear sections
-- [ ] Commit: "Remove mode-specific code from main"
-
-### 2. Update CLAUDE.md
-- [ ] Add link to this document
-- [ ] Update branch strategy section
-- [ ] Add decision tree for where to develop
-
-### 3. Create .gitignore Patterns
-- [ ] Lanmode branch: Ignore `src/hostedmode/`
-- [ ] Hostedmode branch: Ignore `src/lanmode/`
-- [ ] Main branch: Ignore both
-
-### 4. Test the New Workflow
-- [ ] Add a small feature to main
-- [ ] Merge to both branches (should be clean)
-- [ ] Add a lanmode-only feature
-- [ ] Verify it doesn't pollute main
 
 ---
 

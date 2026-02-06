@@ -71,9 +71,11 @@ html, body {
 
 .config-tabs {
   display: flex;
+  flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
   margin-bottom: 16px;
-  gap: 4px;
+  gap: 4px 8px;
+  justify-content: center;
 }
 
 .config-box .config-tab {
@@ -81,7 +83,7 @@ html, body {
   color: var(--text-dim);
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 6px 16px;
+  padding: 6px 12px;
   font-size: 0.82rem;
   font-weight: 600;
   cursor: pointer;
@@ -750,8 +752,8 @@ header {
   flex: 1;
   position: relative;
   overflow: hidden;
-  min-width: 800px;
-  min-height: 400px;
+  min-width: 0;
+  min-height: 0;
   background: var(--bg);
 }
 
@@ -1439,6 +1441,40 @@ header {
   font-size: 1.2rem;
   font-weight: 700;
   margin-top: 2px;
+}
+
+/* ---- Space Weather History ---- */
+
+.spacewx-tabs {
+  display: flex;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.spacewx-tab {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  background: var(--surface2);
+  color: var(--text-dim);
+  border: none;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+}
+
+.spacewx-tab.active {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.spacewx-tab:hover:not(.active) {
+  background: var(--surface3);
+  color: var(--text);
+}
+
+#spacewxCanvas {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 /* ---- Propagation Widget ---- */
@@ -3277,6 +3313,146 @@ header {
   }
 }
 
+/* ---- NCDXF Beacons Widget ---- */
+
+.beacon-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.beacon-table th { text-align: left; color: var(--text-dim); font-weight: 600; padding: 2px 6px; border-bottom: 1px solid var(--border); }
+.beacon-table td { padding: 3px 6px; border-bottom: 1px solid var(--border); }
+.beacon-call { font-weight: 700; color: var(--green); }
+.beacon-loc { color: var(--text-dim); font-size: 0.7rem; }
+.beacon-time { color: var(--text-dim); font-size: 0.7rem; text-align: right; }
+
+/* ---- DE/DX Info Widget ---- */
+.dedx-container { display: flex; gap: 0; height: 100%; }
+.dedx-panel { flex: 1; padding: 4px 8px; overflow-y: auto; }
+.dedx-de { border-right: 1px solid var(--border); }
+.dedx-title { text-align: center; font-weight: 700; font-size: 0.8rem; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 1px; }
+.dedx-de .dedx-title { color: var(--de-color, var(--accent)); }
+.dedx-dx .dedx-title { color: var(--dx-color, var(--accent)); }
+.dedx-row { display: flex; justify-content: space-between; align-items: baseline; padding: 1px 0; font-size: 0.72rem; }
+.dedx-label-sm { color: var(--text-dim); font-size: 0.68rem; text-transform: uppercase; min-width: 32px; }
+.dedx-value { color: var(--text); font-weight: 600; text-align: right; }
+.dedx-callsign { font-weight: 700; font-size: 0.85rem; }
+.dedx-de .dedx-callsign { color: var(--de-color, var(--text)); }
+.dedx-dx .dedx-callsign { color: var(--dx-color, var(--text)); }
+.dedx-sunrise { color: var(--yellow); }
+.dedx-sunset { color: var(--orange); }
+.dedx-compact { letter-spacing: -0.3px; }
+.dedx-utc-badge { font-size: 0.65rem; color: var(--text-dim); background: rgba(255,255,255,0.06); padding: 0 4px; border-radius: 3px; }
+.dedx-empty { color: var(--text-dim); font-style: italic; font-size: 0.7rem; text-align: center; padding: 8px 0; }
+
+@media (max-width: 767px) {
+  .dedx-container { flex-direction: column; }
+  .dedx-de { border-right: none; border-bottom: 1px solid var(--border); }
+}
+
+/* ---- Sun / Moon Map Markers ---- */
+.sun-marker-icon { background: transparent; border: none; }
+.sun-marker-dot { display: block; width: 14px; height: 14px; border-radius: 50%; background: radial-gradient(circle, #ffe066 40%, #ffaa00 100%); box-shadow: 0 0 8px 2px rgba(255, 200, 0, 0.6); }
+.moon-marker-icon { background: transparent; border: none; }
+.moon-marker-dot { display: block; width: 12px; height: 12px; border-radius: 50%; background: radial-gradient(circle, #e8e8f0 40%, #aaaacc 100%); box-shadow: 0 0 6px 1px rgba(200, 200, 230, 0.5); }
+
+/* ---- DXpeditions Widget ---- */
+
+#widget-dxpeditions .widget-body { padding: 6px; overflow-y: auto; }
+
+.dxped-list { display: flex; flex-direction: column; gap: 4px; }
+
+.dxped-empty { text-align: center; color: var(--text-dim); font-size: 0.8rem; padding: 12px; font-style: italic; }
+
+.dxped-card {
+  padding: 6px 8px;
+  background: var(--surface2);
+  border-radius: 4px;
+  border-left: 3px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.dxped-card:hover { background: var(--bg); }
+
+.dxped-active-card { border-left-color: var(--green); }
+
+.dxped-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.dxped-call { font-weight: 700; font-size: 0.82rem; color: var(--text); }
+
+.dxped-entity { color: var(--text-dim); font-size: 0.75rem; }
+
+.dxped-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #000;
+  background: var(--green);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+.dxped-detail { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+
+/* ---- Contests Widget ---- */
+
+#widget-contests .widget-body { padding: 6px; overflow-y: auto; display: flex; flex-direction: column; }
+
+.contest-list { display: flex; flex-direction: column; gap: 4px; flex: 1; overflow-y: auto; }
+
+.contest-empty { text-align: center; color: var(--text-dim); font-size: 0.8rem; padding: 12px; font-style: italic; }
+
+.contest-card {
+  padding: 6px 8px;
+  background: var(--surface2);
+  border-radius: 4px;
+  border-left: 3px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.contest-card:hover { background: var(--bg); }
+
+.contest-active-card { border-left-color: var(--green); }
+
+.contest-header { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+
+.contest-name { font-weight: 700; font-size: 0.78rem; color: var(--text); }
+
+.contest-mode {
+  font-size: 0.58rem;
+  font-weight: 700;
+  padding: 1px 4px;
+  border-radius: 3px;
+  text-transform: uppercase;
+}
+
+.contest-mode-cw      { background: #ff9800; color: #000; }
+.contest-mode-phone   { background: #2196f3; color: #fff; }
+.contest-mode-digital { background: #9c27b0; color: #fff; }
+.contest-mode-mixed   { background: var(--text-dim); color: #000; }
+
+.contest-now-badge {
+  font-size: 0.6rem;
+  font-weight: 700;
+  color: #000;
+  background: var(--green);
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: auto;
+}
+
+.contest-detail { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+
+.contest-attribution {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 4px 0 2px;
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.contest-attribution a { color: var(--accent); text-decoration: none; }
+.contest-attribution a:hover { text-decoration: underline; }
+
 /* ---- Theme: LCARS (Star Trek TNG) ---- */
 /* Shape, font, and layout overrides applied via body.theme-lcars class.
    Colors are handled by CSS variable swapping in themes.js. */
@@ -3312,14 +3488,145 @@ header {
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
 
-/* Header bar — LCARS elbow/bar feel */
-.theme-lcars header {
-  border-bottom-width: 3px;
-  letter-spacing: 1px;
-  color: var(--accent);
+.theme-lcars .spacewx-tab {
+  border-radius: 8px;
+  font-family: 'Arial Narrow', Arial, sans-serif;
 }
 
-/* Header buttons readable on dark header */
+/* Header — LCARS structural frame: left elbow + thin bars
+   Technique from joernweissenborn/lcars: colored rectangle + black ::after
+   cutout with border-radius creates the characteristic inner curve. */
+.theme-lcars header {
+  background: #000;
+  padding: 0;
+  gap: 3px;                      /* 3px black notch between segments */
+  border-bottom: none;
+  align-items: stretch;
+  letter-spacing: 1px;
+  color: var(--accent);
+  position: relative;
+}
+
+/* Left elbow — colored vertical arm with inner curve cutout.
+   The top 18px is the horizontal arm (matches bar height in center/right).
+   Below that, a black ::after creates the inner curve. */
+.theme-lcars .header-left {
+  background: var(--surface2);   /* #9999CC blue-bell */
+  border-radius: 0;             /* rectangular — cutout creates the curve */
+  padding: 8px 44px 8px 20px;   /* 44px right clears the 36px cutout */
+  position: relative;
+  min-width: 280px;             /* firm floor — container-type prevents auto-sizing from children */
+  max-width: 360px;
+  flex: 0 0 auto;               /* don't grow, don't shrink */
+  flex-direction: column;        /* stack info + buttons vertically */
+  align-items: flex-start;       /* left-align — keeps content away from right cutout */
+  gap: 4px;
+}
+
+/* Buttons row inside the column layout */
+.theme-lcars .header-left .op-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+}
+
+/* Black cutout — creates the LCARS inner curve */
+.theme-lcars .header-left::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 36px;
+  height: calc(100% - 18px);    /* 18px top = horizontal arm of elbow */
+  background: #000;
+  border-top-left-radius: 24px; /* characteristic LCARS inner curve */
+}
+
+/* Text on blue-bell background */
+.theme-lcars .header-left .op-call,
+.theme-lcars .header-left .op-call a {
+  color: var(--accent);          /* gold callsign — stands out on blue-bell */
+  text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.3);
+}
+.theme-lcars .header-left .op-name   { color: #000; }
+.theme-lcars .header-left .op-loc    { color: rgba(0, 0, 0, 0.6); white-space: nowrap; }
+
+.theme-lcars .header-left .op-btn {
+  background: var(--accent);     /* gold pills on blue-bell */
+  border-color: transparent;
+}
+
+/* Center — dark content area with thin bar at top */
+.theme-lcars .header-center {
+  background: #000;
+  border-bottom: none;
+  padding: 24px 20px 6px;       /* 24px top clears the 18px bar */
+  flex: 1;
+  position: relative;
+}
+
+/* Thin horizontal bar — visual continuation of elbow's horizontal arm */
+.theme-lcars .header-center::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 18px;
+  background: var(--accent);    /* gold bar */
+}
+
+/* Right — dark content area with thin bar + end cap */
+.theme-lcars .header-right {
+  background: #000;
+  border-radius: 0;
+  padding: 24px 16px 6px;       /* 24px top clears the 18px bar */
+  position: relative;
+  gap: 8px;
+  max-width: none;
+}
+
+/* Lilac bar segment */
+.theme-lcars .header-right::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 22px;                  /* room for end cap + gap */
+  height: 18px;
+  background: var(--surface3);  /* #CC99CC lilac */
+}
+
+/* End cap — rounded pill terminator */
+.theme-lcars .header-right::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 18px;
+  height: 18px;
+  background: var(--surface3);  /* lilac pill cap */
+  border-radius: 0 0 9px 9px;  /* rounded bottom = semicircle end cap */
+}
+
+/* Buttons on black — need visible colored backgrounds */
+.theme-lcars #refreshBtn,
+.theme-lcars #resetLayoutBtn,
+.theme-lcars #fullscreenBtn {
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.theme-lcars .feedback-btn {
+  background: var(--surface2);
+  color: #000;
+}
+.theme-lcars .coffee-btn {
+  background: var(--accent);
+  color: #000;
+}
+
+/* Header buttons readable on colored backgrounds */
 .theme-lcars .op-btn,
 .theme-lcars #refreshBtn,
 .theme-lcars #resetLayoutBtn,
@@ -3327,26 +3634,53 @@ header {
   color: #000;
 }
 
-/* Day/Night toggle, prop metric, map center buttons inside widget headers */
+/* Day/Night toggle, prop metric, map center buttons inside widget headers
+   base has background:none which shows dark body through — needs explicit bg */
 .theme-lcars .toggle-btn,
 .theme-lcars .prop-metric-btn,
 .theme-lcars .map-center-btn {
   color: #000;
+  background: var(--surface2); /* blue-bell so black text is readable */
 }
 
 .theme-lcars .op-call a {
   letter-spacing: 2px;
 }
 
-/* Clock panels — more angular, monospace numbers */
+/* Clock panels — LCARS colored panels with gold framing */
 .theme-lcars .header-clock {
   border-radius: 0 0 16px 16px;
   letter-spacing: 1px;
+  background: var(--surface2); /* blue-bell panel */
+  border-color: var(--accent); /* gold frame */
+  border-width: 2px;
+}
+
+.theme-lcars .header-clock-label {
+  font-family: 'Arial Narrow', Arial, sans-serif;
+  color: #000;
+  letter-spacing: 2px;
 }
 
 .theme-lcars .header-clock-time {
   font-family: 'Courier New', monospace;
   letter-spacing: 2px;
+  color: #000;
+  text-shadow: none;
+}
+
+/* Override weather-themed backgrounds — LCARS keeps uniform blue-bell panels */
+.theme-lcars #headerClockLocal[class*="wx-"] {
+  background: var(--surface2);
+  border-color: var(--accent);
+  box-shadow: none;
+}
+
+.theme-lcars #headerClockLocal[class*="wx-"] .header-clock-label,
+.theme-lcars #headerClockLocal[class*="wx-"] .header-clock-time,
+.theme-lcars #headerClockLocal[class*="wx-"] .header-clock-weather {
+  color: #000;
+  text-shadow: none;
 }
 
 /* Buttons — pill shaped */
@@ -3362,13 +3696,14 @@ header {
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
 
-/* Source tabs — rounded top */
+/* Source tabs — rounded top, surface2 bg so black text is readable */
 .theme-lcars .source-tab {
   border-radius: 10px 10px 0 0;
   text-transform: uppercase;
   letter-spacing: 2px;
   font-family: 'Arial Narrow', Arial, sans-serif;
   color: #000;
+  background: var(--surface2);
 }
 
 .theme-lcars .source-tab.active {
@@ -3390,12 +3725,27 @@ header {
   color: #000;
 }
 
-/* Spot table */
+/* Filter hover — black text on surface2 bg for contrast */
+.theme-lcars .band-filters button:hover,
+.theme-lcars .mode-filters button:hover {
+  background: var(--surface2);
+  color: #000;
+}
+
+/* Spot table — gold headers for contrast (base uses surface2 bg + text-dim = ~1.2:1) */
 .theme-lcars #spotsTable th {
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: 'Arial Narrow', Arial, sans-serif;
   font-size: 0.7rem;
+  background: var(--accent);
+  color: #000;
+  border-bottom-color: #000;
+}
+
+.theme-lcars #spotsTable th.sortable:hover {
+  background: #FFDD88; /* lighter gold */
+  color: #000;
 }
 
 .theme-lcars #spotsTable td {
@@ -3403,11 +3753,33 @@ header {
   letter-spacing: 0.5px;
 }
 
-/* Solar indices */
+/* Row hover/selected — subtle tint instead of solid surface2 (text goes invisible) */
+.theme-lcars #spotsTable tbody tr:hover {
+  background: rgba(153, 153, 204, 0.15); /* subtle blue-bell tint */
+}
+
+.theme-lcars #spotsTable tbody tr.selected {
+  background: rgba(153, 153, 204, 0.25);
+}
+
+/* Solar indices — black text on surface2 cards for contrast */
 .theme-lcars .solar-card-label {
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: 'Arial Narrow', Arial, sans-serif;
+}
+
+.theme-lcars .solar-card .label { color: #000; }
+.theme-lcars .solar-card .value { color: #000; font-weight: 700; }
+
+/* Propagation summary — dark bg so labels/values stay readable */
+.theme-lcars .prop-summary {
+  background: var(--surface);
+  border: 1px solid var(--surface2);
+}
+
+.theme-lcars .prop-summary-label {
+  color: var(--surface2); /* blue-bell labels on dark bg */
 }
 
 /* Propagation widget */
@@ -3439,6 +3811,13 @@ header {
   letter-spacing: 1px;
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
+
+.theme-lcars .reference-tab:hover {
+  background: #FFFF99; /* pale-canary */
+  color: #000;
+}
+
+.theme-lcars .reference-tab.active { color: #000; }
 
 /* Config/splash modal */
 .theme-lcars .splash-box {
@@ -3500,6 +3879,13 @@ header {
   font-family: 'Arial Narrow', Arial, sans-serif;
 }
 
+.theme-lcars #savePresetBtn:hover,
+.theme-lcars #deletePresetBtn:hover,
+.theme-lcars #clearFiltersBtn:hover {
+  background: var(--surface2);
+  color: #000;
+}
+
 /* Widget help and config buttons */
 .theme-lcars .widget-help-btn {
   border-radius: 50%;
@@ -3510,25 +3896,15 @@ header {
   border-radius: 50%;
 }
 
-/* LCARS decorative bar under header — via pseudo-element */
+/* Thin bottom bar — completes the LCARS frame under the header */
 .theme-lcars header::after {
   content: '';
   position: absolute;
-  bottom: -3px;
+  bottom: 0;
   left: 0;
   right: 0;
-  height: 3px;
-  background: linear-gradient(90deg,
-    var(--border) 0%, var(--border) 15%,
-    transparent 15%, transparent 18%,
-    var(--accent) 18%, var(--accent) 55%,
-    transparent 55%, transparent 58%,
-    var(--text-dim) 58%, var(--text-dim) 100%);
-}
-
-/* Ensure header has relative positioning for the pseudo-element */
-.theme-lcars header {
-  position: relative;
+  height: 4px;
+  background: var(--surface2);  /* blue-bell bottom frame line */
 }
 
 /* Scrollbar theming */
@@ -3560,6 +3936,20 @@ header {
   background: #FFFF99; /* pale-canary */
   color: #000;
 }
+
+/* Toggle/metric/map-center hover — pale-canary for contrast on surface2 */
+.theme-lcars .toggle-btn:hover,
+.theme-lcars .prop-metric-btn:hover,
+.theme-lcars .map-center-btn:hover {
+  background: #FFFF99; /* pale-canary */
+  color: #000;
+}
+
+/* Active metric/reference buttons — black on gold for contrast */
+.theme-lcars .prop-metric-btn.active { color: #000; }
+
+/* Callsign — gold for LCARS feel */
+.theme-lcars .callsign { color: var(--accent); }
 
 /* Source tab black notch separator (LCARS "decorated bar" pattern) */
 .theme-lcars .source-tab + .source-tab {
@@ -3610,15 +4000,219 @@ header {
 .theme-lcars #spotsTable tbody tr:nth-child(19) { animation-delay: 9.0s; }
 .theme-lcars #spotsTable tbody tr:nth-child(20) { animation-delay: 9.5s; }
 
-/* ---- Theme: HamClock ---- */
+/* LCARS mobile: disable elbow cutout, simplify to stacked layout */
+@media (max-width: 767px) {
+  .theme-lcars .header-left {
+    min-width: 0;
+    max-width: none;
+    padding: 8px 12px;
+  }
+
+  .theme-lcars .header-left::after {
+    display: none;
+  }
+
+  .theme-lcars .header-center {
+    padding: 6px 12px;
+  }
+
+  .theme-lcars .header-right {
+    padding: 4px 12px;
+  }
+}
+
+/* ---- Theme: Terminal ---- */
 /* Monospace terminal feel, green-on-black, tighter spacing.
    Colors are handled by CSS variable swapping in themes.js. */
+
+.theme-terminal {
+  font-family: 'Courier New', 'Lucida Console', monospace;
+}
+
+/* Widget — sharp corners, thin borders, terminal feel */
+.theme-terminal .widget {
+  border-radius: 2px;
+  border-width: 1px;
+}
+
+.theme-terminal .widget-header {
+  font-family: 'Courier New', 'Lucida Console', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 0.74rem;
+  padding: 3px 8px;
+  border-radius: 1px 1px 0 0;
+}
+
+.theme-terminal .widget-body {
+  font-family: 'Courier New', 'Lucida Console', monospace;
+}
+
+/* Header — minimal, terminal-like */
+.theme-terminal header {
+  padding: 4px 12px;
+}
+
+.theme-terminal .op-call a {
+  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Clock — monospace, smaller, denser */
+.theme-terminal .header-clock {
+  border-radius: 3px;
+  padding: 8px 20px;
+}
+
+.theme-terminal .header-clock-time {
+  font-family: 'Courier New', monospace;
+  letter-spacing: 2px;
+}
+
+.theme-terminal .header-clock-label {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Buttons — squared off, utilitarian */
+.theme-terminal .op-btn,
+.theme-terminal #refreshBtn,
+.theme-terminal #resetLayoutBtn,
+.theme-terminal #fullscreenBtn,
+.theme-terminal .feedback-btn,
+.theme-terminal .coffee-btn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Source tabs — very square */
+.theme-terminal .source-tab {
+  border-radius: 2px 2px 0 0;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.theme-terminal .source-tab.active {
+  background: var(--accent);
+  color: #000;
+}
+
+/* Band/mode buttons */
+.theme-terminal .band-btn,
+.theme-terminal .mode-btn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+.theme-terminal .band-btn.active,
+.theme-terminal .mode-btn.active {
+  color: #000;
+}
+
+/* Spot table — monospace data */
+.theme-terminal #spotsTable th {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.68rem;
+}
+
+.theme-terminal #spotsTable td {
+  font-family: 'Courier New', monospace;
+  font-size: 0.72rem;
+}
+
+/* Solar card labels */
+.theme-terminal .solar-card-label {
+  text-transform: uppercase;
+  font-family: 'Courier New', monospace;
+}
+
+/* Toggle/control buttons */
+.theme-terminal .toggle-btn,
+.theme-terminal .prop-metric-btn,
+.theme-terminal .map-center-btn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+/* Reference tabs */
+.theme-terminal .reference-tab {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+/* Modal */
+.theme-terminal .splash-box {
+  border-radius: 4px;
+}
+
+.theme-terminal .splash-box h2 {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.theme-terminal .config-tab {
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+.theme-terminal #splashOk,
+.theme-terminal #solarCfgOk,
+.theme-terminal #lunarCfgOk,
+.theme-terminal #spotColCfgOk,
+.theme-terminal #mapOverlayCfgOk,
+.theme-terminal #liveSpotsCfgOk,
+.theme-terminal #satCfgOk,
+.theme-terminal #helpOk,
+.theme-terminal #wxAlertClose,
+.theme-terminal #feedbackCancel,
+.theme-terminal #feedbackSubmit {
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Inputs */
+.theme-terminal select {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+.theme-terminal input[type="text"],
+.theme-terminal input[type="number"],
+.theme-terminal input[type="email"],
+.theme-terminal textarea {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+/* Filter buttons */
+.theme-terminal #savePresetBtn,
+.theme-terminal #deletePresetBtn,
+.theme-terminal #clearFiltersBtn {
+  border-radius: 2px;
+  font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+/* ---- Theme: HamClock ---- */
+/* Inspired by HamClock by WB0OEW — dark navy/black with cyan headings and colored data.
+   Shares structural overrides with Terminal (monospace, sharp corners) but uses
+   a cyan/blue color palette instead of green. */
 
 .theme-hamclock {
   font-family: 'Courier New', 'Lucida Console', monospace;
 }
 
-/* Widget — sharp corners, thin borders, terminal feel */
 .theme-hamclock .widget {
   border-radius: 2px;
   border-width: 1px;
@@ -3637,7 +4231,6 @@ header {
   font-family: 'Courier New', 'Lucida Console', monospace;
 }
 
-/* Header — minimal, terminal-like */
 .theme-hamclock header {
   padding: 4px 12px;
 }
@@ -3647,7 +4240,6 @@ header {
   font-family: 'Courier New', monospace;
 }
 
-/* Clock — monospace, smaller, denser */
 .theme-hamclock .header-clock {
   border-radius: 3px;
   padding: 8px 20px;
@@ -3664,7 +4256,6 @@ header {
   letter-spacing: 1px;
 }
 
-/* Buttons — squared off, utilitarian */
 .theme-hamclock .op-btn,
 .theme-hamclock #refreshBtn,
 .theme-hamclock #resetLayoutBtn,
@@ -3677,7 +4268,6 @@ header {
   letter-spacing: 1px;
 }
 
-/* Source tabs — very square */
 .theme-hamclock .source-tab {
   border-radius: 2px 2px 0 0;
   font-family: 'Courier New', monospace;
@@ -3690,7 +4280,6 @@ header {
   color: #000;
 }
 
-/* Band/mode buttons */
 .theme-hamclock .band-btn,
 .theme-hamclock .mode-btn {
   border-radius: 2px;
@@ -3702,7 +4291,6 @@ header {
   color: #000;
 }
 
-/* Spot table — monospace data */
 .theme-hamclock #spotsTable th {
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -3715,13 +4303,11 @@ header {
   font-size: 0.72rem;
 }
 
-/* Solar card labels */
 .theme-hamclock .solar-card-label {
   text-transform: uppercase;
   font-family: 'Courier New', monospace;
 }
 
-/* Toggle/control buttons */
 .theme-hamclock .toggle-btn,
 .theme-hamclock .prop-metric-btn,
 .theme-hamclock .map-center-btn {
@@ -3730,14 +4316,12 @@ header {
   text-transform: uppercase;
 }
 
-/* Reference tabs */
 .theme-hamclock .reference-tab {
   border-radius: 2px;
   font-family: 'Courier New', monospace;
   text-transform: uppercase;
 }
 
-/* Modal */
 .theme-hamclock .splash-box {
   border-radius: 4px;
 }
@@ -3770,7 +4354,6 @@ header {
   letter-spacing: 1px;
 }
 
-/* Inputs */
 .theme-hamclock select {
   border-radius: 2px;
   font-family: 'Courier New', monospace;
@@ -3784,7 +4367,6 @@ header {
   font-family: 'Courier New', monospace;
 }
 
-/* Filter buttons */
 .theme-hamclock #savePresetBtn,
 .theme-hamclock #deletePresetBtn,
 .theme-hamclock #clearFiltersBtn {
@@ -3792,6 +4374,39 @@ header {
   font-family: 'Courier New', monospace;
   text-transform: uppercase;
 }
+
+/* ---- HamClock DE/DX Panel Overrides ---- */
+
+/* DE panel — orange theme (matches real HamClock DE box) */
+.theme-hamclock .dedx-de { border-right: none; border-left: 3px solid var(--de-color); }
+.theme-hamclock .dedx-de .dedx-title { color: var(--de-color); }
+.theme-hamclock .dedx-de .dedx-value { color: var(--de-color); }
+.theme-hamclock .dedx-de .dedx-callsign { color: var(--de-color); font-size: 1rem; }
+.theme-hamclock .dedx-de .dedx-label-sm { color: #b07000; }
+
+/* DX panel — green theme (matches real HamClock DX box) */
+.theme-hamclock .dedx-dx { border-left: 3px solid var(--dx-color); }
+.theme-hamclock .dedx-dx .dedx-title { color: var(--dx-color); }
+.theme-hamclock .dedx-dx .dedx-value { color: var(--dx-color); }
+.theme-hamclock .dedx-dx .dedx-callsign { color: var(--dx-color); font-size: 1rem; }
+.theme-hamclock .dedx-dx .dedx-label-sm { color: #008800; }
+
+/* Sunrise yellow, sunset orange for both panels */
+.theme-hamclock .dedx-sunrise { color: #ffff00; }
+.theme-hamclock .dedx-sunset { color: #ff8800; }
+
+/* Dense stacked layout */
+.theme-hamclock .dedx-container { flex-direction: column; }
+.theme-hamclock .dedx-panel { border-right: none; border-bottom: 1px solid #333; }
+.theme-hamclock .dedx-row { font-size: 0.82rem; padding: 1px 4px; }
+
+/* Pure black widget bodies */
+.theme-hamclock .widget-body { background: #000000; padding: 2px; }
+.theme-hamclock .widget { border-color: #333; border-width: 1px; border-radius: 0; }
+.theme-hamclock .widget-header { font-size: 0.7rem; padding: 2px 6px; text-transform: uppercase; border-radius: 0; }
+
+/* UTC badge in HamClock theme */
+.theme-hamclock .dedx-utc-badge { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
 /* ---- Theme Selector (Config Modal Appearance Tab) ---- */
 
@@ -4139,5 +4754,307 @@ header {
   border-radius: 4px;
   padding: 4px 8px;
   font-size: 0.8rem;
+}
+
+/* ---- About Tab ---- */
+.about-content h3 {
+  margin: 0 0 4px 0;
+  font-size: 1.25rem;
+}
+
+.about-version {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin-bottom: 16px;
+}
+
+.about-content h4 {
+  margin: 16px 0 8px 0;
+  font-size: 0.9rem;
+  color: var(--accent);
+}
+
+.about-content p {
+  margin: 0 0 8px 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.about-content a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.about-content a:hover {
+  text-decoration: underline;
+}
+
+.about-links {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.about-links li {
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+}
+
+.about-links a {
+  color: var(--text);
+}
+
+.about-links a:hover {
+  color: var(--accent);
+}
+
+/* ==== Responsive — Tablet (< 1024px) ==== */
+
+@media (max-width: 1023px) {
+  /* Enlarge touch targets for tappability (Apple HIG: 44px minimum) */
+  button, .op-btn, .source-tab, .toggle-btn,
+  .widget-help-btn, .widget-cfg-btn, .widget-close-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  .band-btn, .mode-btn {
+    min-height: 36px;
+    padding: 6px 10px;
+  }
+
+  /* 16px font prevents iOS zoom on focus */
+  select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  input[type="text"], input[type="number"], input[type="email"], input[type="password"] {
+    font-size: 16px;
+    min-height: 44px;
+  }
+}
+
+/* ==== Responsive — Mobile (< 768px) ==== */
+
+@media (max-width: 767px) {
+
+  /* --- Header: stack vertically --- */
+
+  header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 4px 8px;
+    gap: 4px;
+    height: auto;
+    min-height: auto;
+  }
+
+  .header-left {
+    min-width: 0;
+    max-width: none;
+    gap: 8px;
+  }
+
+  .op-call { font-size: 1.6rem; }
+  .op-name { font-size: 1rem; }
+  .op-loc  { font-size: 0.85rem; }
+  .op-class { font-size: 0.85rem; }
+
+  .op-btns {
+    flex-direction: row;
+    gap: 4px;
+  }
+
+  .op-btn {
+    padding: 6px 10px;
+    font-size: 0.85rem;
+  }
+
+  .header-center {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+  }
+
+  .header-clock {
+    min-width: 0;
+  }
+
+  .header-clock-time {
+    font-size: 1rem;
+  }
+
+  .header-right {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    font-size: 0.7rem;
+  }
+
+  /* --- Widget area: vertical scroll stack --- */
+
+  .widget-area {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 4px;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .widget {
+    position: static !important;
+    width: 100% !important;
+    height: auto !important;
+    left: auto !important;
+    top: auto !important;
+    min-height: 120px;
+    z-index: auto !important;
+  }
+
+  .widget-header {
+    cursor: default;
+  }
+
+  /* Hide resize handles — no drag/resize on mobile */
+  .widget-resize {
+    display: none;
+  }
+
+  /* --- Per-widget default heights --- */
+
+  #widget-map {
+    min-height: 300px;
+  }
+
+  #widget-map .widget-body,
+  #widget-map #map {
+    height: 280px;
+  }
+
+  #widget-activations {
+    min-height: 250px;
+  }
+
+  #widget-activations .widget-body {
+    max-height: 300px;
+  }
+
+  #widget-filters {
+    min-height: auto;
+  }
+
+  #widget-solar {
+    min-height: 200px;
+  }
+
+  #widget-spacewx {
+    min-height: 200px;
+  }
+
+  #widget-spacewx .widget-body {
+    height: 180px;
+  }
+
+  /* --- Table: horizontal scroll on mobile --- */
+
+  .table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #spotsTable {
+    font-size: 0.72rem;
+  }
+
+  #spotsTable th, #spotsTable td {
+    padding: 6px 4px;
+    white-space: nowrap;
+  }
+
+  /* --- Source tabs: wrap nicely --- */
+
+  .source-tabs {
+    flex-wrap: wrap;
+    gap: 2px;
+  }
+
+  .source-tab {
+    font-size: 0.75rem;
+    padding: 4px 8px;
+  }
+
+  /* --- Filter row: wrap on narrow screens --- */
+
+  .filter-row {
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .band-filters, .mode-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .band-btn, .mode-btn {
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    padding: 4px 6px;
+  }
+
+  .filter-row-range {
+    flex-direction: column;
+  }
+
+  #countryFilter, #stateFilter, #gridFilter, #continentFilter {
+    width: 100%;
+  }
+
+  /* --- Modals: fit small screens --- */
+
+  .splash-box {
+    min-width: 0;
+    width: 95vw;
+    max-width: 95vw;
+    padding: 16px 12px;
+    max-height: 90vh;
+  }
+
+  .config-box {
+    max-width: 95vw;
+    width: 95vw;
+  }
+
+  .help-box {
+    max-width: 95vw;
+  }
+
+  .feedback-box {
+    max-width: 95vw;
+  }
+
+  /* --- VOACAP widget: readable on mobile --- */
+
+  .voacap-param-bar {
+    flex-wrap: wrap;
+    gap: 2px;
+    font-size: 0.65rem;
+  }
+
+  /* --- Spacewx tabs: smaller on mobile --- */
+
+  .spacewx-tab {
+    padding: 4px 6px;
+    font-size: 0.65rem;
+  }
+
+  /* --- New widgets: cap height on mobile --- */
+
+  #widget-beacons .widget-body,
+  #widget-contests .widget-body,
+  #widget-dxpeditions .widget-body { max-height: 250px; }
 }
 

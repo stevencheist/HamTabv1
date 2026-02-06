@@ -194,14 +194,21 @@ export function showSplash() {
     updateLocStatus('Using GPS');
   }
 
-  $('timeFmt24').checked = state.use24h;
-  $('timeFmt12').checked = !state.use24h;
+  // Load preferences — defensive null-checks for deployment-mode differences
+  const timeFmt24 = $('timeFmt24');
+  const timeFmt12 = $('timeFmt12');
+  if (timeFmt24) timeFmt24.checked = state.use24h;
+  if (timeFmt12) timeFmt12.checked = !state.use24h;
 
-  // Load unit preferences
-  $('distUnitMi').checked = state.distanceUnit === 'mi';
-  $('distUnitKm').checked = state.distanceUnit === 'km';
-  $('tempUnitF').checked = state.temperatureUnit === 'F';
-  $('tempUnitC').checked = state.temperatureUnit === 'C';
+  const distUnitMi = $('distUnitMi');
+  const distUnitKm = $('distUnitKm');
+  if (distUnitMi) distUnitMi.checked = state.distanceUnit === 'mi';
+  if (distUnitKm) distUnitKm.checked = state.distanceUnit === 'km';
+
+  const tempUnitF = $('tempUnitF');
+  const tempUnitC = $('tempUnitC');
+  if (tempUnitF) tempUnitF.checked = state.temperatureUnit === 'F';
+  if (tempUnitC) tempUnitC.checked = state.temperatureUnit === 'C';
 
   const widgetList = document.getElementById('splashWidgetList');
   widgetList.innerHTML = '';
@@ -221,8 +228,10 @@ export function showSplash() {
   $('splashN2yoApiKey').value = state.n2yoApiKey;
 
   const intervalSelect = $('splashUpdateInterval');
-  const savedInterval = localStorage.getItem('hamtab_update_interval') || '60';
-  intervalSelect.value = savedInterval;
+  if (intervalSelect) {
+    const savedInterval = localStorage.getItem('hamtab_update_interval') || '60';
+    intervalSelect.value = savedInterval;
+  }
 
   $('splashGridDropdown').classList.remove('open');
   $('splashGridDropdown').innerHTML = '';
@@ -284,6 +293,7 @@ export function showSplash() {
   }
 
   $('splashVersion').textContent = __APP_VERSION__;
+  $('aboutVersion').textContent = __APP_VERSION__;
 
   // --- Grid mode section ---
   const gridSection = document.getElementById('gridModeSection');
@@ -401,14 +411,17 @@ function dismissSplash() {
 
   applyWidgetVisibility();
 
+  // Update interval — lanmode only (element absent in hostedmode)
   const intervalSelect = $('splashUpdateInterval');
-  const intervalVal = intervalSelect.value;
-  localStorage.setItem('hamtab_update_interval', intervalVal);
-  fetch('/api/update/interval', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
-  }).catch(() => {});
+  if (intervalSelect) {
+    const intervalVal = intervalSelect.value;
+    localStorage.setItem('hamtab_update_interval', intervalVal);
+    fetch('/api/update/interval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
+    }).catch(() => {});
+  }
 
   $('splashGridDropdown').classList.remove('open');
   $('splash').classList.add('hidden');

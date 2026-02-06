@@ -1,6 +1,7 @@
 // Migration must run first, before state.js reads localStorage
-import { migrate } from './migration.js';
+import { migrate, migrateV2 } from './migration.js';
 migrate();
+migrateV2();
 
 // Theme must apply before any rendering to avoid flash of unstyled content
 import { initTheme } from './themes.js';
@@ -19,7 +20,7 @@ state.lunarFieldVisibility = loadLunarFieldVisibility();
 state.widgetVisibility = loadWidgetVisibility();
 state.spotColumnVisibility = loadSpotColumnVisibility();
 
-import { initMap, centerMapOnUser, updateUserMarker } from './map-init.js';
+import { initMap, centerMapOnUser, updateUserMarker, updateSunMarker, updateMoonMarker, updateBeaconMarkers } from './map-init.js';
 import { initWidgets } from './widgets.js';
 import { switchSource, initSourceListeners } from './source.js';
 import { initFilterListeners } from './filters.js';
@@ -42,13 +43,19 @@ import { initFeedbackListeners } from './feedback.js';
 import { initLiveSpotsListeners, fetchLiveSpots, renderLiveSpotsOnMap } from './live-spots.js';
 import { initVoacapListeners, renderVoacapMatrix, fetchVoacapMatrix, fetchVoacapMatrixThrottled } from './voacap.js';
 import { initHeatmapListeners } from './rel-heatmap.js';
+import { initSpaceWxListeners, fetchSpaceWxData } from './spacewx-graphs.js';
+import { initBeaconListeners, startBeaconTimer } from './beacons.js';
+import { initDxpeditionListeners, fetchDxpeditions } from './dxpeditions.js';
+import { initContestListeners, fetchContests } from './contests.js';
+import { initDedxListeners, renderDedxInfo } from './dedx-info.js';
 
 // Initialize map
 initMap();
 
-// Initialize gray line
+// Initialize gray line + sun marker
 updateGrayLine();
-setInterval(updateGrayLine, 60000);
+updateSunMarker();
+setInterval(() => { updateGrayLine(); updateSunMarker(); }, 60000); // 60 s — gray line + sun marker refresh
 
 // Satellite tracking (multi-satellite via N2YO)
 initSatellites();
@@ -80,6 +87,11 @@ initFeedbackListeners();
 initLiveSpotsListeners();
 initVoacapListeners();
 initHeatmapListeners();
+initSpaceWxListeners();
+initBeaconListeners();
+initDxpeditionListeners();
+initContestListeners();
+initDedxListeners();
 
 // Wire initApp into splash dismissal
 function initApp() {
@@ -94,6 +106,12 @@ function initApp() {
   startNwsPolling();
   fetchLiveSpots();
   fetchVoacapMatrix();
+  fetchSpaceWxData();
+  startBeaconTimer();
+  fetchDxpeditions();
+  fetchContests();
+  renderDedxInfo();
+  updateBeaconMarkers();
 }
 
 // Live Spots refresh (5 min — PSKReporter rate limit)
@@ -102,6 +120,12 @@ setInterval(fetchLiveSpots, 5 * 60 * 1000);
 // VOACAP matrix refresh — render every minute (for hour transitions), server fetch throttled to 5 min
 setInterval(renderVoacapMatrix, 60 * 1000);
 setInterval(fetchVoacapMatrixThrottled, 60 * 1000);
+
+// Beacon map markers — refresh every 10s (same as beacon rotation)
+setInterval(updateBeaconMarkers, 10000);
+
+// DE/DX countdown refresh — update sunrise/sunset countdowns every 60s
+setInterval(renderDedxInfo, 60000);
 
 setInitApp(initApp);
 

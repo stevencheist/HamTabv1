@@ -1,5 +1,13 @@
 # CLAUDE.md — HamTabV1
 
+## Instruction Routing
+
+This file is for **project-specific** instructions — architecture, code conventions, branch strategy, file locations, widgets, security rules, API patterns. Anything tied to HamTabV1.
+
+For **Claude behavior** instructions — coordination protocols, communication style, session habits, general patterns that apply across all SF Foundry projects — use `~/.claude/instructions.md` (symlinked to `sffoundry/ai-workflows`).
+
+**Quick test:** "Would this instruction matter if we started a completely different project?" If yes → `instructions.md`. If no → `CLAUDE.md`.
+
 ## Project Overview
 
 HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanilla JS frontend, Leaflet maps, esbuild bundling.
@@ -77,6 +85,9 @@ main ──────────────────────── SH
 | `Dockerfile` | Container image for Cloudflare Containers |
 | `src/settings-sync.js` | Client-side settings sync via Workers KV |
 | `.github/workflows/deploy.yml` | CI/CD — auto-deploy on push to hostedmode |
+| `public/sitemap.xml` | Search engine sitemap (SEO) |
+| `public/robots.txt` | Crawler directives (SEO) |
+| `public/og-image.png` | Social media share preview (SEO) |
 
 ## Commenting Style
 
@@ -101,6 +112,17 @@ main ──────────────────────── SH
 - Widgets must remain accessible at any window size — responsive reflow on resize
 
 ## Commit & Branch Conventions
+
+### Pre-Commit Branch Check
+
+**MANDATORY: Before EVERY `git commit`, run `git branch --show-current` and verify you are on the correct branch.**
+
+- If the commit is for shared code, you MUST be on `main`
+- If the commit is for hostedmode, you MUST be on `hostedmode`
+- If the commit is for lanmode, you MUST be on `lanmode`
+- **NEVER commit without checking first** — accidental commits to the wrong branch cause merge artifacts and wasted debugging time
+- If you are on the wrong branch: stash changes, switch to the correct branch, then unstash and commit
+- This check is non-negotiable. It applies to every single commit, no exceptions.
 
 ### Commit Messages
 - Imperative mood ("Add X", "Fix Y")
@@ -127,7 +149,7 @@ main ──────────────────────── SH
 3. **Hostedmode-only features:**
    - ✅ Develop on `hostedmode` branch ONLY
    - ❌ **NEVER merge to `main`** (causes conflicts)
-   - Examples: Workers KV, CI/CD, Cloudflare Access integration
+   - Examples: Workers KV, CI/CD, Cloudflare Access integration, SEO updates (sitemap, robots.txt, og-image)
 
 4. **Features needing different implementations:**
    - ✅ Shared UI/logic on `main`
@@ -153,6 +175,7 @@ main ──────────────────────── SH
   git checkout lanmode
   git pull origin lanmode
   git merge main -m "Merge main into lanmode"
+  # 4a. Post-merge validation (see below)
   git push origin lanmode
 
   # 5. Sync hostedmode (pull remote, merge main, push)
@@ -163,6 +186,9 @@ main ──────────────────────── SH
   # 5a. Verify @cloudflare/containers survived the merge
   grep -q '@cloudflare/containers' package.json || echo "⚠️ @cloudflare/containers MISSING — re-add it!"
 
+  # 5b. Post-merge validation (see below)
+  # 5c. SEO review — if new features were added, run the SEO Update Checklist
+  #     (update sitemap.xml lastmod, JSON-LD featureList, noscript section, etc.)
   git push origin hostedmode
 
   # 6. Return to main and sync
@@ -187,9 +213,19 @@ main ──────────────────────── SH
   - `@cloudflare/containers` is a hostedmode-only dependency that `main` doesn't have. When `main` modifies the `dependencies` block in `package.json` (adding/removing packages), git's merge can silently drop `@cloudflare/containers`. **Always check** `package.json` on hostedmode after merge. If missing, re-add it (`npm install @cloudflare/containers`), commit, then push.
 
 - **If merge conflicts occur on deployment branches:**
-  - ⚠️ **STOP!** This indicates mode-specific code on `main`
-  - Review BRANCH_STRATEGY.md conflict resolution protocol
-  - Fix the issue, don't force the merge
+  - Most common in `server.js` imports and startup sections
+  - **server.js imports:** Main has `// --- Shared imports ---` and `// --- Lanmode-only imports ---` sections. On hostedmode, delete the entire lanmode-only block. On lanmode, keep both but check for `exec` (lanmode adds it for restart).
+  - **server.js startup:** Main has `// --- Lanmode-only: HTTPS ---` at the bottom. Hostedmode should keep only the HTTP listener. Lanmode keeps both.
+  - **splash.js:** DOM access uses null-safe pattern (`const el = $('id'); if (el) ...`). Keep the null-checks — they prevent crashes when elements differ between modes.
+  - **public/app.js:** Build artifact — resolve by accepting either side, then rebuild on the branch if needed.
+  - See BRANCH_STRATEGY.md for full conflict resolution protocol
+
+- **Post-merge validation (MANDATORY after every merge to deployment branches):**
+  After merging main into lanmode or hostedmode, run these checks BEFORE pushing:
+  1. **Syntax check:** `node -c server.js` — catches SyntaxErrors (duplicate declarations, missing brackets)
+  2. **Duplicate detection:** `grep -c 'let \|const \|function ' server.js` — compare count against main. Large increase = likely duplicated sections
+  3. **Section header scan:** `grep -n '^// ---' server.js` — look for duplicate section headers (e.g. two `// --- N2YO Satellite Tracking API ---`)
+  4. **If any check fails:** Fix the issue on the deployment branch before pushing. Do NOT push broken code — CI/CD will deploy it immediately to production
 
 ### Documentation Edits
 
@@ -198,6 +234,21 @@ main ──────────────────────── SH
 - Deployment branches are for runtime code — documentation doesn't affect them
 - Only run "sync branches" when there's actual code to deploy
 - Never edit documentation directly on deployment branches
+
+### README.md Updates
+
+**The README must stay current.** Update it whenever any of these change:
+
+| Change | README section to update |
+|--------|--------------------------|
+| New npm dependency added/removed | Dependencies table |
+| New external API integrated | External APIs table |
+| Install script changes (install.sh, install.ps1) | Installation section |
+| Uninstall procedure changes | Uninstall subsection |
+| New widget added | Features list |
+| New user-facing feature | Features list |
+| Environment variable added/changed | Configuration / Environment Variables |
+| Port or network behavior changes | Network Configuration |
 
 ## Code Quality
 
@@ -228,22 +279,87 @@ main ──────────────────────── SH
 - Every push to `hostedmode` triggers a build and deploy to Cloudflare
 - Version displayed as static label for reference only
 
+## SEO & Discoverability (Hostedmode Only)
+
+SEO only matters for hamtab.net — lanmode runs on private LANs where search engines never reach. All SEO-related changes are developed and maintained on the `hostedmode` branch.
+
+**Positioning:** HamTab is a **free, modern, web-based alternative to HamClock**. With HamClock installations ceasing to function in June 2026, HamTab targets the ~10,000+ displaced HamClock users. Every SEO touchpoint should reinforce this.
+
+**Target keywords:** amateur radio dashboard, ham radio dashboard, HamClock alternative, POTA dashboard, SOTA dashboard, DX cluster, propagation, satellite tracking, space weather, Parks on the Air, Summits on the Air
+
+### SEO Files
+
+| File | Purpose | Branch |
+|------|---------|--------|
+| `public/index.html` | Meta tags, Open Graph, Twitter cards, JSON-LD structured data, `<noscript>` fallback | `main` (shared — meta tags don't affect lanmode) |
+| `public/sitemap.xml` | Search engine sitemap | `hostedmode` only |
+| `public/robots.txt` | Crawler directives | `hostedmode` only |
+| `public/og-image.png` | Social share preview image (1200×630px) | `hostedmode` only |
+| `README.md` | GitHub search & discoverability | `main` (GitHub-facing) |
+| `package.json` | npm/GitHub metadata (`description`, `keywords`) | `main` |
+
+### SEO Update Checklist (on every feature push)
+
+**After syncing a feature to hostedmode, review these before pushing the branch:**
+
+- [ ] `<title>` in index.html still accurately describes the app
+- [ ] `<meta name="description">` reflects current feature set
+- [ ] JSON-LD `featureList` array includes any new major features
+- [ ] `<noscript>` fallback section lists any new features (this is what crawlers see for JS apps)
+- [ ] `sitemap.xml` `<lastmod>` date updated to today
+- [ ] `README.md` features list includes any new user-facing features
+- [ ] `package.json` `description` still accurate
+
+**When adding a new widget or major feature:**
+- Add it to JSON-LD `featureList` in index.html
+- Add it to the `<noscript>` features list in index.html
+- Add it to the README.md features section
+- Update the meta description if the feature is significant enough
+
+### Missing SEO Assets (TODO)
+
+- [ ] `public/og-image.png` — Social share preview (referenced in OG/Twitter meta tags but file missing). Create 1200×630px screenshot showing the dashboard
+- [ ] `public/manifest.json` — PWA metadata (app name, icons, theme). Enables "Add to Home Screen" on mobile/desktop
+- [ ] `package.json` `keywords` field — npm/GitHub keyword array
+
+### File Location Note
+
+`sitemap.xml` and `robots.txt` currently live on `main` in `public/`. Since they serve no purpose on lanmode, they should be moved to `hostedmode` only. Until then, updating them on main is fine — they're harmless on LAN installs.
+
 ## Security (Priority)
 
 Security is a top priority. Flag any code that could introduce a vulnerability.
 
-**All branches:**
-- **SSRF prevention** — All outbound requests in server.js must resolve the hostname and reject RFC 1918 / loopback IPs before connecting. Whitelist URL path/query params where possible (e.g. SDO image type).
-- **No client-side external requests** — All external API calls go through server.js proxy, never from the browser directly.
-- **Secrets** — No API keys in client code. Use `.env` for secrets. Never commit `.env`, TLS certs, or wrangler secrets.
-- **CSP** — Helmet CSP is enforced. When adding new external resources, proxy them through the server rather than loosening CSP.
-- **Rate limiting** — All `/api/` routes are rate-limited.
-- **Input validation** — Sanitize and whitelist all user-supplied query params on server endpoints. Use `encodeURIComponent` on the client when building URLs.
-- **XSS** — Use `textContent` or DOM APIs to render user/API data. Never inject unsanitized strings via `innerHTML`. The `esc()` utility must be used if HTML insertion is unavoidable.
-- **Dependency hygiene** — Keep dependencies minimal. Audit before adding new packages.
+Universal security rules live in `~/.claude/instructions.md` (Security Invariants section). This section covers **HamTabV1-specific** implementations of those rules.
+
+**Mandatory utilities & patterns:**
+
+- **`secureFetch(url, options)`** (`server.js`) — ALL outbound HTTP requests MUST use this function. Never use raw `fetch`, `https.get`, or `axios`. It enforces DNS pinning, SSRF prevention, timeouts (10s), response size limits (5MB), redirect depth (5), and HTTPS-only. New endpoints that call external APIs must go through `secureFetch`.
+- **`esc(str)`** (`src/utils.js`) — ALL user/API data rendered as HTML MUST use this function. It encodes via `textContent` → `innerHTML`. Use `textContent` for plain text; use `esc()` only when building HTML strings.
+- **`isPrivateIP(ip)`** (`server.js`) — Used by CORS and `secureFetch`. Covers IPv4 RFC 1918, loopback, link-local, and IPv6 equivalents including mapped addresses.
+
+**Input validation patterns (project-specific):**
+
+| Input | Format | Where validated |
+|-------|--------|-----------------|
+| Callsign | `/^[A-Z0-9]{1,10}$/i` | Server endpoints before external API calls |
+| Satellite IDs | `/^\d+(,\d+)*$/` | Before N2YO API calls |
+| Latitude | `-90 ≤ n ≤ 90`, reject NaN | All endpoints accepting lat |
+| Longitude | `-180 ≤ n ≤ 180`, reject NaN | All endpoints accepting lon |
+| SDO image type | Whitelist: `0193, 0171, 0304, HMIIC` | `/api/sdo` endpoint |
+| SDO frame filename | `/^\d{8}_\d{6}_512_\w+\.jpg$/` | `/api/sdo/frame` endpoint |
+| Propagation type | Whitelist: `mufd, fof2` | `/api/propagation` endpoint |
+| VOACAP power | Whitelist: `5, 100, 1000` | `/api/voacap` endpoint |
+| VOACAP mode | Whitelist: `CW, SSB, FT8` | `/api/voacap` endpoint |
+| `.env` keys | Whitelist: `WU_API_KEY, N2YO_API_KEY` | `/api/config/env` POST |
+
+**Cache eviction:**
+- Server-side caches auto-evict every 30 minutes (`server.js` cleanup interval)
+- Client-side `callsignCache` caps at 500 entries, evicts oldest 50% (`src/utils.js`)
+- New caches MUST include eviction — follow existing patterns
 
 **Lanmode-specific:**
-- **CORS** — Locked to RFC 1918 private networks only.
+- **CORS** — Locked to RFC 1918 private networks only via `isPrivateIP()`.
 - **Self-signed TLS** — Generated automatically for LAN HTTPS.
 
 **Hostedmode-specific:**
@@ -307,7 +423,7 @@ Stay on `main` for most work. Use simple commands to manage branches:
 ### Claim Work Protocol (before starting ANY feature or task)
 
 1. `git pull` — get the latest from remote
-2. Re-read `CLAUDE.md` — check for updated instructions
+2. Re-read **both** `CLAUDE.md` (project instructions) AND `~/.claude/instructions.md` (shared instructions)
 3. Re-read `WORKING_ON.md` — check what the other developer is doing
 4. **If there's a conflict** (other dev is touching the same files/feature), **stop and tell the user**
 5. Add your row to the "Active Work" table in `WORKING_ON.md`
@@ -464,3 +580,66 @@ When commenting on issues or asking questions of users:
 - **Ask clear, specific questions** — use numbered lists so users can answer point by point.
 - **Offer concrete examples** — when asking about preferences, give options rather than open-ended questions.
 - **Follow up on implemented features** — when work is done, comment asking the requester to try it and give feedback.
+
+## Root Cause Analysis Protocol
+
+**MANDATORY: After resolving any major issue (production outage, multi-hour debug session, data loss, or broken deployment), perform a root cause analysis before moving on.**
+
+### When to Trigger RCA
+
+- Production site down or returning errors
+- Bug that took more than 3 debugging iterations to identify
+- Merge or deployment that broke a branch
+- Any issue caused by process failure (wrong branch, missing validation, skipped step)
+
+### RCA Format
+
+Write the RCA to auto memory (`memory/rca/YYYY-MM-DD-short-title.md`) so it persists across sessions. Include:
+
+```markdown
+# RCA: <Short Title>
+**Date:** YYYY-MM-DD
+**Duration:** How long from discovery to fix
+**Severity:** Production outage / Broken deploy / Dev-only
+
+## What Happened
+One-paragraph summary of the observable problem.
+
+## Root Cause
+The actual underlying technical cause.
+
+## Why It Wasn't Caught
+What safeguards should have prevented this but didn't.
+
+## Fix Applied
+What was done to resolve the immediate issue.
+
+## Preventive Measures
+Specific changes to process, tooling, or code to prevent recurrence.
+Each measure should reference the file/section updated (e.g. "Added post-merge validation to CLAUDE.md § Branch Sync Protocol").
+
+## Lessons Learned
+Broader insights for future debugging or development.
+```
+
+### After Writing the RCA
+
+1. **Update CLAUDE.md** — Add any new rules, checklists, or validation steps identified in Preventive Measures
+2. **Update instructions.md** — If the lesson applies across all projects, add it to shared instructions
+3. **Update MEMORY.md** — Add a brief note linking to the RCA file
+4. **Commit the RCA and all updated files** in a single commit
+
+---
+
+## Past Incident Learnings
+
+Rules added from past RCAs. Each links to the original analysis.
+
+### Hostedmode Container Crash (2026-02-06)
+**Cause:** Merge from main duplicated the N2YO satellite section in server.js on hostedmode. Two `let satListCache` declarations caused a SyntaxError — Node.js crashed before `app.listen()`, so the container ran but nothing listened on port 8080.
+**Duration:** ~2 hours of systematic debugging (bare-bones HTTP test, startup-diag wrapper, progressive elimination).
+**Preventive measures added:**
+- Pre-commit branch check (CLAUDE.md § Pre-Commit Branch Check) — prevents accidental commits to wrong branch
+- Post-merge validation (CLAUDE.md § Branch Sync Protocol) — `node -c server.js` + duplicate section scan after every merge
+- RCA protocol (this section) — forces analysis after every major incident
+**See:** `memory/rca/2026-02-06-hostedmode-container-crash.md`

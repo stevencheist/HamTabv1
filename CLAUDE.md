@@ -159,6 +159,10 @@ main ──────────────────────── SH
   git checkout hostedmode
   git pull origin hostedmode
   git merge main -m "Merge main into hostedmode"
+
+  # 5a. Verify @cloudflare/containers survived the merge
+  grep -q '@cloudflare/containers' package.json || echo "⚠️ @cloudflare/containers MISSING — re-add it!"
+
   git push origin hostedmode
 
   # 6. Return to main and sync
@@ -178,6 +182,9 @@ main ──────────────────────── SH
   - `package-lock.json` conflicts are common and benign — resolve with `npm install --package-lock-only`
   - Version collision (both devs bumped to same version) — bump again after merge, rebuild
   - Code conflicts — review carefully, may indicate overlapping work
+
+- **After merging main into hostedmode — verify dependencies:**
+  - `@cloudflare/containers` is a hostedmode-only dependency that `main` doesn't have. When `main` modifies the `dependencies` block in `package.json` (adding/removing packages), git's merge can silently drop `@cloudflare/containers`. **Always check** `package.json` on hostedmode after merge. If missing, re-add it (`npm install @cloudflare/containers`), commit, then push.
 
 - **If merge conflicts occur on deployment branches:**
   - ⚠️ **STOP!** This indicates mode-specific code on `main`

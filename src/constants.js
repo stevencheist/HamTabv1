@@ -6,6 +6,7 @@ export const WIDGET_DEFS = [
   { id: 'widget-activations', name: 'On the Air' },
   { id: 'widget-map',         name: 'HamMap' },
   { id: 'widget-solar',       name: 'Solar' },
+  { id: 'widget-spacewx',     name: 'Space Wx' },
   { id: 'widget-propagation', name: 'Band Conditions' },
   { id: 'widget-voacap',      name: 'VOACAP DE\u2192DX' },
   { id: 'widget-live-spots',  name: 'Live Spots' },
@@ -13,6 +14,10 @@ export const WIDGET_DEFS = [
   { id: 'widget-satellites',  name: 'Satellites' },
   { id: 'widget-rst',          name: 'Reference' },
   { id: 'widget-spot-detail', name: 'DX Detail' },
+  { id: 'widget-contests',     name: 'Contests' },
+  { id: 'widget-dxpeditions',  name: 'DXpeditions' },
+  { id: 'widget-beacons',      name: 'NCDXF Beacons' },
+  { id: 'widget-dedx',         name: 'DE/DX Info' },
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)
@@ -293,6 +298,18 @@ export const WIDGET_HELP = {
       { label: 'HamQSL Space Weather', url: 'https://www.hamqsl.com/solar.html' },
     ],
   },
+  'widget-spacewx': {
+    title: 'Space Weather History',
+    description: 'Historical graphs of key space weather indices over the past week (or 90 days for Solar Flux). These charts help you spot trends and understand how conditions are changing — not just a single snapshot, but the bigger picture.',
+    sections: [
+      { heading: 'Tabs', content: 'Five tabs let you switch between different measurements: Kp index (geomagnetic activity), X-Ray flux (solar flare intensity), SFI (Solar Flux Index — overall solar activity), Solar Wind speed, and Bz (interplanetary magnetic field direction).' },
+      { heading: 'What the graphs show', content: 'Kp: Bar chart colored green/yellow/red — values above 4 mean geomagnetic storms that can disrupt HF. X-Ray: Line chart on a log scale — C/M/X class flares marked. SFI: 90-day trend — higher values (100+) mean better HF propagation. Wind: Solar wind speed — above 400 km/s can disturb conditions. Bz: Southward (negative) Bz opens Earth\'s magnetosphere to solar wind, worsening conditions.' },
+      { heading: 'Data source', content: 'All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 15 minutes.' },
+    ],
+    links: [
+      { label: 'NOAA SWPC', url: 'https://www.swpc.noaa.gov/' },
+    ],
+  },
   'widget-propagation': {
     title: 'Band Conditions',
     description: 'A forecast of current HF band conditions by region. This helps you decide which band to use based on where you want to communicate.',
@@ -391,6 +408,52 @@ export const WIDGET_HELP = {
       { heading: 'Distance & Bearing', content: 'Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config.' },
       { heading: 'Frequency & Mode', content: 'The frequency and mode the station is operating on, so you know exactly where to tune your radio.' },
       { heading: 'Weather', content: 'Shows current weather conditions at the station\'s location, if available.' },
+    ],
+  },
+  'widget-contests': {
+    title: 'Contests',
+    description: 'A calendar of upcoming and active amateur radio contests. Contests are time-limited on-air competitions where operators try to make as many contacts as possible. They\'re a great way to fill your logbook and practice your operating skills.',
+    sections: [
+      { heading: 'What Are Contests?', content: 'Ham radio contests run for a set period (usually a weekend). Operators exchange brief messages and try to contact as many stations or regions as possible. Contests happen nearly every weekend — from casual events to major international competitions.' },
+      { heading: 'Reading the List', content: 'Each card shows the contest name, date/time window, and operating mode. Cards marked "NOW" are currently running. Click any card to view the full rules and exchange format on the contest website.' },
+      { heading: 'Mode Badges', content: 'CW = Morse code only. PHONE = voice modes (SSB/FM). DIGITAL = digital modes (RTTY, FT8, etc.). Contests without a badge accept mixed modes.' },
+    ],
+    links: [
+      { label: 'WA7BNM Contest Calendar', url: 'https://www.contestcalendar.com/' },
+    ],
+  },
+  'widget-dxpeditions': {
+    title: 'DXpeditions',
+    description: 'Track upcoming and active DXpeditions — organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.',
+    sections: [
+      { heading: 'What Is a DXpedition?', content: 'A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade.' },
+      { heading: 'Reading the Cards', content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details.' },
+      { heading: 'QSL Information', content: 'QSL means "I confirm" — it\'s how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).' },
+    ],
+    links: [
+      { label: 'NG3K DXpedition Calendar', url: 'https://www.ng3k.com/Misc/adxo.html' },
+    ],
+  },
+  'widget-beacons': {
+    title: 'NCDXF Beacons',
+    description: 'Real-time display of the NCDXF/IARU International Beacon Project — a network of 18 synchronized beacons worldwide that transmit on 5 HF frequencies in a repeating 3-minute cycle. Listening for these beacons is the quickest way to check which bands are open to which parts of the world.',
+    sections: [
+      { heading: 'How It Works', content: 'Every 3 minutes, each of the 18 beacons transmits for 10 seconds on each of 5 frequencies (14.100, 18.110, 21.150, 24.930, and 28.200 MHz). Five beacons transmit simultaneously — one per frequency. The table shows which beacon is active on each frequency right now, with a countdown to the next rotation.' },
+      { heading: 'Checking Propagation', content: 'Tune your radio to one of the beacon frequencies and listen. If you hear a beacon, the band is open to that beacon\'s location. Scan all five frequencies to quickly map which bands are open to which parts of the world.' },
+      { heading: 'Beacon Transmission', content: 'Each beacon transmits its callsign in CW (Morse code) at 100 watts, followed by four 1-second dashes at decreasing power levels (100W, 10W, 1W, 0.1W). If you can copy the callsign but not the last dashes, you know the band is open but marginal to that location.' },
+    ],
+    links: [
+      { label: 'NCDXF Beacon Project', url: 'https://www.ncdxf.org/beacon/' },
+    ],
+  },
+  'widget-dedx': {
+    title: 'DE/DX Info',
+    description: 'A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock layout, this widget gives you the key information you need at a glance when making contacts.',
+    sections: [
+      { heading: 'DE (Your Station)', content: 'The left panel shows your callsign, Maidenhead grid square, latitude/longitude, and today\'s sunrise and sunset times at your location (in UTC). This requires your callsign and location to be set in Config.' },
+      { heading: 'DX (Selected Station)', content: 'The right panel shows details for whichever station you\'ve clicked in the On the Air table or on the map. It displays their callsign, frequency, mode, grid square, bearing (compass direction to point your antenna), distance, and sunrise/sunset times at their location.' },
+      { heading: 'Why Sunrise/Sunset?', content: 'HF radio propagation changes dramatically at sunrise and sunset. The "gray line" (the band of twilight circling the Earth) often produces enhanced propagation. Knowing sunrise/sunset at both ends of a path helps you predict when a band will open or close between your station and the DX.' },
+      { heading: 'Bearing & Distance', content: 'The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact.' },
     ],
   },
   'widget-live-spots': {
@@ -528,6 +591,16 @@ export const REFERENCE_TABS = {
 };
 
 export const DEFAULT_REFERENCE_TAB = 'rst';
+
+// --- Responsive breakpoints ---
+export const BREAKPOINT_MOBILE = 768;
+export const BREAKPOINT_TABLET = 1024;
+export function getLayoutMode() {
+  const w = window.innerWidth;
+  if (w < BREAKPOINT_MOBILE) return 'mobile';
+  if (w < BREAKPOINT_TABLET) return 'tablet';
+  return 'desktop';
+}
 
 export const WIDGET_STORAGE_KEY = 'hamtab_widgets';
 export const USER_LAYOUT_KEY = 'hamtab_widgets_user';

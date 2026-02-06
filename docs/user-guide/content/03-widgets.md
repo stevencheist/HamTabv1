@@ -195,6 +195,36 @@ Click the gear icon to show/hide fields. Default fields: SFI, Sunspots, A-Index,
 
 ---
 
+## Space Wx Widget
+
+Historical graphs of key space weather indices. While the Solar widget shows current snapshot values, the Space Wx widget shows trends over the past 7 days (or 90 days for Solar Flux), helping you understand how conditions are changing.
+
+### Tabs
+
+Switch between five measurements using the tabs at the top of the widget:
+
+| Tab | What It Shows | Time Range |
+|-----|--------------|------------|
+| **Kp** | Geomagnetic activity (0–9 scale) | 7 days |
+| **X-Ray** | Solar flare intensity (log scale) | 7 days |
+| **SFI** | Solar Flux Index (overall solar activity) | 90 days |
+| **Wind** | Solar wind speed (km/s) | 7 days |
+| **Bz** | Interplanetary magnetic field direction (nT) | 7 days |
+
+### Reading the Graphs
+
+- **Kp**: Bar chart colored green (quiet), yellow (unsettled), red (storm). Values above 4 mean geomagnetic storms that can disrupt HF propagation.
+- **X-Ray**: Line chart on a logarithmic scale with A/B/C/M/X flare class boundaries marked. Higher classes mean stronger solar flares.
+- **SFI**: 90-day trend line. Values above 100 generally mean good HF conditions; above 150 is excellent.
+- **Wind**: Solar wind speed with color zones — green below 400 km/s (quiet), yellow 400–600 km/s, red above 600 km/s (disturbed).
+- **Bz**: Signed line chart showing the north-south component of the interplanetary magnetic field. Green (positive/northward) is good for radio; red (negative/southward) allows solar wind to disturb Earth's magnetosphere.
+
+### Data Source
+
+All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 15 minutes.
+
+---
+
 ## Band Conditions Widget
 
 Global propagation forecast showing conditions by band and region.
@@ -428,3 +458,110 @@ Detailed information about the currently selected spot.
 
 ### Selecting a Spot
 Click any spot row in On the Air, or click a map marker, to populate this widget.
+
+---
+
+## Contests Widget
+
+A calendar of upcoming and active amateur radio contests, sourced from the WA7BNM Contest Calendar.
+
+### What Are Contests?
+Ham radio contests are time-limited competitions where operators try to make as many contacts as possible within a set period (usually a weekend). They're great for practicing your operating skills and filling your logbook.
+
+### Reading the List
+Each card shows:
+- **Contest name** — The name of the contest
+- **Mode badge** — CW (orange), Phone (blue), Digital (purple), or no badge for mixed-mode contests
+- **NOW badge** — Green badge if the contest is currently running
+- **Date/time window** — When the contest starts and ends (UTC)
+
+Click any card to open the full rules and exchange format on the contest website.
+
+### Tips for Beginners
+- Start with a major contest like ARRL Field Day or CQ WW — they have the most participants
+- Listen first to learn the exchange format before calling
+- Most contests only need a brief exchange (signal report + location or serial number)
+
+<div class="tip">Contests happen nearly every weekend. Even if you don't want to compete, contests are a great time to make contacts because many stations are on the air.</div>
+
+---
+
+## DXpeditions Widget
+
+Track upcoming and active DXpeditions — organized trips to rare locations where operators set up stations for other hams to contact.
+
+### What Is a DXpedition?
+A DXpedition is when operators travel to a rare or hard-to-reach location (remote islands, territories, etc.) specifically to get on the air. Working a DXpedition is often the only way to log a new DXCC entity.
+
+### Reading the Cards
+Each card shows:
+- **Callsign** — The callsign being used on the DXpedition
+- **Entity** — The DXCC entity (country/territory)
+- **ACTIVE badge** — Green badge if the DXpedition is on the air right now
+- **Date range** — Operating dates
+- **QSL info** — How to confirm your contact (LoTW, direct card, bureau)
+
+Click any card for more details about the DXpedition.
+
+### QSL Methods
+- **LoTW** — Logbook of the World, an electronic confirmation system (fastest and cheapest)
+- **Direct** — Mail a QSL card directly to the QSL manager
+- **Bureau** — Send via the QSL bureau (slower but no postage cost)
+
+---
+
+## NCDXF Beacons Widget
+
+Real-time display of the NCDXF/IARU International Beacon Project — 18 synchronized beacons worldwide that transmit on 5 HF frequencies in a repeating 3-minute cycle.
+
+### How It Works
+The table shows 5 rows, one per beacon frequency:
+- **MHz** — The frequency (14.100, 18.110, 21.150, 24.930, 28.200)
+- **Beacon** — The callsign of the currently transmitting beacon
+- **Location** — Where the beacon is located
+- **Countdown** — Seconds until the next beacon rotation
+
+Every 10 seconds, the schedule rotates — each beacon moves to the next higher frequency. After transmitting on 28.200 MHz, a beacon cycles back to 14.100 MHz.
+
+### Checking Band Propagation
+1. Tune your radio to one of the five beacon frequencies
+2. Listen for 3 minutes (one full cycle)
+3. If you hear a beacon, the band is open to that location
+4. Check all five frequencies to map which bands are open where
+
+### Beacon Transmission Format
+Each beacon transmits:
+1. Its callsign in CW (Morse code) at 100 watts
+2. Four 1-second dashes at decreasing power: 100W → 10W → 1W → 0.1W
+
+If you hear the callsign but not the weaker dashes, the band is open but marginal to that location.
+
+<div class="tip">The beacons are an excellent quick check of band conditions. In just 3 minutes of listening on one frequency, you can hear from up to 18 locations worldwide.</div>
+
+---
+
+## DE/DX Info Widget
+
+A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock application, this widget puts the essential information for making contacts in one compact panel.
+
+### DE Panel (Your Station)
+The left panel shows:
+- **Call** — Your callsign (set in Config)
+- **Grid** — Your Maidenhead grid square (computed from your location)
+- **Loc** — Your latitude and longitude
+- **Rise/Set** — Today's sunrise and sunset times at your location, in UTC
+
+### DX Panel (Selected Station)
+When you click a spot in the On the Air table or a marker on the map, the right panel shows:
+- **Call** — The distant station's callsign
+- **Freq** — Operating frequency and band
+- **Mode** — Operating mode (SSB, CW, FT8, etc.)
+- **Grid** — The distant station's grid square
+- **Brg** — Compass bearing from your station to theirs (for antenna pointing)
+- **Dist** — Distance in your preferred unit (miles or km)
+- **Rise/Set** — Sunrise and sunset at the DX location, in UTC
+
+### Why Sunrise/Sunset Matters
+HF radio propagation changes dramatically at sunrise and sunset. The "gray line" — the band of twilight circling the Earth — often produces enhanced long-distance propagation. By comparing sunrise/sunset times at both ends of a path, you can predict when bands will open or close.
+
+<div class="tip">Compare the sunrise/sunset times on both panels. If both stations are near their gray line at the same time, conditions are often excellent for HF contacts.</div>

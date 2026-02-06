@@ -16,7 +16,7 @@ jobs:
       - uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          wranglerVersion: "4.61.1"
+          wranglerVersion: "4.63.0"
 
       # Health check — verify hamtab.net responds after deploy
       # Container needs time to boot (sleepAfter wakes it on first request)

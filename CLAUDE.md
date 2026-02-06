@@ -61,6 +61,9 @@ main ──────────────────────── SH
 | File | Purpose |
 |---|---|
 | `server.js` | Express server, API proxy endpoints, lunar math |
+| `server-config.js` | Deployment mode detection, port/CORS/helmet config |
+| `server-startup.js` | HTTP/HTTPS listener startup (mode-aware) |
+| `server-tls.js` | Self-signed TLS cert generation (lanmode only, no-op in hostedmode) |
 | `src/state.js` | Application state object |
 | `src/dom.js` | Cached DOM query utility |
 | `public/app.js` | Bundled client output — **don't edit directly** |
@@ -213,9 +216,9 @@ main ──────────────────────── SH
   - `@cloudflare/containers` is a hostedmode-only dependency that `main` doesn't have. When `main` modifies the `dependencies` block in `package.json` (adding/removing packages), git's merge can silently drop `@cloudflare/containers`. **Always check** `package.json` on hostedmode after merge. If missing, re-add it (`npm install @cloudflare/containers`), commit, then push.
 
 - **If merge conflicts occur on deployment branches:**
-  - Most common in `server.js` imports and startup sections
-  - **server.js imports:** Main has `// --- Shared imports ---` and `// --- Lanmode-only imports ---` sections. On hostedmode, delete the entire lanmode-only block. On lanmode, keep both but check for `exec` (lanmode adds it for restart).
-  - **server.js startup:** Main has `// --- Lanmode-only: HTTPS ---` at the bottom. Hostedmode should keep only the HTTP listener. Lanmode keeps both.
+  - After v0.28.0 refactoring, imports/config/TLS/startup are extracted to `server-config.js`, `server-tls.js`, `server-startup.js`. These files are identical on all branches — conflicts should be rare.
+  - **server.js Mode-Specific Endpoints section:** Clean insert on each branch (lanmode: update system, hostedmode: ISS proxy). Not a conflict zone.
+  - **server-config.js:** If hostedmode needs different config, edit `getConfig()` — it auto-detects mode via PORT env var.
   - **splash.js:** DOM access uses null-safe pattern (`const el = $('id'); if (el) ...`). Keep the null-checks — they prevent crashes when elements differ between modes.
   - **public/app.js:** Build artifact — resolve by accepting either side, then rebuild on the branch if needed.
   - See BRANCH_STRATEGY.md for full conflict resolution protocol

@@ -11,6 +11,7 @@
     "start:direct": "node server.js"
   },
   "dependencies": {
+    "@cloudflare/containers": "^0.1.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^4.21.0",

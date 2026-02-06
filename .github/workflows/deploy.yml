@@ -76,14 +76,16 @@ jobs:
       - name: Container health check
         run: |
           for i in 1 2 3 4 5 6; do
-            BODY=$(curl -s --max-time 15 https://hamtab.net/api/health || true)
-            STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 https://hamtab.net/api/health || true)
+            TMPFILE=$(mktemp)
+            STATUS=$(curl -s -o "$TMPFILE" -w '%{http_code}' --max-time 15 https://hamtab.net/api/health || true)
             if [ "$STATUS" = "200" ]; then
               echo "Container health check passed (attempt $i)"
+              rm -f "$TMPFILE"
               exit 0
             fi
             echo "Container not ready (HTTP $STATUS), waiting 15s... (attempt $i/6)"
-            echo "Response body: $BODY"
+            echo "Response: $(cat "$TMPFILE" 2>/dev/null)"
+            rm -f "$TMPFILE"
             sleep 15
           done
           echo "CONTAINER HEALTH CHECK FAILED — server.js may have crashed"

@@ -15,3 +15,12 @@ export function migrate() {
   }
   localStorage.setItem('hamtab_migrated', '1');
 }
+
+// v2: Rename old 'hamclock' theme to 'terminal' (before new 'hamclock' theme is introduced)
+export function migrateV2() {
+  if (localStorage.getItem('hamtab_migration_v2')) return;
+  if (localStorage.getItem('hamtab_theme') === 'hamclock') {
+    localStorage.setItem('hamtab_theme', 'terminal');
+  }
+  localStorage.setItem('hamtab_migration_v2', '1');
+}

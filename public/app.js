@@ -101,6 +101,8 @@
         // currently highlighted index in the grid-square autocomplete dropdown (-1 = none)
         // Map
         map: null,
+        tileLayer: null,
+        // L.tileLayer reference for dynamic tile swaps (e.g. HamClock political map)
         clusterGroup: null,
         grayLinePolygon: null,
         dayPolygon: null,
@@ -204,6 +206,21 @@
         // cached /api/contests response
         // Init flag
         appInitialized: false,
+        // Sun/Moon sub-point positions
+        sunLat: null,
+        // sub-solar latitude (degrees) — declination
+        sunLon: null,
+        // sub-solar longitude (degrees)
+        moonLat: null,
+        // sub-lunar latitude (degrees) — declination
+        moonLon: null,
+        // sub-lunar longitude (degrees)
+        sunMarker: null,
+        // L.marker for sun position on map
+        moonMarker: null,
+        // L.marker for moon position on map
+        beaconMarkers: {},
+        // { freq: L.circleMarker } for active NCDXF beacon map markers
         // Day/night
         lastLocalDay: null,
         lastUtcDay: null
@@ -262,15 +279,147 @@
     }
   });
 
-  // src/dom.js
-  function $(id) {
-    if (!cache[id]) cache[id] = document.getElementById(id);
-    return cache[id];
+  // src/geo.js
+  var geo_exports = {};
+  __export(geo_exports, {
+    bearingTo: () => bearingTo,
+    bearingToCardinal: () => bearingToCardinal,
+    distanceMi: () => distanceMi,
+    geodesicPoints: () => geodesicPoints,
+    getSunTimes: () => getSunTimes,
+    gridToLatLon: () => gridToLatLon,
+    isDaytime: () => isDaytime,
+    latLonToCardinal: () => latLonToCardinal,
+    latLonToGrid: () => latLonToGrid,
+    localDateAtLon: () => localDateAtLon,
+    localTimeAtLon: () => localTimeAtLon,
+    utcOffsetFromLon: () => utcOffsetFromLon
+  });
+  function latLonToGrid(lat, lon) {
+    lon += 180;
+    lat += 90;
+    const a = String.fromCharCode(65 + Math.floor(lon / 20));
+    const b = String.fromCharCode(65 + Math.floor(lat / 10));
+    const c = Math.floor(lon % 20 / 2);
+    const d = Math.floor(lat % 10 / 1);
+    const e = String.fromCharCode(97 + Math.floor(lon % 2 * 12));
+    const f = String.fromCharCode(97 + Math.floor(lat % 1 * 24));
+    return a + b + c + d + e + f;
   }
-  var cache;
-  var init_dom = __esm({
-    "src/dom.js"() {
-      cache = {};
+  function gridToLatLon(grid) {
+    if (!grid || grid.length !== 4) return null;
+    const g = grid.toUpperCase();
+    if (!/^[A-R]{2}[0-9]{2}$/.test(g)) return null;
+    const lon = (g.charCodeAt(0) - 65) * 20 + parseInt(g[2]) * 2 + 1 - 180;
+    const lat = (g.charCodeAt(1) - 65) * 10 + parseInt(g[3]) * 1 + 0.5 - 90;
+    return { lat, lon };
+  }
+  function bearingTo(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const dLon = (lon2 - lon1) * r;
+    const y = Math.sin(dLon) * Math.cos(lat2 * r);
+    const x = Math.cos(lat1 * r) * Math.sin(lat2 * r) - Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos(dLon);
+    return (Math.atan2(y, x) / r + 360) % 360;
+  }
+  function bearingToCardinal(deg) {
+    const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+    return dirs[Math.round(deg / 45) % 8];
+  }
+  function distanceMi(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const R = 3958.8;
+    const dLat = (lat2 - lat1) * r;
+    const dLon = (lon2 - lon1) * r;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  function geodesicPoints(lat1, lon1, lat2, lon2, n) {
+    const r = Math.PI / 180;
+    const p1 = [lat1 * r, lon1 * r];
+    const p2 = [lat2 * r, lon2 * r];
+    const d = 2 * Math.asin(Math.sqrt(
+      Math.sin((p1[0] - p2[0]) / 2) ** 2 + Math.cos(p1[0]) * Math.cos(p2[0]) * Math.sin((p1[1] - p2[1]) / 2) ** 2
+    ));
+    if (d < 1e-10) return [[lat1, lon1], [lat2, lon2]];
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const f = i / n;
+      const a = Math.sin((1 - f) * d) / Math.sin(d);
+      const b = Math.sin(f * d) / Math.sin(d);
+      const x = a * Math.cos(p1[0]) * Math.cos(p1[1]) + b * Math.cos(p2[0]) * Math.cos(p2[1]);
+      const y = a * Math.cos(p1[0]) * Math.sin(p1[1]) + b * Math.cos(p2[0]) * Math.sin(p2[1]);
+      const z = a * Math.sin(p1[0]) + b * Math.sin(p2[0]);
+      pts.push([Math.atan2(z, Math.sqrt(x * x + y * y)) / r, Math.atan2(y, x) / r]);
+    }
+    return pts;
+  }
+  function getSunTimes(lat, lon, date) {
+    const rad = Math.PI / 180;
+    const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 864e5);
+    const zenith = 90.833;
+    const lngHour = lon / 15;
+    function calc(rising) {
+      const t = dayOfYear + ((rising ? 6 : 18) - lngHour) / 24;
+      const M = 0.9856 * t - 3.289;
+      let L2 = M + 1.916 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 282.634;
+      L2 = (L2 % 360 + 360) % 360;
+      let RA = Math.atan2(Math.sin(L2 * rad), Math.cos(L2 * rad)) / rad;
+      RA = (RA % 360 + 360) % 360;
+      const Lquadrant = Math.floor(L2 / 90) * 90;
+      const RAquadrant = Math.floor(RA / 90) * 90;
+      RA = RA + (Lquadrant - RAquadrant);
+      RA = RA / 15;
+      const sinDec = 0.39782 * Math.sin(L2 * rad);
+      const cosDec = Math.cos(Math.asin(sinDec));
+      const cosH = (Math.cos(zenith * rad) - sinDec * Math.sin(lat * rad)) / (cosDec * Math.cos(lat * rad));
+      if (cosH > 1 || cosH < -1) return null;
+      let H = Math.acos(cosH) / rad / 15;
+      if (rising) H = 24 - H;
+      const T = H + RA - 0.06571 * t - 6.622;
+      let UT = ((T - lngHour) % 24 + 24) % 24;
+      const hours = Math.floor(UT);
+      const minutes = Math.round((UT - hours) * 60);
+      const result = new Date(date);
+      result.setUTCHours(hours, minutes, 0, 0);
+      return result;
+    }
+    return { sunrise: calc(true), sunset: calc(false) };
+  }
+  function isDaytime(lat, lon, date) {
+    try {
+      const times = getSunTimes(lat, lon, date);
+      if (times.sunrise && times.sunset) {
+        return date >= times.sunrise && date < times.sunset;
+      }
+    } catch (e) {
+    }
+    const utcHour = date.getUTCHours() + date.getUTCMinutes() / 60;
+    const solarNoon = 12 - lon / 15;
+    const diff = Math.abs((utcHour - solarNoon + 24) % 24 - 12);
+    return diff < 6;
+  }
+  function latLonToCardinal(lat, lon) {
+    const ns = lat >= 0 ? "N" : "S";
+    const ew = lon >= 0 ? "E" : "W";
+    return `${Math.abs(lat).toFixed(0)}${ns} ${Math.abs(lon).toFixed(0)}${ew}`;
+  }
+  function utcOffsetFromLon(lon) {
+    return Math.round(lon / 15);
+  }
+  function localDateAtLon(lon) {
+    const now = /* @__PURE__ */ new Date();
+    const offsetMs = utcOffsetFromLon(lon) * 36e5;
+    return new Date(now.getTime() + now.getTimezoneOffset() * 6e4 + offsetMs);
+  }
+  function localTimeAtLon(lon, use24h) {
+    const now = /* @__PURE__ */ new Date();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 6e4;
+    const offsetMs = lon / 15 * 36e5;
+    const local = new Date(utcMs + offsetMs);
+    return local.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: !use24h });
+  }
+  var init_geo = __esm({
+    "src/geo.js"() {
     }
   });
 
@@ -317,6 +466,1325 @@
     "src/utils.js"() {
       init_state();
       CALLSIGN_CACHE_MAX = 500;
+    }
+  });
+
+  // src/map-overlays.js
+  var map_overlays_exports = {};
+  __export(map_overlays_exports, {
+    renderAllMapOverlays: () => renderAllMapOverlays,
+    renderLatLonGrid: () => renderLatLonGrid,
+    renderMaidenheadGrid: () => renderMaidenheadGrid,
+    renderTimezoneGrid: () => renderTimezoneGrid,
+    saveMapOverlays: () => saveMapOverlays
+  });
+  function renderAllMapOverlays() {
+    if (!state_default.map) return;
+    renderLatLonGrid();
+    renderMaidenheadGrid();
+    renderTimezoneGrid();
+  }
+  function renderLatLonGrid() {
+    if (state_default.latLonLayer) {
+      state_default.map.removeLayer(state_default.latLonLayer);
+      state_default.latLonLayer = null;
+    }
+    if (!state_default.mapOverlays.latLonGrid) return;
+    state_default.latLonLayer = L.layerGroup().addTo(state_default.map);
+    const zoom = state_default.map.getZoom();
+    let spacing = 30;
+    if (zoom >= 8) spacing = 1;
+    else if (zoom >= 6) spacing = 5;
+    else if (zoom >= 3) spacing = 10;
+    const bounds = state_default.map.getBounds();
+    const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.01;
+    const labelLat = bounds.getSouth() + (bounds.getNorth() - bounds.getSouth()) * 0.01;
+    const lineStyle = { color: "#4a90e2", weight: 1, opacity: 0.3, pane: "mapOverlays", interactive: false };
+    const equatorStyle = { color: "#4a90e2", weight: 3, opacity: 0.6, pane: "mapOverlays", interactive: false };
+    const pmStyle = { color: "#4a90e2", weight: 2, opacity: 0.5, pane: "mapOverlays", interactive: false };
+    for (let lat = -90; lat <= 90; lat += spacing) {
+      const style = lat === 0 ? equatorStyle : lineStyle;
+      L.polyline([[lat, -180], [lat, 180]], style).addTo(state_default.latLonLayer);
+      if (lat >= bounds.getSouth() && lat <= bounds.getNorth()) {
+        const ns = lat === 0 ? "EQ" : lat > 0 ? lat + "\xB0N" : Math.abs(lat) + "\xB0S";
+        L.marker([lat, labelLon], {
+          icon: L.divIcon({ className: "grid-label latlon-label" + (lat === 0 ? " latlon-equator" : ""), html: ns, iconSize: null }),
+          pane: "mapOverlays",
+          interactive: false
+        }).addTo(state_default.latLonLayer);
+      }
+    }
+    for (let lon = -180; lon <= 180; lon += spacing) {
+      const style = lon === 0 ? pmStyle : lineStyle;
+      L.polyline([[-85, lon], [85, lon]], style).addTo(state_default.latLonLayer);
+      if (lon >= bounds.getWest() && lon <= bounds.getEast()) {
+        const ew = lon === 0 ? "PM" : lon > 0 ? lon + "\xB0E" : Math.abs(lon) + "\xB0W";
+        L.marker([labelLat, lon], {
+          icon: L.divIcon({ className: "grid-label latlon-label", html: ew, iconSize: null }),
+          pane: "mapOverlays",
+          interactive: false
+        }).addTo(state_default.latLonLayer);
+      }
+    }
+  }
+  function renderMaidenheadGrid() {
+    if (state_default.maidenheadLayer) {
+      state_default.map.removeLayer(state_default.maidenheadLayer);
+      state_default.maidenheadLayer = null;
+    }
+    if (!state_default.mapOverlays.maidenheadGrid) return;
+    state_default.maidenheadLayer = L.layerGroup().addTo(state_default.map);
+    const zoom = state_default.map.getZoom();
+    const bounds = state_default.map.getBounds();
+    const south = bounds.getSouth(), north = bounds.getNorth();
+    const west = bounds.getWest(), east = bounds.getEast();
+    if (zoom <= 5) {
+      const lonStep = 20, latStep = 10;
+      const lonStart = Math.floor((west + 180) / lonStep) * lonStep - 180;
+      const latStart = Math.floor((south + 90) / latStep) * latStep - 90;
+      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
+        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
+          const fieldLon = Math.floor((lon + 180) / 20);
+          const fieldLat = Math.floor((lat + 90) / 10);
+          if (fieldLon < 0 || fieldLon > 17 || fieldLat < 0 || fieldLat > 17) continue;
+          const label = String.fromCharCode(65 + fieldLon) + String.fromCharCode(65 + fieldLat);
+          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
+            color: "#ff6b35",
+            weight: 1.5,
+            fill: false,
+            pane: "mapOverlays",
+            interactive: false
+          }).addTo(state_default.maidenheadLayer);
+          L.marker([lat + latStep / 2, lon + lonStep / 2], {
+            icon: L.divIcon({ className: "grid-label maidenhead-label", html: label, iconSize: null }),
+            pane: "mapOverlays",
+            interactive: false
+          }).addTo(state_default.maidenheadLayer);
+        }
+      }
+    } else if (zoom <= 9) {
+      const lonStep = 2, latStep = 1;
+      const lonStart = Math.floor((west + 180) / lonStep) * lonStep - 180;
+      const latStart = Math.floor((south + 90) / latStep) * latStep - 90;
+      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
+        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
+          const fieldLon = Math.floor((lon + 180) / 20);
+          const fieldLat = Math.floor((lat + 90) / 10);
+          if (fieldLon < 0 || fieldLon > 17 || fieldLat < 0 || fieldLat > 17) continue;
+          const sqLon = Math.floor((lon + 180) % 20 / 2);
+          const sqLat = Math.floor((lat + 90) % 10 / 1);
+          const label = String.fromCharCode(65 + fieldLon) + String.fromCharCode(65 + fieldLat) + sqLon + sqLat;
+          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
+            color: "#ff6b35",
+            weight: 1,
+            fill: false,
+            pane: "mapOverlays",
+            interactive: false
+          }).addTo(state_default.maidenheadLayer);
+          L.marker([lat + latStep / 2, lon + lonStep / 2], {
+            icon: L.divIcon({ className: "grid-label maidenhead-label-sm", html: label, iconSize: null }),
+            pane: "mapOverlays",
+            interactive: false
+          }).addTo(state_default.maidenheadLayer);
+        }
+      }
+    } else {
+      const lonStep = 5 / 60, latStep = 2.5 / 60;
+      const lonStart = Math.floor(west / lonStep) * lonStep;
+      const latStart = Math.floor(south / latStep) * latStep;
+      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
+        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
+          const aLon = lon + 180, aLat = lat + 90;
+          if (aLon < 0 || aLon >= 360 || aLat < 0 || aLat >= 180) continue;
+          const fLon = Math.floor(aLon / 20), fLat = Math.floor(aLat / 10);
+          const sLon = Math.floor(aLon % 20 / 2), sLat = Math.floor(aLat % 10 / 1);
+          const ssLon = Math.floor(aLon % 2 / (5 / 60)), ssLat = Math.floor(aLat % 1 / (2.5 / 60));
+          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
+            color: "#ff6b35",
+            weight: 0.5,
+            fill: false,
+            opacity: 0.5,
+            pane: "mapOverlays",
+            interactive: false
+          }).addTo(state_default.maidenheadLayer);
+          if (zoom >= 12) {
+            const label = String.fromCharCode(65 + fLon) + String.fromCharCode(65 + fLat) + sLon + sLat + String.fromCharCode(97 + Math.min(ssLon, 23)) + String.fromCharCode(97 + Math.min(ssLat, 23));
+            L.marker([lat + latStep / 2, lon + lonStep / 2], {
+              icon: L.divIcon({ className: "grid-label maidenhead-label-xs", html: label, iconSize: null }),
+              pane: "mapOverlays",
+              interactive: false
+            }).addTo(state_default.maidenheadLayer);
+          }
+        }
+      }
+    }
+  }
+  function renderTimezoneGrid() {
+    if (state_default.timezoneLayer) {
+      state_default.map.removeLayer(state_default.timezoneLayer);
+      state_default.timezoneLayer = null;
+    }
+    if (!state_default.mapOverlays.timezoneGrid) return;
+    state_default.timezoneLayer = L.layerGroup().addTo(state_default.map);
+    const lineStyle = { color: "#9b59b6", weight: 1.5, opacity: 0.4, dashArray: "5,5", pane: "mapOverlays", interactive: false };
+    for (let i = -12; i <= 12; i++) {
+      const lon = i * 15;
+      L.polyline([[-85, lon], [85, lon]], lineStyle).addTo(state_default.timezoneLayer);
+      const label = "UTC" + (i === 0 ? "" : i > 0 ? "+" + i : "" + i);
+      L.marker([70, lon], {
+        icon: L.divIcon({ className: "grid-label timezone-label", html: label, iconSize: null }),
+        pane: "mapOverlays",
+        interactive: false
+      }).addTo(state_default.timezoneLayer);
+    }
+  }
+  function saveMapOverlays() {
+    localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
+  }
+  var init_map_overlays = __esm({
+    "src/map-overlays.js"() {
+      init_state();
+    }
+  });
+
+  // src/dom.js
+  function $(id) {
+    if (!cache[id]) cache[id] = document.getElementById(id);
+    return cache[id];
+  }
+  var cache;
+  var init_dom = __esm({
+    "src/dom.js"() {
+      cache = {};
+    }
+  });
+
+  // src/beacons.js
+  function getActiveBeacons() {
+    const now = /* @__PURE__ */ new Date();
+    const T = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
+    const slot = Math.floor(T % CYCLE / SLOT);
+    const elapsed = T % SLOT;
+    return FREQUENCIES.map((freq, f) => ({
+      freq,
+      beacon: BEACONS[(slot - f + 18) % 18],
+      // each freq is offset by one beacon in the rotation
+      secondsLeft: SLOT - elapsed
+    }));
+  }
+  function renderBeacons() {
+    const tbody = $("beaconTbody");
+    if (!tbody) return;
+    const active = getActiveBeacons();
+    if (tbody.children.length !== active.length) {
+      tbody.textContent = "";
+      for (const entry of active) {
+        const tr = document.createElement("tr");
+        const tdFreq = document.createElement("td");
+        tdFreq.textContent = (entry.freq / 1e3).toFixed(3);
+        tr.appendChild(tdFreq);
+        const tdCall = document.createElement("td");
+        tdCall.className = "beacon-call";
+        tdCall.textContent = entry.beacon.call;
+        tr.appendChild(tdCall);
+        const tdLoc = document.createElement("td");
+        tdLoc.className = "beacon-loc";
+        tdLoc.textContent = entry.beacon.location;
+        tr.appendChild(tdLoc);
+        const tdTime = document.createElement("td");
+        tdTime.className = "beacon-time";
+        tdTime.textContent = entry.secondsLeft + "s";
+        tr.appendChild(tdTime);
+        tbody.appendChild(tr);
+      }
+    } else {
+      for (let i = 0; i < active.length; i++) {
+        const cells = tbody.children[i].children;
+        cells[1].textContent = active[i].beacon.call;
+        cells[2].textContent = active[i].beacon.location;
+        cells[3].textContent = active[i].secondsLeft + "s";
+      }
+    }
+  }
+  function initBeaconListeners() {
+  }
+  function startBeaconTimer() {
+    renderBeacons();
+    state_default.beaconTimer = setInterval(renderBeacons, 1e3);
+  }
+  var BEACONS, FREQUENCIES, CYCLE, SLOT;
+  var init_beacons = __esm({
+    "src/beacons.js"() {
+      init_state();
+      init_dom();
+      BEACONS = [
+        { call: "4U1UN", location: "New York", lat: 40.75, lon: -73.97 },
+        { call: "VE8AT", location: "Inuvik", lat: 68.32, lon: -133.52 },
+        { call: "W6WX", location: "Mt. Umunhum", lat: 37.16, lon: -121.9 },
+        { call: "KH6RS", location: "Maui", lat: 20.75, lon: -156.43 },
+        { call: "ZL6B", location: "Masterton", lat: -41.06, lon: 175.58 },
+        { call: "VK6RBP", location: "Rolystone", lat: -32.11, lon: 116.05 },
+        { call: "JA2IGY", location: "Mt. Asama", lat: 34.46, lon: 136.78 },
+        { call: "RR9O", location: "Novosibirsk", lat: 54.98, lon: 82.9 },
+        { call: "VR2B", location: "Hong Kong", lat: 22.28, lon: 114.17 },
+        { call: "4S7B", location: "Colombo", lat: 6.88, lon: 79.87 },
+        { call: "ZS6DN", location: "Pretoria", lat: -25.73, lon: 28.18 },
+        { call: "5Z4B", location: "Kikuyu", lat: -1.25, lon: 36.67 },
+        { call: "4X6TU", location: "Tel Aviv", lat: 32.08, lon: 34.78 },
+        { call: "OH2B", location: "Lohja", lat: 60.25, lon: 24.03 },
+        { call: "CS3B", location: "Madeira", lat: 32.65, lon: -16.9 },
+        { call: "LU4AA", location: "Buenos Aires", lat: -34.62, lon: -58.44 },
+        { call: "OA4B", location: "Lima", lat: -12.08, lon: -76.98 },
+        { call: "YV5B", location: "Caracas", lat: 10.5, lon: -66.92 }
+      ];
+      FREQUENCIES = [14100, 18110, 21150, 24930, 28200];
+      CYCLE = 180;
+      SLOT = 10;
+    }
+  });
+
+  // src/band-conditions.js
+  var band_conditions_exports = {};
+  __export(band_conditions_exports, {
+    HF_BANDS: () => HF_BANDS,
+    VOACAP_BANDS: () => VOACAP_BANDS,
+    calculate24HourMatrix: () => calculate24HourMatrix,
+    calculateBandConditions: () => calculateBandConditions,
+    calculateBandReliability: () => calculateBandReliability,
+    calculateMUF: () => calculateMUF,
+    calculateSolarZenith: () => calculateSolarZenith,
+    conditionColorClass: () => conditionColorClass,
+    conditionLabel: () => conditionLabel,
+    dayFraction: () => dayFraction,
+    getReliabilityColor: () => getReliabilityColor,
+    initDayNightToggle: () => initDayNightToggle,
+    renderPropagationWidget: () => renderPropagationWidget
+  });
+  function calculateSolarZenith(lat, lon, utcHour) {
+    const now = /* @__PURE__ */ new Date();
+    const start = new Date(now.getFullYear(), 0, 1);
+    const dayOfYear = Math.floor((now - start) / 864e5) + 1;
+    const declRad = Math.asin(
+      Math.sin(23.44 * Math.PI / 180) * Math.sin(360 / 365 * (dayOfYear - 81) * Math.PI / 180)
+    );
+    const solarNoonOffset = lon / 15;
+    const hourAngle = (utcHour - 12 + solarNoonOffset) * 15;
+    const haRad = hourAngle * Math.PI / 180;
+    const latRad = lat * Math.PI / 180;
+    const cosZenith = Math.sin(latRad) * Math.sin(declRad) + Math.cos(latRad) * Math.cos(declRad) * Math.cos(haRad);
+    return Math.acos(Math.max(-1, Math.min(1, cosZenith))) * 180 / Math.PI;
+  }
+  function dayFraction(lat, lon, utcHour) {
+    if (lat == null || lon == null) {
+      return utcHour >= 6 && utcHour < 18 ? 1 : 0;
+    }
+    const zenith = calculateSolarZenith(lat, lon, utcHour);
+    if (zenith <= 80) return 1;
+    if (zenith >= 100) return 0;
+    return (100 - zenith) / 20;
+  }
+  function calculateMUF(sfi, dayFrac) {
+    if (dayFrac === true) dayFrac = 1;
+    else if (dayFrac === false) dayFrac = 0;
+    const foF2Factor = 0.6 + 0.3 * dayFrac;
+    const foF2 = foF2Factor * Math.sqrt(Math.max(sfi, 50));
+    const obliquityFactor = 3.5;
+    return foF2 * obliquityFactor;
+  }
+  function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay, opts) {
+    const mufLower = muf * 0.5;
+    const mufOptimal = muf * 0.85;
+    let baseReliability = 0;
+    if (bandFreqMHz < mufLower) {
+      if (isDay) {
+        baseReliability = Math.max(0, 20 - (mufLower - bandFreqMHz) * 2);
+      } else {
+        baseReliability = Math.min(85, 60 + (mufLower - bandFreqMHz) * 1.5);
+      }
+    } else if (bandFreqMHz <= mufOptimal) {
+      const position = (bandFreqMHz - mufLower) / (mufOptimal - mufLower);
+      baseReliability = 70 + 30 * Math.sin(position * Math.PI);
+    } else if (bandFreqMHz <= muf) {
+      const position = (bandFreqMHz - mufOptimal) / (muf - mufOptimal);
+      baseReliability = 90 - position * 40;
+    } else {
+      const excess = bandFreqMHz - muf;
+      baseReliability = Math.max(0, 40 - excess * 3);
+    }
+    let geomagPenalty = 0;
+    if (kIndex >= 6) {
+      geomagPenalty = (kIndex - 5) * 12;
+    } else if (kIndex >= 3) {
+      geomagPenalty = (kIndex - 2) * 5;
+    }
+    let aIndexPenalty = 0;
+    if (aIndex > 30) {
+      aIndexPenalty = Math.min(20, (aIndex - 30) / 2);
+    } else if (aIndex > 10) {
+      aIndexPenalty = (aIndex - 10) / 4;
+    }
+    let adjusted = baseReliability - geomagPenalty - aIndexPenalty;
+    if (opts) {
+      if (opts.mode === "CW") adjusted += 10;
+      else if (opts.mode === "FT8") adjusted += 30;
+      if (opts.powerWatts && opts.powerWatts !== 100) {
+        const dBdiff = 10 * Math.log10(opts.powerWatts / 100);
+        adjusted += dBdiff * 1.5;
+      }
+      if (opts.toaDeg != null) {
+        adjusted += (opts.toaDeg - 5) * 1.5;
+      }
+      if (opts.longPath) adjusted -= 25;
+    }
+    const finalReliability = Math.max(0, Math.min(100, adjusted));
+    return Math.round(finalReliability);
+  }
+  function classifyCondition(reliability) {
+    if (reliability >= 80) return "excellent";
+    if (reliability >= 60) return "good";
+    if (reliability >= 40) return "fair";
+    if (reliability >= 20) return "poor";
+    return "closed";
+  }
+  function calculateBandConditions(timeOfDay = null) {
+    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
+      return HF_BANDS.map((band) => ({
+        ...band,
+        reliability: 0,
+        condition: "unknown",
+        muf: 0
+      }));
+    }
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    let isDay;
+    if (timeOfDay === "day") {
+      isDay = true;
+    } else if (timeOfDay === "night") {
+      isDay = false;
+    } else {
+      const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+      isDay = utcHour >= 6 && utcHour < 18;
+    }
+    const muf = calculateMUF(sfi, isDay);
+    return HF_BANDS.map((band) => {
+      const reliability = calculateBandReliability(
+        band.freqMHz,
+        muf,
+        kIndex,
+        aIndex,
+        isDay
+      );
+      return {
+        ...band,
+        reliability,
+        condition: classifyCondition(reliability),
+        muf: Math.round(muf * 10) / 10
+        // Round to 1 decimal
+      };
+    });
+  }
+  function conditionColorClass(condition) {
+    const map = {
+      "excellent": "band-excellent",
+      "good": "band-good",
+      "fair": "band-fair",
+      "poor": "band-poor",
+      "closed": "band-closed",
+      "unknown": "band-unknown"
+    };
+    return map[condition] || "band-unknown";
+  }
+  function conditionLabel(condition) {
+    const map = {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor",
+      "closed": "Closed",
+      "unknown": "Unknown"
+    };
+    return map[condition] || "Unknown";
+  }
+  function getReliabilityColor(rel) {
+    if (rel < 10) return "#1a1a1a";
+    if (rel < 33) return "#c0392b";
+    if (rel < 66) return "#f1c40f";
+    return "#27ae60";
+  }
+  function calculate24HourMatrix(opts) {
+    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
+      return Array.from({ length: 24 }, (_, i) => ({
+        hour: i,
+        bands: {},
+        muf: 0
+      }));
+    }
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    const lat = opts && opts.lat != null ? opts.lat : null;
+    const lon = opts && opts.lon != null ? opts.lon : null;
+    const bandList = opts ? VOACAP_BANDS : HF_BANDS;
+    const matrix = [];
+    for (let hour = 0; hour < 24; hour++) {
+      const df = dayFraction(lat, lon, hour);
+      const muf = calculateMUF(sfi, df);
+      const bands = {};
+      for (const band of bandList) {
+        const reliability = calculateBandReliability(
+          band.freqMHz,
+          muf,
+          kIndex,
+          aIndex,
+          df >= 0.5,
+          // boolean isDay for absorption branch
+          opts
+        );
+        bands[band.name] = reliability;
+      }
+      matrix.push({
+        hour,
+        bands,
+        muf: Math.round(muf * 10) / 10
+      });
+    }
+    return matrix;
+  }
+  function initDayNightToggle() {
+    const dayBtn = $("dayToggle");
+    const nightBtn = $("nightToggle");
+    if (!dayBtn || !nightBtn) return;
+    updateToggleButtons();
+    dayBtn.addEventListener("click", () => {
+      dayNightTime = "day";
+      localStorage.setItem("hamtab_band_time", dayNightTime);
+      updateToggleButtons();
+      renderPropagationWidget();
+    });
+    nightBtn.addEventListener("click", () => {
+      dayNightTime = "night";
+      localStorage.setItem("hamtab_band_time", dayNightTime);
+      updateToggleButtons();
+      renderPropagationWidget();
+    });
+  }
+  function updateToggleButtons() {
+    const dayBtn = $("dayToggle");
+    const nightBtn = $("nightToggle");
+    if (dayBtn) dayBtn.classList.toggle("active", dayNightTime === "day");
+    if (nightBtn) nightBtn.classList.toggle("active", dayNightTime === "night");
+  }
+  function renderPropagationWidget() {
+    const grid = $("bandConditionsGrid");
+    const mufValue = $("propMufValue");
+    const sfiValue = $("propSfiValue");
+    const kindexValue = $("propKindexValue");
+    if (!grid) return;
+    const conditions = calculateBandConditions(dayNightTime);
+    if (mufValue) {
+      const muf = conditions[0]?.muf || 0;
+      mufValue.textContent = muf > 0 ? `${muf} MHz` : "--";
+    }
+    if (state_default.lastSolarData && state_default.lastSolarData.indices) {
+      const { indices } = state_default.lastSolarData;
+      if (sfiValue) sfiValue.textContent = indices.sfi || "--";
+      if (kindexValue) {
+        const kindex = indices.kindex || "--";
+        kindexValue.textContent = kindex;
+        if (kindex !== "--") {
+          const k = parseInt(kindex);
+          if (k <= 2) kindexValue.style.color = "var(--green)";
+          else if (k <= 4) kindexValue.style.color = "var(--yellow)";
+          else kindexValue.style.color = "var(--red)";
+        }
+      }
+    }
+    grid.innerHTML = "";
+    conditions.forEach((band) => {
+      const card = document.createElement("div");
+      const timeClass = dayNightTime === "day" ? "band-card-day" : "band-card-night";
+      card.className = `band-card ${conditionColorClass(band.condition)} ${timeClass}`;
+      const name = document.createElement("span");
+      name.className = "band-name";
+      name.textContent = band.label;
+      const reliability = document.createElement("span");
+      reliability.className = "band-reliability";
+      reliability.textContent = `${band.reliability}%`;
+      const condLabel = document.createElement("span");
+      condLabel.className = "band-condition-label";
+      condLabel.textContent = conditionLabel(band.condition);
+      card.appendChild(name);
+      card.appendChild(reliability);
+      card.appendChild(condLabel);
+      grid.appendChild(card);
+    });
+  }
+  var dayNightTime, saved, HF_BANDS, VOACAP_BANDS;
+  var init_band_conditions = __esm({
+    "src/band-conditions.js"() {
+      init_state();
+      init_dom();
+      init_utils();
+      dayNightTime = "day";
+      saved = localStorage.getItem("hamtab_band_time");
+      if (saved === "day" || saved === "night") {
+        dayNightTime = saved;
+      }
+      HF_BANDS = [
+        { name: "160m", freqMHz: 1.9, label: "160m" },
+        { name: "80m", freqMHz: 3.7, label: "80m" },
+        { name: "60m", freqMHz: 5.35, label: "60m" },
+        { name: "40m", freqMHz: 7.15, label: "40m" },
+        { name: "30m", freqMHz: 10.12, label: "30m" },
+        { name: "20m", freqMHz: 14.15, label: "20m" },
+        { name: "17m", freqMHz: 18.1, label: "17m" },
+        { name: "15m", freqMHz: 21.2, label: "15m" },
+        { name: "12m", freqMHz: 24.93, label: "12m" },
+        { name: "10m", freqMHz: 28.5, label: "10m" }
+      ];
+      VOACAP_BANDS = HF_BANDS.filter((b) => b.name !== "160m" && b.name !== "60m");
+    }
+  });
+
+  // src/voacap.js
+  var voacap_exports = {};
+  __export(voacap_exports, {
+    clearVoacapOverlay: () => clearVoacapOverlay,
+    fetchVoacapMatrix: () => fetchVoacapMatrix,
+    fetchVoacapMatrixThrottled: () => fetchVoacapMatrixThrottled,
+    getVoacapOpts: () => getVoacapOpts,
+    initVoacapListeners: () => initVoacapListeners,
+    renderVoacapMatrix: () => renderVoacapMatrix,
+    toggleBandOverlay: () => toggleBandOverlay
+  });
+  function initVoacapListeners() {
+    const matrix = $("voacapMatrix");
+    if (!matrix) return;
+    matrix.addEventListener("click", (e) => {
+      const param = e.target.closest(".voacap-param");
+      if (param && param.dataset.param) {
+        cycleParam(param.dataset.param);
+        return;
+      }
+      const row = e.target.closest(".voacap-row");
+      if (row && row.dataset.band) {
+        toggleBandOverlay(row.dataset.band);
+      }
+    });
+  }
+  function cycleParam(name) {
+    if (name === "overlay") {
+      const next2 = state_default.heatmapOverlayMode === "circles" ? "heatmap" : "circles";
+      state_default.heatmapOverlayMode = next2;
+      localStorage.setItem("hamtab_heatmap_mode", next2);
+      renderVoacapMatrix();
+      if (state_default.hfPropOverlayBand) {
+        clearBandOverlay();
+        clearHeatmap();
+        if (next2 === "heatmap") {
+          renderHeatmapCanvas(state_default.hfPropOverlayBand);
+        } else {
+          drawBandOverlay(state_default.hfPropOverlayBand);
+        }
+      }
+      return;
+    }
+    if (name === "target") {
+      const current2 = state_default.voacapTarget;
+      const next2 = current2 === "overview" ? "spot" : "overview";
+      state_default.voacapTarget = next2;
+      localStorage.setItem("hamtab_voacap_target", next2);
+      fetchVoacapMatrix();
+      return;
+    }
+    let options, key, stateKey;
+    if (name === "power") {
+      options = POWER_OPTIONS;
+      key = "hamtab_voacap_power";
+      stateKey = "voacapPower";
+    } else if (name === "mode") {
+      options = MODE_OPTIONS;
+      key = "hamtab_voacap_mode";
+      stateKey = "voacapMode";
+    } else if (name === "toa") {
+      options = TOA_OPTIONS;
+      key = "hamtab_voacap_toa";
+      stateKey = "voacapToa";
+    } else if (name === "path") {
+      options = PATH_OPTIONS;
+      key = "hamtab_voacap_path";
+      stateKey = "voacapPath";
+    } else return;
+    const current = state_default[stateKey];
+    const idx = options.indexOf(current);
+    const next = options[(idx + 1) % options.length];
+    state_default[stateKey] = next;
+    localStorage.setItem(key, next);
+    fetchVoacapMatrix();
+    if (state_default.hfPropOverlayBand) {
+      clearBandOverlay();
+      clearHeatmap();
+      if (state_default.heatmapOverlayMode === "heatmap") {
+        renderHeatmapCanvas(state_default.hfPropOverlayBand);
+      } else {
+        drawBandOverlay(state_default.hfPropOverlayBand);
+      }
+    }
+  }
+  function getVoacapOpts() {
+    return {
+      lat: state_default.myLat,
+      lon: state_default.myLon,
+      mode: state_default.voacapMode,
+      powerWatts: parseInt(state_default.voacapPower, 10),
+      toaDeg: parseInt(state_default.voacapToa, 10),
+      longPath: state_default.voacapPath === "LP"
+    };
+  }
+  async function fetchVoacapMatrix() {
+    if (state_default.myLat == null || state_default.myLon == null) {
+      renderVoacapMatrix();
+      return;
+    }
+    const params = new URLSearchParams({
+      txLat: state_default.myLat,
+      txLon: state_default.myLon,
+      power: state_default.voacapPower,
+      mode: state_default.voacapMode,
+      toa: state_default.voacapToa,
+      path: state_default.voacapPath
+    });
+    if (state_default.voacapTarget === "spot" && state_default.selectedSpotId) {
+      const spot = findSelectedSpot();
+      if (spot && spot.lat != null && spot.lon != null) {
+        params.set("rxLat", spot.lat);
+        params.set("rxLon", spot.lon);
+      }
+    }
+    try {
+      const resp = await fetch(`/api/voacap?${params}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.voacapServerData = data;
+      state_default.voacapEngine = data.engine || "simplified";
+      state_default.voacapLastFetch = Date.now();
+    } catch (err) {
+      if (state_default.debug) console.error("VOACAP fetch error:", err);
+    }
+    renderVoacapMatrix();
+  }
+  function fetchVoacapMatrixThrottled() {
+    const throttle = state_default.voacapEngine === "dvoacap" ? FETCH_THROTTLE_MS : FETCH_RETRY_MS;
+    if (Date.now() - state_default.voacapLastFetch < throttle) return;
+    fetchVoacapMatrix();
+  }
+  function findSelectedSpot() {
+    if (!state_default.selectedSpotId) return null;
+    const source = state_default.currentSource;
+    const spots = state_default.sourceData[source] || [];
+    return spots.find((s) => {
+      if (source === "pota") return s.spotId === state_default.selectedSpotId;
+      if (source === "sota") return s.id === state_default.selectedSpotId;
+      return s.id === state_default.selectedSpotId || s.spotId === state_default.selectedSpotId;
+    });
+  }
+  function getActiveMatrix() {
+    if (state_default.voacapServerData && state_default.voacapServerData.matrix) {
+      return state_default.voacapServerData.matrix;
+    }
+    const opts = getVoacapOpts();
+    return calculate24HourMatrix(opts);
+  }
+  function getBandReliability(hourData, bandName) {
+    const bandVal = hourData.bands[bandName];
+    if (bandVal == null) return 0;
+    if (typeof bandVal === "object") return bandVal.rel || 0;
+    return bandVal;
+  }
+  function renderVoacapMatrix() {
+    const container = $("voacapMatrix");
+    if (!container) return;
+    const matrix = getActiveMatrix();
+    const hasData = matrix.some((entry) => Object.keys(entry.bands).length > 0);
+    if (!hasData) {
+      container.innerHTML = '<div class="voacap-no-data">Waiting for solar data...</div>';
+      return;
+    }
+    const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const hourOrder = [];
+    for (let i = 0; i < 24; i++) {
+      hourOrder.push((nowHour + i) % 24);
+    }
+    const bandsReversed = [...VOACAP_BANDS].reverse();
+    let html = '<table class="voacap-table"><tbody>';
+    for (const band of bandsReversed) {
+      const isOverlayActive = state_default.hfPropOverlayBand === band.name;
+      const activeClass = isOverlayActive ? "voacap-row-active" : "";
+      html += `<tr class="voacap-row ${activeClass}" data-band="${band.name}">`;
+      html += `<td class="voacap-band-label">${band.label}</td>`;
+      for (let i = 0; i < 24; i++) {
+        const h = hourOrder[i];
+        const hourData = matrix[h];
+        const reliability = getBandReliability(hourData, band.name);
+        const color = getReliabilityColor(reliability);
+        const isNow = i === 0;
+        const nowClass = isNow ? "voacap-cell-now" : "";
+        html += `<td class="voacap-cell ${nowClass}" style="background-color: ${color}" title="${band.label} @ ${String(h).padStart(2, "0")}z: ${reliability}%"></td>`;
+      }
+      html += "</tr>";
+    }
+    html += '<tr class="voacap-hour-row"><td class="voacap-band-label"></td>';
+    for (let i = 0; i < 24; i++) {
+      const h = hourOrder[i];
+      if (i % 3 === 0) {
+        const isNow = i === 0;
+        const nowClass = isNow ? "voacap-hour-now" : "";
+        html += `<td class="voacap-hour-label ${nowClass}" colspan="3">${String(h).padStart(2, "0")}</td>`;
+      }
+    }
+    html += "</tr>";
+    html += "</tbody></table>";
+    const engineLabel = state_default.voacapEngine === "dvoacap" ? "VOACAP" : "SIM";
+    const engineClass = state_default.voacapEngine === "dvoacap" ? "voacap-engine-real" : "voacap-engine-sim";
+    const engineTitle = state_default.voacapEngine === "dvoacap" ? "Using real VOACAP propagation model" : "Using simplified propagation model";
+    const targetLabel = state_default.voacapTarget === "spot" ? "SPOT" : "OVW";
+    const targetTitle = state_default.voacapTarget === "spot" ? "Showing prediction to selected spot (click for overview)" : "Showing best worldwide prediction (click for spot mode)";
+    const serverData = state_default.voacapServerData;
+    const effectiveSSN = serverData?.ssn ? Math.round(serverData.ssn) : null;
+    const baseSSN = serverData?.ssnBase ? Math.round(serverData.ssnBase) : null;
+    const kIndex = serverData?.kIndex;
+    const kDegradation = serverData?.kDegradation || 0;
+    const ssnDisplay = effectiveSSN ?? (state_default.lastSolarData?.indices?.sunspots || "--");
+    const isStorm = kIndex !== null && kIndex >= 4;
+    const ssnWarningClass = isStorm ? " voacap-k-warning" : "";
+    const ssnWarningIndicator = isStorm ? "!" : "";
+    let ssnTitle = "Smoothed sunspot number";
+    if (kIndex !== null && baseSSN !== null) {
+      if (kDegradation > 0) {
+        ssnTitle = `K-index ${kIndex}: Base SSN ${baseSSN} \u2192 ${effectiveSSN} (-${kDegradation}%)`;
+      } else {
+        ssnTitle = `K-index ${kIndex}: SSN ${baseSSN} (no degradation)`;
+      }
+    }
+    const overlayLabel = state_default.heatmapOverlayMode === "heatmap" ? "REL" : "\u25CB";
+    const overlayTitle = state_default.heatmapOverlayMode === "heatmap" ? "Overlay: REL heatmap (click for circles)" : "Overlay: circles (click for REL heatmap)";
+    html += `<div class="voacap-params">`;
+    html += `<span class="voacap-engine-badge ${engineClass}" title="${engineTitle}">${engineLabel}</span>`;
+    html += `<span class="voacap-param" data-param="target" title="${targetTitle}">${targetLabel}</span>`;
+    html += `<span class="voacap-param" data-param="overlay" title="${overlayTitle}">${overlayLabel}</span>`;
+    html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state_default.voacapPower] || state_default.voacapPower}</span>`;
+    html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state_default.voacapMode}</span>`;
+    html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
+    html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
+    html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
+    html += `</div>`;
+    container.innerHTML = html;
+  }
+  function toggleBandOverlay(band) {
+    clearBandOverlay();
+    clearHeatmap();
+    if (state_default.hfPropOverlayBand === band) {
+      state_default.hfPropOverlayBand = null;
+      renderVoacapMatrix();
+      return;
+    }
+    state_default.hfPropOverlayBand = band;
+    renderVoacapMatrix();
+    if (state_default.heatmapOverlayMode === "heatmap") {
+      renderHeatmapCanvas(band);
+    } else {
+      drawBandOverlay(band);
+    }
+  }
+  function clearBandOverlay() {
+    if (!state_default.map) return;
+    for (const circle of bandOverlayCircles) {
+      state_default.map.removeLayer(circle);
+    }
+    bandOverlayCircles = [];
+  }
+  function drawBandOverlay(band) {
+    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
+    const L2 = window.L;
+    const matrix = getActiveMatrix();
+    const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const hourData = matrix[nowHour];
+    const reliability = getBandReliability(hourData, band);
+    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
+    if (!bandDef) return;
+    const baseRadius = 500;
+    const maxRadius = 15e3;
+    const radius = baseRadius + (maxRadius - baseRadius) * (reliability / 100);
+    if (reliability < 10) {
+      const circle = L2.circle([state_default.myLat, state_default.myLon], {
+        radius: 500 * 1e3,
+        // 500 km in meters
+        color: "#c0392b",
+        fillColor: "#c0392b",
+        fillOpacity: 0.1,
+        weight: 1
+      });
+      circle.addTo(state_default.map);
+      bandOverlayCircles.push(circle);
+      return;
+    }
+    const steps = 4;
+    for (let i = steps; i >= 1; i--) {
+      const stepRadius = radius / steps * i;
+      const stepReliability = reliability * (i / steps);
+      const color = getReliabilityColor(stepReliability);
+      const circle = L2.circle([state_default.myLat, state_default.myLon], {
+        radius: stepRadius * 1e3,
+        // km → meters
+        color,
+        fillColor: color,
+        fillOpacity: 0.05 + 0.1 * (steps - i) / steps,
+        weight: 1,
+        dashArray: i === steps ? null : "4 4"
+      });
+      circle.addTo(state_default.map);
+      bandOverlayCircles.push(circle);
+    }
+    const marker = L2.marker([state_default.myLat, state_default.myLon], {
+      icon: L2.divIcon({
+        className: "voacap-center-marker",
+        html: `<div class="voacap-center-label">${band}: ${reliability}%</div>`,
+        iconSize: [80, 20],
+        iconAnchor: [40, 10]
+      })
+    });
+    marker.addTo(state_default.map);
+    bandOverlayCircles.push(marker);
+  }
+  function clearVoacapOverlay() {
+    clearBandOverlay();
+    clearHeatmap();
+    state_default.hfPropOverlayBand = null;
+  }
+  var bandOverlayCircles, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
+  var init_voacap = __esm({
+    "src/voacap.js"() {
+      init_state();
+      init_dom();
+      init_band_conditions();
+      init_rel_heatmap();
+      bandOverlayCircles = [];
+      FETCH_THROTTLE_MS = 5 * 60 * 1e3;
+      FETCH_RETRY_MS = 30 * 1e3;
+      POWER_OPTIONS = ["5", "100", "1000"];
+      POWER_LABELS = { "5": "5W", "100": "100W", "1000": "1kW" };
+      MODE_OPTIONS = ["CW", "SSB", "FT8"];
+      TOA_OPTIONS = ["3", "5", "10", "15"];
+      PATH_OPTIONS = ["SP", "LP"];
+    }
+  });
+
+  // src/rel-heatmap.js
+  var rel_heatmap_exports = {};
+  __export(rel_heatmap_exports, {
+    clearHeatmap: () => clearHeatmap,
+    initHeatmapListeners: () => initHeatmapListeners,
+    renderHeatmapCanvas: () => renderHeatmapCanvas
+  });
+  function greatCircleMidpoint(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const lat1r = lat1 * r, lon1r = lon1 * r;
+    const lat2r = lat2 * r, lon2r = lon2 * r;
+    const dLon = lon2r - lon1r;
+    const Bx = Math.cos(lat2r) * Math.cos(dLon);
+    const By = Math.cos(lat2r) * Math.sin(dLon);
+    const midLat = Math.atan2(
+      Math.sin(lat1r) + Math.sin(lat2r),
+      Math.sqrt((Math.cos(lat1r) + Bx) ** 2 + By ** 2)
+    );
+    const midLon = lon1r + Math.atan2(By, Math.cos(lat1r) + Bx);
+    return { lat: midLat / r, lon: midLon / r };
+  }
+  function distanceKm(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const R = 6371;
+    const dLat = (lat2 - lat1) * r;
+    const dLon = (lon2 - lon1) * r;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  function distanceModifier(distKm) {
+    if (distKm < 100) return 0.3;
+    if (distKm < 500) return 0.5;
+    if (distKm < 1e3) return 0.85;
+    if (distKm < 4e3) return 1;
+    if (distKm < 8e3) return 0.85;
+    if (distKm < 15e3) return 0.7;
+    return 0.5;
+  }
+  function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex, aIndex, utcHour, opts) {
+    const mid = greatCircleMidpoint(deLat, deLon, dxLat, dxLon);
+    const df = dayFraction(mid.lat, mid.lon, utcHour);
+    const muf = calculateMUF(sfi, df);
+    const isDay = df >= 0.5;
+    const baseRel = calculateBandReliability(freqMHz, muf, kIndex, aIndex, isDay, opts);
+    const dist = distanceKm(deLat, deLon, dxLat, dxLon);
+    const distMod = distanceModifier(dist);
+    return Math.max(0, Math.min(100, Math.round(baseRel * distMod)));
+  }
+  function hslToRgb(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(h / 60 % 2 - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) {
+      r = c;
+      g = x;
+    } else if (h < 120) {
+      r = x;
+      g = c;
+    } else if (h < 180) {
+      g = c;
+      b = x;
+    } else if (h < 240) {
+      g = x;
+      b = c;
+    } else if (h < 300) {
+      r = x;
+      b = c;
+    } else {
+      r = c;
+      b = x;
+    }
+    return {
+      r: Math.round((r + m) * 255),
+      g: Math.round((g + m) * 255),
+      b: Math.round((b + m) * 255)
+    };
+  }
+  function reliabilityToRGBA(rel) {
+    if (rel < 5) return { r: 0, g: 0, b: 0, a: 30 };
+    const hue = (rel - 5) / 95 * 120;
+    const { r, g, b } = hslToRgb(hue, 0.85, 0.45);
+    const alpha = Math.min(200, 80 + rel / 100 * 120);
+    return { r, g, b, a: Math.round(alpha) };
+  }
+  function cellSizeForZoom(zoom) {
+    if (zoom <= 3) return 4;
+    if (zoom <= 5) return 2;
+    if (zoom <= 7) return 1;
+    return 0.5;
+  }
+  function renderHeatmapCanvas(band) {
+    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
+    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) return;
+    const L2 = window.L;
+    const map = state_default.map;
+    clearHeatmap();
+    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
+    if (!bandDef) return;
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const opts = getVoacapOpts();
+    const bounds = map.getBounds();
+    const south = Math.max(-85, bounds.getSouth());
+    const north = Math.min(85, bounds.getNorth());
+    const west = bounds.getWest();
+    const east = bounds.getEast();
+    const zoom = map.getZoom();
+    const cellSize = cellSizeForZoom(zoom);
+    const cols = Math.ceil((east - west) / cellSize);
+    const rows = Math.ceil((north - south) / cellSize);
+    if (cols <= 0 || rows <= 0) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = cols;
+    canvas.height = rows;
+    const ctx = canvas.getContext("2d");
+    const imageData = ctx.createImageData(cols, rows);
+    const data = imageData.data;
+    for (let row = 0; row < rows; row++) {
+      const dxLat = north - (row + 0.5) * cellSize;
+      for (let col = 0; col < cols; col++) {
+        const dxLon = west + (col + 0.5) * cellSize;
+        const rel = computeCellReliability(
+          state_default.myLat,
+          state_default.myLon,
+          dxLat,
+          dxLon,
+          bandDef.freqMHz,
+          sfi,
+          kIndex,
+          aIndex,
+          utcHour,
+          opts
+        );
+        const px = reliabilityToRGBA(rel);
+        const idx = (row * cols + col) * 4;
+        data[idx] = px.r;
+        data[idx + 1] = px.g;
+        data[idx + 2] = px.b;
+        data[idx + 3] = px.a;
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+    const dataUrl = canvas.toDataURL();
+    const imageBounds = [[south, west], [north, east]];
+    state_default.heatmapLayer = L2.imageOverlay(dataUrl, imageBounds, {
+      opacity: 0.7,
+      pane: "propagation"
+    });
+    state_default.heatmapLayer.addTo(map);
+  }
+  function clearHeatmap() {
+    if (state_default.heatmapLayer && state_default.map) {
+      state_default.map.removeLayer(state_default.heatmapLayer);
+      state_default.heatmapLayer = null;
+    }
+  }
+  function initHeatmapListeners() {
+  }
+  var init_rel_heatmap = __esm({
+    "src/rel-heatmap.js"() {
+      init_state();
+      init_band_conditions();
+      init_voacap();
+    }
+  });
+
+  // src/map-init.js
+  var map_init_exports = {};
+  __export(map_init_exports, {
+    centerMapOnUser: () => centerMapOnUser,
+    initMap: () => initMap,
+    swapMapTiles: () => swapMapTiles,
+    updateBeaconMarkers: () => updateBeaconMarkers,
+    updateMoonMarker: () => updateMoonMarker,
+    updateSunMarker: () => updateSunMarker,
+    updateUserMarker: () => updateUserMarker
+  });
+  function initMap() {
+    const hasLeaflet = typeof L !== "undefined" && L.map;
+    if (!hasLeaflet) return;
+    try {
+      state_default.map = L.map("map", {
+        worldCopyJump: true,
+        maxBoundsViscosity: 1,
+        maxBounds: [[-90, -180], [90, 180]],
+        minZoom: 2
+      }).setView([39.8, -98.5], 4);
+      state_default.tileLayer = L.tileLayer(TILE_DARK, {
+        attribution: "&copy; OpenStreetMap &copy; CARTO",
+        maxZoom: 19
+      }).addTo(state_default.map);
+      state_default.clusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 40,
+        // px — merge markers within 40px; keeps clusters tight on a dark basemap
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        iconCreateFunction: function(cluster) {
+          const childCount = cluster.getChildCount();
+          const sizeClass = childCount < 10 ? "small" : childCount < 100 ? "medium" : "large";
+          let extraClass = "";
+          if (state_default.selectedSpotId && state_default.markers[state_default.selectedSpotId]) {
+            const children = cluster.getAllChildMarkers();
+            if (children.indexOf(state_default.markers[state_default.selectedSpotId]) !== -1) {
+              extraClass = " marker-cluster-selected";
+            }
+          }
+          return L.divIcon({
+            html: "<div><span>" + childCount + "</span></div>",
+            className: "marker-cluster marker-cluster-" + sizeClass + extraClass,
+            iconSize: L.point(40, 40)
+          });
+        }
+      });
+      state_default.map.addLayer(state_default.clusterGroup);
+      state_default.map.createPane("grayline");
+      state_default.map.getPane("grayline").style.zIndex = 250;
+      state_default.map.createPane("propagation");
+      state_default.map.getPane("propagation").style.zIndex = 300;
+      state_default.map.createPane("mapOverlays");
+      state_default.map.getPane("mapOverlays").style.zIndex = 350;
+      state_default.map.getPane("mapOverlays").style.pointerEvents = "none";
+      state_default.map.on("zoomend", () => {
+        if (state_default.mapOverlays.latLonGrid) {
+          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
+          renderLatLonGrid2();
+        }
+        if (state_default.mapOverlays.maidenheadGrid) {
+          clearTimeout(state_default.maidenheadDebounceTimer);
+          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
+          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
+        }
+        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
+          clearTimeout(state_default.heatmapRenderTimer);
+          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
+          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
+        }
+      });
+      state_default.map.on("moveend", () => {
+        if (state_default.mapOverlays.latLonGrid) {
+          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
+          renderLatLonGrid2();
+        }
+        if (state_default.mapOverlays.maidenheadGrid) {
+          clearTimeout(state_default.maidenheadDebounceTimer);
+          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
+          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
+        }
+        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
+          clearTimeout(state_default.heatmapRenderTimer);
+          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
+          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
+        }
+      });
+      setTimeout(renderAllMapOverlays, 200);
+    } catch (e) {
+      console.error("Map initialization failed:", e);
+      state_default.map = null;
+      state_default.clusterGroup = null;
+    }
+  }
+  function centerMapOnUser() {
+    if (!state_default.map) return;
+    if (state_default.mapCenterMode === "pm") {
+      state_default.map.setView([0, 0], 2);
+    } else if (state_default.mapCenterMode === "qth") {
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        state_default.map.setView([state_default.myLat, state_default.myLon], state_default.map.getZoom());
+      }
+    }
+  }
+  function updateUserMarker() {
+    if (!state_default.map || state_default.myLat === null || state_default.myLon === null) return;
+    const call = state_default.myCallsign || "ME";
+    const grid = latLonToGrid(state_default.myLat, state_default.myLon).substring(0, 4).toUpperCase();
+    const popupHtml = `<div class="user-popup"><div class="user-popup-title">${esc(call)}</div><div class="user-popup-row">${state_default.myLat.toFixed(4)}, ${state_default.myLon.toFixed(4)}</div><div class="user-popup-row">Grid: ${esc(grid)}</div><div class="user-popup-row">${state_default.manualLoc ? "Manual override" : "GPS"}</div></div>`;
+    if (state_default.userMarker) {
+      state_default.userMarker.setLatLng([state_default.myLat, state_default.myLon]);
+      state_default.userMarker.setPopupContent(popupHtml);
+      state_default.userMarker.setIcon(L.divIcon({
+        className: "user-icon",
+        html: `<span class="user-icon-diamond">&#9889;</span><span class="user-icon-call">${esc(call)}</span>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+      }));
+    } else {
+      const icon = L.divIcon({
+        className: "user-icon",
+        html: `<span class="user-icon-diamond">&#9889;</span><span class="user-icon-call">${esc(call)}</span>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+      });
+      state_default.userMarker = L.marker([state_default.myLat, state_default.myLon], { icon, zIndexOffset: 9e3 }).addTo(state_default.map);
+      state_default.userMarker.bindPopup(popupHtml, { maxWidth: 200 });
+    }
+  }
+  function updateSunMarker() {
+    if (!state_default.map || state_default.sunLat === null || state_default.sunLon === null) return;
+    const icon = L.divIcon({
+      className: "sun-marker-icon",
+      html: '<span class="sun-marker-dot"></span>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    });
+    const tooltip = `Sub-solar point
+${state_default.sunLat.toFixed(1)}\xB0, ${state_default.sunLon.toFixed(1)}\xB0`;
+    if (state_default.sunMarker) {
+      state_default.sunMarker.setLatLng([state_default.sunLat, state_default.sunLon]);
+    } else {
+      state_default.sunMarker = L.marker([state_default.sunLat, state_default.sunLon], { icon, zIndexOffset: 8e3, interactive: true }).addTo(state_default.map);
+      state_default.sunMarker.bindTooltip(tooltip);
+    }
+    state_default.sunMarker.setTooltipContent(tooltip);
+  }
+  function gmstDegrees(date) {
+    const JD = date.getTime() / 864e5 + 24405875e-1;
+    const T = (JD - 2451545) / 36525;
+    let gmst = 280.46061837 + 360.98564736629 * (JD - 2451545) + 387933e-9 * T * T - T * T * T / 3871e4;
+    return (gmst % 360 + 360) % 360;
+  }
+  function updateMoonMarker() {
+    if (!state_default.map || !state_default.lastLunarData) return;
+    const data = state_default.lastLunarData;
+    const dec = data.declination;
+    const ra = data.rightAscension;
+    if (dec == null || ra == null) return;
+    const now = /* @__PURE__ */ new Date();
+    const gmst = gmstDegrees(now);
+    let moonLon = ra - gmst;
+    moonLon = ((moonLon + 180) % 360 + 360) % 360 - 180;
+    state_default.moonLat = dec;
+    state_default.moonLon = moonLon;
+    const icon = L.divIcon({
+      className: "moon-marker-icon",
+      html: '<span class="moon-marker-dot"></span>',
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
+    });
+    const tooltip = `Sub-lunar point
+${dec.toFixed(1)}\xB0, ${moonLon.toFixed(1)}\xB0`;
+    if (state_default.moonMarker) {
+      state_default.moonMarker.setLatLng([dec, moonLon]);
+    } else {
+      state_default.moonMarker = L.marker([dec, moonLon], { icon, zIndexOffset: 7500, interactive: true }).addTo(state_default.map);
+      state_default.moonMarker.bindTooltip(tooltip);
+    }
+    state_default.moonMarker.setTooltipContent(tooltip);
+  }
+  function updateBeaconMarkers() {
+    if (!state_default.map) return;
+    const active = getActiveBeacons();
+    for (const key of Object.keys(state_default.beaconMarkers)) {
+      state_default.map.removeLayer(state_default.beaconMarkers[key]);
+      delete state_default.beaconMarkers[key];
+    }
+    for (const entry of active) {
+      const { freq, beacon } = entry;
+      const color = BEACON_COLORS[freq] || "#ffffff";
+      const marker = L.circleMarker([beacon.lat, beacon.lon], {
+        radius: 5,
+        color,
+        fillColor: color,
+        fillOpacity: 0.8,
+        weight: 1,
+        interactive: true
+      }).addTo(state_default.map);
+      marker.bindTooltip(`${beacon.call}
+${(freq / 1e3).toFixed(3)} MHz
+${beacon.location}`);
+      state_default.beaconMarkers[freq] = marker;
+    }
+  }
+  function swapMapTiles(themeId) {
+    if (!state_default.tileLayer) return;
+    const url = themeId === "hamclock" ? TILE_VOYAGER : TILE_DARK;
+    state_default.tileLayer.setUrl(url);
+  }
+  var TILE_DARK, TILE_VOYAGER, BEACON_COLORS;
+  var init_map_init = __esm({
+    "src/map-init.js"() {
+      init_state();
+      init_geo();
+      init_utils();
+      init_map_overlays();
+      init_beacons();
+      TILE_DARK = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+      TILE_VOYAGER = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+      BEACON_COLORS = {
+        14100: "#ff4444",
+        // 20m — red
+        18110: "#ff8800",
+        // 17m — orange
+        21150: "#ffff00",
+        // 15m — yellow
+        24930: "#00cc44",
+        // 12m — green
+        28200: "#4488ff"
+        // 10m — blue
+      };
     }
   });
 
@@ -374,6 +1842,8 @@
       const data = await resp.json();
       state_default.lastLunarData = data;
       renderLunar(data);
+      const { updateMoonMarker: updateMoonMarker2 } = await Promise.resolve().then(() => (init_map_init(), map_init_exports));
+      updateMoonMarker2();
     } catch (err) {
       console.error("Failed to fetch lunar:", err);
     }
@@ -531,7 +2001,8 @@
         { id: "widget-spot-detail", name: "DX Detail" },
         { id: "widget-contests", name: "Contests" },
         { id: "widget-dxpeditions", name: "DXpeditions" },
-        { id: "widget-beacons", name: "NCDXF Beacons" }
+        { id: "widget-beacons", name: "NCDXF Beacons" },
+        { id: "widget-dedx", name: "DE/DX Info" }
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -972,6 +2443,16 @@
             { label: "NCDXF Beacon Project", url: "https://www.ncdxf.org/beacon/" }
           ]
         },
+        "widget-dedx": {
+          title: "DE/DX Info",
+          description: "A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock layout, this widget gives you the key information you need at a glance when making contacts.",
+          sections: [
+            { heading: "DE (Your Station)", content: "The left panel shows your callsign, Maidenhead grid square, latitude/longitude, and today's sunrise and sunset times at your location (in UTC). This requires your callsign and location to be set in Config." },
+            { heading: "DX (Selected Station)", content: "The right panel shows details for whichever station you've clicked in the On the Air table or on the map. It displays their callsign, frequency, mode, grid square, bearing (compass direction to point your antenna), distance, and sunrise/sunset times at their location." },
+            { heading: "Why Sunrise/Sunset?", content: 'HF radio propagation changes dramatically at sunrise and sunset. The "gray line" (the band of twilight circling the Earth) often produces enhanced propagation. Knowing sunrise/sunset at both ends of a path helps you predict when a band will open or close between your station and the DX.' },
+            { heading: "Bearing & Distance", content: "The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact." }
+          ]
+        },
         "widget-live-spots": {
           title: "Live Spots",
           description: "See where YOUR signal is being received right now! When you transmit on digital modes like FT8 or FT4, stations around the world automatically report hearing you to PSKReporter. This widget shows those reports so you can see how far your signal is reaching.",
@@ -1111,944 +2592,6 @@
       USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
       HEADER_H = 30;
-    }
-  });
-
-  // src/band-conditions.js
-  var band_conditions_exports = {};
-  __export(band_conditions_exports, {
-    HF_BANDS: () => HF_BANDS,
-    VOACAP_BANDS: () => VOACAP_BANDS,
-    calculate24HourMatrix: () => calculate24HourMatrix,
-    calculateBandConditions: () => calculateBandConditions,
-    calculateBandReliability: () => calculateBandReliability,
-    calculateMUF: () => calculateMUF,
-    calculateSolarZenith: () => calculateSolarZenith,
-    conditionColorClass: () => conditionColorClass,
-    conditionLabel: () => conditionLabel,
-    dayFraction: () => dayFraction,
-    getReliabilityColor: () => getReliabilityColor,
-    initDayNightToggle: () => initDayNightToggle,
-    renderPropagationWidget: () => renderPropagationWidget
-  });
-  function calculateSolarZenith(lat, lon, utcHour) {
-    const now = /* @__PURE__ */ new Date();
-    const start = new Date(now.getFullYear(), 0, 1);
-    const dayOfYear = Math.floor((now - start) / 864e5) + 1;
-    const declRad = Math.asin(
-      Math.sin(23.44 * Math.PI / 180) * Math.sin(360 / 365 * (dayOfYear - 81) * Math.PI / 180)
-    );
-    const solarNoonOffset = lon / 15;
-    const hourAngle = (utcHour - 12 + solarNoonOffset) * 15;
-    const haRad = hourAngle * Math.PI / 180;
-    const latRad = lat * Math.PI / 180;
-    const cosZenith = Math.sin(latRad) * Math.sin(declRad) + Math.cos(latRad) * Math.cos(declRad) * Math.cos(haRad);
-    return Math.acos(Math.max(-1, Math.min(1, cosZenith))) * 180 / Math.PI;
-  }
-  function dayFraction(lat, lon, utcHour) {
-    if (lat == null || lon == null) {
-      return utcHour >= 6 && utcHour < 18 ? 1 : 0;
-    }
-    const zenith = calculateSolarZenith(lat, lon, utcHour);
-    if (zenith <= 80) return 1;
-    if (zenith >= 100) return 0;
-    return (100 - zenith) / 20;
-  }
-  function calculateMUF(sfi, dayFrac) {
-    if (dayFrac === true) dayFrac = 1;
-    else if (dayFrac === false) dayFrac = 0;
-    const foF2Factor = 0.6 + 0.3 * dayFrac;
-    const foF2 = foF2Factor * Math.sqrt(Math.max(sfi, 50));
-    const obliquityFactor = 3.5;
-    return foF2 * obliquityFactor;
-  }
-  function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay, opts) {
-    const mufLower = muf * 0.5;
-    const mufOptimal = muf * 0.85;
-    let baseReliability = 0;
-    if (bandFreqMHz < mufLower) {
-      if (isDay) {
-        baseReliability = Math.max(0, 20 - (mufLower - bandFreqMHz) * 2);
-      } else {
-        baseReliability = Math.min(85, 60 + (mufLower - bandFreqMHz) * 1.5);
-      }
-    } else if (bandFreqMHz <= mufOptimal) {
-      const position = (bandFreqMHz - mufLower) / (mufOptimal - mufLower);
-      baseReliability = 70 + 30 * Math.sin(position * Math.PI);
-    } else if (bandFreqMHz <= muf) {
-      const position = (bandFreqMHz - mufOptimal) / (muf - mufOptimal);
-      baseReliability = 90 - position * 40;
-    } else {
-      const excess = bandFreqMHz - muf;
-      baseReliability = Math.max(0, 40 - excess * 3);
-    }
-    let geomagPenalty = 0;
-    if (kIndex >= 6) {
-      geomagPenalty = (kIndex - 5) * 12;
-    } else if (kIndex >= 3) {
-      geomagPenalty = (kIndex - 2) * 5;
-    }
-    let aIndexPenalty = 0;
-    if (aIndex > 30) {
-      aIndexPenalty = Math.min(20, (aIndex - 30) / 2);
-    } else if (aIndex > 10) {
-      aIndexPenalty = (aIndex - 10) / 4;
-    }
-    let adjusted = baseReliability - geomagPenalty - aIndexPenalty;
-    if (opts) {
-      if (opts.mode === "CW") adjusted += 10;
-      else if (opts.mode === "FT8") adjusted += 30;
-      if (opts.powerWatts && opts.powerWatts !== 100) {
-        const dBdiff = 10 * Math.log10(opts.powerWatts / 100);
-        adjusted += dBdiff * 1.5;
-      }
-      if (opts.toaDeg != null) {
-        adjusted += (opts.toaDeg - 5) * 1.5;
-      }
-      if (opts.longPath) adjusted -= 25;
-    }
-    const finalReliability = Math.max(0, Math.min(100, adjusted));
-    return Math.round(finalReliability);
-  }
-  function classifyCondition(reliability) {
-    if (reliability >= 80) return "excellent";
-    if (reliability >= 60) return "good";
-    if (reliability >= 40) return "fair";
-    if (reliability >= 20) return "poor";
-    return "closed";
-  }
-  function calculateBandConditions(timeOfDay = null) {
-    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
-      return HF_BANDS.map((band) => ({
-        ...band,
-        reliability: 0,
-        condition: "unknown",
-        muf: 0
-      }));
-    }
-    const { indices } = state_default.lastSolarData;
-    const sfi = parseFloat(indices.sfi) || 70;
-    const kIndex = parseInt(indices.kindex) || 2;
-    const aIndex = parseInt(indices.aindex) || 5;
-    let isDay;
-    if (timeOfDay === "day") {
-      isDay = true;
-    } else if (timeOfDay === "night") {
-      isDay = false;
-    } else {
-      const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
-      isDay = utcHour >= 6 && utcHour < 18;
-    }
-    const muf = calculateMUF(sfi, isDay);
-    return HF_BANDS.map((band) => {
-      const reliability = calculateBandReliability(
-        band.freqMHz,
-        muf,
-        kIndex,
-        aIndex,
-        isDay
-      );
-      return {
-        ...band,
-        reliability,
-        condition: classifyCondition(reliability),
-        muf: Math.round(muf * 10) / 10
-        // Round to 1 decimal
-      };
-    });
-  }
-  function conditionColorClass(condition) {
-    const map = {
-      "excellent": "band-excellent",
-      "good": "band-good",
-      "fair": "band-fair",
-      "poor": "band-poor",
-      "closed": "band-closed",
-      "unknown": "band-unknown"
-    };
-    return map[condition] || "band-unknown";
-  }
-  function conditionLabel(condition) {
-    const map = {
-      "excellent": "Excellent",
-      "good": "Good",
-      "fair": "Fair",
-      "poor": "Poor",
-      "closed": "Closed",
-      "unknown": "Unknown"
-    };
-    return map[condition] || "Unknown";
-  }
-  function getReliabilityColor(rel) {
-    if (rel < 10) return "#1a1a1a";
-    if (rel < 33) return "#c0392b";
-    if (rel < 66) return "#f1c40f";
-    return "#27ae60";
-  }
-  function calculate24HourMatrix(opts) {
-    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
-      return Array.from({ length: 24 }, (_, i) => ({
-        hour: i,
-        bands: {},
-        muf: 0
-      }));
-    }
-    const { indices } = state_default.lastSolarData;
-    const sfi = parseFloat(indices.sfi) || 70;
-    const kIndex = parseInt(indices.kindex) || 2;
-    const aIndex = parseInt(indices.aindex) || 5;
-    const lat = opts && opts.lat != null ? opts.lat : null;
-    const lon = opts && opts.lon != null ? opts.lon : null;
-    const bandList = opts ? VOACAP_BANDS : HF_BANDS;
-    const matrix = [];
-    for (let hour = 0; hour < 24; hour++) {
-      const df = dayFraction(lat, lon, hour);
-      const muf = calculateMUF(sfi, df);
-      const bands = {};
-      for (const band of bandList) {
-        const reliability = calculateBandReliability(
-          band.freqMHz,
-          muf,
-          kIndex,
-          aIndex,
-          df >= 0.5,
-          // boolean isDay for absorption branch
-          opts
-        );
-        bands[band.name] = reliability;
-      }
-      matrix.push({
-        hour,
-        bands,
-        muf: Math.round(muf * 10) / 10
-      });
-    }
-    return matrix;
-  }
-  function initDayNightToggle() {
-    const dayBtn = $("dayToggle");
-    const nightBtn = $("nightToggle");
-    if (!dayBtn || !nightBtn) return;
-    updateToggleButtons();
-    dayBtn.addEventListener("click", () => {
-      dayNightTime = "day";
-      localStorage.setItem("hamtab_band_time", dayNightTime);
-      updateToggleButtons();
-      renderPropagationWidget();
-    });
-    nightBtn.addEventListener("click", () => {
-      dayNightTime = "night";
-      localStorage.setItem("hamtab_band_time", dayNightTime);
-      updateToggleButtons();
-      renderPropagationWidget();
-    });
-  }
-  function updateToggleButtons() {
-    const dayBtn = $("dayToggle");
-    const nightBtn = $("nightToggle");
-    if (dayBtn) dayBtn.classList.toggle("active", dayNightTime === "day");
-    if (nightBtn) nightBtn.classList.toggle("active", dayNightTime === "night");
-  }
-  function renderPropagationWidget() {
-    const grid = $("bandConditionsGrid");
-    const mufValue = $("propMufValue");
-    const sfiValue = $("propSfiValue");
-    const kindexValue = $("propKindexValue");
-    if (!grid) return;
-    const conditions = calculateBandConditions(dayNightTime);
-    if (mufValue) {
-      const muf = conditions[0]?.muf || 0;
-      mufValue.textContent = muf > 0 ? `${muf} MHz` : "--";
-    }
-    if (state_default.lastSolarData && state_default.lastSolarData.indices) {
-      const { indices } = state_default.lastSolarData;
-      if (sfiValue) sfiValue.textContent = indices.sfi || "--";
-      if (kindexValue) {
-        const kindex = indices.kindex || "--";
-        kindexValue.textContent = kindex;
-        if (kindex !== "--") {
-          const k = parseInt(kindex);
-          if (k <= 2) kindexValue.style.color = "var(--green)";
-          else if (k <= 4) kindexValue.style.color = "var(--yellow)";
-          else kindexValue.style.color = "var(--red)";
-        }
-      }
-    }
-    grid.innerHTML = "";
-    conditions.forEach((band) => {
-      const card = document.createElement("div");
-      const timeClass = dayNightTime === "day" ? "band-card-day" : "band-card-night";
-      card.className = `band-card ${conditionColorClass(band.condition)} ${timeClass}`;
-      const name = document.createElement("span");
-      name.className = "band-name";
-      name.textContent = band.label;
-      const reliability = document.createElement("span");
-      reliability.className = "band-reliability";
-      reliability.textContent = `${band.reliability}%`;
-      const condLabel = document.createElement("span");
-      condLabel.className = "band-condition-label";
-      condLabel.textContent = conditionLabel(band.condition);
-      card.appendChild(name);
-      card.appendChild(reliability);
-      card.appendChild(condLabel);
-      grid.appendChild(card);
-    });
-  }
-  var dayNightTime, saved, HF_BANDS, VOACAP_BANDS;
-  var init_band_conditions = __esm({
-    "src/band-conditions.js"() {
-      init_state();
-      init_dom();
-      init_utils();
-      dayNightTime = "day";
-      saved = localStorage.getItem("hamtab_band_time");
-      if (saved === "day" || saved === "night") {
-        dayNightTime = saved;
-      }
-      HF_BANDS = [
-        { name: "160m", freqMHz: 1.9, label: "160m" },
-        { name: "80m", freqMHz: 3.7, label: "80m" },
-        { name: "60m", freqMHz: 5.35, label: "60m" },
-        { name: "40m", freqMHz: 7.15, label: "40m" },
-        { name: "30m", freqMHz: 10.12, label: "30m" },
-        { name: "20m", freqMHz: 14.15, label: "20m" },
-        { name: "17m", freqMHz: 18.1, label: "17m" },
-        { name: "15m", freqMHz: 21.2, label: "15m" },
-        { name: "12m", freqMHz: 24.93, label: "12m" },
-        { name: "10m", freqMHz: 28.5, label: "10m" }
-      ];
-      VOACAP_BANDS = HF_BANDS.filter((b) => b.name !== "160m" && b.name !== "60m");
-    }
-  });
-
-  // src/rel-heatmap.js
-  var rel_heatmap_exports = {};
-  __export(rel_heatmap_exports, {
-    clearHeatmap: () => clearHeatmap,
-    initHeatmapListeners: () => initHeatmapListeners,
-    renderHeatmapCanvas: () => renderHeatmapCanvas
-  });
-  function greatCircleMidpoint(lat1, lon1, lat2, lon2) {
-    const r = Math.PI / 180;
-    const lat1r = lat1 * r, lon1r = lon1 * r;
-    const lat2r = lat2 * r, lon2r = lon2 * r;
-    const dLon = lon2r - lon1r;
-    const Bx = Math.cos(lat2r) * Math.cos(dLon);
-    const By = Math.cos(lat2r) * Math.sin(dLon);
-    const midLat = Math.atan2(
-      Math.sin(lat1r) + Math.sin(lat2r),
-      Math.sqrt((Math.cos(lat1r) + Bx) ** 2 + By ** 2)
-    );
-    const midLon = lon1r + Math.atan2(By, Math.cos(lat1r) + Bx);
-    return { lat: midLat / r, lon: midLon / r };
-  }
-  function distanceKm(lat1, lon1, lat2, lon2) {
-    const r = Math.PI / 180;
-    const R = 6371;
-    const dLat = (lat2 - lat1) * r;
-    const dLon = (lon2 - lon1) * r;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-  function distanceModifier(distKm) {
-    if (distKm < 100) return 0.3;
-    if (distKm < 500) return 0.5;
-    if (distKm < 1e3) return 0.85;
-    if (distKm < 4e3) return 1;
-    if (distKm < 8e3) return 0.85;
-    if (distKm < 15e3) return 0.7;
-    return 0.5;
-  }
-  function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex, aIndex, utcHour, opts) {
-    const mid = greatCircleMidpoint(deLat, deLon, dxLat, dxLon);
-    const df = dayFraction(mid.lat, mid.lon, utcHour);
-    const muf = calculateMUF(sfi, df);
-    const isDay = df >= 0.5;
-    const baseRel = calculateBandReliability(freqMHz, muf, kIndex, aIndex, isDay, opts);
-    const dist = distanceKm(deLat, deLon, dxLat, dxLon);
-    const distMod = distanceModifier(dist);
-    return Math.max(0, Math.min(100, Math.round(baseRel * distMod)));
-  }
-  function hslToRgb(h, s, l) {
-    const c = (1 - Math.abs(2 * l - 1)) * s;
-    const x = c * (1 - Math.abs(h / 60 % 2 - 1));
-    const m = l - c / 2;
-    let r = 0, g = 0, b = 0;
-    if (h < 60) {
-      r = c;
-      g = x;
-    } else if (h < 120) {
-      r = x;
-      g = c;
-    } else if (h < 180) {
-      g = c;
-      b = x;
-    } else if (h < 240) {
-      g = x;
-      b = c;
-    } else if (h < 300) {
-      r = x;
-      b = c;
-    } else {
-      r = c;
-      b = x;
-    }
-    return {
-      r: Math.round((r + m) * 255),
-      g: Math.round((g + m) * 255),
-      b: Math.round((b + m) * 255)
-    };
-  }
-  function reliabilityToRGBA(rel) {
-    if (rel < 5) return { r: 0, g: 0, b: 0, a: 30 };
-    const hue = (rel - 5) / 95 * 120;
-    const { r, g, b } = hslToRgb(hue, 0.85, 0.45);
-    const alpha = Math.min(200, 80 + rel / 100 * 120);
-    return { r, g, b, a: Math.round(alpha) };
-  }
-  function cellSizeForZoom(zoom) {
-    if (zoom <= 3) return 4;
-    if (zoom <= 5) return 2;
-    if (zoom <= 7) return 1;
-    return 0.5;
-  }
-  function renderHeatmapCanvas(band) {
-    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
-    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) return;
-    const L2 = window.L;
-    const map = state_default.map;
-    clearHeatmap();
-    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
-    if (!bandDef) return;
-    const { indices } = state_default.lastSolarData;
-    const sfi = parseFloat(indices.sfi) || 70;
-    const kIndex = parseInt(indices.kindex) || 2;
-    const aIndex = parseInt(indices.aindex) || 5;
-    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
-    const opts = getVoacapOpts();
-    const bounds = map.getBounds();
-    const south = Math.max(-85, bounds.getSouth());
-    const north = Math.min(85, bounds.getNorth());
-    const west = bounds.getWest();
-    const east = bounds.getEast();
-    const zoom = map.getZoom();
-    const cellSize = cellSizeForZoom(zoom);
-    const cols = Math.ceil((east - west) / cellSize);
-    const rows = Math.ceil((north - south) / cellSize);
-    if (cols <= 0 || rows <= 0) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = cols;
-    canvas.height = rows;
-    const ctx = canvas.getContext("2d");
-    const imageData = ctx.createImageData(cols, rows);
-    const data = imageData.data;
-    for (let row = 0; row < rows; row++) {
-      const dxLat = north - (row + 0.5) * cellSize;
-      for (let col = 0; col < cols; col++) {
-        const dxLon = west + (col + 0.5) * cellSize;
-        const rel = computeCellReliability(
-          state_default.myLat,
-          state_default.myLon,
-          dxLat,
-          dxLon,
-          bandDef.freqMHz,
-          sfi,
-          kIndex,
-          aIndex,
-          utcHour,
-          opts
-        );
-        const px = reliabilityToRGBA(rel);
-        const idx = (row * cols + col) * 4;
-        data[idx] = px.r;
-        data[idx + 1] = px.g;
-        data[idx + 2] = px.b;
-        data[idx + 3] = px.a;
-      }
-    }
-    ctx.putImageData(imageData, 0, 0);
-    const dataUrl = canvas.toDataURL();
-    const imageBounds = [[south, west], [north, east]];
-    state_default.heatmapLayer = L2.imageOverlay(dataUrl, imageBounds, {
-      opacity: 0.7,
-      pane: "propagation"
-    });
-    state_default.heatmapLayer.addTo(map);
-  }
-  function clearHeatmap() {
-    if (state_default.heatmapLayer && state_default.map) {
-      state_default.map.removeLayer(state_default.heatmapLayer);
-      state_default.heatmapLayer = null;
-    }
-  }
-  function initHeatmapListeners() {
-  }
-  var init_rel_heatmap = __esm({
-    "src/rel-heatmap.js"() {
-      init_state();
-      init_band_conditions();
-      init_voacap();
-    }
-  });
-
-  // src/voacap.js
-  var voacap_exports = {};
-  __export(voacap_exports, {
-    clearVoacapOverlay: () => clearVoacapOverlay,
-    fetchVoacapMatrix: () => fetchVoacapMatrix,
-    fetchVoacapMatrixThrottled: () => fetchVoacapMatrixThrottled,
-    getVoacapOpts: () => getVoacapOpts,
-    initVoacapListeners: () => initVoacapListeners,
-    renderVoacapMatrix: () => renderVoacapMatrix,
-    toggleBandOverlay: () => toggleBandOverlay
-  });
-  function initVoacapListeners() {
-    const matrix = $("voacapMatrix");
-    if (!matrix) return;
-    matrix.addEventListener("click", (e) => {
-      const param = e.target.closest(".voacap-param");
-      if (param && param.dataset.param) {
-        cycleParam(param.dataset.param);
-        return;
-      }
-      const row = e.target.closest(".voacap-row");
-      if (row && row.dataset.band) {
-        toggleBandOverlay(row.dataset.band);
-      }
-    });
-  }
-  function cycleParam(name) {
-    if (name === "overlay") {
-      const next2 = state_default.heatmapOverlayMode === "circles" ? "heatmap" : "circles";
-      state_default.heatmapOverlayMode = next2;
-      localStorage.setItem("hamtab_heatmap_mode", next2);
-      renderVoacapMatrix();
-      if (state_default.hfPropOverlayBand) {
-        clearBandOverlay();
-        clearHeatmap();
-        if (next2 === "heatmap") {
-          renderHeatmapCanvas(state_default.hfPropOverlayBand);
-        } else {
-          drawBandOverlay(state_default.hfPropOverlayBand);
-        }
-      }
-      return;
-    }
-    if (name === "target") {
-      const current2 = state_default.voacapTarget;
-      const next2 = current2 === "overview" ? "spot" : "overview";
-      state_default.voacapTarget = next2;
-      localStorage.setItem("hamtab_voacap_target", next2);
-      fetchVoacapMatrix();
-      return;
-    }
-    let options, key, stateKey;
-    if (name === "power") {
-      options = POWER_OPTIONS;
-      key = "hamtab_voacap_power";
-      stateKey = "voacapPower";
-    } else if (name === "mode") {
-      options = MODE_OPTIONS;
-      key = "hamtab_voacap_mode";
-      stateKey = "voacapMode";
-    } else if (name === "toa") {
-      options = TOA_OPTIONS;
-      key = "hamtab_voacap_toa";
-      stateKey = "voacapToa";
-    } else if (name === "path") {
-      options = PATH_OPTIONS;
-      key = "hamtab_voacap_path";
-      stateKey = "voacapPath";
-    } else return;
-    const current = state_default[stateKey];
-    const idx = options.indexOf(current);
-    const next = options[(idx + 1) % options.length];
-    state_default[stateKey] = next;
-    localStorage.setItem(key, next);
-    fetchVoacapMatrix();
-    if (state_default.hfPropOverlayBand) {
-      clearBandOverlay();
-      clearHeatmap();
-      if (state_default.heatmapOverlayMode === "heatmap") {
-        renderHeatmapCanvas(state_default.hfPropOverlayBand);
-      } else {
-        drawBandOverlay(state_default.hfPropOverlayBand);
-      }
-    }
-  }
-  function getVoacapOpts() {
-    return {
-      lat: state_default.myLat,
-      lon: state_default.myLon,
-      mode: state_default.voacapMode,
-      powerWatts: parseInt(state_default.voacapPower, 10),
-      toaDeg: parseInt(state_default.voacapToa, 10),
-      longPath: state_default.voacapPath === "LP"
-    };
-  }
-  async function fetchVoacapMatrix() {
-    if (state_default.myLat == null || state_default.myLon == null) {
-      renderVoacapMatrix();
-      return;
-    }
-    const params = new URLSearchParams({
-      txLat: state_default.myLat,
-      txLon: state_default.myLon,
-      power: state_default.voacapPower,
-      mode: state_default.voacapMode,
-      toa: state_default.voacapToa,
-      path: state_default.voacapPath
-    });
-    if (state_default.voacapTarget === "spot" && state_default.selectedSpotId) {
-      const spot = findSelectedSpot();
-      if (spot && spot.lat != null && spot.lon != null) {
-        params.set("rxLat", spot.lat);
-        params.set("rxLon", spot.lon);
-      }
-    }
-    try {
-      const resp = await fetch(`/api/voacap?${params}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      state_default.voacapServerData = data;
-      state_default.voacapEngine = data.engine || "simplified";
-      state_default.voacapLastFetch = Date.now();
-    } catch (err) {
-      if (state_default.debug) console.error("VOACAP fetch error:", err);
-    }
-    renderVoacapMatrix();
-  }
-  function fetchVoacapMatrixThrottled() {
-    const throttle = state_default.voacapEngine === "dvoacap" ? FETCH_THROTTLE_MS : FETCH_RETRY_MS;
-    if (Date.now() - state_default.voacapLastFetch < throttle) return;
-    fetchVoacapMatrix();
-  }
-  function findSelectedSpot() {
-    if (!state_default.selectedSpotId) return null;
-    const source = state_default.currentSource;
-    const spots = state_default.sourceData[source] || [];
-    return spots.find((s) => {
-      if (source === "pota") return s.spotId === state_default.selectedSpotId;
-      if (source === "sota") return s.id === state_default.selectedSpotId;
-      return s.id === state_default.selectedSpotId || s.spotId === state_default.selectedSpotId;
-    });
-  }
-  function getActiveMatrix() {
-    if (state_default.voacapServerData && state_default.voacapServerData.matrix) {
-      return state_default.voacapServerData.matrix;
-    }
-    const opts = getVoacapOpts();
-    return calculate24HourMatrix(opts);
-  }
-  function getBandReliability(hourData, bandName) {
-    const bandVal = hourData.bands[bandName];
-    if (bandVal == null) return 0;
-    if (typeof bandVal === "object") return bandVal.rel || 0;
-    return bandVal;
-  }
-  function renderVoacapMatrix() {
-    const container = $("voacapMatrix");
-    if (!container) return;
-    const matrix = getActiveMatrix();
-    const hasData = matrix.some((entry) => Object.keys(entry.bands).length > 0);
-    if (!hasData) {
-      container.innerHTML = '<div class="voacap-no-data">Waiting for solar data...</div>';
-      return;
-    }
-    const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
-    const hourOrder = [];
-    for (let i = 0; i < 24; i++) {
-      hourOrder.push((nowHour + i) % 24);
-    }
-    const bandsReversed = [...VOACAP_BANDS].reverse();
-    let html = '<table class="voacap-table"><tbody>';
-    for (const band of bandsReversed) {
-      const isOverlayActive = state_default.hfPropOverlayBand === band.name;
-      const activeClass = isOverlayActive ? "voacap-row-active" : "";
-      html += `<tr class="voacap-row ${activeClass}" data-band="${band.name}">`;
-      html += `<td class="voacap-band-label">${band.label}</td>`;
-      for (let i = 0; i < 24; i++) {
-        const h = hourOrder[i];
-        const hourData = matrix[h];
-        const reliability = getBandReliability(hourData, band.name);
-        const color = getReliabilityColor(reliability);
-        const isNow = i === 0;
-        const nowClass = isNow ? "voacap-cell-now" : "";
-        html += `<td class="voacap-cell ${nowClass}" style="background-color: ${color}" title="${band.label} @ ${String(h).padStart(2, "0")}z: ${reliability}%"></td>`;
-      }
-      html += "</tr>";
-    }
-    html += '<tr class="voacap-hour-row"><td class="voacap-band-label"></td>';
-    for (let i = 0; i < 24; i++) {
-      const h = hourOrder[i];
-      if (i % 3 === 0) {
-        const isNow = i === 0;
-        const nowClass = isNow ? "voacap-hour-now" : "";
-        html += `<td class="voacap-hour-label ${nowClass}" colspan="3">${String(h).padStart(2, "0")}</td>`;
-      }
-    }
-    html += "</tr>";
-    html += "</tbody></table>";
-    const engineLabel = state_default.voacapEngine === "dvoacap" ? "VOACAP" : "SIM";
-    const engineClass = state_default.voacapEngine === "dvoacap" ? "voacap-engine-real" : "voacap-engine-sim";
-    const engineTitle = state_default.voacapEngine === "dvoacap" ? "Using real VOACAP propagation model" : "Using simplified propagation model";
-    const targetLabel = state_default.voacapTarget === "spot" ? "SPOT" : "OVW";
-    const targetTitle = state_default.voacapTarget === "spot" ? "Showing prediction to selected spot (click for overview)" : "Showing best worldwide prediction (click for spot mode)";
-    const serverData = state_default.voacapServerData;
-    const effectiveSSN = serverData?.ssn ? Math.round(serverData.ssn) : null;
-    const baseSSN = serverData?.ssnBase ? Math.round(serverData.ssnBase) : null;
-    const kIndex = serverData?.kIndex;
-    const kDegradation = serverData?.kDegradation || 0;
-    const ssnDisplay = effectiveSSN ?? (state_default.lastSolarData?.indices?.sunspots || "--");
-    const isStorm = kIndex !== null && kIndex >= 4;
-    const ssnWarningClass = isStorm ? " voacap-k-warning" : "";
-    const ssnWarningIndicator = isStorm ? "!" : "";
-    let ssnTitle = "Smoothed sunspot number";
-    if (kIndex !== null && baseSSN !== null) {
-      if (kDegradation > 0) {
-        ssnTitle = `K-index ${kIndex}: Base SSN ${baseSSN} \u2192 ${effectiveSSN} (-${kDegradation}%)`;
-      } else {
-        ssnTitle = `K-index ${kIndex}: SSN ${baseSSN} (no degradation)`;
-      }
-    }
-    const overlayLabel = state_default.heatmapOverlayMode === "heatmap" ? "REL" : "\u25CB";
-    const overlayTitle = state_default.heatmapOverlayMode === "heatmap" ? "Overlay: REL heatmap (click for circles)" : "Overlay: circles (click for REL heatmap)";
-    html += `<div class="voacap-params">`;
-    html += `<span class="voacap-engine-badge ${engineClass}" title="${engineTitle}">${engineLabel}</span>`;
-    html += `<span class="voacap-param" data-param="target" title="${targetTitle}">${targetLabel}</span>`;
-    html += `<span class="voacap-param" data-param="overlay" title="${overlayTitle}">${overlayLabel}</span>`;
-    html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state_default.voacapPower] || state_default.voacapPower}</span>`;
-    html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state_default.voacapMode}</span>`;
-    html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
-    html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
-    html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
-    html += `</div>`;
-    container.innerHTML = html;
-  }
-  function toggleBandOverlay(band) {
-    clearBandOverlay();
-    clearHeatmap();
-    if (state_default.hfPropOverlayBand === band) {
-      state_default.hfPropOverlayBand = null;
-      renderVoacapMatrix();
-      return;
-    }
-    state_default.hfPropOverlayBand = band;
-    renderVoacapMatrix();
-    if (state_default.heatmapOverlayMode === "heatmap") {
-      renderHeatmapCanvas(band);
-    } else {
-      drawBandOverlay(band);
-    }
-  }
-  function clearBandOverlay() {
-    if (!state_default.map) return;
-    for (const circle of bandOverlayCircles) {
-      state_default.map.removeLayer(circle);
-    }
-    bandOverlayCircles = [];
-  }
-  function drawBandOverlay(band) {
-    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
-    const L2 = window.L;
-    const matrix = getActiveMatrix();
-    const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
-    const hourData = matrix[nowHour];
-    const reliability = getBandReliability(hourData, band);
-    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
-    if (!bandDef) return;
-    const baseRadius = 500;
-    const maxRadius = 15e3;
-    const radius = baseRadius + (maxRadius - baseRadius) * (reliability / 100);
-    if (reliability < 10) {
-      const circle = L2.circle([state_default.myLat, state_default.myLon], {
-        radius: 500 * 1e3,
-        // 500 km in meters
-        color: "#c0392b",
-        fillColor: "#c0392b",
-        fillOpacity: 0.1,
-        weight: 1
-      });
-      circle.addTo(state_default.map);
-      bandOverlayCircles.push(circle);
-      return;
-    }
-    const steps = 4;
-    for (let i = steps; i >= 1; i--) {
-      const stepRadius = radius / steps * i;
-      const stepReliability = reliability * (i / steps);
-      const color = getReliabilityColor(stepReliability);
-      const circle = L2.circle([state_default.myLat, state_default.myLon], {
-        radius: stepRadius * 1e3,
-        // km → meters
-        color,
-        fillColor: color,
-        fillOpacity: 0.05 + 0.1 * (steps - i) / steps,
-        weight: 1,
-        dashArray: i === steps ? null : "4 4"
-      });
-      circle.addTo(state_default.map);
-      bandOverlayCircles.push(circle);
-    }
-    const marker = L2.marker([state_default.myLat, state_default.myLon], {
-      icon: L2.divIcon({
-        className: "voacap-center-marker",
-        html: `<div class="voacap-center-label">${band}: ${reliability}%</div>`,
-        iconSize: [80, 20],
-        iconAnchor: [40, 10]
-      })
-    });
-    marker.addTo(state_default.map);
-    bandOverlayCircles.push(marker);
-  }
-  function clearVoacapOverlay() {
-    clearBandOverlay();
-    clearHeatmap();
-    state_default.hfPropOverlayBand = null;
-  }
-  var bandOverlayCircles, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
-  var init_voacap = __esm({
-    "src/voacap.js"() {
-      init_state();
-      init_dom();
-      init_band_conditions();
-      init_rel_heatmap();
-      bandOverlayCircles = [];
-      FETCH_THROTTLE_MS = 5 * 60 * 1e3;
-      FETCH_RETRY_MS = 30 * 1e3;
-      POWER_OPTIONS = ["5", "100", "1000"];
-      POWER_LABELS = { "5": "5W", "100": "100W", "1000": "1kW" };
-      MODE_OPTIONS = ["CW", "SSB", "FT8"];
-      TOA_OPTIONS = ["3", "5", "10", "15"];
-      PATH_OPTIONS = ["SP", "LP"];
-    }
-  });
-
-  // src/geo.js
-  var geo_exports = {};
-  __export(geo_exports, {
-    bearingTo: () => bearingTo,
-    bearingToCardinal: () => bearingToCardinal,
-    distanceMi: () => distanceMi,
-    geodesicPoints: () => geodesicPoints,
-    getSunTimes: () => getSunTimes,
-    gridToLatLon: () => gridToLatLon,
-    isDaytime: () => isDaytime,
-    latLonToGrid: () => latLonToGrid,
-    localTimeAtLon: () => localTimeAtLon
-  });
-  function latLonToGrid(lat, lon) {
-    lon += 180;
-    lat += 90;
-    const a = String.fromCharCode(65 + Math.floor(lon / 20));
-    const b = String.fromCharCode(65 + Math.floor(lat / 10));
-    const c = Math.floor(lon % 20 / 2);
-    const d = Math.floor(lat % 10 / 1);
-    const e = String.fromCharCode(97 + Math.floor(lon % 2 * 12));
-    const f = String.fromCharCode(97 + Math.floor(lat % 1 * 24));
-    return a + b + c + d + e + f;
-  }
-  function gridToLatLon(grid) {
-    if (!grid || grid.length !== 4) return null;
-    const g = grid.toUpperCase();
-    if (!/^[A-R]{2}[0-9]{2}$/.test(g)) return null;
-    const lon = (g.charCodeAt(0) - 65) * 20 + parseInt(g[2]) * 2 + 1 - 180;
-    const lat = (g.charCodeAt(1) - 65) * 10 + parseInt(g[3]) * 1 + 0.5 - 90;
-    return { lat, lon };
-  }
-  function bearingTo(lat1, lon1, lat2, lon2) {
-    const r = Math.PI / 180;
-    const dLon = (lon2 - lon1) * r;
-    const y = Math.sin(dLon) * Math.cos(lat2 * r);
-    const x = Math.cos(lat1 * r) * Math.sin(lat2 * r) - Math.sin(lat1 * r) * Math.cos(lat2 * r) * Math.cos(dLon);
-    return (Math.atan2(y, x) / r + 360) % 360;
-  }
-  function bearingToCardinal(deg) {
-    const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-    return dirs[Math.round(deg / 45) % 8];
-  }
-  function distanceMi(lat1, lon1, lat2, lon2) {
-    const r = Math.PI / 180;
-    const R = 3958.8;
-    const dLat = (lat2 - lat1) * r;
-    const dLon = (lon2 - lon1) * r;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-  function geodesicPoints(lat1, lon1, lat2, lon2, n) {
-    const r = Math.PI / 180;
-    const p1 = [lat1 * r, lon1 * r];
-    const p2 = [lat2 * r, lon2 * r];
-    const d = 2 * Math.asin(Math.sqrt(
-      Math.sin((p1[0] - p2[0]) / 2) ** 2 + Math.cos(p1[0]) * Math.cos(p2[0]) * Math.sin((p1[1] - p2[1]) / 2) ** 2
-    ));
-    if (d < 1e-10) return [[lat1, lon1], [lat2, lon2]];
-    const pts = [];
-    for (let i = 0; i <= n; i++) {
-      const f = i / n;
-      const a = Math.sin((1 - f) * d) / Math.sin(d);
-      const b = Math.sin(f * d) / Math.sin(d);
-      const x = a * Math.cos(p1[0]) * Math.cos(p1[1]) + b * Math.cos(p2[0]) * Math.cos(p2[1]);
-      const y = a * Math.cos(p1[0]) * Math.sin(p1[1]) + b * Math.cos(p2[0]) * Math.sin(p2[1]);
-      const z = a * Math.sin(p1[0]) + b * Math.sin(p2[0]);
-      pts.push([Math.atan2(z, Math.sqrt(x * x + y * y)) / r, Math.atan2(y, x) / r]);
-    }
-    return pts;
-  }
-  function getSunTimes(lat, lon, date) {
-    const rad = Math.PI / 180;
-    const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 864e5);
-    const zenith = 90.833;
-    const lngHour = lon / 15;
-    function calc(rising) {
-      const t = dayOfYear + ((rising ? 6 : 18) - lngHour) / 24;
-      const M = 0.9856 * t - 3.289;
-      let L2 = M + 1.916 * Math.sin(M * rad) + 0.02 * Math.sin(2 * M * rad) + 282.634;
-      L2 = (L2 % 360 + 360) % 360;
-      let RA = Math.atan2(Math.sin(L2 * rad), Math.cos(L2 * rad)) / rad;
-      RA = (RA % 360 + 360) % 360;
-      const Lquadrant = Math.floor(L2 / 90) * 90;
-      const RAquadrant = Math.floor(RA / 90) * 90;
-      RA = RA + (Lquadrant - RAquadrant);
-      RA = RA / 15;
-      const sinDec = 0.39782 * Math.sin(L2 * rad);
-      const cosDec = Math.cos(Math.asin(sinDec));
-      const cosH = (Math.cos(zenith * rad) - sinDec * Math.sin(lat * rad)) / (cosDec * Math.cos(lat * rad));
-      if (cosH > 1 || cosH < -1) return null;
-      let H = Math.acos(cosH) / rad / 15;
-      if (rising) H = 24 - H;
-      const T = H + RA - 0.06571 * t - 6.622;
-      let UT = ((T - lngHour) % 24 + 24) % 24;
-      const hours = Math.floor(UT);
-      const minutes = Math.round((UT - hours) * 60);
-      const result = new Date(date);
-      result.setUTCHours(hours, minutes, 0, 0);
-      return result;
-    }
-    return { sunrise: calc(true), sunset: calc(false) };
-  }
-  function isDaytime(lat, lon, date) {
-    try {
-      const times = getSunTimes(lat, lon, date);
-      if (times.sunrise && times.sunset) {
-        return date >= times.sunrise && date < times.sunset;
-      }
-    } catch (e) {
-    }
-    const utcHour = date.getUTCHours() + date.getUTCMinutes() / 60;
-    const solarNoon = 12 - lon / 15;
-    const diff = Math.abs((utcHour - solarNoon + 24) % 24 - 12);
-    return diff < 6;
-  }
-  function localTimeAtLon(lon, use24h) {
-    const now = /* @__PURE__ */ new Date();
-    const utcMs = now.getTime() + now.getTimezoneOffset() * 6e4;
-    const offsetMs = lon / 15 * 36e5;
-    const local = new Date(utcMs + offsetMs);
-    return local.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: !use24h });
-  }
-  var init_geo = __esm({
-    "src/geo.js"() {
     }
   });
 
@@ -2226,6 +2769,128 @@
     }
   });
 
+  // src/dedx-info.js
+  function initDedxListeners() {
+  }
+  function setDedxSpot(spot) {
+    selectedSpot = spot;
+    renderDedxDx();
+  }
+  function clearDedxSpot() {
+    selectedSpot = null;
+    renderDedxDx();
+  }
+  function renderDedxInfo() {
+    renderDedxDe();
+    renderDedxDx();
+  }
+  function fmtSunCountdown(target, now, prefix) {
+    if (!target) return null;
+    const diffMs = target.getTime() - now.getTime();
+    const absDiff = Math.abs(diffMs);
+    const h = Math.floor(absDiff / 36e5);
+    const m = Math.floor(absDiff % 36e5 / 6e4);
+    const mm = String(m).padStart(2, "0");
+    if (diffMs > 0) {
+      return `${prefix} in ${h}:${mm}`;
+    }
+    return `${prefix} ${h}:${mm} ago`;
+  }
+  function renderDedxDe() {
+    const el = $("dedxDeContent");
+    if (!el) return;
+    const call = state_default.myCallsign || "\u2014";
+    const lat = state_default.myLat;
+    const lon = state_default.myLon;
+    let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
+    if (lat !== null && lon !== null) {
+      const now = /* @__PURE__ */ new Date();
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dayStr = days[now.getDay()];
+      const hh = String(now.getHours()).padStart(2, "0");
+      const mm = String(now.getMinutes()).padStart(2, "0");
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Time</span><span class="dedx-value">${dayStr} ${hh}:${mm}</span></div>`;
+      const grid = latLonToGrid(lat, lon).substring(0, 6).toUpperCase();
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
+      const cardinal = latLonToCardinal(lat, lon);
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
+      const sun = getSunTimes(lat, lon, now);
+      const rise = fmtSunCountdown(sun.sunrise, now, "R");
+      const set = fmtSunCountdown(sun.sunset, now, "S");
+      if (rise) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunrise">${rise}</span></div>`;
+      }
+      if (set) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunset">${set}</span></div>`;
+      }
+    } else {
+      rows += `<div class="dedx-row dedx-empty">Set location in Config</div>`;
+    }
+    el.innerHTML = rows;
+  }
+  function renderDedxDx() {
+    const el = $("dedxDxContent");
+    if (!el) return;
+    if (!selectedSpot) {
+      el.innerHTML = '<div class="dedx-row dedx-empty">Select a spot</div>';
+      return;
+    }
+    const spot = selectedSpot;
+    const call = spot.callsign || spot.activator || "\u2014";
+    const freq = spot.frequency || "";
+    const mode = spot.mode || "";
+    const band = freqToBand(freq) || "";
+    const lat = parseFloat(spot.latitude);
+    const lon = parseFloat(spot.longitude);
+    let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
+    if (freq) {
+      const parts = [freq];
+      if (band) parts.push(`(${band})`);
+      if (mode) parts.push(mode);
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Freq</span><span class="dedx-value">${esc(parts.join(" "))}</span></div>`;
+    } else if (mode) {
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode)}</span></div>`;
+    }
+    if (!isNaN(lat) && !isNaN(lon)) {
+      const grid = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
+      const cardinal = latLonToCardinal(lat, lon);
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
+        const mi = distanceMi(state_default.myLat, state_default.myLon, lat, lon);
+        const dist = state_default.distanceUnit === "km" ? Math.round(mi * 1.60934) : Math.round(mi);
+        const card = bearingToCardinal(deg);
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">D/B</span><span class="dedx-value dedx-compact">${dist.toLocaleString()}${state_default.distanceUnit}@${Math.round(deg)}\xB0${card}</span></div>`;
+      }
+      const now = /* @__PURE__ */ new Date();
+      const sun = getSunTimes(lat, lon, now);
+      const rise = fmtSunCountdown(sun.sunrise, now, "R");
+      const set = fmtSunCountdown(sun.sunset, now, "S");
+      if (rise) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunrise">${rise}</span></div>`;
+      }
+      if (set) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunset">${set}</span></div>`;
+      }
+      const offset = utcOffsetFromLon(lon);
+      const sign = offset >= 0 ? "+" : "";
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">TZ</span><span class="dedx-value dedx-utc-badge">UTC${sign}${offset}</span></div>`;
+    }
+    el.innerHTML = rows;
+  }
+  var selectedSpot;
+  var init_dedx_info = __esm({
+    "src/dedx-info.js"() {
+      init_state();
+      init_dom();
+      init_geo();
+      init_utils();
+      init_filters();
+      selectedSpot = null;
+    }
+  });
+
   // src/markers.js
   function ensureIcons() {
     if (defaultIcon) return;
@@ -2392,12 +3057,15 @@
       const spot = filtered.find((s) => spotId(s) === sid);
       if (spot) {
         updateSpotDetail(spot);
+        setDedxSpot(spot);
         drawGeodesicLine(spot);
       } else {
         clearSpotDetail();
+        clearDedxSpot();
       }
     } else {
       clearSpotDetail();
+      clearDedxSpot();
     }
   }
   function flyToSpot(spot) {
@@ -2424,6 +3092,7 @@
       init_geo();
       init_filters();
       init_spot_detail();
+      init_dedx_info();
       defaultIcon = null;
       selectedIcon = null;
     }
@@ -3500,6 +4169,8 @@
     const sunDec = -23.44 * Math.cos(2 * Math.PI / 365 * (dayOfYear + 10));
     const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
     const sunLon = -(utcHours - 12) * 15;
+    state_default.sunLat = sunDec;
+    state_default.sunLon = sunLon;
     const rad = Math.PI / 180;
     const dec = Math.abs(sunDec) < 0.1 ? 0.1 : sunDec;
     const tanDec = Math.tan(dec * rad);
@@ -3595,184 +4266,6 @@
     }
   });
 
-  // src/map-overlays.js
-  var map_overlays_exports = {};
-  __export(map_overlays_exports, {
-    renderAllMapOverlays: () => renderAllMapOverlays,
-    renderLatLonGrid: () => renderLatLonGrid,
-    renderMaidenheadGrid: () => renderMaidenheadGrid,
-    renderTimezoneGrid: () => renderTimezoneGrid,
-    saveMapOverlays: () => saveMapOverlays
-  });
-  function renderAllMapOverlays() {
-    if (!state_default.map) return;
-    renderLatLonGrid();
-    renderMaidenheadGrid();
-    renderTimezoneGrid();
-  }
-  function renderLatLonGrid() {
-    if (state_default.latLonLayer) {
-      state_default.map.removeLayer(state_default.latLonLayer);
-      state_default.latLonLayer = null;
-    }
-    if (!state_default.mapOverlays.latLonGrid) return;
-    state_default.latLonLayer = L.layerGroup().addTo(state_default.map);
-    const zoom = state_default.map.getZoom();
-    let spacing = 30;
-    if (zoom >= 8) spacing = 1;
-    else if (zoom >= 6) spacing = 5;
-    else if (zoom >= 3) spacing = 10;
-    const bounds = state_default.map.getBounds();
-    const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.01;
-    const labelLat = bounds.getSouth() + (bounds.getNorth() - bounds.getSouth()) * 0.01;
-    const lineStyle = { color: "#4a90e2", weight: 1, opacity: 0.3, pane: "mapOverlays", interactive: false };
-    const equatorStyle = { color: "#4a90e2", weight: 3, opacity: 0.6, pane: "mapOverlays", interactive: false };
-    const pmStyle = { color: "#4a90e2", weight: 2, opacity: 0.5, pane: "mapOverlays", interactive: false };
-    for (let lat = -90; lat <= 90; lat += spacing) {
-      const style = lat === 0 ? equatorStyle : lineStyle;
-      L.polyline([[lat, -180], [lat, 180]], style).addTo(state_default.latLonLayer);
-      if (lat >= bounds.getSouth() && lat <= bounds.getNorth()) {
-        const ns = lat === 0 ? "EQ" : lat > 0 ? lat + "\xB0N" : Math.abs(lat) + "\xB0S";
-        L.marker([lat, labelLon], {
-          icon: L.divIcon({ className: "grid-label latlon-label" + (lat === 0 ? " latlon-equator" : ""), html: ns, iconSize: null }),
-          pane: "mapOverlays",
-          interactive: false
-        }).addTo(state_default.latLonLayer);
-      }
-    }
-    for (let lon = -180; lon <= 180; lon += spacing) {
-      const style = lon === 0 ? pmStyle : lineStyle;
-      L.polyline([[-85, lon], [85, lon]], style).addTo(state_default.latLonLayer);
-      if (lon >= bounds.getWest() && lon <= bounds.getEast()) {
-        const ew = lon === 0 ? "PM" : lon > 0 ? lon + "\xB0E" : Math.abs(lon) + "\xB0W";
-        L.marker([labelLat, lon], {
-          icon: L.divIcon({ className: "grid-label latlon-label", html: ew, iconSize: null }),
-          pane: "mapOverlays",
-          interactive: false
-        }).addTo(state_default.latLonLayer);
-      }
-    }
-  }
-  function renderMaidenheadGrid() {
-    if (state_default.maidenheadLayer) {
-      state_default.map.removeLayer(state_default.maidenheadLayer);
-      state_default.maidenheadLayer = null;
-    }
-    if (!state_default.mapOverlays.maidenheadGrid) return;
-    state_default.maidenheadLayer = L.layerGroup().addTo(state_default.map);
-    const zoom = state_default.map.getZoom();
-    const bounds = state_default.map.getBounds();
-    const south = bounds.getSouth(), north = bounds.getNorth();
-    const west = bounds.getWest(), east = bounds.getEast();
-    if (zoom <= 5) {
-      const lonStep = 20, latStep = 10;
-      const lonStart = Math.floor((west + 180) / lonStep) * lonStep - 180;
-      const latStart = Math.floor((south + 90) / latStep) * latStep - 90;
-      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
-        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
-          const fieldLon = Math.floor((lon + 180) / 20);
-          const fieldLat = Math.floor((lat + 90) / 10);
-          if (fieldLon < 0 || fieldLon > 17 || fieldLat < 0 || fieldLat > 17) continue;
-          const label = String.fromCharCode(65 + fieldLon) + String.fromCharCode(65 + fieldLat);
-          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
-            color: "#ff6b35",
-            weight: 1.5,
-            fill: false,
-            pane: "mapOverlays",
-            interactive: false
-          }).addTo(state_default.maidenheadLayer);
-          L.marker([lat + latStep / 2, lon + lonStep / 2], {
-            icon: L.divIcon({ className: "grid-label maidenhead-label", html: label, iconSize: null }),
-            pane: "mapOverlays",
-            interactive: false
-          }).addTo(state_default.maidenheadLayer);
-        }
-      }
-    } else if (zoom <= 9) {
-      const lonStep = 2, latStep = 1;
-      const lonStart = Math.floor((west + 180) / lonStep) * lonStep - 180;
-      const latStart = Math.floor((south + 90) / latStep) * latStep - 90;
-      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
-        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
-          const fieldLon = Math.floor((lon + 180) / 20);
-          const fieldLat = Math.floor((lat + 90) / 10);
-          if (fieldLon < 0 || fieldLon > 17 || fieldLat < 0 || fieldLat > 17) continue;
-          const sqLon = Math.floor((lon + 180) % 20 / 2);
-          const sqLat = Math.floor((lat + 90) % 10 / 1);
-          const label = String.fromCharCode(65 + fieldLon) + String.fromCharCode(65 + fieldLat) + sqLon + sqLat;
-          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
-            color: "#ff6b35",
-            weight: 1,
-            fill: false,
-            pane: "mapOverlays",
-            interactive: false
-          }).addTo(state_default.maidenheadLayer);
-          L.marker([lat + latStep / 2, lon + lonStep / 2], {
-            icon: L.divIcon({ className: "grid-label maidenhead-label-sm", html: label, iconSize: null }),
-            pane: "mapOverlays",
-            interactive: false
-          }).addTo(state_default.maidenheadLayer);
-        }
-      }
-    } else {
-      const lonStep = 5 / 60, latStep = 2.5 / 60;
-      const lonStart = Math.floor(west / lonStep) * lonStep;
-      const latStart = Math.floor(south / latStep) * latStep;
-      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
-        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
-          const aLon = lon + 180, aLat = lat + 90;
-          if (aLon < 0 || aLon >= 360 || aLat < 0 || aLat >= 180) continue;
-          const fLon = Math.floor(aLon / 20), fLat = Math.floor(aLat / 10);
-          const sLon = Math.floor(aLon % 20 / 2), sLat = Math.floor(aLat % 10 / 1);
-          const ssLon = Math.floor(aLon % 2 / (5 / 60)), ssLat = Math.floor(aLat % 1 / (2.5 / 60));
-          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
-            color: "#ff6b35",
-            weight: 0.5,
-            fill: false,
-            opacity: 0.5,
-            pane: "mapOverlays",
-            interactive: false
-          }).addTo(state_default.maidenheadLayer);
-          if (zoom >= 12) {
-            const label = String.fromCharCode(65 + fLon) + String.fromCharCode(65 + fLat) + sLon + sLat + String.fromCharCode(97 + Math.min(ssLon, 23)) + String.fromCharCode(97 + Math.min(ssLat, 23));
-            L.marker([lat + latStep / 2, lon + lonStep / 2], {
-              icon: L.divIcon({ className: "grid-label maidenhead-label-xs", html: label, iconSize: null }),
-              pane: "mapOverlays",
-              interactive: false
-            }).addTo(state_default.maidenheadLayer);
-          }
-        }
-      }
-    }
-  }
-  function renderTimezoneGrid() {
-    if (state_default.timezoneLayer) {
-      state_default.map.removeLayer(state_default.timezoneLayer);
-      state_default.timezoneLayer = null;
-    }
-    if (!state_default.mapOverlays.timezoneGrid) return;
-    state_default.timezoneLayer = L.layerGroup().addTo(state_default.map);
-    const lineStyle = { color: "#9b59b6", weight: 1.5, opacity: 0.4, dashArray: "5,5", pane: "mapOverlays", interactive: false };
-    for (let i = -12; i <= 12; i++) {
-      const lon = i * 15;
-      L.polyline([[-85, lon], [85, lon]], lineStyle).addTo(state_default.timezoneLayer);
-      const label = "UTC" + (i === 0 ? "" : i > 0 ? "+" + i : "" + i);
-      L.marker([70, lon], {
-        icon: L.divIcon({ className: "grid-label timezone-label", html: label, iconSize: null }),
-        pane: "mapOverlays",
-        interactive: false
-      }).addTo(state_default.timezoneLayer);
-    }
-  }
-  function saveMapOverlays() {
-    localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
-  }
-  var init_map_overlays = __esm({
-    "src/map-overlays.js"() {
-      init_state();
-    }
-  });
-
   // src/migration.js
   function migrate() {
     if (localStorage.getItem("hamtab_migrated")) return;
@@ -3790,6 +4283,13 @@
       }
     }
     localStorage.setItem("hamtab_migrated", "1");
+  }
+  function migrateV2() {
+    if (localStorage.getItem("hamtab_migration_v2")) return;
+    if (localStorage.getItem("hamtab_theme") === "hamclock") {
+      localStorage.setItem("hamtab_theme", "terminal");
+    }
+    localStorage.setItem("hamtab_migration_v2", "1");
   }
 
   // src/themes.js
@@ -3814,7 +4314,11 @@
         "--orange": "#ff9100",
         "--border": "#2a3a5e",
         "--bg-secondary": "#1a1a2e",
-        "--bg-tertiary": "#252540"
+        "--bg-tertiary": "#252540",
+        "--de-color": "#4fc3f7",
+        // light blue — DE panel accent
+        "--dx-color": "#81c784"
+        // light green — DX panel accent
       }
     },
     lcars: {
@@ -3846,14 +4350,18 @@
         "--border": "#9999CC",
         // blue-bell (matches surface2)
         "--bg-secondary": "#0a0a14",
-        "--bg-tertiary": "#111122"
+        "--bg-tertiary": "#111122",
+        "--de-color": "#ff9900",
+        // LCARS gold — DE panel accent
+        "--dx-color": "#99ccff"
+        // LCARS blue — DX panel accent
       }
     },
-    hamclock: {
-      id: "hamclock",
-      name: "HamClock",
-      description: "Classic HamClock style",
-      bodyClass: "theme-hamclock",
+    terminal: {
+      id: "terminal",
+      name: "Terminal",
+      description: "Retro terminal style",
+      bodyClass: "theme-terminal",
       vars: {
         "--bg": "#000000",
         "--surface": "#0a1a0a",
@@ -3868,7 +4376,45 @@
         "--orange": "#ff8800",
         "--border": "#1a4a2a",
         "--bg-secondary": "#0a1a0a",
-        "--bg-tertiary": "#0d200d"
+        "--bg-tertiary": "#0d200d",
+        "--de-color": "#00ff00",
+        // green — DE panel accent
+        "--dx-color": "#00ff00"
+        // green — DX panel accent
+      }
+    },
+    hamclock: {
+      id: "hamclock",
+      name: "HamClock",
+      description: "Inspired by HamClock by WB0OEW",
+      bodyClass: "theme-hamclock",
+      vars: {
+        "--bg": "#000000",
+        "--surface": "#000000",
+        // pure black — real HamClock has no surface variation
+        "--surface2": "#0a0a0a",
+        "--surface3": "#141414",
+        "--accent": "#00ffff",
+        // cyan — HamClock uses cyan for headings/labels
+        "--text": "#e0e0e0",
+        // white-ish — HamClock main text
+        "--text-dim": "#888899",
+        "--green": "#00ff00",
+        // bright green — active/positive values
+        "--yellow": "#ffff00",
+        // yellow — warnings, highlighted values
+        "--red": "#ff0000",
+        // red — alerts
+        "--orange": "#e8a000",
+        // warm amber — matches real HamClock orange
+        "--border": "#333333",
+        // subtle separator — real HamClock uses very thin borders
+        "--bg-secondary": "#000000",
+        "--bg-tertiary": "#0a0a0a",
+        "--de-color": "#e8a000",
+        // orange — DE panel accent (matches real HamClock)
+        "--dx-color": "#00ff00"
+        // bright green — DX panel accent
       }
     }
   };
@@ -3896,6 +4442,8 @@
     if (theme.bodyClass) document.body.classList.add(theme.bodyClass);
     activeThemeId = themeId;
     localStorage.setItem(STORAGE_KEY, themeId);
+    Promise.resolve().then(() => (init_map_init(), map_init_exports)).then((m) => m.swapMapTiles(themeId)).catch(() => {
+    });
   }
   function initTheme() {
     const savedId = localStorage.getItem(STORAGE_KEY) || "default";
@@ -3923,132 +4471,7 @@
   // src/widgets.js
   init_state();
   init_constants();
-
-  // src/map-init.js
-  init_state();
-  init_geo();
-  init_utils();
-  init_map_overlays();
-  function initMap() {
-    const hasLeaflet = typeof L !== "undefined" && L.map;
-    if (!hasLeaflet) return;
-    try {
-      state_default.map = L.map("map", {
-        worldCopyJump: true,
-        maxBoundsViscosity: 1,
-        maxBounds: [[-90, -180], [90, 180]],
-        minZoom: 2
-      }).setView([39.8, -98.5], 4);
-      L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-        attribution: "&copy; OpenStreetMap &copy; CARTO",
-        maxZoom: 19
-      }).addTo(state_default.map);
-      state_default.clusterGroup = L.markerClusterGroup({
-        maxClusterRadius: 40,
-        // px — merge markers within 40px; keeps clusters tight on a dark basemap
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false,
-        iconCreateFunction: function(cluster) {
-          const childCount = cluster.getChildCount();
-          const sizeClass = childCount < 10 ? "small" : childCount < 100 ? "medium" : "large";
-          let extraClass = "";
-          if (state_default.selectedSpotId && state_default.markers[state_default.selectedSpotId]) {
-            const children = cluster.getAllChildMarkers();
-            if (children.indexOf(state_default.markers[state_default.selectedSpotId]) !== -1) {
-              extraClass = " marker-cluster-selected";
-            }
-          }
-          return L.divIcon({
-            html: "<div><span>" + childCount + "</span></div>",
-            className: "marker-cluster marker-cluster-" + sizeClass + extraClass,
-            iconSize: L.point(40, 40)
-          });
-        }
-      });
-      state_default.map.addLayer(state_default.clusterGroup);
-      state_default.map.createPane("grayline");
-      state_default.map.getPane("grayline").style.zIndex = 250;
-      state_default.map.createPane("propagation");
-      state_default.map.getPane("propagation").style.zIndex = 300;
-      state_default.map.createPane("mapOverlays");
-      state_default.map.getPane("mapOverlays").style.zIndex = 350;
-      state_default.map.getPane("mapOverlays").style.pointerEvents = "none";
-      state_default.map.on("zoomend", () => {
-        if (state_default.mapOverlays.latLonGrid) {
-          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          renderLatLonGrid2();
-        }
-        if (state_default.mapOverlays.maidenheadGrid) {
-          clearTimeout(state_default.maidenheadDebounceTimer);
-          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
-        }
-        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
-          clearTimeout(state_default.heatmapRenderTimer);
-          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
-          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
-        }
-      });
-      state_default.map.on("moveend", () => {
-        if (state_default.mapOverlays.latLonGrid) {
-          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          renderLatLonGrid2();
-        }
-        if (state_default.mapOverlays.maidenheadGrid) {
-          clearTimeout(state_default.maidenheadDebounceTimer);
-          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
-        }
-        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
-          clearTimeout(state_default.heatmapRenderTimer);
-          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
-          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
-        }
-      });
-      setTimeout(renderAllMapOverlays, 200);
-    } catch (e) {
-      console.error("Map initialization failed:", e);
-      state_default.map = null;
-      state_default.clusterGroup = null;
-    }
-  }
-  function centerMapOnUser() {
-    if (!state_default.map) return;
-    if (state_default.mapCenterMode === "pm") {
-      state_default.map.setView([0, 0], 2);
-    } else if (state_default.mapCenterMode === "qth") {
-      if (state_default.myLat !== null && state_default.myLon !== null) {
-        state_default.map.setView([state_default.myLat, state_default.myLon], state_default.map.getZoom());
-      }
-    }
-  }
-  function updateUserMarker() {
-    if (!state_default.map || state_default.myLat === null || state_default.myLon === null) return;
-    const call = state_default.myCallsign || "ME";
-    const grid = latLonToGrid(state_default.myLat, state_default.myLon).substring(0, 4).toUpperCase();
-    const popupHtml = `<div class="user-popup"><div class="user-popup-title">${esc(call)}</div><div class="user-popup-row">${state_default.myLat.toFixed(4)}, ${state_default.myLon.toFixed(4)}</div><div class="user-popup-row">Grid: ${esc(grid)}</div><div class="user-popup-row">${state_default.manualLoc ? "Manual override" : "GPS"}</div></div>`;
-    if (state_default.userMarker) {
-      state_default.userMarker.setLatLng([state_default.myLat, state_default.myLon]);
-      state_default.userMarker.setPopupContent(popupHtml);
-      state_default.userMarker.setIcon(L.divIcon({
-        className: "user-icon",
-        html: `<span class="user-icon-diamond">&#9889;</span><span class="user-icon-call">${esc(call)}</span>`,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0]
-      }));
-    } else {
-      const icon = L.divIcon({
-        className: "user-icon",
-        html: `<span class="user-icon-diamond">&#9889;</span><span class="user-icon-call">${esc(call)}</span>`,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0]
-      });
-      state_default.userMarker = L.marker([state_default.myLat, state_default.myLon], { icon, zIndexOffset: 9e3 }).addTo(state_default.map);
-      state_default.userMarker.bindPopup(popupHtml, { maxWidth: 200 });
-    }
-  }
-
-  // src/widgets.js
+  init_map_init();
   var WIDGET_VIS_KEY = "hamtab_widget_vis";
   function loadWidgetVisibility() {
     try {
@@ -4084,7 +4507,7 @@
     const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
     const rightX = parseInt(solarEl.style.left) || 0;
     const rightW = parseInt(solarEl.style.width) || 0;
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx"];
     const vis = state_default.widgetVisibility || {};
     const visible = rightBottomIds.filter((id) => vis[id] !== false);
     if (visible.length === 0) return;
@@ -4123,7 +4546,7 @@
       "widget-map": { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
       "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
     };
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx"];
     const vis = state_default.widgetVisibility || {};
     const visibleBottom = rightBottomIds.filter((id) => vis[id] !== false);
     const bottomSpace = H - rightHalf - pad * 2;
@@ -4501,6 +4924,7 @@
 
   // src/main.js
   init_spots();
+  init_map_init();
 
   // src/source.js
   init_state();
@@ -4683,6 +5107,7 @@
   init_constants();
   init_utils();
   init_geo();
+  init_map_init();
 
   // src/clocks.js
   init_state();
@@ -5092,8 +5517,8 @@
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.25.0";
-    $("aboutVersion").textContent = "0.25.0";
+    $("splashVersion").textContent = "0.27.0";
+    $("aboutVersion").textContent = "0.27.0";
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -7166,88 +7591,10 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   // src/main.js
   init_voacap();
   init_rel_heatmap();
-
-  // src/beacons.js
-  init_state();
-  init_dom();
-  var BEACONS = [
-    { call: "4U1UN", location: "New York", lat: 40.75, lon: -73.97 },
-    { call: "VE8AT", location: "Inuvik", lat: 68.32, lon: -133.52 },
-    { call: "W6WX", location: "Mt. Umunhum", lat: 37.16, lon: -121.9 },
-    { call: "KH6RS", location: "Maui", lat: 20.75, lon: -156.43 },
-    { call: "ZL6B", location: "Masterton", lat: -41.06, lon: 175.58 },
-    { call: "VK6RBP", location: "Rolystone", lat: -32.11, lon: 116.05 },
-    { call: "JA2IGY", location: "Mt. Asama", lat: 34.46, lon: 136.78 },
-    { call: "RR9O", location: "Novosibirsk", lat: 54.98, lon: 82.9 },
-    { call: "VR2B", location: "Hong Kong", lat: 22.28, lon: 114.17 },
-    { call: "4S7B", location: "Colombo", lat: 6.88, lon: 79.87 },
-    { call: "ZS6DN", location: "Pretoria", lat: -25.73, lon: 28.18 },
-    { call: "5Z4B", location: "Kikuyu", lat: -1.25, lon: 36.67 },
-    { call: "4X6TU", location: "Tel Aviv", lat: 32.08, lon: 34.78 },
-    { call: "OH2B", location: "Lohja", lat: 60.25, lon: 24.03 },
-    { call: "CS3B", location: "Madeira", lat: 32.65, lon: -16.9 },
-    { call: "LU4AA", location: "Buenos Aires", lat: -34.62, lon: -58.44 },
-    { call: "OA4B", location: "Lima", lat: -12.08, lon: -76.98 },
-    { call: "YV5B", location: "Caracas", lat: 10.5, lon: -66.92 }
-  ];
-  var FREQUENCIES = [14100, 18110, 21150, 24930, 28200];
-  var CYCLE = 180;
-  var SLOT = 10;
-  function getActiveBeacons() {
-    const now = /* @__PURE__ */ new Date();
-    const T = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
-    const slot = Math.floor(T % CYCLE / SLOT);
-    const elapsed = T % SLOT;
-    return FREQUENCIES.map((freq, f) => ({
-      freq,
-      beacon: BEACONS[(slot - f + 18) % 18],
-      // each freq is offset by one beacon in the rotation
-      secondsLeft: SLOT - elapsed
-    }));
-  }
-  function renderBeacons() {
-    const tbody = $("beaconTbody");
-    if (!tbody) return;
-    const active = getActiveBeacons();
-    if (tbody.children.length !== active.length) {
-      tbody.textContent = "";
-      for (const entry of active) {
-        const tr = document.createElement("tr");
-        const tdFreq = document.createElement("td");
-        tdFreq.textContent = (entry.freq / 1e3).toFixed(3);
-        tr.appendChild(tdFreq);
-        const tdCall = document.createElement("td");
-        tdCall.className = "beacon-call";
-        tdCall.textContent = entry.beacon.call;
-        tr.appendChild(tdCall);
-        const tdLoc = document.createElement("td");
-        tdLoc.className = "beacon-loc";
-        tdLoc.textContent = entry.beacon.location;
-        tr.appendChild(tdLoc);
-        const tdTime = document.createElement("td");
-        tdTime.className = "beacon-time";
-        tdTime.textContent = entry.secondsLeft + "s";
-        tr.appendChild(tdTime);
-        tbody.appendChild(tr);
-      }
-    } else {
-      for (let i = 0; i < active.length; i++) {
-        const cells = tbody.children[i].children;
-        cells[1].textContent = active[i].beacon.call;
-        cells[2].textContent = active[i].beacon.location;
-        cells[3].textContent = active[i].secondsLeft + "s";
-      }
-    }
-  }
-  function initBeaconListeners() {
-  }
-  function startBeaconTimer() {
-    renderBeacons();
-    state_default.beaconTimer = setInterval(renderBeacons, 1e3);
-  }
-
-  // src/main.js
+  init_beacons();
+  init_dedx_info();
   migrate();
+  migrateV2();
   initTheme();
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
@@ -7255,7 +7602,11 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   state_default.spotColumnVisibility = loadSpotColumnVisibility();
   initMap();
   updateGrayLine();
-  setInterval(updateGrayLine, 6e4);
+  updateSunMarker();
+  setInterval(() => {
+    updateGrayLine();
+    updateSunMarker();
+  }, 6e4);
   initSatellites();
   setInterval(fetchIssPosition, 1e4);
   setInterval(fetchSatellitePositions, 1e4);
@@ -7285,6 +7636,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initBeaconListeners();
   initDxpeditionListeners();
   initContestListeners();
+  initDedxListeners();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;
@@ -7301,10 +7653,14 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     startBeaconTimer();
     fetchDxpeditions();
     fetchContests();
+    renderDedxInfo();
+    updateBeaconMarkers();
   }
   setInterval(fetchLiveSpots, 5 * 60 * 1e3);
   setInterval(renderVoacapMatrix, 60 * 1e3);
   setInterval(fetchVoacapMatrixThrottled, 60 * 1e3);
+  setInterval(updateBeaconMarkers, 1e4);
+  setInterval(renderDedxInfo, 6e4);
   setInitApp(initApp);
   initWidgets();
   switchSource(state_default.currentSource);

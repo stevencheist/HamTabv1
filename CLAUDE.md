@@ -1,5 +1,13 @@
 # CLAUDE.md — HamTabV1
 
+## Instruction Routing
+
+This file is for **project-specific** instructions — architecture, code conventions, branch strategy, file locations, widgets, security rules, API patterns. Anything tied to HamTabV1.
+
+For **Claude behavior** instructions — coordination protocols, communication style, session habits, general patterns that apply across all SF Foundry projects — use `~/.claude/instructions.md` (symlinked to `sffoundry/ai-workflows`).
+
+**Quick test:** "Would this instruction matter if we started a completely different project?" If yes → `instructions.md`. If no → `CLAUDE.md`.
+
 ## Project Overview
 
 HamTabV1 is a POTA/SOTA amateur radio dashboard. Node.js/Express backend, vanilla JS frontend, Leaflet maps, esbuild bundling.
@@ -225,18 +233,36 @@ main ──────────────────────── SH
 
 Security is a top priority. Flag any code that could introduce a vulnerability.
 
-**All branches:**
-- **SSRF prevention** — All outbound requests in server.js must resolve the hostname and reject RFC 1918 / loopback IPs before connecting. Whitelist URL path/query params where possible (e.g. SDO image type).
-- **No client-side external requests** — All external API calls go through server.js proxy, never from the browser directly.
-- **Secrets** — No API keys in client code. Use `.env` for secrets. Never commit `.env`, TLS certs, or wrangler secrets.
-- **CSP** — Helmet CSP is enforced. When adding new external resources, proxy them through the server rather than loosening CSP.
-- **Rate limiting** — All `/api/` routes are rate-limited.
-- **Input validation** — Sanitize and whitelist all user-supplied query params on server endpoints. Use `encodeURIComponent` on the client when building URLs.
-- **XSS** — Use `textContent` or DOM APIs to render user/API data. Never inject unsanitized strings via `innerHTML`. The `esc()` utility must be used if HTML insertion is unavoidable.
-- **Dependency hygiene** — Keep dependencies minimal. Audit before adding new packages.
+Universal security rules live in `~/.claude/instructions.md` (Security Invariants section). This section covers **HamTabV1-specific** implementations of those rules.
+
+**Mandatory utilities & patterns:**
+
+- **`secureFetch(url, options)`** (`server.js`) — ALL outbound HTTP requests MUST use this function. Never use raw `fetch`, `https.get`, or `axios`. It enforces DNS pinning, SSRF prevention, timeouts (10s), response size limits (5MB), redirect depth (5), and HTTPS-only. New endpoints that call external APIs must go through `secureFetch`.
+- **`esc(str)`** (`src/utils.js`) — ALL user/API data rendered as HTML MUST use this function. It encodes via `textContent` → `innerHTML`. Use `textContent` for plain text; use `esc()` only when building HTML strings.
+- **`isPrivateIP(ip)`** (`server.js`) — Used by CORS and `secureFetch`. Covers IPv4 RFC 1918, loopback, link-local, and IPv6 equivalents including mapped addresses.
+
+**Input validation patterns (project-specific):**
+
+| Input | Format | Where validated |
+|-------|--------|-----------------|
+| Callsign | `/^[A-Z0-9]{1,10}$/i` | Server endpoints before external API calls |
+| Satellite IDs | `/^\d+(,\d+)*$/` | Before N2YO API calls |
+| Latitude | `-90 ≤ n ≤ 90`, reject NaN | All endpoints accepting lat |
+| Longitude | `-180 ≤ n ≤ 180`, reject NaN | All endpoints accepting lon |
+| SDO image type | Whitelist: `0193, 0171, 0304, HMIIC` | `/api/sdo` endpoint |
+| SDO frame filename | `/^\d{8}_\d{6}_512_\w+\.jpg$/` | `/api/sdo/frame` endpoint |
+| Propagation type | Whitelist: `mufd, fof2` | `/api/propagation` endpoint |
+| VOACAP power | Whitelist: `5, 100, 1000` | `/api/voacap` endpoint |
+| VOACAP mode | Whitelist: `CW, SSB, FT8` | `/api/voacap` endpoint |
+| `.env` keys | Whitelist: `WU_API_KEY, N2YO_API_KEY` | `/api/config/env` POST |
+
+**Cache eviction:**
+- Server-side caches auto-evict every 30 minutes (`server.js` cleanup interval)
+- Client-side `callsignCache` caps at 500 entries, evicts oldest 50% (`src/utils.js`)
+- New caches MUST include eviction — follow existing patterns
 
 **Lanmode-specific:**
-- **CORS** — Locked to RFC 1918 private networks only.
+- **CORS** — Locked to RFC 1918 private networks only via `isPrivateIP()`.
 - **Self-signed TLS** — Generated automatically for LAN HTTPS.
 
 **Hostedmode-specific:**
@@ -300,7 +326,7 @@ Stay on `main` for most work. Use simple commands to manage branches:
 ### Claim Work Protocol (before starting ANY feature or task)
 
 1. `git pull` — get the latest from remote
-2. Re-read `CLAUDE.md` — check for updated instructions
+2. Re-read **both** `CLAUDE.md` (project instructions) AND `~/.claude/instructions.md` (shared instructions)
 3. Re-read `WORKING_ON.md` — check what the other developer is doing
 4. **If there's a conflict** (other dev is touching the same files/feature), **stop and tell the user**
 5. Add your row to the "Active Work" table in `WORKING_ON.md`

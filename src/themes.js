@@ -28,6 +28,8 @@ const THEMES = {
       '--border': '#2a3a5e',
       '--bg-secondary': '#1a1a2e',
       '--bg-tertiary': '#252540',
+      '--de-color': '#4fc3f7',     // light blue — DE panel accent
+      '--dx-color': '#81c784',     // light green — DX panel accent
     },
   },
 
@@ -51,14 +53,16 @@ const THEMES = {
       '--border': '#9999CC',       // blue-bell (matches surface2)
       '--bg-secondary': '#0a0a14',
       '--bg-tertiary': '#111122',
+      '--de-color': '#ff9900',     // LCARS gold — DE panel accent
+      '--dx-color': '#99ccff',     // LCARS blue — DX panel accent
     },
   },
 
-  hamclock: {
-    id: 'hamclock',
-    name: 'HamClock',
-    description: 'Classic HamClock style',
-    bodyClass: 'theme-hamclock',
+  terminal: {
+    id: 'terminal',
+    name: 'Terminal',
+    description: 'Retro terminal style',
+    bodyClass: 'theme-terminal',
     vars: {
       '--bg': '#000000',
       '--surface': '#0a1a0a',
@@ -74,6 +78,33 @@ const THEMES = {
       '--border': '#1a4a2a',
       '--bg-secondary': '#0a1a0a',
       '--bg-tertiary': '#0d200d',
+      '--de-color': '#00ff00',     // green — DE panel accent
+      '--dx-color': '#00ff00',     // green — DX panel accent
+    },
+  },
+
+  hamclock: {
+    id: 'hamclock',
+    name: 'HamClock',
+    description: 'Inspired by HamClock by WB0OEW',
+    bodyClass: 'theme-hamclock',
+    vars: {
+      '--bg': '#000000',
+      '--surface': '#000000',       // pure black — real HamClock has no surface variation
+      '--surface2': '#0a0a0a',
+      '--surface3': '#141414',
+      '--accent': '#00ffff',        // cyan — HamClock uses cyan for headings/labels
+      '--text': '#e0e0e0',          // white-ish — HamClock main text
+      '--text-dim': '#888899',
+      '--green': '#00ff00',         // bright green — active/positive values
+      '--yellow': '#ffff00',        // yellow — warnings, highlighted values
+      '--red': '#ff0000',           // red — alerts
+      '--orange': '#e8a000',        // warm amber — matches real HamClock orange
+      '--border': '#333333',        // subtle separator — real HamClock uses very thin borders
+      '--bg-secondary': '#000000',
+      '--bg-tertiary': '#0a0a0a',
+      '--de-color': '#e8a000',      // orange — DE panel accent (matches real HamClock)
+      '--dx-color': '#00ff00',      // bright green — DX panel accent
     },
   },
 };
@@ -117,6 +148,9 @@ export function applyTheme(themeId) {
 
   activeThemeId = themeId;
   localStorage.setItem(STORAGE_KEY, themeId);
+
+  // Swap map tiles (HamClock uses political/colored basemap)
+  import('./map-init.js').then(m => m.swapMapTiles(themeId)).catch(() => {}); // no-op if map not initialized yet
 }
 
 /** Initialize theme on app startup — apply saved theme or default */

@@ -2,6 +2,11 @@ import state from './state.js';
 import { latLonToGrid } from './geo.js';
 import { esc } from './utils.js';
 import { renderAllMapOverlays } from './map-overlays.js';
+import { BEACONS, getActiveBeacons } from './beacons.js';
+
+// --- Tile URL constants ---
+const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+const TILE_VOYAGER = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
 export function initMap() {
   const hasLeaflet = typeof L !== 'undefined' && L.map;
@@ -15,7 +20,7 @@ export function initMap() {
       minZoom: 2,
     }).setView([39.8, -98.5], 4);
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    state.tileLayer = L.tileLayer(TILE_DARK, {
       attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 19,
     }).addTo(state.map);
@@ -136,4 +141,111 @@ export function updateUserMarker() {
     state.userMarker = L.marker([state.myLat, state.myLon], { icon, zIndexOffset: 9000 }).addTo(state.map); // high z-index keeps user marker above spot markers
     state.userMarker.bindPopup(popupHtml, { maxWidth: 200 });
   }
+}
+
+// --- Sun marker ---
+export function updateSunMarker() {
+  if (!state.map || state.sunLat === null || state.sunLon === null) return;
+  const icon = L.divIcon({
+    className: 'sun-marker-icon',
+    html: '<span class="sun-marker-dot"></span>',
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  });
+  const tooltip = `Sub-solar point\n${state.sunLat.toFixed(1)}\u00B0, ${state.sunLon.toFixed(1)}\u00B0`;
+  if (state.sunMarker) {
+    state.sunMarker.setLatLng([state.sunLat, state.sunLon]);
+  } else {
+    state.sunMarker = L.marker([state.sunLat, state.sunLon], { icon, zIndexOffset: 8000, interactive: true })
+      .addTo(state.map);
+    state.sunMarker.bindTooltip(tooltip);
+  }
+  state.sunMarker.setTooltipContent(tooltip);
+}
+
+// --- Moon marker ---
+// GMST calculation — Meeus, Astronomical Algorithms, Ch. 12
+function gmstDegrees(date) {
+  const JD = date.getTime() / 86400000 + 2440587.5; // Julian Date from Unix ms
+  const T = (JD - 2451545.0) / 36525; // Julian centuries from J2000.0
+  let gmst = 280.46061837 + 360.98564736629 * (JD - 2451545.0)
+             + 0.000387933 * T * T - T * T * T / 38710000;
+  return ((gmst % 360) + 360) % 360;
+}
+
+export function updateMoonMarker() {
+  if (!state.map || !state.lastLunarData) return;
+  const data = state.lastLunarData;
+  const dec = data.declination; // sub-lunar latitude
+  const ra = data.rightAscension; // degrees
+  if (dec == null || ra == null) return;
+
+  const now = new Date();
+  const gmst = gmstDegrees(now);
+  let moonLon = ra - gmst;
+  // Normalize to [-180, 180]
+  moonLon = ((moonLon + 180) % 360 + 360) % 360 - 180;
+
+  state.moonLat = dec;
+  state.moonLon = moonLon;
+
+  const icon = L.divIcon({
+    className: 'moon-marker-icon',
+    html: '<span class="moon-marker-dot"></span>',
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+  const tooltip = `Sub-lunar point\n${dec.toFixed(1)}\u00B0, ${moonLon.toFixed(1)}\u00B0`;
+  if (state.moonMarker) {
+    state.moonMarker.setLatLng([dec, moonLon]);
+  } else {
+    state.moonMarker = L.marker([dec, moonLon], { icon, zIndexOffset: 7500, interactive: true })
+      .addTo(state.map);
+    state.moonMarker.bindTooltip(tooltip);
+  }
+  state.moonMarker.setTooltipContent(tooltip);
+}
+
+// --- NCDXF Beacon markers ---
+// Band → color mapping for the 5 beacon frequencies
+const BEACON_COLORS = {
+  14100: '#ff4444', // 20m — red
+  18110: '#ff8800', // 17m — orange
+  21150: '#ffff00', // 15m — yellow
+  24930: '#00cc44', // 12m — green
+  28200: '#4488ff', // 10m — blue
+};
+
+export function updateBeaconMarkers() {
+  if (!state.map) return;
+  const active = getActiveBeacons();
+
+  // Remove old markers that are no longer active
+  for (const key of Object.keys(state.beaconMarkers)) {
+    state.map.removeLayer(state.beaconMarkers[key]);
+    delete state.beaconMarkers[key];
+  }
+
+  // Add current active beacons
+  for (const entry of active) {
+    const { freq, beacon } = entry;
+    const color = BEACON_COLORS[freq] || '#ffffff';
+    const marker = L.circleMarker([beacon.lat, beacon.lon], {
+      radius: 5,
+      color,
+      fillColor: color,
+      fillOpacity: 0.8,
+      weight: 1,
+      interactive: true,
+    }).addTo(state.map);
+    marker.bindTooltip(`${beacon.call}\n${(freq / 1000).toFixed(3)} MHz\n${beacon.location}`);
+    state.beaconMarkers[freq] = marker;
+  }
+}
+
+// Swap map tiles based on theme (HamClock uses political/colored tiles)
+export function swapMapTiles(themeId) {
+  if (!state.tileLayer) return;
+  const url = themeId === 'hamclock' ? TILE_VOYAGER : TILE_DARK;
+  state.tileLayer.setUrl(url);
 }

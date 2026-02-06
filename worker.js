@@ -17,74 +17,101 @@ export class HamTab extends Container {
       try {
         diag.steps.push('1. Inside Container class fetch()');
 
-        // Enumerate ctx.container methods/properties
-        const ctxKeys = Object.getOwnPropertyNames(Object.getPrototypeOf(this.ctx.container));
-        diag.steps.push(`2. ctx.container methods: ${JSON.stringify(ctxKeys)}`);
-
-        // List all own properties
-        const ownKeys = Object.keys(this.ctx.container);
-        diag.steps.push(`3. ctx.container ownKeys: ${JSON.stringify(ownKeys)}`);
-
-        // Try start with explicit options
-        diag.steps.push('4. Calling start()');
-        this.ctx.container.start();
-        diag.steps.push('5. start() returned');
-
-        // Read monitor stream for events (with timeout)
-        diag.steps.push('6. Reading monitor() stream...');
-        const monitorStream = this.ctx.container.monitor();
-        const reader = monitorStream.getReader();
-        const events = [];
-        const readWithTimeout = async (ms) => {
-          const timeout = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('timeout')), ms)
-          );
-          try {
-            const result = await Promise.race([reader.read(), timeout]);
-            return result;
-          } catch {
-            return { done: true, value: undefined, timedOut: true };
-          }
-        };
-
-        // Read up to 5 events with 10s total timeout
-        for (let i = 0; i < 5; i++) {
-          const chunk = await readWithTimeout(10000);
-          if (chunk.timedOut) {
-            events.push('(timed out waiting for event)');
-            break;
-          }
-          if (chunk.done) {
-            events.push('(stream ended)');
-            break;
-          }
-          // chunk.value could be a Uint8Array or string
-          const text = typeof chunk.value === 'string'
-            ? chunk.value
-            : new TextDecoder().decode(chunk.value);
-          events.push(text);
+        // Check running property
+        try {
+          const isRunning = this.ctx.container.running;
+          diag.steps.push(`2. running property: ${isRunning} (type: ${typeof isRunning})`);
+        } catch (e) {
+          diag.steps.push(`2. running property error: ${e.message}`);
         }
-        reader.releaseLock();
-        diag.steps.push(`7. Monitor events: ${JSON.stringify(events)}`);
+
+        // Try start (may throw if already running — that's OK)
+        try {
+          this.ctx.container.start();
+          diag.steps.push('3. start() succeeded');
+        } catch (e) {
+          diag.steps.push(`3. start() threw: ${e.message}`);
+        }
+
+        // Check running again after start attempt
+        try {
+          const isRunning2 = this.ctx.container.running;
+          diag.steps.push(`4. running after start: ${isRunning2}`);
+        } catch (e) {
+          diag.steps.push(`4. running after start error: ${e.message}`);
+        }
+
+        // Read monitor stream for lifecycle events
+        try {
+          diag.steps.push('5. Reading monitor() stream...');
+          const monitorStream = this.ctx.container.monitor();
+          const reader = monitorStream.getReader();
+          const events = [];
+          const readWithTimeout = async (ms) => {
+            const timeout = new Promise((_, reject) =>
+              setTimeout(() => reject(new Error('timeout')), ms)
+            );
+            try {
+              return await Promise.race([reader.read(), timeout]);
+            } catch {
+              return { done: true, value: undefined, timedOut: true };
+            }
+          };
+
+          for (let i = 0; i < 5; i++) {
+            const chunk = await readWithTimeout(10000);
+            if (chunk.timedOut) { events.push('(timed out)'); break; }
+            if (chunk.done) { events.push('(stream ended)'); break; }
+            const text = typeof chunk.value === 'string'
+              ? chunk.value
+              : new TextDecoder().decode(chunk.value);
+            events.push(text);
+          }
+          reader.releaseLock();
+          diag.steps.push(`6. Monitor events: ${JSON.stringify(events)}`);
+        } catch (e) {
+          diag.steps.push(`5-6. monitor() error: ${e.message}`);
+        }
 
         // Try getTcpPort
         try {
           const tcpPort = this.ctx.container.getTcpPort(8080);
-          diag.steps.push(`8. getTcpPort(8080): ${JSON.stringify(tcpPort)}, type: ${typeof tcpPort}`);
+          diag.steps.push(`7. getTcpPort(8080) type: ${typeof tcpPort}, keys: ${tcpPort ? Object.keys(tcpPort) : 'null'}`);
           if (tcpPort && tcpPort.fetch) {
-            const resp = await tcpPort.fetch('http://localhost/api/health');
-            diag.steps.push(`9. tcpPort.fetch: HTTP ${resp.status}`);
+            try {
+              const resp = await tcpPort.fetch('http://localhost/api/health');
+              const body = await resp.text();
+              diag.steps.push(`8. tcpPort.fetch /api/health: HTTP ${resp.status}, body: ${body.slice(0, 200)}`);
+            } catch (e) {
+              diag.steps.push(`8. tcpPort.fetch error: ${e.message}`);
+            }
+          } else {
+            diag.steps.push('8. tcpPort has no fetch method');
           }
         } catch (e) {
-          diag.steps.push(`8. getTcpPort error: ${e.message}`);
+          diag.steps.push(`7. getTcpPort error: ${e.message}`);
         }
 
-        // Try getIPAddress
+        // Try containerFetch (the method super.fetch() uses internally)
         try {
-          const ip = this.ctx.container.getIPAddress();
-          diag.steps.push(`10. getIPAddress(): ${ip}`);
+          const cfResp = await this.containerFetch(
+            new Request('http://localhost/api/health')
+          );
+          const cfBody = await cfResp.text();
+          diag.steps.push(`9. containerFetch /api/health: HTTP ${cfResp.status}, body: ${cfBody.slice(0, 200)}`);
         } catch (e) {
-          diag.steps.push(`10. getIPAddress error: ${e.message}`);
+          diag.steps.push(`9. containerFetch error: ${e.message}`);
+        }
+
+        // Try super.fetch with a health check request
+        try {
+          const superResp = await super.fetch(
+            new Request(new URL('/api/health', request.url).toString())
+          );
+          const superBody = await superResp.text();
+          diag.steps.push(`10. super.fetch /api/health: HTTP ${superResp.status}, body: ${superBody.slice(0, 200)}`);
+        } catch (e) {
+          diag.steps.push(`10. super.fetch error: ${e.message}`);
         }
 
         diag.ok = true;

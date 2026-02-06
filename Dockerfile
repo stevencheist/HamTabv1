@@ -25,5 +25,6 @@ COPY --from=builder /app/public ./public
 
 COPY --from=builder /app/startup-diag.js ./
 
+ENV PORT=8080
 EXPOSE 8080
 CMD ["node", "startup-diag.js"]

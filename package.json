@@ -1,7 +1,23 @@
 {
   "name": "hamtab",
-  "version": "0.27.1",
-  "description": "HamTab — POTA + SOTA ham radio dashboard with map and solar data",
+  "version": "0.27.2",
+  "description": "HamTab — Free modern alternative to HamClock. POTA, SOTA, DX cluster, propagation, satellite tracking, and space weather dashboard for amateur radio operators.",
+  "keywords": [
+    "amateur radio",
+    "ham radio",
+    "hamclock",
+    "hamclock alternative",
+    "POTA",
+    "SOTA",
+    "parks on the air",
+    "summits on the air",
+    "DX cluster",
+    "propagation",
+    "satellite tracking",
+    "space weather",
+    "ham radio dashboard",
+    "dx spotting"
+  ],
   "main": "server.js",
   "scripts": {
     "build": "node esbuild.mjs",

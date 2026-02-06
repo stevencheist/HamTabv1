@@ -192,16 +192,19 @@ export function showSplash() {
     updateLocStatus('Using GPS');
   }
 
-  $('timeFmt24').checked = state.use24h;
-  $('timeFmt12').checked = !state.use24h;
+  // Load preferences — defensive null-checks for deployment-mode differences
+  const timeFmt24 = $('timeFmt24');
+  const timeFmt12 = $('timeFmt12');
+  if (timeFmt24) timeFmt24.checked = state.use24h;
+  if (timeFmt12) timeFmt12.checked = !state.use24h;
 
-  // Load unit preferences
   const distUnitMi = $('distUnitMi');
   const distUnitKm = $('distUnitKm');
-  const tempUnitF = $('tempUnitF');
-  const tempUnitC = $('tempUnitC');
   if (distUnitMi) distUnitMi.checked = state.distanceUnit === 'mi';
   if (distUnitKm) distUnitKm.checked = state.distanceUnit === 'km';
+
+  const tempUnitF = $('tempUnitF');
+  const tempUnitC = $('tempUnitC');
   if (tempUnitF) tempUnitF.checked = state.temperatureUnit === 'F';
   if (tempUnitC) tempUnitC.checked = state.temperatureUnit === 'C';
 
@@ -221,6 +224,12 @@ export function showSplash() {
   $('splashWxStation').value = state.wxStation;
   $('splashWxApiKey').value = state.wxApiKey;
   $('splashN2yoApiKey').value = state.n2yoApiKey;
+
+  const intervalSelect = $('splashUpdateInterval');
+  if (intervalSelect) {
+    const savedInterval = localStorage.getItem('hamtab_update_interval') || '60';
+    intervalSelect.value = savedInterval;
+  }
 
   $('splashGridDropdown').classList.remove('open');
   $('splashGridDropdown').innerHTML = '';

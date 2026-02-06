@@ -26,6 +26,7 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Francisco + Claude | Reduce merge conflicts — server.js import reorg, defensive DOM, section comments | main | 2026-02-05 |
 | Steven + Claude | DE/DX widget countdowns, theme DE/DX colors, HamClock theme polish, map tile swap | main | 2026-02-05 |
 | Francisco + Claude | HamClock source analysis (ESPHamClock v4.22) — feature gap analysis for widget improvements | main | 2026-02-05 |
 | Francisco + Claude | HamClock theme rename→Terminal, new HamClock theme, DE/DX widget, sun/moon/beacon markers | main | 2026-02-05 |

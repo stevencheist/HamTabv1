@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+// --- Shared imports (all deployment modes) ---
 const express = require('express');
 const https = require('https');
 const fs = require('fs');
@@ -2726,7 +2727,7 @@ setInterval(() => {
   }
 }, 30 * 60 * 1000); // 30 minutes
 
-// --- Start server ---
+// --- Server startup (shared) ---
 
 // Initialize VOACAP bridge (Python child process for real predictions)
 voacap.init();

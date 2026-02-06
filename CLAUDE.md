@@ -212,8 +212,9 @@ main ──────────────────────── SH
   - Version collision (both devs bumped to same version) — bump again after merge, rebuild
   - Code conflicts — review carefully, may indicate overlapping work
 
-- **After merging main into hostedmode — verify dependencies:**
+- **After merging main into hostedmode — verify dependencies and Dockerfile:**
   - `@cloudflare/containers` is a hostedmode-only dependency that `main` doesn't have. When `main` modifies the `dependencies` block in `package.json` (adding/removing packages), git's merge can silently drop `@cloudflare/containers`. **Always check** `package.json` on hostedmode after merge. If missing, re-add it (`npm install @cloudflare/containers`), commit, then push.
+  - **Dockerfile COPY directives** — If new server-side `.js` files are added on main (e.g. `server-config.js`), they must be added to the Dockerfile's COPY list. The Dockerfile uses explicit file copies, not wildcards. Missing files cause `MODULE_NOT_FOUND` crashes in the container.
 
 - **If merge conflicts occur on deployment branches:**
   - After v0.28.0 refactoring, imports/config/TLS/startup are extracted to `server-config.js`, `server-tls.js`, `server-startup.js`. These files are identical on all branches — conflicts should be rare.

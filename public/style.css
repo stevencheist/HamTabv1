@@ -3329,11 +3329,13 @@ header {
   color: #000;
 }
 
-/* Day/Night toggle, prop metric, map center buttons inside widget headers */
+/* Day/Night toggle, prop metric, map center buttons inside widget headers
+   base has background:none which shows dark body through — needs explicit bg */
 .theme-lcars .toggle-btn,
 .theme-lcars .prop-metric-btn,
 .theme-lcars .map-center-btn {
   color: #000;
+  background: var(--surface2); /* blue-bell so black text is readable */
 }
 
 .theme-lcars .op-call a {

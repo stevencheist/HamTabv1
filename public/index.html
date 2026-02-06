@@ -483,6 +483,25 @@
       <div class="widget-resize"></div>
     </div>
 
+    <!-- Space Weather History -->
+    <div class="widget" id="widget-spacewx">
+      <div class="widget-header">
+        Space Wx
+        <button class="widget-help-btn" data-widget="widget-spacewx" title="Help">?</button>
+        <div class="spacewx-tabs">
+          <button class="spacewx-tab active" data-tab="kp">Kp</button>
+          <button class="spacewx-tab" data-tab="xray">X-Ray</button>
+          <button class="spacewx-tab" data-tab="sfi">SFI</button>
+          <button class="spacewx-tab" data-tab="wind">Wind</button>
+          <button class="spacewx-tab" data-tab="bz">Bz</button>
+        </div>
+      </div>
+      <div class="widget-body">
+        <canvas id="spacewxCanvas"></canvas>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
     <!-- Band Conditions / Propagation -->
     <div class="widget" id="widget-propagation">
       <div class="widget-header">

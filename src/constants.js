@@ -6,6 +6,7 @@ export const WIDGET_DEFS = [
   { id: 'widget-activations', name: 'On the Air' },
   { id: 'widget-map',         name: 'HamMap' },
   { id: 'widget-solar',       name: 'Solar' },
+  { id: 'widget-spacewx',     name: 'Space Wx' },
   { id: 'widget-propagation', name: 'Band Conditions' },
   { id: 'widget-voacap',      name: 'VOACAP DE\u2192DX' },
   { id: 'widget-live-spots',  name: 'Live Spots' },
@@ -291,6 +292,18 @@ export const WIDGET_HELP = {
     ],
     links: [
       { label: 'HamQSL Space Weather', url: 'https://www.hamqsl.com/solar.html' },
+    ],
+  },
+  'widget-spacewx': {
+    title: 'Space Weather History',
+    description: 'Historical graphs of key space weather indices over the past week (or 90 days for Solar Flux). These charts help you spot trends and understand how conditions are changing — not just a single snapshot, but the bigger picture.',
+    sections: [
+      { heading: 'Tabs', content: 'Five tabs let you switch between different measurements: Kp index (geomagnetic activity), X-Ray flux (solar flare intensity), SFI (Solar Flux Index — overall solar activity), Solar Wind speed, and Bz (interplanetary magnetic field direction).' },
+      { heading: 'What the graphs show', content: 'Kp: Bar chart colored green/yellow/red — values above 4 mean geomagnetic storms that can disrupt HF. X-Ray: Line chart on a log scale — C/M/X class flares marked. SFI: 90-day trend — higher values (100+) mean better HF propagation. Wind: Solar wind speed — above 400 km/s can disturb conditions. Bz: Southward (negative) Bz opens Earth\'s magnetosphere to solar wind, worsening conditions.' },
+      { heading: 'Data source', content: 'All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 15 minutes.' },
+    ],
+    links: [
+      { label: 'NOAA SWPC', url: 'https://www.swpc.noaa.gov/' },
     ],
   },
   'widget-propagation': {

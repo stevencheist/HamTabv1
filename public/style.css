@@ -5051,3 +5051,154 @@ header {
   #widget-dxpeditions .widget-body { max-height: 250px; }
 }
 
+/* ---- Compact Header Mode ---- */
+/* Toggled via body.slim-header — shrinks header to ~28-30px,
+   hides weather/name, switches clocks to single-line row layout. */
+
+.slim-header header {
+  padding: 3px 12px;
+  gap: 10px;
+}
+
+.slim-header .op-info {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.slim-header .op-call {
+  font-size: clamp(1rem, 8cqw, 1.4rem);
+  line-height: 1;
+}
+
+.slim-header .op-class {
+  font-size: clamp(0.75rem, 4cqw, 0.95rem);
+  margin-left: 4px;
+}
+
+.slim-header .op-name {
+  display: none;
+}
+
+.slim-header .op-loc {
+  font-size: clamp(0.7rem, 3.5cqw, 0.9rem);
+}
+
+.slim-header .op-btn {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+/* Clocks — single-line row layout */
+.slim-header .header-clock {
+  flex-direction: row;
+  padding: 3px 10px;
+  gap: 6px;
+  min-width: auto;
+}
+
+.slim-header .header-clock-label {
+  font-size: 0.65rem;
+}
+
+.slim-header .header-clock-time {
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+
+/* Hide weather text, weather icon, and weather source logo */
+.slim-header .header-clock-weather,
+.slim-header .header-clock-wx-icon,
+.slim-header .wx-source-logo {
+  display: none;
+}
+
+.slim-header .header-center {
+  gap: 20px;
+}
+
+/* Weather alert badge — reposition for row layout */
+.slim-header .wx-alert-badge {
+  top: 2px;
+  left: 4px;
+  font-size: 0.9rem;
+}
+
+/* Right buttons — smaller */
+.slim-header #refreshBtn,
+.slim-header #resetLayoutBtn,
+.slim-header #fullscreenBtn {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+
+.slim-header .feedback-btn {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+
+.slim-header .coffee-btn {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+
+.slim-header .update-indicator {
+  font-size: 0.65rem;
+}
+
+/* --- LCARS theme slim overrides --- */
+.slim-header.theme-lcars .header-left {
+  padding: 4px 36px 4px 12px;
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.slim-header.theme-lcars .header-left::after {
+  width: 28px;
+  height: calc(100% - 12px);
+}
+
+.slim-header.theme-lcars .header-center {
+  padding: 14px 12px 3px;
+}
+
+.slim-header.theme-lcars .header-center::before {
+  height: 12px;
+}
+
+.slim-header.theme-lcars .header-right {
+  padding: 16px 12px 3px;
+}
+
+.slim-header.theme-lcars .header-right::before {
+  height: 12px;
+}
+
+.slim-header.theme-lcars .header-right::after {
+  width: 12px;
+  height: 12px;
+  border-radius: 0 0 6px 6px;
+}
+
+.slim-header.theme-lcars header::after {
+  height: 3px;
+}
+
+/* --- Terminal theme slim overrides --- */
+.slim-header.theme-terminal header {
+  padding: 2px 10px;
+}
+
+.slim-header.theme-terminal .header-clock {
+  padding: 2px 10px;
+}
+
+/* --- HamClock theme slim overrides --- */
+.slim-header.theme-hamclock header {
+  padding: 2px 10px;
+}
+
+.slim-header.theme-hamclock .header-clock {
+  padding: 2px 10px;
+}
+

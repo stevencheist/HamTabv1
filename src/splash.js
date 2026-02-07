@@ -297,6 +297,10 @@ export function showSplash() {
     });
   }
 
+  // Compact header toggle
+  const cfgSlimHeader = $('cfgSlimHeader');
+  if (cfgSlimHeader) cfgSlimHeader.checked = state.slimHeader;
+
   $('splashVersion').textContent = __APP_VERSION__;
   $('aboutVersion').textContent = __APP_VERSION__;
 
@@ -638,6 +642,16 @@ export function initSplashListeners() {
       } else {
         stopAutoRefresh();
       }
+    });
+  }
+
+  // Compact header toggle in Appearance tab
+  const cfgSlimHeaderCb = $('cfgSlimHeader');
+  if (cfgSlimHeaderCb) {
+    cfgSlimHeaderCb.addEventListener('change', () => {
+      state.slimHeader = cfgSlimHeaderCb.checked;
+      localStorage.setItem('hamtab_slim_header', String(state.slimHeader));
+      document.body.classList.toggle('slim-header', state.slimHeader);
     });
   }
 }

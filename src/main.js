@@ -101,7 +101,7 @@ function initApp() {
   if (state.appInitialized) return;
   state.appInitialized = true;
   refreshAll();
-  startAutoRefresh();
+  if (state.autoRefreshEnabled) startAutoRefresh();
   fetchLocation();
   initUpdateDisplay();
   fetchWeather();

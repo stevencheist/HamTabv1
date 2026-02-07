@@ -205,7 +205,7 @@ main ──────────────────────── SH
   - `git pull` before merge ensures we have CI/CD commits, other developer changes, etc.
   - Merging into a stale local branch then pushing will fail or cause conflicts
   - hostedmode especially drifts due to CI/CD commits
-  - Final `git pull` on main syncs any WORKING_ON.md updates from the other dev
+  - Final `git pull` on main syncs any changes from the other dev
 
 - **If merge conflicts occur on main pull:**
   - `package-lock.json` conflicts are common and benign — resolve with `npm install --package-lock-only`
@@ -233,7 +233,7 @@ main ──────────────────────── SH
 
 ### Documentation Edits
 
-- **CLAUDE.md**, **BRANCH_STRATEGY.md**, **ROADMAP.md** — Edit on `main` only
+- **CLAUDE.md**, **BRANCH_STRATEGY.md** — Edit on `main` only
 - **Do NOT sync docs-only changes** to deployment branches
 - Deployment branches are for runtime code — documentation doesn't affect them
 - Only run "sync branches" when there's actual code to deploy
@@ -273,38 +273,7 @@ main ──────────────────────── SH
 
 ### Wiki Release Notes (mandatory on version bump)
 
-**Every version bump must include a corresponding entry in the [Release Notes wiki page](https://github.com/stevencheist/HamTabv1/wiki/Release-Notes).**
-
-The wiki is a separate git repo. To update:
-
-```bash
-# Clone wiki (or pull if already cloned)
-git clone git@github.com:stevencheist/HamTabv1.wiki.git /tmp/hamtab-wiki
-
-# Edit Release-Notes.md — add new version entry at the top (below the header)
-# Format:
-#   ## vX.Y.Z (YYYY-MM-DD)
-#   **Short Theme Title**
-#   - Bullet points describing features, fixes, and changes
-#   - Reference issue numbers where applicable ([#NNN](url))
-
-# Commit and push
-cd /tmp/hamtab-wiki
-git add Release-Notes.md
-git commit -m "Add vX.Y.Z release notes"
-git push
-
-# Clean up
-rm -rf /tmp/hamtab-wiki
-```
-
-**What to include in each entry:**
-- New features with brief description
-- Bug fixes with issue references
-- Breaking changes or behavior changes
-- Version bumps that are just collision fixes can share an entry with the feature they accompany
-
-**When to batch entries:** If multiple patch bumps happen in rapid succession for a single feature (e.g. v0.19.0 → v0.19.1 → v0.19.2 all for VOACAP), they can be individual entries or consolidated — use judgment. Minor/major bumps always get their own entry.
+Every version bump must include a corresponding entry in the [Release Notes wiki page](https://github.com/stevencheist/HamTabv1/wiki/Release-Notes). See `hamtab-planning/reference/claude-md-reference.md` for detailed wiki update instructions.
 
 **Lanmode updates:**
 - Auto-update: clicking the green update dot downloads the lanmode branch zip, extracts, copies files (preserving `.env`, `certs`, `node_modules`), runs `npm install --production` + `npm run build`, and restarts the server
@@ -337,33 +306,7 @@ SEO only matters for hamtab.net — lanmode runs on private LANs where search en
 | `README.md` | GitHub search & discoverability | `main` (GitHub-facing) |
 | `package.json` | npm/GitHub metadata (`description`, `keywords`) | `main` |
 
-### SEO Update Checklist (on every feature push)
-
-**After syncing a feature to hostedmode, review these before pushing the branch:**
-
-- [ ] `<title>` in index.html still accurately describes the app
-- [ ] `<meta name="description">` reflects current feature set
-- [ ] JSON-LD `featureList` array includes any new major features
-- [ ] `<noscript>` fallback section lists any new features (this is what crawlers see for JS apps)
-- [ ] `sitemap.xml` `<lastmod>` date updated to today
-- [ ] `README.md` features list includes any new user-facing features
-- [ ] `package.json` `description` still accurate
-
-**When adding a new widget or major feature:**
-- Add it to JSON-LD `featureList` in index.html
-- Add it to the `<noscript>` features list in index.html
-- Add it to the README.md features section
-- Update the meta description if the feature is significant enough
-
-### Missing SEO Assets (TODO)
-
-- [ ] `public/og-image.png` — Social share preview (referenced in OG/Twitter meta tags but file missing). Create 1200×630px screenshot showing the dashboard
-- [ ] `public/manifest.json` — PWA metadata (app name, icons, theme). Enables "Add to Home Screen" on mobile/desktop
-- [ ] `package.json` `keywords` field — npm/GitHub keyword array
-
-### File Location Note
-
-`sitemap.xml` and `robots.txt` currently live on `main` in `public/`. Since they serve no purpose on lanmode, they should be moved to `hostedmode` only. Until then, updating them on main is fine — they're harmless on LAN installs.
+**SEO checklists and TODOs** — See `hamtab-planning/reference/claude-md-reference.md`
 
 ## Security (Priority)
 
@@ -427,24 +370,7 @@ HamTab has users worldwide, including the EU. Privacy and GDPR compliance are ma
 - **No cookies** — App uses localStorage exclusively, no tracking cookies
 - **No analytics** — No Google Analytics, Cloudflare Analytics, or similar tracking
 
-**Adding new features that collect data:**
-1. Ask: "Is this data truly necessary?"
-2. If yes, add clear privacy notice in UI (see feedback modal example)
-3. Make it optional unless absolutely required
-4. Never transmit PII in plaintext if it will be stored
-5. Provide ability to delete (e.g., clear button, manual GitHub issue deletion)
-
-**GDPR user rights:**
-- **Right to access** — Users can see their data (GitHub issues are public or viewable on request)
-- **Right to deletion** — GitHub issues can be deleted manually, localStorage cleared via browser
-- **Right to portability** — Config export allows users to download their data
-
-**Implementation checklist for new data collection:**
-- [ ] Added privacy notice in UI explaining what, why, where
-- [ ] Made collection optional unless absolutely necessary
-- [ ] Encrypted PII if it will be stored/transmitted
-- [ ] Provided deletion mechanism
-- [ ] Documented in CLAUDE.md if it introduces new privacy considerations
+**Detailed GDPR checklists** — See `hamtab-planning/reference/claude-md-reference.md`
 
 ## Working with Claude
 
@@ -463,12 +389,12 @@ Stay on `main` for most work. Use simple commands to manage branches:
 
 1. `git pull` — get the latest from remote
 2. Re-read **both** `CLAUDE.md` (project instructions) AND `~/.claude/instructions.md` (shared instructions)
-3. Re-read `WORKING_ON.md` — check what the other developer is doing
+3. Pull and read `working-on.md` in `sffoundry/hamtab-planning` — check what the other developer is doing
 4. **If there's a conflict** (other dev is touching the same files/feature), **stop and tell the user**
-5. Add your row to the "Active Work" table in `WORKING_ON.md`
-6. Commit and push `WORKING_ON.md` immediately:
+5. Add your row to the "Active Work" table in `hamtab-planning/working-on.md`
+6. Commit and push in the planning repo immediately:
    ```
-   git add WORKING_ON.md && git commit -m "Claim: <feature name>" && git push
+   cd ~/code/hamtab-planning && git add working-on.md && git commit -m "Claim: <feature name>" && git push
    ```
 7. Now begin the actual work
 
@@ -476,18 +402,18 @@ Stay on `main` for most work. Use simple commands to manage branches:
 
 1. **Pull before committing** — `git pull origin main --no-edit` to get any changes pushed while you worked
 2. If pull brought in changes, check for version collision (both bumped to same version) — bump again if needed
-3. Move your row from "Active Work" to "Recently Completed" in `WORKING_ON.md`
-4. Include this change in your final feature commit (no separate commit needed)
-5. Push as normal
+3. Move your row from "Active Work" to "Recently Completed" in `hamtab-planning/working-on.md`
+4. Commit and push the planning repo
+5. Push HamTabV1 as normal
 
 ### Workflow
 
-1. **Claim work** (protocol above) — pull, read files, claim, push
+1. **Claim work** (protocol above) — pull, read planning repo, claim, push
 2. Develop features on `main` (90% of work happens here)
 3. Say "sync branches" to deploy code changes to deployment branches
 4. Switch to `lanmode` or `hostedmode` only for branch-specific fixes
 5. Start sessions with "status" or "pull and status" to see current state
-6. **Release work** (protocol above) — move to completed on final commit
+6. **Release work** (protocol above) — move to completed in planning repo on final commit
 
 **When to sync:**
 - ✅ After committing **code changes** (features, bug fixes)
@@ -512,21 +438,13 @@ This ensures we never merge into a stale local branch.
 1. **Check for uncommitted changes** — `git status`. If there are meaningful changes, commit them with a clear message.
 2. **Push main** — Make sure `main` is pushed to remote.
 3. **Sync branches** — If any code changes were pushed during the session, sync both `lanmode` and `hostedmode` (full Branch Sync Protocol).
-4. **Update WORKING_ON.md** — Move any completed work from "Active Work" to "Recently Completed". If work is still in progress, leave it in "Active Work" with a note about current status.
-5. **Save work-in-progress notes** — If a feature is partially done or needs to be continued next session:
-   - Add a brief status note to the "Active Work" entry in `WORKING_ON.md` (e.g. "server endpoint done, client integration next")
-   - If there's a tracking document (e.g. `FEATURE_NAME.md`), update it with current progress
-   - Commit and push the updated `WORKING_ON.md`
+4. **Update working-on.md** — In `hamtab-planning`, move completed work from "Active Work" to "Recently Completed". If work is still in progress, leave it in "Active Work" with a note about current status. Commit and push the planning repo.
+5. **Save work-in-progress notes** — If a feature is partially done, add a brief status note to the "Active Work" entry (e.g. "server endpoint done, client integration next"). Update any tracking documents.
 6. **Confirm clean state** — Run `git status` one final time and report the state to the user. The goal is: on `main`, up to date with remote, no uncommitted code changes.
 
 ## Feature Tracking
 
-When working on multiple related features or a feature set with more than one task:
-
-- **Create a tracking document** — Use a `.md` file in the repo root (e.g. `FEATURE_NAME.md`) to track progress
-- **Document scope** — List all items to be implemented, their status (✅/🟡/❌), and any notes
-- **Update as you go** — Mark items complete as work progresses
-- **Single-item tasks** — Don't create tracking files for one-off changes; use commit messages and PR descriptions instead
+For multi-task features, create a tracking `.md` file in the repo root. See `hamtab-planning/reference/claude-md-reference.md` for details.
 
 ## User Guide Documentation
 
@@ -571,57 +489,11 @@ Output: `public/HamTab-User-Guide.pdf`
 - [ ] Included how to use it (step-by-step if needed)
 - [ ] Updated widget help text in `src/constants.js` if applicable
 
-### Content Files
-
-| File | Content |
-|------|---------|
-| `01-introduction.md` | Overview, features, requirements, deployment modes |
-| `02-getting-started.md` | Setup, callsign, location, API keys |
-| `03-widgets.md` | All 11 widgets documented in detail |
-| `04-map-features.md` | Markers, overlays, geodesic paths, satellites |
-| `05-data-sources.md` | POTA, SOTA, DXC, PSK, weather, N2YO |
-| `06-filters.md` | Band, mode, distance, age, location, privilege |
-| `07-configuration.md` | Settings, export/import, localStorage keys |
-| `08-reference-tables.md` | RST, NATO phonetics, band chart, privileges |
-| `09-troubleshooting.md` | Common issues and solutions |
-
-### Screenshots
-
-Screenshots go in `docs/user-guide/screenshots/`. Use descriptive names:
-- `widget-solar.png`
-- `widget-filters.png`
-- `map-overlays.png`
-- `config-modal.png`
-
-Reference in markdown: `![Widget Name](../screenshots/widget-name.png)`
-
-**Screenshot guidelines:**
-- PNG format, reasonable resolution
-- Crop to relevant area
-- Use dark theme (matches app default)
-- Include sample data where helpful
-
-### Writing Style
-
-- Use second person ("You can...", "Click the...")
-- Keep language accessible to non-technical users
-- Include tables for reference data
-- Use callout boxes for tips/warnings:
-  ```html
-  <div class="tip">Helpful hint here.</div>
-  <div class="warning">Important note here.</div>
-  <div class="important">Critical information here.</div>
-  ```
+**Content files, screenshots, and writing style** — See `hamtab-planning/reference/claude-md-reference.md`
 
 ## GitHub Issue Communication
 
-When commenting on issues or asking questions of users:
-
-- **Assume non-technical users** — avoid jargon, explain terms if needed, and keep language approachable.
-- **Be friendly and appreciative** — thank contributors for suggestions and bug reports.
-- **Ask clear, specific questions** — use numbered lists so users can answer point by point.
-- **Offer concrete examples** — when asking about preferences, give options rather than open-ended questions.
-- **Follow up on implemented features** — when work is done, comment asking the requester to try it and give feedback.
+Be friendly, assume non-technical users, ask specific questions. See `hamtab-planning/reference/claude-md-reference.md` for full guidelines.
 
 ## Root Cause Analysis Protocol
 

@@ -154,6 +154,7 @@ Unified roadmap combining feature tracking with HamClock user insights to guide 
 | DRAP overlay | ❌ | MEDIUM | 🌐 | D-Region absorption map from NOAA |
 | Auto space weather mode | ❌ | LOW | 🌐 | Auto-show DRAP/Aurora when active |
 | Grayline planning tool | ❌ | LOW | 🌐 | DE/DX twilight overlap |
+| ITM terrain propagation (VHF/UHF) | ❌ | LOW | 🌐 | NTIA ITS Irregular Terrain Model — predicts VHF/UHF path loss accounting for terrain elevation/diffraction (20 MHz–20 GHz). Complements VOACAP (ionospheric HF) with terrain-aware V/UHF analysis. C++ only ([NTIA/itm](https://github.com/NTIA/itm)), would need bridge process + SRTM elevation data. |
 
 #### P3.3: WSPR/Beacon Real-Time Propagation (Separate Project)
 | Feature | Status | Priority | Mode | Notes |

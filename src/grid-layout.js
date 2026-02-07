@@ -473,13 +473,20 @@ function populateWrapper(wrapperId, cellNames, flexKey, isColumn, customSizes) {
     const widgetId = state.gridAssignments[cellName];
     let el;
 
-    if (widgetId) {
+    // Respect widget visibility — treat hidden widgets as empty cells
+    const isVisible = widgetId && state.widgetVisibility && state.widgetVisibility[widgetId] !== false;
+
+    if (isVisible) {
       el = document.getElementById(widgetId);
       if (el) {
         el.style.gridArea = '';
         el.style.display = '';
         wrapper.appendChild(el);
       }
+    } else if (widgetId) {
+      // Widget exists but user hid it — keep it hidden
+      const hiddenEl = document.getElementById(widgetId);
+      if (hiddenEl) hiddenEl.style.display = 'none';
     }
 
     if (!el) {
@@ -639,13 +646,15 @@ export function applyGridAssignments(customSizes) {
   populateWrapper('grid-bar-top', perm.top, 'topFlex', false, customSizes);
   populateWrapper('grid-bar-bottom', perm.bottom, 'bottomFlex', false, customSizes);
 
-  // Hide unassigned widgets (those not in any wrapper)
+  // Hide unassigned widgets and user-hidden widgets
   const assignedWidgets = new Set(Object.values(state.gridAssignments));
+  const vis = state.widgetVisibility || {};
   WIDGET_DEFS.forEach(def => {
     if (def.id === 'widget-map') return;
-    if (assignedWidgets.has(def.id)) return;
     const el = document.getElementById(def.id);
-    if (el) {
+    if (!el) return;
+    // Hide if unassigned OR if user toggled it off
+    if (!assignedWidgets.has(def.id) || vis[def.id] === false) {
       el.style.gridArea = '';
       el.style.display = 'none';
     }

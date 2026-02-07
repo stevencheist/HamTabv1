@@ -58,19 +58,4 @@
   // wrangler secret put GITHUB_FEEDBACK_TOKEN
   //   - GitHub fine-grained PAT with Issues: Read/Write permission
   //   - Used by feedback system to create GitHub issues
-  //
-  // wrangler secret put CF_SERVICE_TOKEN_ID
-  //   - Cloudflare Access service token Client ID
-  //   - Set as cookie so Access recognizes Turnstile-auth users
-  //
-  // wrangler secret put CF_SERVICE_TOKEN_SECRET
-  //   - Cloudflare Access service token Client Secret
-  //   - Paired with CF_SERVICE_TOKEN_ID
-  //
-  // wrangler secret put TURNSTILE_SECRET_KEY
-  //   - Cloudflare Turnstile secret key for server-side verification
-  //
-  // wrangler secret put SESSION_SIGNING_KEY
-  //   - 32-byte hex string for HMAC-SHA256 JWT signing
-  //   - Generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 }

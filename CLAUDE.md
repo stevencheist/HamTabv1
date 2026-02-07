@@ -4,7 +4,9 @@
 
 This file is for **project-specific** instructions — architecture, code conventions, branch strategy, file locations, widgets, security rules, API patterns. Anything tied to HamTabV1.
 
-For **Claude behavior** instructions — coordination protocols, communication style, session habits, general patterns that apply across all SF Foundry projects — use `~/.claude/instructions.md` (symlinked to `sffoundry/ai-workflows`).
+For **Claude behavior** instructions — coordination protocols, communication style, session habits, general patterns that apply across all SF Foundry projects — use `~/.claude/instructions.md`.
+
+**If a rule appears in both files, `instructions.md` wins.**
 
 **Quick test:** "Would this instruction matter if we started a completely different project?" If yes → `instructions.md`. If no → `CLAUDE.md`.
 
@@ -199,30 +201,11 @@ main ──────────────────────── SH
   git pull origin main
   ```
 
-- **Why this order matters:**
-  - `git pull` before push prevents rejected pushes when remote advanced
-  - `git fetch --all` shows remote state before we touch anything
-  - `git pull` before merge ensures we have CI/CD commits, other developer changes, etc.
-  - Merging into a stale local branch then pushing will fail or cause conflicts
-  - hostedmode especially drifts due to CI/CD commits
-  - Final `git pull` on main syncs any changes from the other dev
-
-- **If merge conflicts occur on main pull:**
-  - `package-lock.json` conflicts are common and benign — resolve with `npm install --package-lock-only`
-  - Version collision (both devs bumped to same version) — bump again after merge, rebuild
-  - Code conflicts — review carefully, may indicate overlapping work
-
 - **After merging main into hostedmode — verify dependencies and Dockerfile:**
   - `@cloudflare/containers` is a hostedmode-only dependency that `main` doesn't have. When `main` modifies the `dependencies` block in `package.json` (adding/removing packages), git's merge can silently drop `@cloudflare/containers`. **Always check** `package.json` on hostedmode after merge. If missing, re-add it (`npm install @cloudflare/containers`), commit, then push.
   - **Dockerfile COPY directives** — If new server-side `.js` files are added on main (e.g. `server-config.js`), they must be added to the Dockerfile's COPY list. The Dockerfile uses explicit file copies, not wildcards. Missing files cause `MODULE_NOT_FOUND` crashes in the container.
 
-- **If merge conflicts occur on deployment branches:**
-  - After v0.28.0 refactoring, imports/config/TLS/startup are extracted to `server-config.js`, `server-tls.js`, `server-startup.js`. These files are identical on all branches — conflicts should be rare.
-  - **server.js Mode-Specific Endpoints section:** Clean insert on each branch (lanmode: update system, hostedmode: ISS proxy). Not a conflict zone.
-  - **server-config.js:** If hostedmode needs different config, edit `getConfig()` — it auto-detects mode via PORT env var.
-  - **splash.js:** DOM access uses null-safe pattern (`const el = $('id'); if (el) ...`). Keep the null-checks — they prevent crashes when elements differ between modes.
-  - **public/app.js:** Build artifact — resolve by accepting either side, then rebuild on the branch if needed.
-  - See BRANCH_STRATEGY.md for full conflict resolution protocol
+- **Merge conflict resolution** — See BRANCH_STRATEGY.md for full conflict resolution protocol.
 
 - **Post-merge validation (MANDATORY after every merge to deployment branches):**
   After merging main into lanmode or hostedmode, run these checks BEFORE pushing:
@@ -273,7 +256,7 @@ main ──────────────────────── SH
 
 ### Wiki Release Notes (mandatory on version bump)
 
-Every version bump must include a corresponding entry in the [Release Notes wiki page](https://github.com/stevencheist/HamTabv1/wiki/Release-Notes). See `hamtab-planning/reference/claude-md-reference.md` for detailed wiki update instructions.
+Every version bump must include a corresponding entry in the [Release Notes wiki page](https://github.com/stevencheist/HamTabv1/wiki/Release-Notes). See the project reference docs for detailed wiki update instructions.
 
 **Lanmode updates:**
 - Auto-update: clicking the green update dot downloads the lanmode branch zip, extracts, copies files (preserving `.env`, `certs`, `node_modules`), runs `npm install --production` + `npm run build`, and restarts the server
@@ -306,7 +289,7 @@ SEO only matters for hamtab.net — lanmode runs on private LANs where search en
 | `README.md` | GitHub search & discoverability | `main` (GitHub-facing) |
 | `package.json` | npm/GitHub metadata (`description`, `keywords`) | `main` |
 
-**SEO checklists and TODOs** — See `hamtab-planning/reference/claude-md-reference.md`
+**SEO checklists and TODOs** — See the project reference docs
 
 ## Security (Priority)
 
@@ -372,7 +355,7 @@ HamTab has users worldwide, including the EU. Privacy and GDPR compliance are ma
 - **No cookies** — App uses localStorage exclusively, no tracking cookies
 - **No analytics** — No Google Analytics, Cloudflare Analytics, or similar tracking
 
-**Detailed GDPR checklists** — See `hamtab-planning/reference/claude-md-reference.md`
+**Detailed GDPR checklists** — See the project reference docs
 
 ## Working with Claude
 
@@ -387,26 +370,9 @@ Stay on `main` for most work. Use simple commands to manage branches:
 | "sync branches" | Fetch, pull, merge, push for both deployment branches (see Branch Sync Protocol) |
 | "switch to [branch]" | Checkout the specified branch |
 
-### Claim Work Protocol (before starting ANY feature or task)
+### Claim/Release Work Protocol
 
-1. `git pull` — get the latest from remote
-2. Re-read **both** `CLAUDE.md` (project instructions) AND `~/.claude/instructions.md` (shared instructions)
-3. Pull and read `working-on.md` in `sffoundry/hamtab-planning` — check what the other developer is doing
-4. **If there's a conflict** (other dev is touching the same files/feature), **stop and tell the user**
-5. Add your row to the "Active Work" table in `hamtab-planning/working-on.md`
-6. Commit and push in the planning repo immediately:
-   ```
-   cd ~/code/hamtab-planning && git add working-on.md && git commit -m "Claim: <feature name>" && git push
-   ```
-7. Now begin the actual work
-
-### Release Work Protocol (after finishing a feature or task)
-
-1. **Pull before committing** — `git pull origin main --no-edit` to get any changes pushed while you worked
-2. If pull brought in changes, check for version collision (both bumped to same version) — bump again if needed
-3. Move your row from "Active Work" to "Recently Completed" in `hamtab-planning/working-on.md`
-4. Commit and push the planning repo
-5. Push HamTabV1 as normal
+See `instructions.md` § Developer Coordination Protocol for the full claim/release steps.
 
 ### Workflow
 
@@ -435,18 +401,11 @@ This ensures we never merge into a stale local branch.
 
 ### End-of-Session Protocol
 
-**When the user says they're done for the day (e.g. "done", "wrapping up", "end of session"), run this checklist:**
-
-1. **Check for uncommitted changes** — `git status`. If there are meaningful changes, commit them with a clear message.
-2. **Push main** — Make sure `main` is pushed to remote.
-3. **Sync branches** — If any code changes were pushed during the session, sync both `lanmode` and `hostedmode` (full Branch Sync Protocol).
-4. **Update working-on.md** — In `hamtab-planning`, move completed work from "Active Work" to "Recently Completed". If work is still in progress, leave it in "Active Work" with a note about current status. Commit and push the planning repo.
-5. **Save work-in-progress notes** — If a feature is partially done, add a brief status note to the "Active Work" entry (e.g. "server endpoint done, client integration next"). Update any tracking documents.
-6. **Confirm clean state** — Run `git status` one final time and report the state to the user. The goal is: on `main`, up to date with remote, no uncommitted code changes.
+See `instructions.md` § End-of-Session Protocol for the full checklist.
 
 ## Feature Tracking
 
-For multi-task features, create a tracking `.md` file in the repo root. See `hamtab-planning/reference/claude-md-reference.md` for details.
+For multi-task features, create a tracking `.md` file in the repo root. See the project reference docs for details.
 
 ## User Guide Documentation
 
@@ -491,11 +450,11 @@ Output: `public/HamTab-User-Guide.pdf`
 - [ ] Included how to use it (step-by-step if needed)
 - [ ] Updated widget help text in `src/constants.js` if applicable
 
-**Content files, screenshots, and writing style** — See `hamtab-planning/reference/claude-md-reference.md`
+**Content files, screenshots, and writing style** — See the project reference docs
 
 ## GitHub Issue Communication
 
-Be friendly, assume non-technical users, ask specific questions. See `hamtab-planning/reference/claude-md-reference.md` for full guidelines.
+Be friendly, assume non-technical users, ask specific questions. See the project reference docs for full guidelines.
 
 ## Root Cause Analysis Protocol
 

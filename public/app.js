@@ -210,6 +210,9 @@
         // cached /api/dxpeditions response
         lastContestData: null,
         // cached /api/contests response
+        // Progressive scaling
+        reflowActive: false,
+        // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
         // Init flag
         appInitialized: false,
         // Sun/Moon sub-point positions
@@ -1976,7 +1979,11 @@ ${beacon.location}`);
     HEADER_H: () => HEADER_H,
     LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
     REFERENCE_TABS: () => REFERENCE_TABS,
+    REFLOW_WIDGET_ORDER: () => REFLOW_WIDGET_ORDER,
     SAT_FREQUENCIES: () => SAT_FREQUENCIES,
+    SCALE_MIN_FACTOR: () => SCALE_MIN_FACTOR,
+    SCALE_REFERENCE_WIDTH: () => SCALE_REFERENCE_WIDTH,
+    SCALE_REFLOW_WIDTH: () => SCALE_REFLOW_WIDTH,
     SNAP_DIST: () => SNAP_DIST,
     SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
     SOURCE_DEFS: () => SOURCE_DEFS,
@@ -1989,11 +1996,10 @@ ${beacon.location}`);
   });
   function getLayoutMode() {
     const w = window.innerWidth;
-    if (w < BREAKPOINT_MOBILE) return "mobile";
-    if (w < BREAKPOINT_TABLET) return "tablet";
+    if (w < SCALE_REFLOW_WIDTH) return "mobile";
     return "desktop";
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -2600,6 +2606,27 @@ ${beacon.location}`);
       DEFAULT_REFERENCE_TAB = "rst";
       BREAKPOINT_MOBILE = 768;
       BREAKPOINT_TABLET = 1024;
+      SCALE_REFERENCE_WIDTH = 1200;
+      SCALE_MIN_FACTOR = 0.55;
+      SCALE_REFLOW_WIDTH = 660;
+      REFLOW_WIDGET_ORDER = [
+        "widget-map",
+        "widget-activations",
+        "widget-filters",
+        "widget-solar",
+        "widget-propagation",
+        "widget-voacap",
+        "widget-live-spots",
+        "widget-spacewx",
+        "widget-spot-detail",
+        "widget-lunar",
+        "widget-satellites",
+        "widget-rst",
+        "widget-contests",
+        "widget-dxpeditions",
+        "widget-beacons",
+        "widget-dedx"
+      ];
       WIDGET_STORAGE_KEY = "hamtab_widgets";
       USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
@@ -4763,6 +4790,7 @@ ${beacon.location}`);
     positionTrackHandles();
   }
   function onHandleMouseDown(e) {
+    if (state_default.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return;
     e.preventDefault();
     e.stopPropagation();
     const handle = e.currentTarget;
@@ -4880,6 +4908,7 @@ ${beacon.location}`);
     });
   }
   function onFlexHandleMouseDown(e) {
+    if (state_default.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return;
     e.preventDefault();
     e.stopPropagation();
     const handle = e.currentTarget;
@@ -5151,6 +5180,7 @@ ${beacon.location}`);
   }
   function handleGridDragStart(widget, e) {
     if (widget.id === "widget-map") return;
+    if (state_default.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return;
     e.preventDefault();
     const sourceId = widget.id;
     let currentTarget = null;
@@ -5471,6 +5501,7 @@ ${beacon.location}`);
     let startX, startY, origLeft, origTop;
     handle.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
+      if (state_default.reflowActive || computeScaleFactor() < 1) return;
       if (isGridMode()) {
         handleGridDragStart(widget, e);
         return;
@@ -5506,6 +5537,7 @@ ${beacon.location}`);
     handle.addEventListener("mousedown", (e) => {
       if (e.button !== 0) return;
       if (isGridMode()) return;
+      if (state_default.reflowActive || computeScaleFactor() < 1) return;
       e.preventDefault();
       e.stopPropagation();
       bringToFront(widget);
@@ -5618,6 +5650,76 @@ ${beacon.location}`);
     if (state_default.map) state_default.map.invalidateSize();
     saveWidgets();
   }
+  function computeScaleFactor() {
+    const w = window.innerWidth;
+    if (w >= SCALE_REFERENCE_WIDTH) return 1;
+    return Math.max(w / SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR);
+  }
+  function applyProgressiveScale() {
+    const area = document.getElementById("widgetArea");
+    if (!area) return;
+    const w = window.innerWidth;
+    if (w < SCALE_REFLOW_WIDTH) {
+      if (!state_default.reflowActive) applyReflowLayout();
+      return;
+    }
+    if (state_default.reflowActive) exitReflowLayout();
+    const factor = computeScaleFactor();
+    if (factor < 1) {
+      area.style.transformOrigin = "top left";
+      area.style.transform = `scale(${factor})`;
+      area.style.width = `${100 / factor}%`;
+      area.classList.add("scaling-active");
+    } else {
+      area.style.transform = "";
+      area.style.width = "";
+      area.style.transformOrigin = "";
+      area.classList.remove("scaling-active");
+    }
+    if (state_default.map) state_default.map.invalidateSize();
+  }
+  function applyReflowLayout() {
+    const area = document.getElementById("widgetArea");
+    if (!area) return;
+    state_default.reflowActive = true;
+    area.style.transform = "";
+    area.style.width = "";
+    area.style.transformOrigin = "";
+    area.classList.remove("scaling-active");
+    area.classList.add("reflow-layout");
+    const vis = state_default.widgetVisibility || {};
+    REFLOW_WIDGET_ORDER.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      if (vis[id] === false) {
+        el.style.display = "none";
+        return;
+      }
+      el.style.display = "";
+      area.appendChild(el);
+    });
+    if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 100);
+  }
+  function exitReflowLayout() {
+    const area = document.getElementById("widgetArea");
+    if (!area) return;
+    state_default.reflowActive = false;
+    area.classList.remove("reflow-layout");
+    if (isGridMode()) {
+      activateGridMode(state_default.gridPermutation);
+    } else {
+      let layout;
+      try {
+        const saved2 = localStorage.getItem(WIDGET_STORAGE_KEY);
+        if (saved2) layout = JSON.parse(saved2);
+      } catch (e) {
+      }
+      if (!layout) layout = getDefaultLayout();
+      applyLayout(layout);
+      applyWidgetVisibility();
+    }
+    if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 100);
+  }
   function initWidgets() {
     let layout;
     try {
@@ -5682,12 +5784,18 @@ ${beacon.location}`);
       let reflowTimer;
       new ResizeObserver(() => {
         clearTimeout(reflowTimer);
-        reflowTimer = setTimeout(reflowWidgets, 150);
+        reflowTimer = setTimeout(() => {
+          applyProgressiveScale();
+          if (computeScaleFactor() === 1 && !state_default.reflowActive) {
+            reflowWidgets();
+          }
+        }, 150);
       }).observe(document.getElementById("widgetArea"));
     }
     if (isGridMode()) {
       activateGridMode(state_default.gridPermutation);
     }
+    applyProgressiveScale();
   }
 
   // src/main.js
@@ -6929,8 +7037,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.28.2";
-    $("aboutVersion").textContent = "0.28.2";
+    $("splashVersion").textContent = "0.29.0";
+    $("aboutVersion").textContent = "0.29.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

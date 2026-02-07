@@ -12,6 +12,7 @@ import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, save
 import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
 import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS } from './constants.js';
 import { activateGridMode, deactivateGridMode, saveGridAssignments, getGridPermutation } from './grid-layout.js';
+import { startAutoRefresh, stopAutoRefresh } from './refresh.js';
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -210,6 +211,10 @@ export function showSplash() {
   if (tempUnitF) tempUnitF.checked = state.temperatureUnit === 'F';
   if (tempUnitC) tempUnitC.checked = state.temperatureUnit === 'C';
 
+  // Auto-refresh toggle
+  const cfgAutoRefresh = $('cfgAutoRefresh');
+  if (cfgAutoRefresh) cfgAutoRefresh.checked = state.autoRefreshEnabled;
+
   const widgetList = document.getElementById('splashWidgetList');
   widgetList.innerHTML = '';
   WIDGET_DEFS.forEach(w => {
@@ -291,6 +296,10 @@ export function showSplash() {
       themeSelector.appendChild(swatch);
     });
   }
+
+  // Compact header toggle
+  const cfgSlimHeader = $('cfgSlimHeader');
+  if (cfgSlimHeader) cfgSlimHeader.checked = state.slimHeader;
 
   $('splashVersion').textContent = __APP_VERSION__;
   $('aboutVersion').textContent = __APP_VERSION__;
@@ -615,14 +624,27 @@ export function initSplashListeners() {
     showSplash();
   });
 
-  $('refreshLocBtn').addEventListener('click', () => {
-    if (state.manualLoc) {
-      showSplash();
-    } else {
-      $('opLoc').textContent = 'Locating...';
-      fetchLocation();
-    }
-  });
+  // Auto-refresh toggle in config modal Display tab
+  const cfgAutoRefreshCb = $('cfgAutoRefresh');
+  if (cfgAutoRefreshCb) {
+    cfgAutoRefreshCb.addEventListener('change', () => {
+      if (cfgAutoRefreshCb.checked) {
+        startAutoRefresh();
+      } else {
+        stopAutoRefresh();
+      }
+    });
+  }
+
+  // Compact header toggle in Appearance tab
+  const cfgSlimHeaderCb = $('cfgSlimHeader');
+  if (cfgSlimHeaderCb) {
+    cfgSlimHeaderCb.addEventListener('change', () => {
+      state.slimHeader = cfgSlimHeaderCb.checked;
+      localStorage.setItem('hamtab_slim_header', String(state.slimHeader));
+      document.body.classList.toggle('slim-header', state.slimHeader);
+    });
+  }
 }
 
 // Build a mini CSS Grid preview showing the permutation layout

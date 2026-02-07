@@ -103,22 +103,10 @@ async function verifyTurnstile(token, ip, secretKey) {
   return result.success === true;
 }
 
-// --- User identity (email-auth or anonymous Turnstile) ---
-// Returns { type: 'email', id } or { type: 'anon', id } or null
+// --- User identity (Turnstile session) ---
+// Returns UUID string or null
 
 async function getUserIdentity(request, env) {
-  // 1. Check CF Access JWT for email (existing email-auth users)
-  const jwt = request.headers.get('Cf-Access-Jwt-Assertion');
-  if (jwt) {
-    try {
-      const payload = JSON.parse(atob(jwt.split('.')[1]));
-      if (payload.email) return { type: 'email', id: payload.email };
-    } catch {
-      // Malformed JWT — fall through to cookie check
-    }
-  }
-
-  // 2. Check hamtab_session cookie for signed JWT (Turnstile users)
   const cookies = request.headers.get('Cookie') || '';
   const match = cookies.match(/(?:^|;\s*)hamtab_session=([^\s;]+)/);
   if (match && env.SESSION_SIGNING_KEY) {
@@ -128,11 +116,10 @@ async function getUserIdentity(request, env) {
       const uuid = payload.sub.slice(5); // strip "anon:" prefix
       // Validate UUID v4 format to prevent KV key injection
       if (/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(uuid)) {
-        return { type: 'anon', id: uuid };
+        return uuid;
       }
     }
   }
-
   return null;
 }
 
@@ -278,18 +265,15 @@ export default {
 
       // --- Settings KV routes ---
       if (url.pathname === '/api/settings') {
-        const identity = await getUserIdentity(request, env);
-        if (!identity) {
+        const userId = await getUserIdentity(request, env);
+        if (!userId) {
           return new Response(JSON.stringify({ error: 'Unauthorized' }), {
             status: 401,
             headers: { 'Content-Type': 'application/json' },
           });
         }
 
-        // Email users: "settings:{email}", anon users: "settings:anon:{uuid}"
-        const kvKey = identity.type === 'email'
-          ? `settings:${identity.id}`
-          : `settings:anon:${identity.id}`;
+        const kvKey = `settings:anon:${userId}`;
 
         if (request.method === 'GET') {
           const data = await env.SETTINGS_KV.get(kvKey, 'json');

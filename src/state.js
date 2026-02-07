@@ -18,8 +18,8 @@ const state = {
   // Filter presets per source
   filterPresets: { pota: {}, sota: {}, dxc: {} },
 
-  // Auto-refresh
-  autoRefreshEnabled: true,
+  // Auto-refresh — defaults to on, persisted in localStorage
+  autoRefreshEnabled: localStorage.getItem('hamtab_auto_refresh') !== 'false',
   countdownSeconds: 60,
   countdownTimer: null,
 

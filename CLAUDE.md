@@ -262,7 +262,7 @@ main ──────────────────────── SH
 - Test changes by running `npm start` and verifying in browser
 - New functions, intervals, and state fields must include comments per the Commenting Style rules above (citations, magic numbers, purpose)
 - **Toggleable error handling** — All generated code should include error handling that can be enabled for debugging. Use a debug flag or verbose mode that's off by default but can be turned on to surface errors (e.g. `if (state.debug) console.error(...)`). The capability must exist even if disabled in production.
-- **Documentation required** — Every user-facing feature must include user guide updates and widget help text updates before the feature is considered complete. See the User Guide Documentation section below.
+- **Documentation required** — Every user-facing feature must include **README.md**, user guide, and widget help text updates before the feature is considered complete. A feature without updated docs is not done. See the User Guide Documentation and README.md Updates sections below.
 
 ## Versioning & Updates
 
@@ -270,6 +270,41 @@ main ──────────────────────── SH
 - Bump `version` in `package.json` on every push: patch for fixes, minor for features
 - Rebuild (`npm run build`) after bumping to update the client bundle
 - **Version collision** — If pulling main brings in a version bump that matches yours (both devs independently bumped to same version), bump again after merge and rebuild. This is expected when multiple devs work in parallel.
+
+### Wiki Release Notes (mandatory on version bump)
+
+**Every version bump must include a corresponding entry in the [Release Notes wiki page](https://github.com/stevencheist/HamTabv1/wiki/Release-Notes).**
+
+The wiki is a separate git repo. To update:
+
+```bash
+# Clone wiki (or pull if already cloned)
+git clone git@github.com:stevencheist/HamTabv1.wiki.git /tmp/hamtab-wiki
+
+# Edit Release-Notes.md — add new version entry at the top (below the header)
+# Format:
+#   ## vX.Y.Z (YYYY-MM-DD)
+#   **Short Theme Title**
+#   - Bullet points describing features, fixes, and changes
+#   - Reference issue numbers where applicable ([#NNN](url))
+
+# Commit and push
+cd /tmp/hamtab-wiki
+git add Release-Notes.md
+git commit -m "Add vX.Y.Z release notes"
+git push
+
+# Clean up
+rm -rf /tmp/hamtab-wiki
+```
+
+**What to include in each entry:**
+- New features with brief description
+- Bug fixes with issue references
+- Breaking changes or behavior changes
+- Version bumps that are just collision fixes can share an entry with the feature they accompany
+
+**When to batch entries:** If multiple patch bumps happen in rapid succession for a single feature (e.g. v0.19.0 → v0.19.1 → v0.19.2 all for VOACAP), they can be individual entries or consolidated — use judgment. Minor/major bumps always get their own entry.
 
 **Lanmode updates:**
 - Auto-update: clicking the green update dot downloads the lanmode branch zip, extracts, copies files (preserving `.env`, `certs`, `node_modules`), runs `npm install --production` + `npm run build`, and restarts the server
@@ -499,7 +534,7 @@ When working on multiple related features or a feature set with more than one ta
 
 HamTab has a PDF user guide generated from Markdown files.
 
-**CRITICAL: Documentation is mandatory for every feature.** No feature is complete until the user guide is updated. Documentation updates must be included in the same commit (or commit series) as the feature code — never "come back to it later". If a feature is user-facing, it gets documented. No exceptions.
+**CRITICAL: Documentation is mandatory for every feature.** No feature is complete until **all three** are updated: (1) README.md features/widgets sections, (2) user guide content files, and (3) widget help text in `src/constants.js`. Documentation updates must be included in the same commit (or commit series) as the feature code — never "come back to it later". If a feature is user-facing, it gets documented. No exceptions.
 
 ### Location
 ```
@@ -530,7 +565,10 @@ Output: `public/HamTab-User-Guide.pdf`
 - Modify existing behavior users rely on → Update the relevant section
 
 **Documentation checklist (before committing a feature):**
-- [ ] Identified which doc file(s) need updating
+- [ ] Updated README.md Features section (new widget or feature)
+- [ ] Updated README.md Widgets config list (new toggleable widget)
+- [ ] Updated README.md Dependencies/APIs tables (new package or API)
+- [ ] Identified which user guide doc file(s) need updating
 - [ ] Described the feature in user-friendly language (no code jargon)
 - [ ] Included how to use it (step-by-step if needed)
 - [ ] Updated widget help text in `src/constants.js` if applicable

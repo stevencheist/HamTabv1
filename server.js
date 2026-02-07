@@ -87,6 +87,31 @@ const feedbackLimiter = rateLimit({
 });
 
 app.use(express.json());
+
+// --- Cache-Control headers ---
+// Browser + CDN cache hints for globally-shared API data.
+// Edge caching (Cloudflare) requires additional Worker-side config (hostedmode only).
+// max-age = browser TTL, s-maxage = shared/CDN TTL
+const CACHE_RULES = [
+  { prefix: '/api/solar/frames', cc: 'public, max-age=300, s-maxage=3600' },    // SDO hourly; browser 5m, edge 1h
+  { prefix: '/api/solar',        cc: 'public, max-age=300, s-maxage=3600' },    // upstream ~hourly; browser 5m, edge 1h
+  { prefix: '/api/spacewx/history', cc: 'public, max-age=300, s-maxage=900' },  // upstream 15m; browser 5m, edge 15m
+  { prefix: '/api/satellites/list', cc: 'public, max-age=3600, s-maxage=86400' }, // upstream daily; browser 1h, edge 24h
+  { prefix: '/api/satellites/tle',  cc: 'public, max-age=3600, s-maxage=21600' }, // Celestrak ~12h; browser 1h, edge 6h
+  { prefix: '/api/lunar',        cc: 'public, max-age=3600, s-maxage=21600' },  // computed; browser 1h, edge 6h
+  { prefix: '/api/dxpeditions',   cc: 'public, max-age=1800, s-maxage=86400' }, // NG3K ~daily; browser 30m, edge 24h
+  { prefix: '/api/contests',     cc: 'public, max-age=1800, s-maxage=21600' },  // schedules; browser 30m, edge 6h
+  { prefix: '/api/propagation',   cc: 'public, max-age=300, s-maxage=3600' },   // upstream ~hourly; browser 5m, edge 1h
+  { prefix: '/api/voacap/ssn',   cc: 'public, max-age=86400, s-maxage=604800' }, // NOAA monthly; browser 1d, edge 7d
+];
+
+app.use((req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const rule = CACHE_RULES.find(r => req.path === r.prefix || req.path.startsWith(r.prefix + '/'));
+  if (rule) res.set('Cache-Control', rule.cc);
+  next();
+});
+
 app.use(express.static('public'));
 
 // --- API Documentation (Swagger UI) ---

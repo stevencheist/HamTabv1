@@ -4,7 +4,7 @@
 
 This file is for **project-specific** instructions — architecture, code conventions, branch strategy, file locations, widgets, security rules, API patterns. Anything tied to HamTabV1.
 
-For **Claude behavior** instructions — coordination protocols, communication style, session habits, general patterns that apply across all SF Foundry projects — use `~/.claude/instructions.md` (symlinked to `sffoundry/ai-workflows`).
+For **Claude behavior** instructions — coordination protocols, communication style, session habits, general patterns that apply across all SF Foundry projects — use `~/.claude/instructions.md`.
 
 **If a rule appears in both files, `instructions.md` wins.**
 
@@ -256,7 +256,7 @@ main ──────────────────────── SH
 
 ### Wiki Release Notes (mandatory on version bump)
 
-Every version bump must include a corresponding entry in the [Release Notes wiki page](https://github.com/stevencheist/HamTabv1/wiki/Release-Notes). See `hamtab-planning/reference/claude-md-reference.md` for detailed wiki update instructions.
+Every version bump must include a corresponding entry in the [Release Notes wiki page](https://github.com/stevencheist/HamTabv1/wiki/Release-Notes). See the project reference docs for detailed wiki update instructions.
 
 **Lanmode updates:**
 - Auto-update: clicking the green update dot downloads the lanmode branch zip, extracts, copies files (preserving `.env`, `certs`, `node_modules`), runs `npm install --production` + `npm run build`, and restarts the server
@@ -289,7 +289,7 @@ SEO only matters for hamtab.net — lanmode runs on private LANs where search en
 | `README.md` | GitHub search & discoverability | `main` (GitHub-facing) |
 | `package.json` | npm/GitHub metadata (`description`, `keywords`) | `main` |
 
-**SEO checklists and TODOs** — See `hamtab-planning/reference/claude-md-reference.md`
+**SEO checklists and TODOs** — See the project reference docs
 
 ## Security (Priority)
 
@@ -353,7 +353,7 @@ HamTab has users worldwide, including the EU. Privacy and GDPR compliance are ma
 - **No cookies** — App uses localStorage exclusively, no tracking cookies
 - **No analytics** — No Google Analytics, Cloudflare Analytics, or similar tracking
 
-**Detailed GDPR checklists** — See `hamtab-planning/reference/claude-md-reference.md`
+**Detailed GDPR checklists** — See the project reference docs
 
 ## Working with Claude
 
@@ -370,7 +370,7 @@ Stay on `main` for most work. Use simple commands to manage branches:
 
 ### Claim/Release Work Protocol
 
-See `instructions.md` § Developer Coordination Protocol for the full claim/release steps. Planning repo: `~/code/hamtab-planning/working-on.md`.
+See `instructions.md` § Developer Coordination Protocol for the full claim/release steps.
 
 ### Workflow
 
@@ -399,11 +399,11 @@ This ensures we never merge into a stale local branch.
 
 ### End-of-Session Protocol
 
-See `instructions.md` § End-of-Session Protocol for the full checklist. In short: commit, push, sync branches (if code changed), update working-on.md, save session-state.md, confirm clean.
+See `instructions.md` § End-of-Session Protocol for the full checklist.
 
 ## Feature Tracking
 
-For multi-task features, create a tracking `.md` file in the repo root. See `hamtab-planning/reference/claude-md-reference.md` for details.
+For multi-task features, create a tracking `.md` file in the repo root. See the project reference docs for details.
 
 ## User Guide Documentation
 
@@ -448,11 +448,11 @@ Output: `public/HamTab-User-Guide.pdf`
 - [ ] Included how to use it (step-by-step if needed)
 - [ ] Updated widget help text in `src/constants.js` if applicable
 
-**Content files, screenshots, and writing style** — See `hamtab-planning/reference/claude-md-reference.md`
+**Content files, screenshots, and writing style** — See the project reference docs
 
 ## GitHub Issue Communication
 
-Be friendly, assume non-technical users, ask specific questions. See `hamtab-planning/reference/claude-md-reference.md` for full guidelines.
+Be friendly, assume non-technical users, ask specific questions. See the project reference docs for full guidelines.
 
 ## Root Cause Analysis Protocol
 

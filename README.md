@@ -1,39 +1,60 @@
 # HamTab
 
-A real-time amateur radio dashboard for [Parks on the Air (POTA)](https://pota.app) and [Summits on the Air (SOTA)](https://www.sota.org.uk/) activations. Displays live spots on an interactive map with solar propagation data, HF band conditions, ISS tracking, weather, and lunar/EME conditions — all in a customizable widget layout.
+A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstitute.com/ham/HamClock/) alternative. Displays live POTA, SOTA, DX Cluster, and PSKReporter spots on an interactive map with VOACAP propagation predictions, HF band conditions, space weather, satellite tracking, contests, DXpeditions, NCDXF beacons, weather, and lunar/EME data — all in a customizable, themeable widget layout.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green) ![Express](https://img.shields.io/badge/Express-4.x-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ## Features
 
-- **On the Air** — Real-time POTA and SOTA spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square, and a spot age column
-- **Interactive Map** — Leaflet map with clustered markers for both POTA and SOTA activations, dark tiles, and clickable popups with QRZ callsign links
+### Spots & Activations
+- **On the Air** — Real-time POTA, SOTA, DX Cluster, and PSKReporter spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
+- **Live Spots** — See where your signal is being received via PSKReporter — band cards show spot count or farthest distance per band with visual map lines
+- **DX Detail** — Detailed view of a selected spot with callsign info, frequency, distance/bearing, and QRZ link
+
+### Map & Overlays
+- **Interactive Map** — Leaflet map with clustered markers for POTA, SOTA, DX Cluster, and PSKReporter spots, dark tiles, and clickable popups with QRZ callsign links
 - **Map Center Controls** — Quick buttons to center on your QTH, prime meridian, or selected spot
 - **Day/Night Terminator** — Gray line overlay showing the solar terminator with a subtle daylight tint on the illuminated hemisphere
 - **Propagation Contours** — MUF and foF2 HF propagation overlays on the map from prop.kc2g.com
-- **ISS Tracking** — Real-time ISS position, orbital ground track, radio footprint circle, and ARISS amateur radio frequencies
+- **Map Overlays** — Toggleable lat/lon grid, Maidenhead grid squares, and timezone lines via map gear icon
+- **Satellite Tracking** — Real-time positions for ISS, SO-50, TEVEL, and custom satellites via N2YO with orbital ground tracks and radio footprint circles
+
+### Propagation & Space Weather
 - **Solar Indices** — Solar flux, sunspot number, A/K indices, X-ray flux, and signal noise level with 18 configurable fields
 - **HF Band Conditions** — Day/night conditions for 80m through 10m displayed in the header
+- **VOACAP DE→DX** — 24-hour propagation prediction grid with adjustable power (5W/100W/1kW), mode (CW/SSB/FT8), and path (short/long). Uses the Voice of America Coverage Analysis Program engine with automatic simplified fallback
+- **Space Weather History** — Historical graphs for Kp index, X-ray flux, SFI, solar wind speed, and Bz over the past week (90 days for SFI)
+
+### DX & Contesting
+- **Contests** — Active and upcoming contest calendar from WA7BNM with mode badges (CW/Phone/Digital) and links to contest rules
+- **DXpeditions** — Active and upcoming DXpedition tracker from NG3K with callsign, DXCC entity, operating dates, and QSL info
+- **NCDXF Beacons** — Real-time NCDXF/IARU International Beacon Project display — 18 synchronized worldwide beacons on 5 HF frequencies with 3-minute cycle countdown timer
+
+### Station Info
+- **DE/DX Info** — Side-by-side display of your station (DE) and selected DX station showing callsign, grid square, coordinates, sunrise/sunset, bearing, distance, and frequency
 - **Lunar / EME** — Moon phase, illumination, declination, distance, and relative path loss for EME operators with 9 configurable fields
-- **Weather Conditions** — Local weather display from Weather Underground (PWS key) or NWS as automatic fallback; source indicator badge shows which is active
-- **Weather Backgrounds** — Local clock widget background gradient changes to reflect current conditions (clear, cloudy, rain, snow, thunderstorm, fog) with day/night variants
-- **NWS Weather Alerts** — Severity-colored alert badge on local clock; click to view active alerts with headlines, descriptions, and NWS website links
-- **Day/Night Indicator** — SVG sun/moon graphic on clock widgets based on computed sunrise/sunset for your location
-- **Clock Styles** — Digital or analog clock face for both Local Time and UTC widgets
+- **Weather Conditions** — Local weather from Weather Underground (PWS key) or NWS as automatic fallback; source badge shows which is active
+- **Weather Backgrounds** — Clock widget background gradient reflects current conditions (clear, cloudy, rain, snow, thunderstorm, fog) with day/night variants
+- **NWS Weather Alerts** — Severity-colored alert badge on local clock; click to view active alerts with headlines, descriptions, and NWS links
+
+### Reference & Tools
+- **Reference Tabs** — Five built-in reference tabs: RST signal reports, NATO phonetic alphabet, Morse code with prosigns, Q-codes, and band plan privileges by license class
 - **License Privilege Filter** — For US callsigns, filter spots to only show frequencies and modes your license class allows
-- **Band Reference** — Built-in band plan reference popup showing frequency privileges by license class
-- **VOACAP Propagation** — Real HF propagation predictions powered by dvoacap-python (Python 3.11+). 24-hour reliability matrix, REL heatmap and circle map overlays, configurable power/mode/takeoff angle/path. Falls back to a simplified server-side model when Python is not available.
-- **Space Weather History** — Canvas-drawn graphs for 90-day solar flux, 7-day K-index, 7-day X-ray, solar wind speed, and Bz/Bt history
-- **DE/DX Info** — Station info panels showing DE and DX details with sunrise/sunset countdowns
-- **Contests** — Upcoming and active contest calendar from WA7BNM with clickable cards
-- **DXpeditions** — Active and upcoming DXpedition tracker from NG3K
-- **NCDXF Beacons** — Real-time NCDXF/IARU beacon rotation schedule with color-coded map markers
-- **Themes** — Built-in theme engine with Default (dark), LCARS (Star Trek TNG), Terminal (retro green), and HamClock themes. CSS variable swapping with per-theme shape overrides.
-- **Grid Layout** — Optional CSS Grid + Flex layout mode with map locked center, 5 permutations, drag-and-drop widget swapping, flex handles for independent vertical sizing, and track handles for column widths
-- **Widget Layout** — All panels are draggable and resizable with snap-to-edge, persisted across sessions (float mode), or structured grid cells (grid mode)
-- **Auto-Update** — Server checks for git updates at a configurable interval and can apply them with one click
+- **Filters** — Dedicated filter widget for band, mode, country, state, grid, distance, spot age, and license privilege filtering
+
+### Customization
+- **Themes** — Four built-in visual themes: Default (dark), LCARS (Star Trek TNG), Terminal (retro green), and HamClock (WB0OEW-inspired with political map tiles)
+- **Widget Layout** — All panels are draggable and resizable with snap-to-edge, persisted across sessions
+- **Grid Layout Mode** — Alternative to free-float with 5 grid permutations for organized widget arrangements
+- **Clock Styles** — Digital or analog clock face for both Local Time and UTC widgets
+- **Day/Night Indicator** — SVG sun/moon graphic on clock widgets based on computed sunrise/sunset
+
+### System
 - **Operator Identity** — Callsign prompt at startup with geolocation and Maidenhead grid square display
-- **Mobile-Friendly** — Responsive layout with stacked widgets, enlarged touch targets, and header reflow on phones/tablets
+- **Feedback System** — In-app feedback with encrypted email submission and privacy notice
+- **Configuration Export/Import** — Export and import all settings for backup or migration
+- **Auto-Update** — (Lanmode) Server checks for updates at a configurable interval and can apply them with one click
+- **Help System** — Every widget has a help button (?) with description, usage guide, and tips
 
 ---
 
@@ -410,16 +431,22 @@ Choose from built-in themes: **Default** (dark), **LCARS** (Star Trek TNG-inspir
 Toggle each widget on or off:
 - Local Time
 - UTC
+- Filters
 - On the Air
 - HamMap
 - Solar & Propagation
 - Space Weather History
+- Band Conditions
+- VOACAP DE→DX
+- Live Spots
 - Lunar / EME
-- VOACAP Propagation
-- DE/DX Info
+- Satellites
+- Reference
+- DX Detail
 - Contests
 - DXpeditions
 - NCDXF Beacons
+- DE/DX Info
 
 ### Update Check Interval
 
@@ -455,37 +482,24 @@ Displays UTC time, day, date, and year. Shares the same clock style setting as L
 
 ### On the Air
 
-Real-time POTA and SOTA activation spots.
+Real-time spots from four data sources.
 
-**Source tabs** — Switch between POTA and SOTA. Active tab is saved across sessions.
+**Source tabs** — Switch between POTA, SOTA, DXC (DX Cluster), and PSK (PSKReporter). Active tab is saved across sessions.
 
-**Columns displayed:**
+| Source | Data | Columns |
+|--------|------|---------|
+| **POTA** | Parks on the Air activator spots | Callsign, Freq, Mode, Ref, Park Name, Time |
+| **SOTA** | Summits on the Air spots | Callsign, Freq, Mode, Ref, Summit, Time |
+| **DXC** | DX Cluster worldwide spots | Callsign, Freq, Mode, DX, Distance, Age |
+| **PSK** | PSKReporter digital mode reports | TX Call, Freq, Mode, RX Call, SNR, Grid |
 
-| Column | Description |
-|--------|-------------|
-| Callsign | Activator callsign (hover for name/address/class tooltip, links to QRZ) |
-| Freq | Frequency in MHz |
-| Mode | Operating mode (CW, SSB, FM, FT8, etc.) |
-| Ref | Park or summit reference code (links to POTA/SOTA page) |
-| Name | Park name or summit details |
-| Time | Spot time |
+Callsign columns link to QRZ. Hover for name/address/class tooltip.
 
-**Filters:**
-
-| Filter | Available | Description |
-|--------|-----------|-------------|
-| Band | POTA, SOTA | Filter by amateur band (160m through 2m) |
-| Mode | POTA, SOTA | Filter by mode (CW, SSB, FM, FT8, etc.) |
-| Country | POTA only | Filter by DXCC entity prefix |
-| State | POTA only | Filter by US state |
-| Grid | POTA only | Filter by 4-character Maidenhead grid square |
-| My privileges | POTA only | US callsigns only — hides spots outside your license class frequency/mode privileges |
-
-Click any row to fly to that spot on the map. The selected spot is highlighted in the table and on the map with an orange marker.
+Click any row to fly to that spot on the map. The selected spot is highlighted in the table and on the map with an orange marker. Filters are controlled from the separate Filters widget.
 
 ### HamMap
 
-Interactive Leaflet map with dark tiles showing activation markers, your QTH, ISS position, propagation overlays, and the gray line terminator.
+Interactive Leaflet map with dark tiles showing activation markers, your QTH, satellite positions, propagation overlays, VOACAP coverage, and the gray line terminator. Tiles automatically switch to CARTO Voyager (political) in HamClock theme.
 
 **Map center controls** (buttons in the header):
 
@@ -507,11 +521,15 @@ Interactive Leaflet map with dark tiles showing activation markers, your QTH, IS
 
 | Feature | Description |
 |---------|-------------|
-| **Spot markers** | Clustered markers for all visible POTA/SOTA spots. Click for popup with callsign (QRZ link), frequency, reference, distance/bearing from your QTH |
+| **Spot markers** | Clustered markers for all visible POTA/SOTA/DXC/PSK spots. Click for popup with callsign (QRZ link), frequency, reference, distance/bearing from your QTH |
 | **Your QTH** | Lightning bolt marker with your callsign at your location |
-| **ISS** | Real-time ISS position with orbital ground track, radio footprint circle, and popup showing lat/lon, altitude, velocity, and ARISS frequencies |
+| **Satellites** | Real-time positions for ISS, amateur radio satellites, and custom NORAD IDs via N2YO. Orbital ground tracks and radio footprint circles |
 | **Gray line** | Day/night terminator overlay showing the solar terminator boundary |
 | **Propagation contours** | Color-coded MHz contour lines when MUF or foF2 is enabled |
+| **VOACAP overlays** | Circle and heatmap overlays showing propagation reach from your QTH |
+| **Lat/lon grid** | Toggleable coordinate grid overlay |
+| **Maidenhead grid** | Toggleable grid square boundaries overlay |
+| **Timezone lines** | Toggleable UTC timezone boundary overlay |
 
 ### Solar & Propagation
 
@@ -558,6 +576,95 @@ Moon data for EME (Earth-Moon-Earth) operators. Click the gear icon to choose wh
 | Ecliptic Latitude | ° | Hidden | — |
 | Right Ascension | ° | Hidden | — |
 
+### VOACAP DE→DX
+
+24-hour propagation prediction between your station and a DX target. Uses the Voice of America Coverage Analysis Program (VOACAP) engine when available, with an automatic simplified model fallback.
+
+| Control | Description |
+|---------|-------------|
+| **Power** | Transmit power: 5W, 100W, or 1kW |
+| **Mode** | Operating mode: CW, SSB, or FT8 (sets SNR thresholds) |
+| **Path** | Short path or long path propagation |
+| **Target** | Click a spot to predict propagation, or use overview mode for general coverage |
+
+The 24-hour grid shows predicted signal reliability for each UTC hour. Colors range from green (reliable) through yellow to red (poor). An "(sim)" label indicates the simplified fallback model is in use.
+
+### Space Weather History
+
+Historical space weather data graphed over time. Switch between tabs:
+
+| Tab | Data | Period |
+|-----|------|--------|
+| **Kp** | Geomagnetic Kp index | 7 days |
+| **X-Ray** | GOES X-ray flux | 7 days |
+| **SFI** | Solar Flux Index (10.7 cm) | 90 days |
+| **Wind** | Solar wind speed | 7 days |
+| **Bz** | IMF Bz component | 7 days |
+
+### Live Spots
+
+Shows where your signal is being received via PSKReporter. Requires your callsign to be configured.
+
+Band cards display either the number of spots or the farthest reception distance per band. Click a band card to see individual spots on the map with lines from your QTH to each receiving station.
+
+### Satellites
+
+Real-time satellite tracking via N2YO. Shows satellite positions on the map with orbital ground tracks and radio footprint circles.
+
+Default satellites include ISS, SO-50, and TEVEL series. Add custom satellites by NORAD catalog number in the config. Requires a free N2YO API key.
+
+### Contests
+
+Active and upcoming amateur radio contests from the WA7BNM Contest Calendar. Each entry shows the contest name, dates, mode badges (CW/Phone/Digital), and a link to the contest rules.
+
+### DXpeditions
+
+Active and upcoming DXpeditions from the NG3K DX Operations Calendar. Shows callsign, DXCC entity/location, operating dates, bands, and QSL information.
+
+### NCDXF Beacons
+
+Real-time display of the NCDXF/IARU International Beacon Project. Eighteen synchronized worldwide beacons transmit sequentially on five HF frequencies (14.1, 18.11, 21.15, 24.93, 28.2 MHz) in a 3-minute cycle. A countdown timer shows which beacon is currently transmitting on each frequency.
+
+### DE/DX Info
+
+Side-by-side display of your station (DE) and a selected DX station. Each panel shows:
+
+- Callsign and grid square
+- Latitude/longitude with cardinal directions (e.g., "33N 98W")
+- Sunrise/sunset times with countdown ("R in 3:42" / "S 5:00 ago")
+- Distance and bearing between stations
+
+Click any spot to populate the DX panel.
+
+### DX Detail
+
+Detailed information about the currently selected spot, including callsign lookup data, frequency, mode, reference, and a QRZ link.
+
+### Filters
+
+Dedicated filter controls for the On the Air widget. Available filters depend on the active source tab:
+
+| Filter | Sources | Description |
+|--------|---------|-------------|
+| Band | All | Filter by amateur band (160m through 2m) |
+| Mode | All | Filter by mode (CW, SSB, FM, FT8, etc.) |
+| Country | POTA, DXC | Filter by DXCC entity prefix |
+| State | POTA | Filter by US state |
+| Grid | POTA | Filter by 4-character Maidenhead grid square |
+| My privileges | POTA | US callsigns — hides spots outside your license class privileges |
+
+### Reference
+
+Five tabbed reference panels:
+
+| Tab | Content |
+|-----|---------|
+| **RST** | Signal report codes for readability, strength, and tone |
+| **Phonetic** | NATO phonetic alphabet (Alpha, Bravo, Charlie...) |
+| **Morse** | CW characters and prosigns with dit/dah patterns |
+| **Q-Codes** | Common Q-code abbreviations and meanings |
+| **Bands** | US amateur band plan with privileges by license class and "My privileges only" filter |
+
 ---
 
 ## Header Bar
@@ -569,9 +676,8 @@ The header bar shows your callsign, band conditions, and global controls.
 - **Callsign** — Links to your QRZ page. License class shown if US callsign.
 - **Name** — Looked up from callook.info
 - **Location** — Lat/lon and Maidenhead grid square
-- **Config** — Opens the configuration dialog
+- **Config** — Opens the configuration dialog (General, Appearance, Widgets, Data Sources tabs)
 - **Loc** — Refreshes your geolocation
-- **Band Ref** — Opens a band plan reference popup showing frequency privileges by license class. Check "My privileges only" to filter to your class.
 
 ### Band Conditions (center)
 
@@ -594,7 +700,9 @@ Color coded: **Good** (green), **Fair** (yellow), **Poor** (red).
 | **Refresh** | Manual refresh of all data |
 | **Reset Layout** | Restore default widget positions and sizes |
 | **Fullscreen** | Toggle browser fullscreen mode |
-| **Update indicator** | Shows whether a git update is available. Green dot = update ready (click to apply). Restart button appears when server files changed. |
+| **Feedback** | Open the feedback form to report issues or suggest features |
+| **Update indicator** | (Lanmode) Shows whether an update is available. Green dot = update ready (click to apply). Restart button appears when server files changed. |
+| **Mode badge** | Shows current deployment mode (Lanmode or Hostedmode) and version |
 
 ---
 
@@ -788,21 +896,22 @@ sudo ufw allow 3443/tcp
 
 ```
 HamTabv1/
-  server.js             Express server with API proxy endpoints
-  voacap-bridge.js      Node.js ↔ Python bridge for VOACAP predictions
-  voacap-worker.py      Python worker process (dvoacap-python)
-  package.json          Node.js project config
-  esbuild.mjs           Client JS bundler config (ES modules → IIFE)
-  start.sh              Restart wrapper for auto-update
-  .env                  Environment variables (PORT, HTTPS_PORT, HOST)
-  certs/                Auto-generated TLS certificates (gitignored)
-  src/                  ES module source files (bundled into public/app.js)
+  server.js              Express server with API proxy endpoints
+  server-config.js       Deployment mode detection and configuration
+  server-startup.js      HTTP/HTTPS listener startup
+  server-tls.js          Self-signed TLS certificate generation
+  voacap-bridge.js       Python VOACAP bridge (IPC to dvoacap)
+  package.json           Node.js project config
+  esbuild.mjs            Client JS bundler config
+  .env                   Environment variables (gitignored)
+  certs/                 Auto-generated TLS certificates (gitignored)
+  src/                   Client ES modules (bundled to public/app.js)
   public/
-    index.html          Main HTML page
-    style.css           All styles (dark theme, widgets, map, tables)
-    app.js              Bundled client application (built from src/)
-    vendor/             Leaflet and marker clustering libraries (bundled locally)
-  docs/user-guide/      User guide source files (Markdown → PDF)
+    index.html           Main HTML page
+    style.css            All styles (dark theme, widgets, map, tables)
+    app.js               Bundled client application (built from src/)
+    vendor/              Leaflet and marker clustering (bundled locally)
+  docs/user-guide/       User guide source (Markdown → PDF)
 ```
 
 ## License

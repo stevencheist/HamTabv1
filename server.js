@@ -9,6 +9,7 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { XMLParser } = require('fast-xml-parser');
 const dns = require('dns');
+const https = require('https');
 const cors = require('cors');
 const voacap = require('./voacap-bridge.js');
 const satellite = require('satellite.js');

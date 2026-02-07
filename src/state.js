@@ -162,6 +162,9 @@ const state = {
   lastDxpeditionData: null,   // cached /api/dxpeditions response
   lastContestData: null,      // cached /api/contests response
 
+  // Progressive scaling
+  reflowActive: false, // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
+
   // Init flag
   appInitialized: false,
 

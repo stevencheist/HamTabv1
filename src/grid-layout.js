@@ -6,7 +6,7 @@
 // Track handles on outer grid boundaries allow column width adjustment.
 
 import state from './state.js';
-import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, WIDGET_DEFS } from './constants.js';
+import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, WIDGET_DEFS, SCALE_REFERENCE_WIDTH } from './constants.js';
 
 let trackHandles = []; // currently active outer grid handle elements
 const MIN_FR = 0.3;    // minimum fr value to prevent outer grid track collapse
@@ -168,6 +168,7 @@ export function repositionGridHandles() {
 // --- Outer Grid Track Drag Handler ---
 
 function onHandleMouseDown(e) {
+  if (state.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return; // no resize in Zone B/C
   e.preventDefault();
   e.stopPropagation();
 
@@ -322,6 +323,7 @@ function removeWrappers() {
 // --- Flex Handle Drag System ---
 
 function onFlexHandleMouseDown(e) {
+  if (state.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return; // no resize in Zone B/C
   e.preventDefault();
   e.stopPropagation();
 
@@ -685,6 +687,7 @@ export function resetGridAssignments() {
 
 export function handleGridDragStart(widget, e) {
   if (widget.id === 'widget-map') return; // map is not draggable
+  if (state.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return; // no drag in Zone B/C
 
   e.preventDefault();
   const sourceId = widget.id;

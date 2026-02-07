@@ -1,5 +1,5 @@
 import state from './state.js';
-import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, getLayoutMode } from './constants.js';
+import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
 import { centerMapOnUser, updateUserMarker } from './map-init.js';
 import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, resetGridAssignments, repositionGridHandles } from './grid-layout.js';
 
@@ -331,6 +331,7 @@ function setupDrag(widget, handle) {
 
   handle.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
+    if (state.reflowActive || computeScaleFactor() < 1) return; // no drag in Zone B/C
     if (isGridMode()) {
       handleGridDragStart(widget, e);
       return;
@@ -373,6 +374,7 @@ function setupResize(widget, handle) {
   handle.addEventListener('mousedown', (e) => {
     if (e.button !== 0) return;
     if (isGridMode()) return; // no manual resize in grid mode
+    if (state.reflowActive || computeScaleFactor() < 1) return; // no resize in Zone B/C
     e.preventDefault();
     e.stopPropagation();
     bringToFront(widget);
@@ -509,6 +511,105 @@ function reflowWidgets() {
   saveWidgets();
 }
 
+// --- Progressive Responsive Scaling (Zone A/B/C) ---
+
+export function computeScaleFactor() {
+  const w = window.innerWidth;
+  if (w >= SCALE_REFERENCE_WIDTH) return 1.0;
+  return Math.max(w / SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR);
+}
+
+export function applyProgressiveScale() {
+  const area = document.getElementById('widgetArea');
+  if (!area) return;
+
+  const w = window.innerWidth;
+
+  // Zone C: reflow layout
+  if (w < SCALE_REFLOW_WIDTH) {
+    if (!state.reflowActive) applyReflowLayout();
+    return;
+  }
+
+  // Exiting Zone C → Zone A/B
+  if (state.reflowActive) exitReflowLayout();
+
+  const factor = computeScaleFactor();
+
+  if (factor < 1.0) {
+    // Zone B: proportional shrink via CSS scale()
+    area.style.transformOrigin = 'top left';
+    area.style.transform = `scale(${factor})`;
+    area.style.width = `${100 / factor}%`; // compensate for shrink so container fills viewport
+    area.classList.add('scaling-active');
+  } else {
+    // Zone A: full scale, no transform
+    area.style.transform = '';
+    area.style.width = '';
+    area.style.transformOrigin = '';
+    area.classList.remove('scaling-active');
+  }
+
+  // Leaflet map coordinate fix after scale change
+  if (state.map) state.map.invalidateSize();
+}
+
+function applyReflowLayout() {
+  const area = document.getElementById('widgetArea');
+  if (!area) return;
+
+  state.reflowActive = true;
+
+  // Clear any Zone B transform
+  area.style.transform = '';
+  area.style.width = '';
+  area.style.transformOrigin = '';
+  area.classList.remove('scaling-active');
+
+  // Apply reflow CSS class
+  area.classList.add('reflow-layout');
+
+  // Reorder widget DOM nodes by priority (visible ones first in order)
+  const vis = state.widgetVisibility || {};
+  REFLOW_WIDGET_ORDER.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (vis[id] === false) {
+      el.style.display = 'none';
+      return;
+    }
+    el.style.display = '';
+    area.appendChild(el); // moves to end, building priority order
+  });
+
+  if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
+}
+
+function exitReflowLayout() {
+  const area = document.getElementById('widgetArea');
+  if (!area) return;
+
+  state.reflowActive = false;
+  area.classList.remove('reflow-layout');
+
+  // Restore layout from saved state
+  if (isGridMode()) {
+    activateGridMode(state.gridPermutation);
+  } else {
+    // Restore float layout from localStorage
+    let layout;
+    try {
+      const saved = localStorage.getItem(WIDGET_STORAGE_KEY);
+      if (saved) layout = JSON.parse(saved);
+    } catch (e) {}
+    if (!layout) layout = getDefaultLayout();
+    applyLayout(layout);
+    applyWidgetVisibility();
+  }
+
+  if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
+}
+
 export function initWidgets() {
   let layout;
   try {
@@ -588,7 +689,13 @@ export function initWidgets() {
     let reflowTimer;
     new ResizeObserver(() => {
       clearTimeout(reflowTimer);
-      reflowTimer = setTimeout(reflowWidgets, 150);
+      reflowTimer = setTimeout(() => {
+        applyProgressiveScale();
+        // Only run float-mode reflowWidgets in Zone A (scale=1.0, no transform active)
+        if (computeScaleFactor() === 1.0 && !state.reflowActive) {
+          reflowWidgets();
+        }
+      }, 150);
     }).observe(document.getElementById('widgetArea'));
   }
 
@@ -596,4 +703,7 @@ export function initWidgets() {
   if (isGridMode()) {
     activateGridMode(state.gridPermutation);
   }
+
+  // Set correct scaling zone on initial load
+  applyProgressiveScale();
 }

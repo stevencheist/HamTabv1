@@ -4806,6 +4806,58 @@ header {
   color: var(--accent);
 }
 
+/* ---- Progressive Responsive Scaling ---- */
+
+/* Zone B: Scaling active — dim resize handles, disable drag cursor */
+.scaling-active .widget-resize {
+  opacity: 0.3;
+  pointer-events: none;
+}
+.scaling-active .widget-header {
+  cursor: default;
+}
+
+/* Zone C: Reflow layout — scrollable columnar grid */
+.reflow-layout {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 6px;
+  padding: 6px;
+  overflow-y: auto !important;
+  overflow-x: hidden;
+}
+
+.reflow-layout .widget {
+  position: static !important;
+  width: auto !important;
+  height: auto !important;
+  left: auto !important;
+  top: auto !important;
+  min-height: 120px;
+  z-index: auto !important;
+}
+
+.reflow-layout .widget-header {
+  cursor: default;
+}
+
+.reflow-layout .widget-resize {
+  display: none;
+}
+
+.reflow-layout #widget-map {
+  min-height: 300px;
+}
+
+.reflow-layout #widget-map .widget-body,
+.reflow-layout #widget-map #map {
+  height: 280px;
+}
+
+.reflow-layout #widget-activations .widget-body {
+  max-height: 300px;
+}
+
 /* ==== Responsive — Tablet (< 1024px) ==== */
 
 @media (max-width: 1023px) {

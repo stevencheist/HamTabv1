@@ -44,11 +44,12 @@
         // minutes (null = no filter)
         // Filter presets per source
         filterPresets: { pota: {}, sota: {}, dxc: {} },
-        // Auto-refresh
-        autoRefreshEnabled: true,
+        // Auto-refresh — defaults to on, persisted in localStorage
+        autoRefreshEnabled: localStorage.getItem("hamtab_auto_refresh") !== "false",
         countdownSeconds: 60,
         countdownTimer: null,
         // Preferences
+        slimHeader: localStorage.getItem("hamtab_slim_header") === "true",
         use24h: localStorage.getItem("hamtab_time24") !== "false",
         privilegeFilterEnabled: localStorage.getItem("hamtab_privilege_filter") === "true",
         licenseClass: localStorage.getItem("hamtab_license_class") || "",
@@ -4600,6 +4601,9 @@ ${beacon.location}`);
     const savedId = localStorage.getItem(STORAGE_KEY) || "default";
     const themeId = THEMES[savedId] ? savedId : "default";
     applyTheme(themeId);
+    if (localStorage.getItem("hamtab_slim_header") === "true") {
+      document.body.classList.add("slim-header");
+    }
   }
   function currentThemeSupportsGrid() {
     const theme = THEMES[activeThemeId];
@@ -4992,13 +4996,17 @@ ${beacon.location}`);
       }
       const widgetId = state_default.gridAssignments[cellName];
       let el;
-      if (widgetId) {
+      const isVisible = widgetId && state_default.widgetVisibility && state_default.widgetVisibility[widgetId] !== false;
+      if (isVisible) {
         el = document.getElementById(widgetId);
         if (el) {
           el.style.gridArea = "";
           el.style.display = "";
           wrapper.appendChild(el);
         }
+      } else if (widgetId) {
+        const hiddenEl = document.getElementById(widgetId);
+        if (hiddenEl) hiddenEl.style.display = "none";
       }
       if (!el) {
         el = document.createElement("div");
@@ -5117,11 +5125,12 @@ ${beacon.location}`);
     populateWrapper("grid-bar-top", perm.top, "topFlex", false, customSizes);
     populateWrapper("grid-bar-bottom", perm.bottom, "bottomFlex", false, customSizes);
     const assignedWidgets = new Set(Object.values(state_default.gridAssignments));
+    const vis = state_default.widgetVisibility || {};
     WIDGET_DEFS.forEach((def) => {
       if (def.id === "widget-map") return;
-      if (assignedWidgets.has(def.id)) return;
       const el = document.getElementById(def.id);
-      if (el) {
+      if (!el) return;
+      if (!assignedWidgets.has(def.id) || vis[def.id] === false) {
         el.style.gridArea = "";
         el.style.display = "none";
       }
@@ -6058,666 +6067,11 @@ ${beacon.location}`);
   // src/splash.js
   init_filters();
   init_constants();
-  function updateOperatorDisplay2() {
-    const opCall = $("opCall");
-    const opLoc = $("opLoc");
-    if (state_default.myCallsign) {
-      const qrz = `https://www.qrz.com/db/${encodeURIComponent(state_default.myCallsign)}`;
-      let classLabel = state_default.licenseClass ? ` [${state_default.licenseClass}]` : "";
-      opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc(state_default.myCallsign)}</a><span class="op-class">${esc(classLabel)}</span>`;
-      const info = state_default.callsignCache[state_default.myCallsign.toUpperCase()];
-      const opName = document.getElementById("opName");
-      if (opName) {
-        opName.textContent = info ? info.name : "";
-      }
-    } else {
-      opCall.textContent = "";
-      const opName = document.getElementById("opName");
-      if (opName) opName.textContent = "";
-    }
-    if (state_default.myLat !== null && state_default.myLon !== null) {
-      const grid = latLonToGrid(state_default.myLat, state_default.myLon);
-      opLoc.textContent = `${state_default.myLat.toFixed(2)}, ${state_default.myLon.toFixed(2)} [${grid}]`;
-    } else {
-      opLoc.textContent = "Location unknown";
-    }
-  }
-  function fetchLocation() {
-    if (state_default.manualLoc) return;
-    if (!navigator.geolocation) {
-      $("opLoc").textContent = "Geolocation unavailable";
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const newLat = pos.coords.latitude;
-        const newLon = pos.coords.longitude;
-        const changed = state_default.myLat !== newLat || state_default.myLon !== newLon;
-        state_default.myLat = newLat;
-        state_default.myLon = newLon;
-        localStorage.setItem("hamtab_gps_lat", String(newLat));
-        localStorage.setItem("hamtab_gps_lon", String(newLon));
-        updateOperatorDisplay2();
-        centerMapOnUser();
-        updateUserMarker();
-        if (changed && state_default.appInitialized) startNwsPolling();
-      },
-      () => {
-        $("opLoc").textContent = "Location denied";
-      },
-      { enableHighAccuracy: false, timeout: 1e4 }
-    );
-  }
-  function getGridSuggestions(prefix) {
-    const results = [];
-    const p = prefix.toUpperCase();
-    if (p.length === 0 || p.length >= 4) return results;
-    const fieldChars = "ABCDEFGHIJKLMNOPQR";
-    const digitChars = "0123456789";
-    function generate(current, pos) {
-      if (results.length >= 20) return;
-      if (current.length === 4) {
-        results.push(current);
-        return;
-      }
-      const chars = pos < 2 ? fieldChars : digitChars;
-      for (let i = 0; i < chars.length; i++) {
-        if (results.length >= 20) return;
-        const ch = chars[i];
-        if (pos < p.length) {
-          if (ch === p[pos]) {
-            generate(current + ch, pos + 1);
-          }
-        } else {
-          generate(current + ch, pos + 1);
-        }
-      }
-    }
-    generate("", 0);
-    return results;
-  }
-  function showGridSuggestions(prefix) {
-    const splashGridDropdown = $("splashGridDropdown");
-    const suggestions = getGridSuggestions(prefix);
-    splashGridDropdown.innerHTML = "";
-    state_default.gridHighlightIdx = -1;
-    if (suggestions.length === 0) {
-      splashGridDropdown.classList.remove("open");
-      return;
-    }
-    suggestions.forEach((grid) => {
-      const div = document.createElement("div");
-      div.className = "grid-option";
-      div.textContent = grid;
-      div.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        selectGridSuggestion(grid);
-      });
-      splashGridDropdown.appendChild(div);
-    });
-    splashGridDropdown.classList.add("open");
-  }
-  function selectGridSuggestion(grid) {
-    const splashGrid = $("splashGrid");
-    const splashGridDropdown = $("splashGridDropdown");
-    splashGrid.value = grid;
-    splashGridDropdown.classList.remove("open");
-    splashGridDropdown.innerHTML = "";
-    state_default.gridHighlightIdx = -1;
-    const ll = gridToLatLon(grid);
-    if (ll) {
-      state_default.syncingFields = true;
-      $("splashLat").value = ll.lat.toFixed(2);
-      $("splashLon").value = ll.lon.toFixed(2);
-      state_default.myLat = ll.lat;
-      state_default.myLon = ll.lon;
-      state_default.syncingFields = false;
-      state_default.manualLoc = true;
-      $("splashGpsBtn").classList.remove("active");
-      updateLocStatus("Manual location set");
-    }
-  }
-  function updateLocStatus(msg, isError) {
-    const el = $("splashLocStatus");
-    el.textContent = msg || "";
-    el.classList.toggle("error", !!isError);
-  }
-  function updateGridHighlight() {
-    const options = $("splashGridDropdown").querySelectorAll(".grid-option");
-    options.forEach((opt, i) => {
-      opt.classList.toggle("highlighted", i === state_default.gridHighlightIdx);
-    });
-    if (state_default.gridHighlightIdx >= 0 && options[state_default.gridHighlightIdx]) {
-      options[state_default.gridHighlightIdx].scrollIntoView({ block: "nearest" });
-    }
-  }
-  var _initApp = null;
-  function setInitApp(fn) {
-    _initApp = fn;
-  }
-  function showSplash() {
-    const splash = $("splash");
-    splash.classList.remove("hidden");
-    splash.querySelectorAll(".config-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === "station"));
-    splash.querySelectorAll(".config-panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === "station"));
-    $("splashCallsign").value = state_default.myCallsign;
-    if (state_default.myLat !== null && state_default.myLon !== null) {
-      $("splashLat").value = state_default.myLat.toFixed(2);
-      $("splashLon").value = state_default.myLon.toFixed(2);
-      const grid = latLonToGrid(state_default.myLat, state_default.myLon);
-      $("splashGrid").value = grid.substring(0, 4).toUpperCase();
-    } else {
-      $("splashLat").value = "";
-      $("splashLon").value = "";
-      $("splashGrid").value = "";
-    }
-    if (state_default.manualLoc) {
-      $("splashGpsBtn").classList.remove("active");
-      updateLocStatus("Manual override active");
-    } else {
-      $("splashGpsBtn").classList.add("active");
-      updateLocStatus("Using GPS");
-    }
-    const timeFmt24 = $("timeFmt24");
-    const timeFmt12 = $("timeFmt12");
-    if (timeFmt24) timeFmt24.checked = state_default.use24h;
-    if (timeFmt12) timeFmt12.checked = !state_default.use24h;
-    const distUnitMi = $("distUnitMi");
-    const distUnitKm = $("distUnitKm");
-    if (distUnitMi) distUnitMi.checked = state_default.distanceUnit === "mi";
-    if (distUnitKm) distUnitKm.checked = state_default.distanceUnit === "km";
-    const tempUnitF = $("tempUnitF");
-    const tempUnitC = $("tempUnitC");
-    if (tempUnitF) tempUnitF.checked = state_default.temperatureUnit === "F";
-    if (tempUnitC) tempUnitC.checked = state_default.temperatureUnit === "C";
-    const widgetList = document.getElementById("splashWidgetList");
-    widgetList.innerHTML = "";
-    WIDGET_DEFS.forEach((w) => {
-      const label = document.createElement("label");
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.dataset.widgetId = w.id;
-      cb.checked = state_default.widgetVisibility[w.id] !== false;
-      label.appendChild(cb);
-      label.appendChild(document.createTextNode(w.name));
-      widgetList.appendChild(label);
-    });
-    $("splashWxStation").value = state_default.wxStation;
-    $("splashWxApiKey").value = state_default.wxApiKey;
-    $("splashN2yoApiKey").value = state_default.n2yoApiKey;
-    const intervalSelect = $("splashUpdateInterval");
-    if (intervalSelect) {
-      const savedInterval = localStorage.getItem("hamtab_update_interval") || "60";
-      intervalSelect.value = savedInterval;
-    }
-    $("splashGridDropdown").classList.remove("open");
-    $("splashGridDropdown").innerHTML = "";
-    state_default.gridHighlightIdx = -1;
-    const themeSelector = document.getElementById("themeSelector");
-    if (themeSelector) {
-      themeSelector.innerHTML = "";
-      const themes = getThemeList();
-      const currentId = getCurrentThemeId();
-      themes.forEach((t) => {
-        const swatch = document.createElement("div");
-        swatch.className = "theme-swatch" + (t.id === currentId ? " active" : "");
-        swatch.dataset.themeId = t.id;
-        const colors = getThemeSwatchColors(t.id);
-        const colorsDiv = document.createElement("div");
-        colorsDiv.className = "theme-swatch-colors";
-        colors.forEach((c) => {
-          const span = document.createElement("span");
-          span.style.background = c;
-          colorsDiv.appendChild(span);
-        });
-        swatch.appendChild(colorsDiv);
-        const nameDiv = document.createElement("div");
-        nameDiv.className = "theme-swatch-name";
-        nameDiv.textContent = t.name;
-        swatch.appendChild(nameDiv);
-        const descDiv = document.createElement("div");
-        descDiv.className = "theme-swatch-desc";
-        descDiv.textContent = t.description;
-        swatch.appendChild(descDiv);
-        swatch.addEventListener("click", () => {
-          applyTheme(t.id);
-          themeSelector.querySelectorAll(".theme-swatch").forEach((s) => s.classList.remove("active"));
-          swatch.classList.add("active");
-          const gridSec = document.getElementById("gridModeSection");
-          if (gridSec) {
-            const supports = currentThemeSupportsGrid();
-            gridSec.style.display = supports ? "" : "none";
-            if (!supports) {
-              const floatRadio = document.getElementById("layoutModeFloat");
-              if (floatRadio) floatRadio.checked = true;
-              const permSec = document.getElementById("gridPermSection");
-              if (permSec) permSec.style.display = "none";
-            }
-          }
-        });
-        themeSelector.appendChild(swatch);
-      });
-    }
-    $("splashVersion").textContent = "0.28.1";
-    $("aboutVersion").textContent = "0.28.1";
-    const gridSection = document.getElementById("gridModeSection");
-    const gridPermSection = document.getElementById("gridPermSection");
-    if (gridSection) {
-      gridSection.style.display = currentThemeSupportsGrid() ? "" : "none";
-      $("layoutModeFloat").checked = state_default.gridMode !== "grid";
-      $("layoutModeGrid").checked = state_default.gridMode === "grid";
-      const permSelect = document.getElementById("gridPermSelect");
-      if (permSelect) {
-        permSelect.innerHTML = "";
-        GRID_PERMUTATIONS.forEach((p) => {
-          const opt = document.createElement("option");
-          opt.value = p.id;
-          opt.textContent = `${p.name} (${p.slots} slots)`;
-          permSelect.appendChild(opt);
-        });
-        permSelect.value = state_default.gridPermutation;
-      }
-      if (gridPermSection) {
-        gridPermSection.style.display = state_default.gridMode === "grid" ? "" : "none";
-      }
-      renderGridPreview(state_default.gridPermutation);
-    }
-    const hasSaved = hasUserLayout();
-    $("splashClearLayout").disabled = !hasSaved;
-    $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
-    $("splashCallsign").focus();
-  }
-  function dismissSplash() {
-    const val = $("splashCallsign").value.trim().toUpperCase();
-    if (!val) return;
-    state_default.myCallsign = val;
-    localStorage.setItem("hamtab_callsign", state_default.myCallsign);
-    if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
-      localStorage.setItem("hamtab_lat", String(state_default.myLat));
-      localStorage.setItem("hamtab_lon", String(state_default.myLon));
-    }
-    state_default.use24h = $("timeFmt24").checked;
-    localStorage.setItem("hamtab_time24", String(state_default.use24h));
-    state_default.distanceUnit = $("distUnitKm").checked ? "km" : "mi";
-    state_default.temperatureUnit = $("tempUnitC").checked ? "C" : "F";
-    localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
-    localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
-    state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
-    state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
-    state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
-    localStorage.setItem("hamtab_wx_station", state_default.wxStation);
-    localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
-    localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
-    const envUpdates = {};
-    if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
-    if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
-    if (Object.keys(envUpdates).length > 0) {
-      fetch("/api/config/env", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(envUpdates)
-      }).catch(() => {
-      });
-    }
-    fetchWeather();
-    const widgetList = document.getElementById("splashWidgetList");
-    widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
-    });
-    saveWidgetVisibility();
-    if (currentThemeSupportsGrid()) {
-      const newMode = $("layoutModeGrid").checked ? "grid" : "float";
-      const permSelect = document.getElementById("gridPermSelect");
-      const newPerm = permSelect ? permSelect.value : state_default.gridPermutation;
-      if (newMode === "grid" && state_default.gridMode !== "grid") {
-        state_default.gridPermutation = newPerm;
-        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
-        state_default.gridAssignments = defaults ? { ...defaults } : {};
-        saveGridAssignments();
-        activateGridMode(newPerm);
-      } else if (newMode === "grid" && newPerm !== state_default.gridPermutation) {
-        state_default.gridPermutation = newPerm;
-        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
-        state_default.gridAssignments = defaults ? { ...defaults } : {};
-        saveGridAssignments();
-        activateGridMode(newPerm);
-      } else if (newMode === "float" && state_default.gridMode === "grid") {
-        deactivateGridMode();
-      }
-    }
-    applyWidgetVisibility();
-    const intervalSelect = $("splashUpdateInterval");
-    if (intervalSelect) {
-      const intervalVal = intervalSelect.value;
-      localStorage.setItem("hamtab_update_interval", intervalVal);
-      fetch("/api/update/interval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
-      }).catch(() => {
-      });
-    }
-    $("splashGridDropdown").classList.remove("open");
-    $("splash").classList.add("hidden");
-    updateOperatorDisplay2();
-    centerMapOnUser();
-    updateUserMarker();
-    updateClocks();
-    renderSpots();
-    if (_initApp) _initApp();
-    fetchLicenseClass(state_default.myCallsign);
-  }
-  function initSplashListeners() {
-    document.querySelectorAll(".config-tab").forEach((tab) => {
-      tab.addEventListener("click", () => {
-        document.querySelectorAll(".config-tab").forEach((t) => t.classList.remove("active"));
-        document.querySelectorAll(".config-panel").forEach((p) => p.classList.remove("active"));
-        tab.classList.add("active");
-        document.querySelector(`.config-panel[data-panel="${tab.dataset.tab}"]`).classList.add("active");
-      });
-    });
-    $("splashOk").addEventListener("click", dismissSplash);
-    $("splashCallsign").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") dismissSplash();
-    });
-    function onLatLonInput() {
-      if (state_default.syncingFields) return;
-      state_default.manualLoc = true;
-      $("splashGpsBtn").classList.remove("active");
-      const lat = parseFloat($("splashLat").value);
-      const lon = parseFloat($("splashLon").value);
-      if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
-        state_default.syncingFields = true;
-        $("splashGrid").value = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
-        state_default.myLat = lat;
-        state_default.myLon = lon;
-        state_default.syncingFields = false;
-        updateLocStatus("Manual location set");
-      } else {
-        updateLocStatus("");
-      }
-    }
-    $("splashLat").addEventListener("input", onLatLonInput);
-    $("splashLon").addEventListener("input", onLatLonInput);
-    $("splashGrid").addEventListener("input", () => {
-      if (state_default.syncingFields) return;
-      state_default.manualLoc = true;
-      $("splashGpsBtn").classList.remove("active");
-      const val = $("splashGrid").value.toUpperCase();
-      if (val.length === 4) {
-        const ll = gridToLatLon(val);
-        if (ll) {
-          state_default.syncingFields = true;
-          $("splashLat").value = ll.lat.toFixed(2);
-          $("splashLon").value = ll.lon.toFixed(2);
-          state_default.myLat = ll.lat;
-          state_default.myLon = ll.lon;
-          state_default.syncingFields = false;
-          updateLocStatus("Manual location set");
-        }
-        $("splashGridDropdown").classList.remove("open");
-        $("splashGridDropdown").innerHTML = "";
-        state_default.gridHighlightIdx = -1;
-      } else if (val.length > 0 && val.length < 4) {
-        showGridSuggestions(val);
-      } else {
-        $("splashGridDropdown").classList.remove("open");
-        $("splashGridDropdown").innerHTML = "";
-        state_default.gridHighlightIdx = -1;
-        updateLocStatus("");
-      }
-    });
-    $("splashGrid").addEventListener("keydown", (e) => {
-      const options = $("splashGridDropdown").querySelectorAll(".grid-option");
-      if (!$("splashGridDropdown").classList.contains("open") || options.length === 0) {
-        if (e.key === "Enter") dismissSplash();
-        return;
-      }
-      if (e.key === "ArrowDown") {
-        e.preventDefault();
-        state_default.gridHighlightIdx = Math.min(state_default.gridHighlightIdx + 1, options.length - 1);
-        updateGridHighlight();
-      } else if (e.key === "ArrowUp") {
-        e.preventDefault();
-        state_default.gridHighlightIdx = Math.max(state_default.gridHighlightIdx - 1, 0);
-        updateGridHighlight();
-      } else if (e.key === "Enter") {
-        e.preventDefault();
-        if (state_default.gridHighlightIdx >= 0 && options[state_default.gridHighlightIdx]) {
-          selectGridSuggestion(options[state_default.gridHighlightIdx].textContent);
-        }
-      } else if (e.key === "Escape") {
-        $("splashGridDropdown").classList.remove("open");
-        $("splashGridDropdown").innerHTML = "";
-        state_default.gridHighlightIdx = -1;
-      }
-    });
-    $("splashGrid").addEventListener("blur", () => {
-      setTimeout(() => {
-        $("splashGridDropdown").classList.remove("open");
-        $("splashGridDropdown").innerHTML = "";
-        state_default.gridHighlightIdx = -1;
-      }, 150);
-    });
-    $("splashLat").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") dismissSplash();
-    });
-    $("splashLon").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") dismissSplash();
-    });
-    $("splashGpsBtn").addEventListener("click", () => {
-      state_default.manualLoc = false;
-      localStorage.removeItem("hamtab_lat");
-      localStorage.removeItem("hamtab_lon");
-      $("splashGpsBtn").classList.add("active");
-      updateLocStatus("Using GPS");
-      if (navigator.geolocation) {
-        $("opLoc").textContent = "Locating...";
-        navigator.geolocation.getCurrentPosition(
-          (pos) => {
-            state_default.myLat = pos.coords.latitude;
-            state_default.myLon = pos.coords.longitude;
-            state_default.syncingFields = true;
-            $("splashLat").value = state_default.myLat.toFixed(2);
-            $("splashLon").value = state_default.myLon.toFixed(2);
-            $("splashGrid").value = latLonToGrid(state_default.myLat, state_default.myLon).substring(0, 4).toUpperCase();
-            state_default.syncingFields = false;
-            updateOperatorDisplay2();
-            centerMapOnUser();
-            updateUserMarker();
-            updateLocStatus("Using GPS");
-          },
-          () => {
-            updateLocStatus("Location denied", true);
-            $("opLoc").textContent = "Location denied";
-          },
-          { enableHighAccuracy: false, timeout: 1e4 }
-        );
-      } else {
-        updateLocStatus("Geolocation unavailable", true);
-      }
-    });
-    $("splashSaveLayout").addEventListener("click", () => {
-      saveUserLayout();
-      $("splashLayoutStatus").textContent = "Layout saved";
-      $("splashClearLayout").disabled = false;
-    });
-    $("splashClearLayout").addEventListener("click", () => {
-      clearUserLayout();
-      $("splashLayoutStatus").textContent = "App default restored";
-      $("splashClearLayout").disabled = true;
-    });
-    const layoutModeFloat = document.getElementById("layoutModeFloat");
-    const layoutModeGrid = document.getElementById("layoutModeGrid");
-    const gridPermSelect = document.getElementById("gridPermSelect");
-    const gridPermSection = document.getElementById("gridPermSection");
-    if (layoutModeFloat && layoutModeGrid) {
-      layoutModeFloat.addEventListener("change", () => {
-        if (gridPermSection) gridPermSection.style.display = "none";
-      });
-      layoutModeGrid.addEventListener("change", () => {
-        if (gridPermSection) gridPermSection.style.display = "";
-        if (gridPermSelect) renderGridPreview(gridPermSelect.value);
-      });
-    }
-    if (gridPermSelect) {
-      gridPermSelect.addEventListener("change", () => {
-        renderGridPreview(gridPermSelect.value);
-      });
-    }
-    $("editCallBtn").addEventListener("click", () => {
-      showSplash();
-    });
-    $("refreshLocBtn").addEventListener("click", () => {
-      if (state_default.manualLoc) {
-        showSplash();
-      } else {
-        $("opLoc").textContent = "Locating...";
-        fetchLocation();
-      }
-    });
-  }
-  function renderGridPreview(permId) {
-    const container = document.getElementById("gridPermPreview");
-    if (!container) return;
-    const perm = getGridPermutation(permId);
-    container.innerHTML = "";
-    container.style.gridTemplateAreas = perm.areas;
-    container.style.gridTemplateColumns = perm.columns;
-    container.style.gridTemplateRows = perm.rows;
-    const mapCell = document.createElement("div");
-    mapCell.className = "grid-preview-cell grid-preview-map";
-    mapCell.style.gridArea = "map";
-    mapCell.textContent = "MAP";
-    container.appendChild(mapCell);
-    perm.cellNames.forEach((name) => {
-      const cell = document.createElement("div");
-      cell.className = "grid-preview-cell";
-      cell.style.gridArea = name;
-      cell.textContent = name;
-      container.appendChild(cell);
-    });
-  }
-
-  // src/config.js
-  init_state();
-  init_dom();
-  init_constants();
-  init_solar();
-  init_lunar();
-  init_map_overlays();
-  init_spots();
-  function initConfigListeners() {
-    $("solarCfgBtn").addEventListener("mousedown", (e) => {
-      e.stopPropagation();
-    });
-    $("solarCfgBtn").addEventListener("click", () => {
-      const solarFieldList = $("solarFieldList");
-      solarFieldList.innerHTML = "";
-      SOLAR_FIELD_DEFS.forEach((f) => {
-        const label = document.createElement("label");
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.dataset.fieldKey = f.key;
-        cb.checked = state_default.solarFieldVisibility[f.key] !== false;
-        label.appendChild(cb);
-        label.appendChild(document.createTextNode(f.label));
-        solarFieldList.appendChild(label);
-      });
-      $("solarCfgSplash").classList.remove("hidden");
-    });
-    $("solarCfgOk").addEventListener("click", () => {
-      $("solarFieldList").querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-        state_default.solarFieldVisibility[cb.dataset.fieldKey] = cb.checked;
-      });
-      saveSolarFieldVisibility();
-      $("solarCfgSplash").classList.add("hidden");
-      if (state_default.lastSolarData) renderSolar(state_default.lastSolarData);
-    });
-    $("lunarCfgBtn").addEventListener("mousedown", (e) => {
-      e.stopPropagation();
-    });
-    $("lunarCfgBtn").addEventListener("click", () => {
-      const lunarFieldList = $("lunarFieldList");
-      lunarFieldList.innerHTML = "";
-      LUNAR_FIELD_DEFS.forEach((f) => {
-        const label = document.createElement("label");
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.dataset.fieldKey = f.key;
-        cb.checked = state_default.lunarFieldVisibility[f.key] !== false;
-        label.appendChild(cb);
-        label.appendChild(document.createTextNode(f.label));
-        lunarFieldList.appendChild(label);
-      });
-      $("lunarCfgSplash").classList.remove("hidden");
-    });
-    $("lunarCfgOk").addEventListener("click", () => {
-      $("lunarFieldList").querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-        state_default.lunarFieldVisibility[cb.dataset.fieldKey] = cb.checked;
-      });
-      saveLunarFieldVisibility();
-      $("lunarCfgSplash").classList.add("hidden");
-      if (state_default.lastLunarData) renderLunar(state_default.lastLunarData);
-    });
-    const mapOverlayCfgBtn = $("mapOverlayCfgBtn");
-    const mapOverlayCfgSplash = $("mapOverlayCfgSplash");
-    const mapOverlayCfgOk = $("mapOverlayCfgOk");
-    if (mapOverlayCfgBtn) {
-      mapOverlayCfgBtn.addEventListener("mousedown", (e) => {
-        e.stopPropagation();
-      });
-      mapOverlayCfgBtn.addEventListener("click", () => {
-        $("mapOvLatLon").checked = state_default.mapOverlays.latLonGrid;
-        $("mapOvMaidenhead").checked = state_default.mapOverlays.maidenheadGrid;
-        $("mapOvTimezone").checked = state_default.mapOverlays.timezoneGrid;
-        mapOverlayCfgSplash.classList.remove("hidden");
-      });
-    }
-    if (mapOverlayCfgOk) {
-      mapOverlayCfgOk.addEventListener("click", () => {
-        state_default.mapOverlays.latLonGrid = $("mapOvLatLon").checked;
-        state_default.mapOverlays.maidenheadGrid = $("mapOvMaidenhead").checked;
-        state_default.mapOverlays.timezoneGrid = $("mapOvTimezone").checked;
-        saveMapOverlays();
-        mapOverlayCfgSplash.classList.add("hidden");
-        renderAllMapOverlays();
-      });
-    }
-    $("spotColCfgBtn").addEventListener("mousedown", (e) => {
-      e.stopPropagation();
-    });
-    $("spotColCfgBtn").addEventListener("click", () => {
-      const fieldList = $("spotColFieldList");
-      fieldList.innerHTML = "";
-      SOURCE_DEFS[state_default.currentSource].columns.forEach((col) => {
-        const label = document.createElement("label");
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.dataset.fieldKey = col.key;
-        cb.checked = state_default.spotColumnVisibility[col.key] !== false;
-        label.appendChild(cb);
-        label.appendChild(document.createTextNode(col.label));
-        fieldList.appendChild(label);
-      });
-      $("spotColCfgSplash").classList.remove("hidden");
-    });
-    $("spotColCfgOk").addEventListener("click", () => {
-      $("spotColFieldList").querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-        state_default.spotColumnVisibility[cb.dataset.fieldKey] = cb.checked;
-      });
-      saveSpotColumnVisibility();
-      $("spotColCfgSplash").classList.add("hidden");
-      updateTableColumns();
-      renderSpots();
-    });
-  }
 
   // src/refresh.js
   init_state();
   init_dom();
   init_constants();
-  init_utils();
   init_filters();
   init_spots();
   init_markers();
@@ -7269,13 +6623,14 @@ ${beacon.location}`);
         updateStateFilter();
         updateGridFilter();
         updateContinentFilter();
-        $("lastUpdated").textContent = "Updated: " + fmtTime(/* @__PURE__ */ new Date());
       }
     } catch (err) {
       console.error(`Failed to fetch ${source} spots:`, err);
     }
   }
   function refreshAll() {
+    const btn = $("refreshBtn");
+    if (btn) btn.textContent = "Refreshing...";
     fetchSourceData("pota");
     fetchSourceData("sota");
     fetchSourceData("dxc");
@@ -7294,15 +6649,18 @@ ${beacon.location}`);
     updateCountdownDisplay();
   }
   function updateCountdownDisplay() {
+    const btn = $("refreshBtn");
+    if (!btn) return;
     if (state_default.autoRefreshEnabled) {
-      $("countdown").textContent = `(${state_default.countdownSeconds}s)`;
+      btn.textContent = "Refresh (" + state_default.countdownSeconds + "s)";
     } else {
-      $("countdown").textContent = "";
+      btn.textContent = "Refresh";
     }
   }
   function startAutoRefresh() {
     stopAutoRefresh();
     state_default.autoRefreshEnabled = true;
+    localStorage.setItem("hamtab_auto_refresh", "true");
     resetCountdown();
     state_default.countdownTimer = setInterval(() => {
       state_default.countdownSeconds--;
@@ -7314,22 +6672,687 @@ ${beacon.location}`);
   }
   function stopAutoRefresh() {
     state_default.autoRefreshEnabled = false;
+    localStorage.setItem("hamtab_auto_refresh", "false");
     if (state_default.countdownTimer) {
       clearInterval(state_default.countdownTimer);
       state_default.countdownTimer = null;
     }
-    $("countdown").textContent = "";
+    const btn = $("refreshBtn");
+    if (btn) btn.textContent = "Refresh";
   }
   function initRefreshListeners() {
-    $("autoRefresh").addEventListener("change", () => {
-      if ($("autoRefresh").checked) {
-        startAutoRefresh();
-      } else {
-        stopAutoRefresh();
-      }
-    });
     $("refreshBtn").addEventListener("click", () => {
       refreshAll();
+    });
+  }
+
+  // src/splash.js
+  function updateOperatorDisplay2() {
+    const opCall = $("opCall");
+    const opLoc = $("opLoc");
+    if (state_default.myCallsign) {
+      const qrz = `https://www.qrz.com/db/${encodeURIComponent(state_default.myCallsign)}`;
+      let classLabel = state_default.licenseClass ? ` [${state_default.licenseClass}]` : "";
+      opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc(state_default.myCallsign)}</a><span class="op-class">${esc(classLabel)}</span>`;
+      const info = state_default.callsignCache[state_default.myCallsign.toUpperCase()];
+      const opName = document.getElementById("opName");
+      if (opName) {
+        opName.textContent = info ? info.name : "";
+      }
+    } else {
+      opCall.textContent = "";
+      const opName = document.getElementById("opName");
+      if (opName) opName.textContent = "";
+    }
+    if (state_default.myLat !== null && state_default.myLon !== null) {
+      const grid = latLonToGrid(state_default.myLat, state_default.myLon);
+      opLoc.textContent = `${state_default.myLat.toFixed(2)}, ${state_default.myLon.toFixed(2)} [${grid}]`;
+    } else {
+      opLoc.textContent = "Location unknown";
+    }
+  }
+  function fetchLocation() {
+    if (state_default.manualLoc) return;
+    if (!navigator.geolocation) {
+      $("opLoc").textContent = "Geolocation unavailable";
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const newLat = pos.coords.latitude;
+        const newLon = pos.coords.longitude;
+        const changed = state_default.myLat !== newLat || state_default.myLon !== newLon;
+        state_default.myLat = newLat;
+        state_default.myLon = newLon;
+        localStorage.setItem("hamtab_gps_lat", String(newLat));
+        localStorage.setItem("hamtab_gps_lon", String(newLon));
+        updateOperatorDisplay2();
+        centerMapOnUser();
+        updateUserMarker();
+        if (changed && state_default.appInitialized) startNwsPolling();
+      },
+      () => {
+        $("opLoc").textContent = "Location denied";
+      },
+      { enableHighAccuracy: false, timeout: 1e4 }
+    );
+  }
+  function getGridSuggestions(prefix) {
+    const results = [];
+    const p = prefix.toUpperCase();
+    if (p.length === 0 || p.length >= 4) return results;
+    const fieldChars = "ABCDEFGHIJKLMNOPQR";
+    const digitChars = "0123456789";
+    function generate(current, pos) {
+      if (results.length >= 20) return;
+      if (current.length === 4) {
+        results.push(current);
+        return;
+      }
+      const chars = pos < 2 ? fieldChars : digitChars;
+      for (let i = 0; i < chars.length; i++) {
+        if (results.length >= 20) return;
+        const ch = chars[i];
+        if (pos < p.length) {
+          if (ch === p[pos]) {
+            generate(current + ch, pos + 1);
+          }
+        } else {
+          generate(current + ch, pos + 1);
+        }
+      }
+    }
+    generate("", 0);
+    return results;
+  }
+  function showGridSuggestions(prefix) {
+    const splashGridDropdown = $("splashGridDropdown");
+    const suggestions = getGridSuggestions(prefix);
+    splashGridDropdown.innerHTML = "";
+    state_default.gridHighlightIdx = -1;
+    if (suggestions.length === 0) {
+      splashGridDropdown.classList.remove("open");
+      return;
+    }
+    suggestions.forEach((grid) => {
+      const div = document.createElement("div");
+      div.className = "grid-option";
+      div.textContent = grid;
+      div.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        selectGridSuggestion(grid);
+      });
+      splashGridDropdown.appendChild(div);
+    });
+    splashGridDropdown.classList.add("open");
+  }
+  function selectGridSuggestion(grid) {
+    const splashGrid = $("splashGrid");
+    const splashGridDropdown = $("splashGridDropdown");
+    splashGrid.value = grid;
+    splashGridDropdown.classList.remove("open");
+    splashGridDropdown.innerHTML = "";
+    state_default.gridHighlightIdx = -1;
+    const ll = gridToLatLon(grid);
+    if (ll) {
+      state_default.syncingFields = true;
+      $("splashLat").value = ll.lat.toFixed(2);
+      $("splashLon").value = ll.lon.toFixed(2);
+      state_default.myLat = ll.lat;
+      state_default.myLon = ll.lon;
+      state_default.syncingFields = false;
+      state_default.manualLoc = true;
+      $("splashGpsBtn").classList.remove("active");
+      updateLocStatus("Manual location set");
+    }
+  }
+  function updateLocStatus(msg, isError) {
+    const el = $("splashLocStatus");
+    el.textContent = msg || "";
+    el.classList.toggle("error", !!isError);
+  }
+  function updateGridHighlight() {
+    const options = $("splashGridDropdown").querySelectorAll(".grid-option");
+    options.forEach((opt, i) => {
+      opt.classList.toggle("highlighted", i === state_default.gridHighlightIdx);
+    });
+    if (state_default.gridHighlightIdx >= 0 && options[state_default.gridHighlightIdx]) {
+      options[state_default.gridHighlightIdx].scrollIntoView({ block: "nearest" });
+    }
+  }
+  var _initApp = null;
+  function setInitApp(fn) {
+    _initApp = fn;
+  }
+  function showSplash() {
+    const splash = $("splash");
+    splash.classList.remove("hidden");
+    splash.querySelectorAll(".config-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === "station"));
+    splash.querySelectorAll(".config-panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === "station"));
+    $("splashCallsign").value = state_default.myCallsign;
+    if (state_default.myLat !== null && state_default.myLon !== null) {
+      $("splashLat").value = state_default.myLat.toFixed(2);
+      $("splashLon").value = state_default.myLon.toFixed(2);
+      const grid = latLonToGrid(state_default.myLat, state_default.myLon);
+      $("splashGrid").value = grid.substring(0, 4).toUpperCase();
+    } else {
+      $("splashLat").value = "";
+      $("splashLon").value = "";
+      $("splashGrid").value = "";
+    }
+    if (state_default.manualLoc) {
+      $("splashGpsBtn").classList.remove("active");
+      updateLocStatus("Manual override active");
+    } else {
+      $("splashGpsBtn").classList.add("active");
+      updateLocStatus("Using GPS");
+    }
+    const timeFmt24 = $("timeFmt24");
+    const timeFmt12 = $("timeFmt12");
+    if (timeFmt24) timeFmt24.checked = state_default.use24h;
+    if (timeFmt12) timeFmt12.checked = !state_default.use24h;
+    const distUnitMi = $("distUnitMi");
+    const distUnitKm = $("distUnitKm");
+    if (distUnitMi) distUnitMi.checked = state_default.distanceUnit === "mi";
+    if (distUnitKm) distUnitKm.checked = state_default.distanceUnit === "km";
+    const tempUnitF = $("tempUnitF");
+    const tempUnitC = $("tempUnitC");
+    if (tempUnitF) tempUnitF.checked = state_default.temperatureUnit === "F";
+    if (tempUnitC) tempUnitC.checked = state_default.temperatureUnit === "C";
+    const cfgAutoRefresh = $("cfgAutoRefresh");
+    if (cfgAutoRefresh) cfgAutoRefresh.checked = state_default.autoRefreshEnabled;
+    const widgetList = document.getElementById("splashWidgetList");
+    widgetList.innerHTML = "";
+    WIDGET_DEFS.forEach((w) => {
+      const label = document.createElement("label");
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.dataset.widgetId = w.id;
+      cb.checked = state_default.widgetVisibility[w.id] !== false;
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(w.name));
+      widgetList.appendChild(label);
+    });
+    $("splashWxStation").value = state_default.wxStation;
+    $("splashWxApiKey").value = state_default.wxApiKey;
+    $("splashN2yoApiKey").value = state_default.n2yoApiKey;
+    const intervalSelect = $("splashUpdateInterval");
+    if (intervalSelect) {
+      const savedInterval = localStorage.getItem("hamtab_update_interval") || "60";
+      intervalSelect.value = savedInterval;
+    }
+    $("splashGridDropdown").classList.remove("open");
+    $("splashGridDropdown").innerHTML = "";
+    state_default.gridHighlightIdx = -1;
+    const themeSelector = document.getElementById("themeSelector");
+    if (themeSelector) {
+      themeSelector.innerHTML = "";
+      const themes = getThemeList();
+      const currentId = getCurrentThemeId();
+      themes.forEach((t) => {
+        const swatch = document.createElement("div");
+        swatch.className = "theme-swatch" + (t.id === currentId ? " active" : "");
+        swatch.dataset.themeId = t.id;
+        const colors = getThemeSwatchColors(t.id);
+        const colorsDiv = document.createElement("div");
+        colorsDiv.className = "theme-swatch-colors";
+        colors.forEach((c) => {
+          const span = document.createElement("span");
+          span.style.background = c;
+          colorsDiv.appendChild(span);
+        });
+        swatch.appendChild(colorsDiv);
+        const nameDiv = document.createElement("div");
+        nameDiv.className = "theme-swatch-name";
+        nameDiv.textContent = t.name;
+        swatch.appendChild(nameDiv);
+        const descDiv = document.createElement("div");
+        descDiv.className = "theme-swatch-desc";
+        descDiv.textContent = t.description;
+        swatch.appendChild(descDiv);
+        swatch.addEventListener("click", () => {
+          applyTheme(t.id);
+          themeSelector.querySelectorAll(".theme-swatch").forEach((s) => s.classList.remove("active"));
+          swatch.classList.add("active");
+          const gridSec = document.getElementById("gridModeSection");
+          if (gridSec) {
+            const supports = currentThemeSupportsGrid();
+            gridSec.style.display = supports ? "" : "none";
+            if (!supports) {
+              const floatRadio = document.getElementById("layoutModeFloat");
+              if (floatRadio) floatRadio.checked = true;
+              const permSec = document.getElementById("gridPermSection");
+              if (permSec) permSec.style.display = "none";
+            }
+          }
+        });
+        themeSelector.appendChild(swatch);
+      });
+    }
+    const cfgSlimHeader = $("cfgSlimHeader");
+    if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
+    $("splashVersion").textContent = "0.28.2";
+    $("aboutVersion").textContent = "0.28.2";
+    const gridSection = document.getElementById("gridModeSection");
+    const gridPermSection = document.getElementById("gridPermSection");
+    if (gridSection) {
+      gridSection.style.display = currentThemeSupportsGrid() ? "" : "none";
+      $("layoutModeFloat").checked = state_default.gridMode !== "grid";
+      $("layoutModeGrid").checked = state_default.gridMode === "grid";
+      const permSelect = document.getElementById("gridPermSelect");
+      if (permSelect) {
+        permSelect.innerHTML = "";
+        GRID_PERMUTATIONS.forEach((p) => {
+          const opt = document.createElement("option");
+          opt.value = p.id;
+          opt.textContent = `${p.name} (${p.slots} slots)`;
+          permSelect.appendChild(opt);
+        });
+        permSelect.value = state_default.gridPermutation;
+      }
+      if (gridPermSection) {
+        gridPermSection.style.display = state_default.gridMode === "grid" ? "" : "none";
+      }
+      renderGridPreview(state_default.gridPermutation);
+    }
+    const hasSaved = hasUserLayout();
+    $("splashClearLayout").disabled = !hasSaved;
+    $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
+    $("splashCallsign").focus();
+  }
+  function dismissSplash() {
+    const val = $("splashCallsign").value.trim().toUpperCase();
+    if (!val) return;
+    state_default.myCallsign = val;
+    localStorage.setItem("hamtab_callsign", state_default.myCallsign);
+    if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
+      localStorage.setItem("hamtab_lat", String(state_default.myLat));
+      localStorage.setItem("hamtab_lon", String(state_default.myLon));
+    }
+    state_default.use24h = $("timeFmt24").checked;
+    localStorage.setItem("hamtab_time24", String(state_default.use24h));
+    state_default.distanceUnit = $("distUnitKm").checked ? "km" : "mi";
+    state_default.temperatureUnit = $("tempUnitC").checked ? "C" : "F";
+    localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
+    localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
+    state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
+    state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
+    state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
+    localStorage.setItem("hamtab_wx_station", state_default.wxStation);
+    localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
+    localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
+    const envUpdates = {};
+    if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
+    if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
+    if (Object.keys(envUpdates).length > 0) {
+      fetch("/api/config/env", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(envUpdates)
+      }).catch(() => {
+      });
+    }
+    fetchWeather();
+    const widgetList = document.getElementById("splashWidgetList");
+    widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+      state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
+    });
+    saveWidgetVisibility();
+    if (currentThemeSupportsGrid()) {
+      const newMode = $("layoutModeGrid").checked ? "grid" : "float";
+      const permSelect = document.getElementById("gridPermSelect");
+      const newPerm = permSelect ? permSelect.value : state_default.gridPermutation;
+      if (newMode === "grid" && state_default.gridMode !== "grid") {
+        state_default.gridPermutation = newPerm;
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
+        state_default.gridAssignments = defaults ? { ...defaults } : {};
+        saveGridAssignments();
+        activateGridMode(newPerm);
+      } else if (newMode === "grid" && newPerm !== state_default.gridPermutation) {
+        state_default.gridPermutation = newPerm;
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
+        state_default.gridAssignments = defaults ? { ...defaults } : {};
+        saveGridAssignments();
+        activateGridMode(newPerm);
+      } else if (newMode === "float" && state_default.gridMode === "grid") {
+        deactivateGridMode();
+      }
+    }
+    applyWidgetVisibility();
+    const intervalSelect = $("splashUpdateInterval");
+    if (intervalSelect) {
+      const intervalVal = intervalSelect.value;
+      localStorage.setItem("hamtab_update_interval", intervalVal);
+      fetch("/api/update/interval", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
+      }).catch(() => {
+      });
+    }
+    $("splashGridDropdown").classList.remove("open");
+    $("splash").classList.add("hidden");
+    updateOperatorDisplay2();
+    centerMapOnUser();
+    updateUserMarker();
+    updateClocks();
+    renderSpots();
+    if (_initApp) _initApp();
+    fetchLicenseClass(state_default.myCallsign);
+  }
+  function initSplashListeners() {
+    document.querySelectorAll(".config-tab").forEach((tab) => {
+      tab.addEventListener("click", () => {
+        document.querySelectorAll(".config-tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".config-panel").forEach((p) => p.classList.remove("active"));
+        tab.classList.add("active");
+        document.querySelector(`.config-panel[data-panel="${tab.dataset.tab}"]`).classList.add("active");
+      });
+    });
+    $("splashOk").addEventListener("click", dismissSplash);
+    $("splashCallsign").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") dismissSplash();
+    });
+    function onLatLonInput() {
+      if (state_default.syncingFields) return;
+      state_default.manualLoc = true;
+      $("splashGpsBtn").classList.remove("active");
+      const lat = parseFloat($("splashLat").value);
+      const lon = parseFloat($("splashLon").value);
+      if (!isNaN(lat) && !isNaN(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+        state_default.syncingFields = true;
+        $("splashGrid").value = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
+        state_default.myLat = lat;
+        state_default.myLon = lon;
+        state_default.syncingFields = false;
+        updateLocStatus("Manual location set");
+      } else {
+        updateLocStatus("");
+      }
+    }
+    $("splashLat").addEventListener("input", onLatLonInput);
+    $("splashLon").addEventListener("input", onLatLonInput);
+    $("splashGrid").addEventListener("input", () => {
+      if (state_default.syncingFields) return;
+      state_default.manualLoc = true;
+      $("splashGpsBtn").classList.remove("active");
+      const val = $("splashGrid").value.toUpperCase();
+      if (val.length === 4) {
+        const ll = gridToLatLon(val);
+        if (ll) {
+          state_default.syncingFields = true;
+          $("splashLat").value = ll.lat.toFixed(2);
+          $("splashLon").value = ll.lon.toFixed(2);
+          state_default.myLat = ll.lat;
+          state_default.myLon = ll.lon;
+          state_default.syncingFields = false;
+          updateLocStatus("Manual location set");
+        }
+        $("splashGridDropdown").classList.remove("open");
+        $("splashGridDropdown").innerHTML = "";
+        state_default.gridHighlightIdx = -1;
+      } else if (val.length > 0 && val.length < 4) {
+        showGridSuggestions(val);
+      } else {
+        $("splashGridDropdown").classList.remove("open");
+        $("splashGridDropdown").innerHTML = "";
+        state_default.gridHighlightIdx = -1;
+        updateLocStatus("");
+      }
+    });
+    $("splashGrid").addEventListener("keydown", (e) => {
+      const options = $("splashGridDropdown").querySelectorAll(".grid-option");
+      if (!$("splashGridDropdown").classList.contains("open") || options.length === 0) {
+        if (e.key === "Enter") dismissSplash();
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        state_default.gridHighlightIdx = Math.min(state_default.gridHighlightIdx + 1, options.length - 1);
+        updateGridHighlight();
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        state_default.gridHighlightIdx = Math.max(state_default.gridHighlightIdx - 1, 0);
+        updateGridHighlight();
+      } else if (e.key === "Enter") {
+        e.preventDefault();
+        if (state_default.gridHighlightIdx >= 0 && options[state_default.gridHighlightIdx]) {
+          selectGridSuggestion(options[state_default.gridHighlightIdx].textContent);
+        }
+      } else if (e.key === "Escape") {
+        $("splashGridDropdown").classList.remove("open");
+        $("splashGridDropdown").innerHTML = "";
+        state_default.gridHighlightIdx = -1;
+      }
+    });
+    $("splashGrid").addEventListener("blur", () => {
+      setTimeout(() => {
+        $("splashGridDropdown").classList.remove("open");
+        $("splashGridDropdown").innerHTML = "";
+        state_default.gridHighlightIdx = -1;
+      }, 150);
+    });
+    $("splashLat").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") dismissSplash();
+    });
+    $("splashLon").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") dismissSplash();
+    });
+    $("splashGpsBtn").addEventListener("click", () => {
+      state_default.manualLoc = false;
+      localStorage.removeItem("hamtab_lat");
+      localStorage.removeItem("hamtab_lon");
+      $("splashGpsBtn").classList.add("active");
+      updateLocStatus("Using GPS");
+      if (navigator.geolocation) {
+        $("opLoc").textContent = "Locating...";
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            state_default.myLat = pos.coords.latitude;
+            state_default.myLon = pos.coords.longitude;
+            state_default.syncingFields = true;
+            $("splashLat").value = state_default.myLat.toFixed(2);
+            $("splashLon").value = state_default.myLon.toFixed(2);
+            $("splashGrid").value = latLonToGrid(state_default.myLat, state_default.myLon).substring(0, 4).toUpperCase();
+            state_default.syncingFields = false;
+            updateOperatorDisplay2();
+            centerMapOnUser();
+            updateUserMarker();
+            updateLocStatus("Using GPS");
+          },
+          () => {
+            updateLocStatus("Location denied", true);
+            $("opLoc").textContent = "Location denied";
+          },
+          { enableHighAccuracy: false, timeout: 1e4 }
+        );
+      } else {
+        updateLocStatus("Geolocation unavailable", true);
+      }
+    });
+    $("splashSaveLayout").addEventListener("click", () => {
+      saveUserLayout();
+      $("splashLayoutStatus").textContent = "Layout saved";
+      $("splashClearLayout").disabled = false;
+    });
+    $("splashClearLayout").addEventListener("click", () => {
+      clearUserLayout();
+      $("splashLayoutStatus").textContent = "App default restored";
+      $("splashClearLayout").disabled = true;
+    });
+    const layoutModeFloat = document.getElementById("layoutModeFloat");
+    const layoutModeGrid = document.getElementById("layoutModeGrid");
+    const gridPermSelect = document.getElementById("gridPermSelect");
+    const gridPermSection = document.getElementById("gridPermSection");
+    if (layoutModeFloat && layoutModeGrid) {
+      layoutModeFloat.addEventListener("change", () => {
+        if (gridPermSection) gridPermSection.style.display = "none";
+      });
+      layoutModeGrid.addEventListener("change", () => {
+        if (gridPermSection) gridPermSection.style.display = "";
+        if (gridPermSelect) renderGridPreview(gridPermSelect.value);
+      });
+    }
+    if (gridPermSelect) {
+      gridPermSelect.addEventListener("change", () => {
+        renderGridPreview(gridPermSelect.value);
+      });
+    }
+    $("editCallBtn").addEventListener("click", () => {
+      showSplash();
+    });
+    const cfgAutoRefreshCb = $("cfgAutoRefresh");
+    if (cfgAutoRefreshCb) {
+      cfgAutoRefreshCb.addEventListener("change", () => {
+        if (cfgAutoRefreshCb.checked) {
+          startAutoRefresh();
+        } else {
+          stopAutoRefresh();
+        }
+      });
+    }
+    const cfgSlimHeaderCb = $("cfgSlimHeader");
+    if (cfgSlimHeaderCb) {
+      cfgSlimHeaderCb.addEventListener("change", () => {
+        state_default.slimHeader = cfgSlimHeaderCb.checked;
+        localStorage.setItem("hamtab_slim_header", String(state_default.slimHeader));
+        document.body.classList.toggle("slim-header", state_default.slimHeader);
+      });
+    }
+  }
+  function renderGridPreview(permId) {
+    const container = document.getElementById("gridPermPreview");
+    if (!container) return;
+    const perm = getGridPermutation(permId);
+    container.innerHTML = "";
+    container.style.gridTemplateAreas = perm.areas;
+    container.style.gridTemplateColumns = perm.columns;
+    container.style.gridTemplateRows = perm.rows;
+    const mapCell = document.createElement("div");
+    mapCell.className = "grid-preview-cell grid-preview-map";
+    mapCell.style.gridArea = "map";
+    mapCell.textContent = "MAP";
+    container.appendChild(mapCell);
+    perm.cellNames.forEach((name) => {
+      const cell = document.createElement("div");
+      cell.className = "grid-preview-cell";
+      cell.style.gridArea = name;
+      cell.textContent = name;
+      container.appendChild(cell);
+    });
+  }
+
+  // src/config.js
+  init_state();
+  init_dom();
+  init_constants();
+  init_solar();
+  init_lunar();
+  init_map_overlays();
+  init_spots();
+  function initConfigListeners() {
+    $("solarCfgBtn").addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+    });
+    $("solarCfgBtn").addEventListener("click", () => {
+      const solarFieldList = $("solarFieldList");
+      solarFieldList.innerHTML = "";
+      SOLAR_FIELD_DEFS.forEach((f) => {
+        const label = document.createElement("label");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.fieldKey = f.key;
+        cb.checked = state_default.solarFieldVisibility[f.key] !== false;
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(f.label));
+        solarFieldList.appendChild(label);
+      });
+      $("solarCfgSplash").classList.remove("hidden");
+    });
+    $("solarCfgOk").addEventListener("click", () => {
+      $("solarFieldList").querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        state_default.solarFieldVisibility[cb.dataset.fieldKey] = cb.checked;
+      });
+      saveSolarFieldVisibility();
+      $("solarCfgSplash").classList.add("hidden");
+      if (state_default.lastSolarData) renderSolar(state_default.lastSolarData);
+    });
+    $("lunarCfgBtn").addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+    });
+    $("lunarCfgBtn").addEventListener("click", () => {
+      const lunarFieldList = $("lunarFieldList");
+      lunarFieldList.innerHTML = "";
+      LUNAR_FIELD_DEFS.forEach((f) => {
+        const label = document.createElement("label");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.fieldKey = f.key;
+        cb.checked = state_default.lunarFieldVisibility[f.key] !== false;
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(f.label));
+        lunarFieldList.appendChild(label);
+      });
+      $("lunarCfgSplash").classList.remove("hidden");
+    });
+    $("lunarCfgOk").addEventListener("click", () => {
+      $("lunarFieldList").querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        state_default.lunarFieldVisibility[cb.dataset.fieldKey] = cb.checked;
+      });
+      saveLunarFieldVisibility();
+      $("lunarCfgSplash").classList.add("hidden");
+      if (state_default.lastLunarData) renderLunar(state_default.lastLunarData);
+    });
+    const mapOverlayCfgBtn = $("mapOverlayCfgBtn");
+    const mapOverlayCfgSplash = $("mapOverlayCfgSplash");
+    const mapOverlayCfgOk = $("mapOverlayCfgOk");
+    if (mapOverlayCfgBtn) {
+      mapOverlayCfgBtn.addEventListener("mousedown", (e) => {
+        e.stopPropagation();
+      });
+      mapOverlayCfgBtn.addEventListener("click", () => {
+        $("mapOvLatLon").checked = state_default.mapOverlays.latLonGrid;
+        $("mapOvMaidenhead").checked = state_default.mapOverlays.maidenheadGrid;
+        $("mapOvTimezone").checked = state_default.mapOverlays.timezoneGrid;
+        mapOverlayCfgSplash.classList.remove("hidden");
+      });
+    }
+    if (mapOverlayCfgOk) {
+      mapOverlayCfgOk.addEventListener("click", () => {
+        state_default.mapOverlays.latLonGrid = $("mapOvLatLon").checked;
+        state_default.mapOverlays.maidenheadGrid = $("mapOvMaidenhead").checked;
+        state_default.mapOverlays.timezoneGrid = $("mapOvTimezone").checked;
+        saveMapOverlays();
+        mapOverlayCfgSplash.classList.add("hidden");
+        renderAllMapOverlays();
+      });
+    }
+    $("spotColCfgBtn").addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+    });
+    $("spotColCfgBtn").addEventListener("click", () => {
+      const fieldList = $("spotColFieldList");
+      fieldList.innerHTML = "";
+      SOURCE_DEFS[state_default.currentSource].columns.forEach((col) => {
+        const label = document.createElement("label");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.fieldKey = col.key;
+        cb.checked = state_default.spotColumnVisibility[col.key] !== false;
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(col.label));
+        fieldList.appendChild(label);
+      });
+      $("spotColCfgSplash").classList.remove("hidden");
+    });
+    $("spotColCfgOk").addEventListener("click", () => {
+      $("spotColFieldList").querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        state_default.spotColumnVisibility[cb.dataset.fieldKey] = cb.checked;
+      });
+      saveSpotColumnVisibility();
+      $("spotColCfgSplash").classList.add("hidden");
+      updateTableColumns();
+      renderSpots();
     });
   }
 
@@ -7339,7 +7362,7 @@ ${beacon.location}`);
   init_utils();
   async function checkUpdateStatus() {
     const el = $("platformLabel");
-    if (el && !el.textContent) el.textContent = "v0.17.0";
+    if (el && !el.textContent) el.textContent = "v0.28.2";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
@@ -8505,7 +8528,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;
     refreshAll();
-    startAutoRefresh();
+    if (state_default.autoRefreshEnabled) startAutoRefresh();
     fetchLocation();
     startUpdateStatusPolling();
     sendUpdateInterval();

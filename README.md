@@ -1,30 +1,60 @@
 # HamTab
 
-A real-time amateur radio dashboard for [Parks on the Air (POTA)](https://pota.app) and [Summits on the Air (SOTA)](https://www.sota.org.uk/) activations. Displays live spots on an interactive map with solar propagation data, HF band conditions, ISS tracking, weather, and lunar/EME conditions — all in a customizable widget layout.
+A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstitute.com/ham/HamClock/) alternative. Displays live POTA, SOTA, DX Cluster, and PSKReporter spots on an interactive map with VOACAP propagation predictions, HF band conditions, space weather, satellite tracking, contests, DXpeditions, NCDXF beacons, weather, and lunar/EME data — all in a customizable, themeable widget layout.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green) ![Express](https://img.shields.io/badge/Express-4.x-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ## Features
 
-- **On the Air** — Real-time POTA and SOTA spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square, and a spot age column
-- **Interactive Map** — Leaflet map with clustered markers for both POTA and SOTA activations, dark tiles, and clickable popups with QRZ callsign links
+### Spots & Activations
+- **On the Air** — Real-time POTA, SOTA, DX Cluster, and PSKReporter spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
+- **Live Spots** — See where your signal is being received via PSKReporter — band cards show spot count or farthest distance per band with visual map lines
+- **DX Detail** — Detailed view of a selected spot with callsign info, frequency, distance/bearing, and QRZ link
+
+### Map & Overlays
+- **Interactive Map** — Leaflet map with clustered markers for POTA, SOTA, DX Cluster, and PSKReporter spots, dark tiles, and clickable popups with QRZ callsign links
 - **Map Center Controls** — Quick buttons to center on your QTH, prime meridian, or selected spot
 - **Day/Night Terminator** — Gray line overlay showing the solar terminator with a subtle daylight tint on the illuminated hemisphere
 - **Propagation Contours** — MUF and foF2 HF propagation overlays on the map from prop.kc2g.com
-- **ISS Tracking** — Real-time ISS position, orbital ground track, radio footprint circle, and ARISS amateur radio frequencies
+- **Map Overlays** — Toggleable lat/lon grid, Maidenhead grid squares, and timezone lines via map gear icon
+- **Satellite Tracking** — Real-time positions for ISS, SO-50, TEVEL, and custom satellites via N2YO with orbital ground tracks and radio footprint circles
+
+### Propagation & Space Weather
 - **Solar Indices** — Solar flux, sunspot number, A/K indices, X-ray flux, and signal noise level with 18 configurable fields
 - **HF Band Conditions** — Day/night conditions for 80m through 10m displayed in the header
+- **VOACAP DE→DX** — 24-hour propagation prediction grid with adjustable power (5W/100W/1kW), mode (CW/SSB/FT8), and path (short/long). Uses the Voice of America Coverage Analysis Program engine with automatic simplified fallback
+- **Space Weather History** — Historical graphs for Kp index, X-ray flux, SFI, solar wind speed, and Bz over the past week (90 days for SFI)
+
+### DX & Contesting
+- **Contests** — Active and upcoming contest calendar from WA7BNM with mode badges (CW/Phone/Digital) and links to contest rules
+- **DXpeditions** — Active and upcoming DXpedition tracker from NG3K with callsign, DXCC entity, operating dates, and QSL info
+- **NCDXF Beacons** — Real-time NCDXF/IARU International Beacon Project display — 18 synchronized worldwide beacons on 5 HF frequencies with 3-minute cycle countdown timer
+
+### Station Info
+- **DE/DX Info** — Side-by-side display of your station (DE) and selected DX station showing callsign, grid square, coordinates, sunrise/sunset, bearing, distance, and frequency
 - **Lunar / EME** — Moon phase, illumination, declination, distance, and relative path loss for EME operators with 9 configurable fields
-- **Weather Conditions** — Local weather display from Weather Underground (PWS key) or NWS as automatic fallback; source indicator badge shows which is active
-- **Weather Backgrounds** — Local clock widget background gradient changes to reflect current conditions (clear, cloudy, rain, snow, thunderstorm, fog) with day/night variants
-- **NWS Weather Alerts** — Severity-colored alert badge on local clock; click to view active alerts with headlines, descriptions, and NWS website links
-- **Day/Night Indicator** — SVG sun/moon graphic on clock widgets based on computed sunrise/sunset for your location
-- **Clock Styles** — Digital or analog clock face for both Local Time and UTC widgets
+- **Weather Conditions** — Local weather from Weather Underground (PWS key) or NWS as automatic fallback; source badge shows which is active
+- **Weather Backgrounds** — Clock widget background gradient reflects current conditions (clear, cloudy, rain, snow, thunderstorm, fog) with day/night variants
+- **NWS Weather Alerts** — Severity-colored alert badge on local clock; click to view active alerts with headlines, descriptions, and NWS links
+
+### Reference & Tools
+- **Reference Tabs** — Five built-in reference tabs: RST signal reports, NATO phonetic alphabet, Morse code with prosigns, Q-codes, and band plan privileges by license class
 - **License Privilege Filter** — For US callsigns, filter spots to only show frequencies and modes your license class allows
-- **Band Reference** — Built-in band plan reference popup showing frequency privileges by license class
+- **Filters** — Dedicated filter widget for band, mode, country, state, grid, distance, spot age, and license privilege filtering
+
+### Customization
+- **Themes** — Four built-in visual themes: Default (dark), LCARS (Star Trek TNG), Terminal (retro green), and HamClock (WB0OEW-inspired with political map tiles)
 - **Widget Layout** — All panels are draggable and resizable with snap-to-edge, persisted across sessions
-- **Auto-Update** — Server checks for git updates at a configurable interval and can apply them with one click
+- **Grid Layout Mode** — Alternative to free-float with 5 grid permutations for organized widget arrangements
+- **Clock Styles** — Digital or analog clock face for both Local Time and UTC widgets
+- **Day/Night Indicator** — SVG sun/moon graphic on clock widgets based on computed sunrise/sunset
+
+### System
 - **Operator Identity** — Callsign prompt at startup with geolocation and Maidenhead grid square display
+- **Feedback System** — In-app feedback with encrypted email submission and privacy notice
+- **Configuration Export/Import** — Export and import all settings for backup or migration
+- **Auto-Update** — (Lanmode) Server checks for updates at a configurable interval and can apply them with one click
+- **Help System** — Every widget has a help button (?) with description, usage guide, and tips
 
 ---
 
@@ -34,7 +64,7 @@ A real-time amateur radio dashboard for [Parks on the Air (POTA)](https://pota.a
 
 ### macOS
 
-**Prerequisites:** Node.js 18+ and Git.
+**Prerequisites:** Node.js 18+ and Git. Python 3.11+ optional for VOACAP propagation.
 
 ```bash
 # Install Node.js via Homebrew
@@ -47,6 +77,9 @@ nvm install 20
 
 # Git (if not already installed)
 xcode-select --install
+
+# Optional: Python for full VOACAP propagation (see VOACAP section below)
+brew install python@3.12
 ```
 
 **Install and run:**
@@ -69,6 +102,9 @@ Open **http://localhost:3000** in your browser.
 # Node.js via NodeSource
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
 sudo apt-get install -y nodejs git
+
+# Optional: Python 3.11+ for full VOACAP propagation (see VOACAP section below)
+sudo apt-get install -y python3 python3-pip python3-numpy
 ```
 
 Or via nvm:
@@ -95,7 +131,7 @@ npm start
 ### Linux (Fedora / RHEL)
 
 ```bash
-sudo dnf install nodejs git
+sudo dnf install nodejs git python3 python3-pip python3-numpy  # python3 optional, for VOACAP
 git clone https://github.com/stevencheist/HamTabv1.git
 cd HamTabv1
 git checkout lanmode
@@ -122,7 +158,9 @@ The installer will prompt you to:
 2. **Weather Underground** — Choose whether to use WU for weather data, and enter your API key (or add it later via the Config screen in the browser)
 3. **Start on boot** — If yes, installs a systemd service that starts HamTab automatically and restarts on failure
 
-After install, the app runs from `/opt/hamtab`. Manage it with:
+After install, the app runs from `/opt/hamtab`. For full VOACAP propagation predictions, see [VOACAP Propagation Setup](#voacap-propagation-setup-optional) — this is optional but recommended.
+
+Manage with:
 
 ```bash
 sudo systemctl status hamtab      # check status
@@ -228,6 +266,130 @@ Open **http://localhost:3000** and you'll be prompted to configure your callsign
 
 ---
 
+## VOACAP Propagation Setup (Optional)
+
+HamTab includes a real HF propagation prediction engine powered by [dvoacap-python](https://github.com/skyelaird/dvoacap-python). When available, it provides accurate 24-hour band reliability predictions, REL heatmap overlays, and circle range overlays on the map. **Without Python, HamTab still works** — it falls back to a simplified server-side propagation model with less accuracy.
+
+### Prerequisites
+
+**Python 3.11 or higher** is required. dvoacap-python will not work with older Python versions.
+
+Check your Python version:
+
+```bash
+python3 --version
+```
+
+If you don't have Python 3.11+, install it:
+
+- **Ubuntu/Debian:**
+  ```bash
+  sudo apt update
+  sudo apt install python3 python3-pip python3-numpy
+  ```
+  On older Ubuntu releases (22.04 and earlier), the system Python may be too old. Use the deadsnakes PPA:
+  ```bash
+  sudo add-apt-repository ppa:deadsnakes/ppa
+  sudo apt update
+  sudo apt install python3.12 python3.12-venv python3.12-dev
+  ```
+
+- **Fedora/RHEL:**
+  ```bash
+  sudo dnf install python3 python3-pip python3-numpy
+  ```
+
+- **macOS:**
+  ```bash
+  brew install python@3.12
+  ```
+
+- **Windows:**
+  Download from [python.org](https://www.python.org/downloads/) (check "Add to PATH" during install)
+
+- **Raspberry Pi OS (Bookworm):**
+  ```bash
+  sudo apt install python3 python3-pip python3-numpy
+  ```
+  Bookworm ships Python 3.11 by default. Older Raspberry Pi OS (Bullseye) ships 3.9 — you'll need to build from source or use the simplified fallback model.
+
+### Install dvoacap-python
+
+```bash
+# Clone the dvoacap-python repository
+git clone https://github.com/skyelaird/dvoacap-python.git
+cd dvoacap-python
+
+# Install (core library only — HamTab doesn't need the dashboard)
+pip install -e .
+```
+
+> **Note:** If `pip install` warns about packages being installed to a user directory (e.g. `~/.local/lib/python3.12/site-packages`), that's normal. HamTab's VOACAP bridge automatically adds the user site-packages directory to `PYTHONPATH` based on the detected Python version.
+
+If you get a "pip not found" or "externally-managed-environment" error (common on newer Ubuntu/Debian):
+
+```bash
+# Option A: Use --user flag (recommended for lanmode)
+pip install --user -e .
+
+# Option B: Use --break-system-packages (if you know what you're doing)
+pip install --break-system-packages -e .
+
+# Option C: Use a venv (most isolated)
+python3 -m venv ~/hamtab-venv
+source ~/hamtab-venv/bin/activate
+pip install -e .
+```
+
+If using a venv (Option C), you'll need to ensure the venv's Python is in PATH when HamTab starts. The simplest way is to activate the venv before running `npm start`, or set the `PATH` in your `.env` file.
+
+### Verify Installation
+
+After installing dvoacap-python, restart HamTab and check the server logs:
+
+```bash
+npm start
+```
+
+You should see:
+
+```
+[VOACAP] dvoacap-python engine ready
+```
+
+If Python or dvoacap isn't found, you'll see:
+
+```
+[VOACAP] Python not found — using simplified propagation model
+```
+
+You can also check the VOACAP status endpoint:
+
+```bash
+curl http://localhost:3000/api/voacap/status
+```
+
+This returns a JSON object showing whether the engine is available, spawn attempts, and any errors.
+
+### Troubleshooting VOACAP
+
+- **"dvoacap-python not installed"** — The Python process started but couldn't import dvoacap. Make sure you ran `pip install -e .` in the dvoacap-python directory and that the install completed without errors.
+
+- **"Python not found"** — No Python 3.11+ executable was found. The bridge tries `python3.13`, `python3.12`, `python3.11`, `python3`, and `python` in order. Verify one of these is in your PATH with `which python3`.
+
+- **"Python not available after 5 minutes"** — Python was found but the worker didn't respond in time. This can happen if numpy is very slow to import (first run on Raspberry Pi). Try running `python3 -c "import numpy"` to pre-compile numpy, then restart HamTab.
+
+- **Import errors for numpy** — Install numpy separately: `pip install numpy` (or `sudo apt install python3-numpy` on Debian/Ubuntu).
+
+- **PYTHONPATH issues** — If you installed dvoacap with `pip install --user`, the packages go to `~/.local/lib/pythonX.Y/site-packages`. The bridge auto-detects this for versioned Python executables (e.g. `python3.12`). If you're using a generic `python3` that's actually 3.12, you may need to set `PYTHONPATH` manually in your `.env`:
+  ```
+  PYTHONPATH=/home/youruser/.local/lib/python3.12/site-packages
+  ```
+
+- **Simplified model is fine** — If you can't get Python working, HamTab's built-in simplified propagation model still provides reasonable band condition estimates. The main differences: dvoacap uses the full VOACAP ionospheric model with ITU coefficients, while the simplified model uses basic MUF geometry. Both respond to solar cycle (SSN) and time of day.
+
+---
+
 ## Configuration
 
 On first launch (or any time you click the **Config** button in the header), a configuration dialog appears with the following options.
@@ -255,15 +417,36 @@ Choose **12-hour** or **24-hour** display for both clock widgets.
 
 If both are provided, weather data comes from your chosen WU station. If left blank, weather data automatically falls back to the **National Weather Service** API using your lat/lon — no key required (US locations only).
 
+### Theme
+
+Choose from built-in themes: **Default** (dark), **LCARS** (Star Trek TNG-inspired), **Terminal** (retro green CRT), or **HamClock** (familiar to HamClock users). Themes swap CSS variables for colors, borders, and shapes.
+
+### Layout Mode
+
+- **Float** (default) — Free-floating widgets that you drag and resize anywhere
+- **Grid** — Structured CSS Grid layout with map locked in the center. Choose a permutation (2L-2R, 3L-3R, etc.) to set how many widget cells surround the map. Drag widgets between cells to swap positions. Use flex handles between widgets to resize vertically, and track handles on column borders to resize horizontally.
+
 ### Widgets
 
 Toggle each widget on or off:
 - Local Time
 - UTC
+- Filters
 - On the Air
 - HamMap
 - Solar & Propagation
+- Space Weather History
+- Band Conditions
+- VOACAP DE→DX
+- Live Spots
 - Lunar / EME
+- Satellites
+- Reference
+- DX Detail
+- Contests
+- DXpeditions
+- NCDXF Beacons
+- DE/DX Info
 
 ### Update Check Interval
 
@@ -299,37 +482,24 @@ Displays UTC time, day, date, and year. Shares the same clock style setting as L
 
 ### On the Air
 
-Real-time POTA and SOTA activation spots.
+Real-time spots from four data sources.
 
-**Source tabs** — Switch between POTA and SOTA. Active tab is saved across sessions.
+**Source tabs** — Switch between POTA, SOTA, DXC (DX Cluster), and PSK (PSKReporter). Active tab is saved across sessions.
 
-**Columns displayed:**
+| Source | Data | Columns |
+|--------|------|---------|
+| **POTA** | Parks on the Air activator spots | Callsign, Freq, Mode, Ref, Park Name, Time |
+| **SOTA** | Summits on the Air spots | Callsign, Freq, Mode, Ref, Summit, Time |
+| **DXC** | DX Cluster worldwide spots | Callsign, Freq, Mode, DX, Distance, Age |
+| **PSK** | PSKReporter digital mode reports | TX Call, Freq, Mode, RX Call, SNR, Grid |
 
-| Column | Description |
-|--------|-------------|
-| Callsign | Activator callsign (hover for name/address/class tooltip, links to QRZ) |
-| Freq | Frequency in MHz |
-| Mode | Operating mode (CW, SSB, FM, FT8, etc.) |
-| Ref | Park or summit reference code (links to POTA/SOTA page) |
-| Name | Park name or summit details |
-| Time | Spot time |
+Callsign columns link to QRZ. Hover for name/address/class tooltip.
 
-**Filters:**
-
-| Filter | Available | Description |
-|--------|-----------|-------------|
-| Band | POTA, SOTA | Filter by amateur band (160m through 2m) |
-| Mode | POTA, SOTA | Filter by mode (CW, SSB, FM, FT8, etc.) |
-| Country | POTA only | Filter by DXCC entity prefix |
-| State | POTA only | Filter by US state |
-| Grid | POTA only | Filter by 4-character Maidenhead grid square |
-| My privileges | POTA only | US callsigns only — hides spots outside your license class frequency/mode privileges |
-
-Click any row to fly to that spot on the map. The selected spot is highlighted in the table and on the map with an orange marker.
+Click any row to fly to that spot on the map. The selected spot is highlighted in the table and on the map with an orange marker. Filters are controlled from the separate Filters widget.
 
 ### HamMap
 
-Interactive Leaflet map with dark tiles showing activation markers, your QTH, ISS position, propagation overlays, and the gray line terminator.
+Interactive Leaflet map with dark tiles showing activation markers, your QTH, satellite positions, propagation overlays, VOACAP coverage, and the gray line terminator. Tiles automatically switch to CARTO Voyager (political) in HamClock theme.
 
 **Map center controls** (buttons in the header):
 
@@ -351,11 +521,15 @@ Interactive Leaflet map with dark tiles showing activation markers, your QTH, IS
 
 | Feature | Description |
 |---------|-------------|
-| **Spot markers** | Clustered markers for all visible POTA/SOTA spots. Click for popup with callsign (QRZ link), frequency, reference, distance/bearing from your QTH |
+| **Spot markers** | Clustered markers for all visible POTA/SOTA/DXC/PSK spots. Click for popup with callsign (QRZ link), frequency, reference, distance/bearing from your QTH |
 | **Your QTH** | Lightning bolt marker with your callsign at your location |
-| **ISS** | Real-time ISS position with orbital ground track, radio footprint circle, and popup showing lat/lon, altitude, velocity, and ARISS frequencies |
+| **Satellites** | Real-time positions for ISS, amateur radio satellites, and custom NORAD IDs via N2YO. Orbital ground tracks and radio footprint circles |
 | **Gray line** | Day/night terminator overlay showing the solar terminator boundary |
 | **Propagation contours** | Color-coded MHz contour lines when MUF or foF2 is enabled |
+| **VOACAP overlays** | Circle and heatmap overlays showing propagation reach from your QTH |
+| **Lat/lon grid** | Toggleable coordinate grid overlay |
+| **Maidenhead grid** | Toggleable grid square boundaries overlay |
+| **Timezone lines** | Toggleable UTC timezone boundary overlay |
 
 ### Solar & Propagation
 
@@ -402,6 +576,95 @@ Moon data for EME (Earth-Moon-Earth) operators. Click the gear icon to choose wh
 | Ecliptic Latitude | ° | Hidden | — |
 | Right Ascension | ° | Hidden | — |
 
+### VOACAP DE→DX
+
+24-hour propagation prediction between your station and a DX target. Uses the Voice of America Coverage Analysis Program (VOACAP) engine when available, with an automatic simplified model fallback.
+
+| Control | Description |
+|---------|-------------|
+| **Power** | Transmit power: 5W, 100W, or 1kW |
+| **Mode** | Operating mode: CW, SSB, or FT8 (sets SNR thresholds) |
+| **Path** | Short path or long path propagation |
+| **Target** | Click a spot to predict propagation, or use overview mode for general coverage |
+
+The 24-hour grid shows predicted signal reliability for each UTC hour. Colors range from green (reliable) through yellow to red (poor). An "(sim)" label indicates the simplified fallback model is in use.
+
+### Space Weather History
+
+Historical space weather data graphed over time. Switch between tabs:
+
+| Tab | Data | Period |
+|-----|------|--------|
+| **Kp** | Geomagnetic Kp index | 7 days |
+| **X-Ray** | GOES X-ray flux | 7 days |
+| **SFI** | Solar Flux Index (10.7 cm) | 90 days |
+| **Wind** | Solar wind speed | 7 days |
+| **Bz** | IMF Bz component | 7 days |
+
+### Live Spots
+
+Shows where your signal is being received via PSKReporter. Requires your callsign to be configured.
+
+Band cards display either the number of spots or the farthest reception distance per band. Click a band card to see individual spots on the map with lines from your QTH to each receiving station.
+
+### Satellites
+
+Real-time satellite tracking via N2YO. Shows satellite positions on the map with orbital ground tracks and radio footprint circles.
+
+Default satellites include ISS, SO-50, and TEVEL series. Add custom satellites by NORAD catalog number in the config. Requires a free N2YO API key.
+
+### Contests
+
+Active and upcoming amateur radio contests from the WA7BNM Contest Calendar. Each entry shows the contest name, dates, mode badges (CW/Phone/Digital), and a link to the contest rules.
+
+### DXpeditions
+
+Active and upcoming DXpeditions from the NG3K DX Operations Calendar. Shows callsign, DXCC entity/location, operating dates, bands, and QSL information.
+
+### NCDXF Beacons
+
+Real-time display of the NCDXF/IARU International Beacon Project. Eighteen synchronized worldwide beacons transmit sequentially on five HF frequencies (14.1, 18.11, 21.15, 24.93, 28.2 MHz) in a 3-minute cycle. A countdown timer shows which beacon is currently transmitting on each frequency.
+
+### DE/DX Info
+
+Side-by-side display of your station (DE) and a selected DX station. Each panel shows:
+
+- Callsign and grid square
+- Latitude/longitude with cardinal directions (e.g., "33N 98W")
+- Sunrise/sunset times with countdown ("R in 3:42" / "S 5:00 ago")
+- Distance and bearing between stations
+
+Click any spot to populate the DX panel.
+
+### DX Detail
+
+Detailed information about the currently selected spot, including callsign lookup data, frequency, mode, reference, and a QRZ link.
+
+### Filters
+
+Dedicated filter controls for the On the Air widget. Available filters depend on the active source tab:
+
+| Filter | Sources | Description |
+|--------|---------|-------------|
+| Band | All | Filter by amateur band (160m through 2m) |
+| Mode | All | Filter by mode (CW, SSB, FM, FT8, etc.) |
+| Country | POTA, DXC | Filter by DXCC entity prefix |
+| State | POTA | Filter by US state |
+| Grid | POTA | Filter by 4-character Maidenhead grid square |
+| My privileges | POTA | US callsigns — hides spots outside your license class privileges |
+
+### Reference
+
+Five tabbed reference panels:
+
+| Tab | Content |
+|-----|---------|
+| **RST** | Signal report codes for readability, strength, and tone |
+| **Phonetic** | NATO phonetic alphabet (Alpha, Bravo, Charlie...) |
+| **Morse** | CW characters and prosigns with dit/dah patterns |
+| **Q-Codes** | Common Q-code abbreviations and meanings |
+| **Bands** | US amateur band plan with privileges by license class and "My privileges only" filter |
+
 ---
 
 ## Header Bar
@@ -413,9 +676,8 @@ The header bar shows your callsign, band conditions, and global controls.
 - **Callsign** — Links to your QRZ page. License class shown if US callsign.
 - **Name** — Looked up from callook.info
 - **Location** — Lat/lon and Maidenhead grid square
-- **Config** — Opens the configuration dialog
+- **Config** — Opens the configuration dialog (General, Appearance, Widgets, Data Sources tabs)
 - **Loc** — Refreshes your geolocation
-- **Band Ref** — Opens a band plan reference popup showing frequency privileges by license class. Check "My privileges only" to filter to your class.
 
 ### Band Conditions (center)
 
@@ -438,7 +700,9 @@ Color coded: **Good** (green), **Fair** (yellow), **Poor** (red).
 | **Refresh** | Manual refresh of all data |
 | **Reset Layout** | Restore default widget positions and sizes |
 | **Fullscreen** | Toggle browser fullscreen mode |
-| **Update indicator** | Shows whether a git update is available. Green dot = update ready (click to apply). Restart button appears when server files changed. |
+| **Feedback** | Open the feedback form to report issues or suggest features |
+| **Update indicator** | (Lanmode) Shows whether an update is available. Green dot = update ready (click to apply). Restart button appears when server files changed. |
+| **Mode badge** | Shows current deployment mode (Lanmode or Hostedmode) and version |
 
 ---
 
@@ -626,21 +890,28 @@ sudo ufw allow 3443/tcp
 - **Weather not showing** — If you don't have a Weather Underground API key, weather falls back to the NWS API which only covers US locations. Verify your lat/lon is set in the config.
 - **NWS alerts not appearing** — The NWS alerts API only returns alerts for your exact lat/lon point. If there are no active alerts in your area, the badge is hidden.
 - **GPS not working** — Browser geolocation requires HTTPS. If accessing over plain HTTP, enter your coordinates manually or use the Grid Square field.
+- **VOACAP not working** — See the [VOACAP Propagation Setup](#voacap-propagation-setup-optional) section for installation and troubleshooting. Check the status endpoint: `curl http://localhost:3000/api/voacap/status`
 
 ## Project Structure
 
 ```
 HamTabv1/
-  server.js           Express server with API proxy endpoints
-  package.json        Node.js project config
-  start.sh            Restart wrapper for auto-update
-  .env                Environment variables (PORT, HTTPS_PORT, HOST)
-  certs/              Auto-generated TLS certificates (gitignored)
+  server.js              Express server with API proxy endpoints
+  server-config.js       Deployment mode detection and configuration
+  server-startup.js      HTTP/HTTPS listener startup
+  server-tls.js          Self-signed TLS certificate generation
+  voacap-bridge.js       Python VOACAP bridge (IPC to dvoacap)
+  package.json           Node.js project config
+  esbuild.mjs            Client JS bundler config
+  .env                   Environment variables (gitignored)
+  certs/                 Auto-generated TLS certificates (gitignored)
+  src/                   Client ES modules (bundled to public/app.js)
   public/
-    index.html        Main HTML page
-    style.css         All styles (dark theme, widgets, map, tables)
-    app.js            Client-side application logic
-    vendor/           Leaflet and marker clustering libraries (bundled locally)
+    index.html           Main HTML page
+    style.css            All styles (dark theme, widgets, map, tables)
+    app.js               Bundled client application (built from src/)
+    vendor/              Leaflet and marker clustering (bundled locally)
+  docs/user-guide/       User guide source (Markdown → PDF)
 ```
 
 ## License

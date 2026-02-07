@@ -432,10 +432,11 @@ header {
   align-items: center;
   gap: 14px;
   flex: 1 1 auto;
-  min-width: 220px;
+  min-width: 0;
   max-width: 500px;
   container-type: inline-size;
   container-name: header-left;
+  overflow: hidden;
 }
 
 .op-info {
@@ -451,6 +452,9 @@ header {
   font-family: monospace;
   color: var(--accent);
   line-height: 1.1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .op-call a {
@@ -476,6 +480,9 @@ header {
   color: var(--text);
   font-weight: 500;
   line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .op-name:empty {
@@ -487,12 +494,9 @@ header {
   font-size: clamp(1rem, 5cqw, 1.5rem);
   color: var(--text-dim);
   font-family: monospace;
-}
-
-.op-btns {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .op-btn {
@@ -515,58 +519,19 @@ header {
 }
 
 .header-right {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  gap: 5px 8px;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
+  justify-items: center;
+  flex-shrink: 0;
 }
 
-.last-updated, .countdown {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-}
-
-.auto-refresh-toggle {
-  font-size: 0.8rem;
-  color: var(--text-dim);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-#refreshBtn {
-  padding: 4px 12px;
-  font-size: 0.8rem;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-#refreshBtn:hover {
-  background: var(--accent);
-}
-
-#resetLayoutBtn {
-  padding: 4px 12px;
-  font-size: 0.8rem;
-  border: 1px solid var(--border);
-  background: var(--surface2);
-  color: var(--text);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-#resetLayoutBtn:hover {
-  background: var(--accent);
-}
-
+/* Shared base for header-right buttons */
+#refreshBtn,
+#resetLayoutBtn,
 #fullscreenBtn {
-  padding: 4px 12px;
+  padding: 4px 10px;
   font-size: 0.8rem;
   border: 1px solid var(--border);
   background: var(--surface2);
@@ -574,8 +539,11 @@ header {
   border-radius: 4px;
   cursor: pointer;
   transition: background 0.15s;
+  white-space: nowrap;
 }
 
+#refreshBtn:hover,
+#resetLayoutBtn:hover,
 #fullscreenBtn:hover {
   background: var(--accent);
 }
@@ -583,7 +551,7 @@ header {
 /* ---- Buy Me a Coffee button ---- */
 
 .coffee-btn {
-  padding: 4px 12px;
+  padding: 4px 10px;
   font-size: 0.8rem;
   border: 1px solid #ffdd00;
   background: linear-gradient(135deg, #ffdd00 0%, #ffc800 100%);
@@ -593,6 +561,7 @@ header {
   transition: all 0.15s;
   text-decoration: none;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .coffee-btn:hover {
@@ -602,7 +571,7 @@ header {
 }
 
 .feedback-btn {
-  padding: 4px 12px;
+  padding: 4px 10px;
   font-size: 0.8rem;
   border: 1px solid var(--accent);
   background: linear-gradient(135deg, var(--accent) 0%, #0099ff 100%);
@@ -611,6 +580,7 @@ header {
   cursor: pointer;
   transition: all 0.15s;
   font-weight: 500;
+  white-space: nowrap;
 }
 
 .feedback-btn:hover {
@@ -677,12 +647,6 @@ header {
   display: none;
 }
 
-.platform-label {
-  font-size: 0.65rem;
-  color: var(--text-dim);
-  white-space: nowrap;
-}
-
 /* ---- Splash update interval ---- */
 
 .splash-update-section {
@@ -744,6 +708,27 @@ header {
   font-size: 0.75rem;
   color: var(--green);
   min-height: 1.2em;
+}
+
+/* -- Auto-refresh toggle in config modal -- */
+
+.splash-autorefresh-section {
+  text-align: left;
+  margin-bottom: 4px;
+}
+
+.config-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.config-toggle input[type="checkbox"] {
+  width: auto;
+  margin: 0;
 }
 
 /* ---- Widget system ---- */
@@ -1665,7 +1650,7 @@ header {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  padding: 14px 36px;
+  padding: 10px 24px;
   border-radius: 10px;
   background: rgba(15, 52, 96, 0.4);
   transition: all 0.4s ease;
@@ -3560,7 +3545,7 @@ header {
 .theme-lcars .header-center {
   background: #000;
   border-bottom: none;
-  padding: 24px 20px 6px;       /* 24px top clears the 18px bar */
+  padding: 18px 20px 6px;       /* 18px top clears the 18px bar */
   flex: 1;
   position: relative;
 }
@@ -3582,8 +3567,12 @@ header {
   border-radius: 0;
   padding: 24px 16px 6px;       /* 24px top clears the 18px bar */
   position: relative;
-  gap: 8px;
+  gap: 5px 8px;
   max-width: none;
+  display: grid;
+  grid-template-columns: repeat(3, auto);
+  align-items: center;
+  justify-items: center;
 }
 
 /* Lilac bar segment */
@@ -4482,6 +4471,15 @@ header {
   min-width: 0;
   min-height: 80px;
   z-index: auto !important;
+  /* Fill flex slot so widgets stretch to match their flex-grow allocation */
+  overflow: hidden;
+}
+
+/* Widget body must fill available height in grid flex wrappers */
+.grid-active .widget .widget-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 /* Map widget is always in the "map" grid area */
@@ -4861,11 +4859,6 @@ header {
   .op-loc  { font-size: 0.85rem; }
   .op-class { font-size: 0.85rem; }
 
-  .op-btns {
-    flex-direction: row;
-    gap: 4px;
-  }
-
   .op-btn {
     padding: 6px 10px;
     font-size: 0.85rem;
@@ -4886,9 +4879,9 @@ header {
   }
 
   .header-right {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    justify-items: stretch;
     gap: 4px;
     font-size: 0.7rem;
   }
@@ -5056,5 +5049,156 @@ header {
   #widget-beacons .widget-body,
   #widget-contests .widget-body,
   #widget-dxpeditions .widget-body { max-height: 250px; }
+}
+
+/* ---- Compact Header Mode ---- */
+/* Toggled via body.slim-header — shrinks header to ~28-30px,
+   hides weather/name, switches clocks to single-line row layout. */
+
+.slim-header header {
+  padding: 3px 12px;
+  gap: 10px;
+}
+
+.slim-header .op-info {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.slim-header .op-call {
+  font-size: clamp(1rem, 8cqw, 1.4rem);
+  line-height: 1;
+}
+
+.slim-header .op-class {
+  font-size: clamp(0.75rem, 4cqw, 0.95rem);
+  margin-left: 4px;
+}
+
+.slim-header .op-name {
+  display: none;
+}
+
+.slim-header .op-loc {
+  font-size: clamp(0.7rem, 3.5cqw, 0.9rem);
+}
+
+.slim-header .op-btn {
+  padding: 2px 8px;
+  font-size: 0.75rem;
+}
+
+/* Clocks — single-line row layout */
+.slim-header .header-clock {
+  flex-direction: row;
+  padding: 3px 10px;
+  gap: 6px;
+  min-width: auto;
+}
+
+.slim-header .header-clock-label {
+  font-size: 0.65rem;
+}
+
+.slim-header .header-clock-time {
+  font-size: 1rem;
+  letter-spacing: 1px;
+}
+
+/* Hide weather text, weather icon, and weather source logo */
+.slim-header .header-clock-weather,
+.slim-header .header-clock-wx-icon,
+.slim-header .wx-source-logo {
+  display: none;
+}
+
+.slim-header .header-center {
+  gap: 20px;
+}
+
+/* Weather alert badge — reposition for row layout */
+.slim-header .wx-alert-badge {
+  top: 2px;
+  left: 4px;
+  font-size: 0.9rem;
+}
+
+/* Right buttons — smaller */
+.slim-header #refreshBtn,
+.slim-header #resetLayoutBtn,
+.slim-header #fullscreenBtn {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+
+.slim-header .feedback-btn {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+
+.slim-header .coffee-btn {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+
+.slim-header .update-indicator {
+  font-size: 0.65rem;
+}
+
+/* --- LCARS theme slim overrides --- */
+.slim-header.theme-lcars .header-left {
+  padding: 4px 36px 4px 12px;
+  min-width: 200px;
+  max-width: 280px;
+}
+
+.slim-header.theme-lcars .header-left::after {
+  width: 28px;
+  height: calc(100% - 12px);
+}
+
+.slim-header.theme-lcars .header-center {
+  padding: 14px 12px 3px;
+}
+
+.slim-header.theme-lcars .header-center::before {
+  height: 12px;
+}
+
+.slim-header.theme-lcars .header-right {
+  padding: 16px 12px 3px;
+}
+
+.slim-header.theme-lcars .header-right::before {
+  height: 12px;
+}
+
+.slim-header.theme-lcars .header-right::after {
+  width: 12px;
+  height: 12px;
+  border-radius: 0 0 6px 6px;
+}
+
+.slim-header.theme-lcars header::after {
+  height: 3px;
+}
+
+/* --- Terminal theme slim overrides --- */
+.slim-header.theme-terminal header {
+  padding: 2px 10px;
+}
+
+.slim-header.theme-terminal .header-clock {
+  padding: 2px 10px;
+}
+
+/* --- HamClock theme slim overrides --- */
+.slim-header.theme-hamclock header {
+  padding: 2px 10px;
+}
+
+.slim-header.theme-hamclock .header-clock {
+  padding: 2px 10px;
 }
 

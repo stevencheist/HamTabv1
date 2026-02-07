@@ -7340,7 +7340,7 @@ ${beacon.location}`);
   init_dom();
   function initUpdateDisplay() {
     const el = $("platformLabel");
-    if (el) el.textContent = "v0.27.2";
+    if (el) el.textContent = "v0.28.1";
   }
 
   // src/settings-sync.js
@@ -7367,9 +7367,20 @@ ${beacon.location}`);
     "hamtab_spot_columns",
     "hamtab_sdo_type"
   ];
+  function getUserId() {
+    let id = localStorage.getItem("hamtab_user_id");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("hamtab_user_id", id);
+    }
+    return id;
+  }
+  function settingsUrl() {
+    return `/api/settings?userId=${getUserId()}`;
+  }
   async function pullSettings() {
     try {
-      const resp = await fetch("/api/settings");
+      const resp = await fetch(settingsUrl());
       if (!resp.ok) return;
       const remote = await resp.json();
       if (!remote || typeof remote !== "object") return;

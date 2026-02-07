@@ -24,10 +24,24 @@ const SYNC_KEYS = [
   'hamtab_sdo_type',
 ];
 
+// Anonymous user ID — generated once per browser, stored in localStorage
+function getUserId() {
+  let id = localStorage.getItem('hamtab_user_id');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('hamtab_user_id', id);
+  }
+  return id;
+}
+
+function settingsUrl() {
+  return `/api/settings?userId=${getUserId()}`;
+}
+
 // Pull remote settings on startup — if anything differs, write to localStorage and reload
 export async function pullSettings() {
   try {
-    const resp = await fetch('/api/settings');
+    const resp = await fetch(settingsUrl());
     if (!resp.ok) return;
     const remote = await resp.json();
     if (!remote || typeof remote !== 'object') return;
@@ -65,7 +79,7 @@ export function pushSettings() {
       const val = localStorage.getItem(key);
       if (val !== null) payload[key] = val;
     }
-    fetch('/api/settings', {
+    fetch(settingsUrl(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

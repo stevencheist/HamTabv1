@@ -4471,6 +4471,15 @@ header {
   min-width: 0;
   min-height: 80px;
   z-index: auto !important;
+  /* Fill flex slot so widgets stretch to match their flex-grow allocation */
+  overflow: hidden;
+}
+
+/* Widget body must fill available height in grid flex wrappers */
+.grid-active .widget .widget-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
 }
 
 /* Map widget is always in the "map" grid area */

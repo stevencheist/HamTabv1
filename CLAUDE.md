@@ -6,6 +6,8 @@ This file is for **project-specific** instructions — architecture, code conven
 
 For **Claude behavior** instructions — coordination protocols, communication style, session habits, general patterns that apply across all SF Foundry projects — use `~/.claude/instructions.md` (symlinked to `sffoundry/ai-workflows`).
 
+**If a rule appears in both files, `instructions.md` wins.**
+
 **Quick test:** "Would this instruction matter if we started a completely different project?" If yes → `instructions.md`. If no → `CLAUDE.md`.
 
 ## Project Overview

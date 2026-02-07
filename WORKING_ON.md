@@ -28,6 +28,11 @@ Move finished items here for a few days so the other dev knows what changed, the
 
 | Developer | Feature / Task | Branch | Completed |
 |-----------|---------------|--------|-----------|
+| Francisco + Claude | Auth removal — stripped Turnstile+JWT from worker.js, anonymous UUID settings sync | hostedmode | 2026-02-06 |
+| Francisco + Claude | Grid mode widget visibility fix — checkboxes and X close now work in grid mode | main | 2026-02-06 |
+| Francisco + Claude | Widget sizing fix — On the Air (and all widgets) can now grow in grid mode flex slots | main | 2026-02-06 |
+| Francisco + Claude | Planning repo setup — sffoundry/hamtab-planning with roadmap, research, plans | — | 2026-02-06 |
+| Francisco + Claude | Developer message board — messages.md in ai-workflows for cross-dev comms | — | 2026-02-06 |
 | Steven + Claude | Grid+Flex column hybrid layout engine — independent vertical sizing, flex handles, wrapper lifecycle | main | 2026-02-06 |
 | Francisco + Claude | Deployment reliability v0.28.0 — server.js refactoring, /api/health, CI/CD hardening | main + hostedmode | 2026-02-06 |
 | Francisco + Claude | Reduce merge conflicts — server.js import reorg, defensive DOM, section comments | main | 2026-02-05 |

@@ -49,6 +49,7 @@
         countdownSeconds: 60,
         countdownTimer: null,
         // Preferences
+        slimHeader: localStorage.getItem("hamtab_slim_header") === "true",
         use24h: localStorage.getItem("hamtab_time24") !== "false",
         privilegeFilterEnabled: localStorage.getItem("hamtab_privilege_filter") === "true",
         licenseClass: localStorage.getItem("hamtab_license_class") || "",
@@ -4595,6 +4596,9 @@ ${beacon.location}`);
     const savedId = localStorage.getItem(STORAGE_KEY) || "default";
     const themeId = THEMES[savedId] ? savedId : "default";
     applyTheme(themeId);
+    if (localStorage.getItem("hamtab_slim_header") === "true") {
+      document.body.classList.add("slim-header");
+    }
   }
   function currentThemeSupportsGrid() {
     const theme = THEMES[activeThemeId];
@@ -6920,8 +6924,10 @@ ${beacon.location}`);
         themeSelector.appendChild(swatch);
       });
     }
-    $("splashVersion").textContent = "0.28.1";
-    $("aboutVersion").textContent = "0.28.1";
+    const cfgSlimHeader = $("cfgSlimHeader");
+    if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
+    $("splashVersion").textContent = "0.28.2";
+    $("aboutVersion").textContent = "0.28.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -7208,6 +7214,14 @@ ${beacon.location}`);
         }
       });
     }
+    const cfgSlimHeaderCb = $("cfgSlimHeader");
+    if (cfgSlimHeaderCb) {
+      cfgSlimHeaderCb.addEventListener("change", () => {
+        state_default.slimHeader = cfgSlimHeaderCb.checked;
+        localStorage.setItem("hamtab_slim_header", String(state_default.slimHeader));
+        document.body.classList.toggle("slim-header", state_default.slimHeader);
+      });
+    }
   }
   function renderGridPreview(permId) {
     const container = document.getElementById("gridPermPreview");
@@ -7349,7 +7363,7 @@ ${beacon.location}`);
   init_dom();
   function initUpdateDisplay() {
     const el = $("platformLabel");
-    if (el) el.textContent = "v0.28.1";
+    if (el) el.textContent = "v0.28.2";
   }
 
   // src/settings-sync.js

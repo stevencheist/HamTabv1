@@ -24,6 +24,7 @@ const state = {
   countdownTimer: null,
 
   // Preferences
+  slimHeader: localStorage.getItem('hamtab_slim_header') === 'true',
   use24h: localStorage.getItem('hamtab_time24') !== 'false',
   privilegeFilterEnabled: localStorage.getItem('hamtab_privilege_filter') === 'true',
   licenseClass: localStorage.getItem('hamtab_license_class') || '',

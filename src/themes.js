@@ -163,6 +163,11 @@ export function initTheme() {
   // Validate saved theme still exists
   const themeId = THEMES[savedId] ? savedId : 'default';
   applyTheme(themeId);
+
+  // Apply slim header class early to prevent flash of full header
+  if (localStorage.getItem('hamtab_slim_header') === 'true') {
+    document.body.classList.add('slim-header');
+  }
 }
 
 /** Check if the currently active theme supports grid layout */

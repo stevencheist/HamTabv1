@@ -13,7 +13,7 @@ Clear your entry when done.
 
 | Developer | Feature / Task | Branch | Started |
 |-----------|---------------|--------|---------|
-| | | | |
+| Steven + Claude | Planning repo switchover — slim public roadmap, trim CLAUDE.md, update protocols | main | 2026-02-06 |
 
 
 

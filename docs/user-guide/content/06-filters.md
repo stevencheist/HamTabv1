@@ -173,6 +173,64 @@ Privileges vary by mode:
 
 ---
 
+## Watch Lists
+
+Watch lists let you highlight, include, or exclude spots by rule — similar to HamClock's watch lists. Configure them in **Config → Filters** tab.
+
+### Watch List Modes
+
+| Mode | What it does | Badge color |
+|------|-------------|-------------|
+| **Red** | Highlights matching spots with a red-tinted row and accent border | Red |
+| **Only** | Shows ONLY spots that match at least one "Only" rule — everything else is hidden | Green |
+| **Not** | Hides any spot that matches a "Not" rule | Gray |
+
+### Match Types
+
+| Type | How it matches | Example |
+|------|---------------|---------|
+| **Callsign** | Exact match after stripping portable suffixes (/P, /M, /QRP) | `K1ABC` matches K1ABC, K1ABC/P, K1ABC/QRP |
+| **DXCC** | Case-insensitive match on country name or entity prefix | `JA` matches Japan; `US` matches US-prefixed locations |
+| **Grid** | Prefix match — shorter rules match more broadly | `FN` matches FN31, FN42ab, etc. |
+| **Ref** | Exact match on park or summit reference (POTA/SOTA only) | `K-1234` matches that specific park |
+
+### How Rules Interact
+
+Rules are evaluated in this fixed order:
+
+1. **Only rules first** — If any "Only" rules exist, a spot must match at least one to survive
+2. **Not rules next** — If a spot matches any "Not" rule, it's discarded (even if it matched an "Only" rule)
+3. **Red rules last** — Matching spots are highlighted but never filtered out
+
+### Per-Source Rules
+
+Each source tab (POTA, SOTA, DXC, PSK) has its own independent rule set. A callsign rule on POTA won't affect your DXC spots. The Ref match type is only available for POTA and SOTA since DXC and PSK don't have park/summit references.
+
+### Adding a Rule
+
+1. Open **Config** (click the Config button in the header)
+2. Switch to the **Filters** tab
+3. Find the source section you want (POTA, SOTA, DXC, or PSK)
+4. Select a mode (Red, Only, or Not)
+5. Choose a match type (Callsign, DXCC, Grid, or Ref)
+6. Enter the value and click **Add**
+
+Rules take effect immediately — the spot list updates as soon as you add or remove a rule.
+
+### Deleting a Rule
+
+Click the **×** next to any rule to remove it. The spot list updates instantly.
+
+### Persistence
+
+Watch list rules are saved in your browser and persist across page refreshes and browser restarts. They are stored per source, so clearing your POTA rules won't affect your DXC rules.
+
+<div class="tip">Watch lists are great for tracking specific activators, monitoring your favorite parks, or hiding callsigns that clutter your spot list. Try a "Red" rule for a friend's callsign to spot them quickly in a busy list.</div>
+
+<div class="important">DXCC matching uses the country name from the data source, not an official DXCC entity database. Country names may vary slightly between POTA, SOTA, and DXC sources.</div>
+
+---
+
 ## Filter Presets
 
 Save and recall filter combinations for quick switching.

@@ -41,6 +41,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **Reference Tabs** — Five built-in reference tabs: RST signal reports, NATO phonetic alphabet, Morse code with prosigns, Q-codes, and band plan privileges by license class
 - **License Privilege Filter** — For US callsigns, filter spots to only show frequencies and modes your license class allows
 - **Filters** — Dedicated filter widget for band, mode, country, state, grid, distance, spot age, license privilege, and propagation quality filtering
+- **Watch Lists** — HamClock-style per-source watch lists with three modes: Red (highlight matching spots), Only (show only matching), and Not (exclude matching). Match by callsign, DXCC entity, grid prefix, or park/summit reference
 
 ### Customization
 - **Themes** — Four built-in visual themes: Default (dark), LCARS (Star Trek TNG), Terminal (retro green), and HamClock (WB0OEW-inspired with political map tiles)
@@ -656,6 +657,20 @@ Dedicated filter controls for the On the Air widget. Available filters depend on
 | Grid | POTA | Filter by 4-character Maidenhead grid square |
 | My privileges | POTA | US callsigns — hides spots outside your license class privileges |
 | Propagation | All | Hides spots on HF bands with poor predicted propagation (below 30% reliability) |
+
+#### Watch Lists
+
+Per-source watch lists in the Config **Filters** tab with three modes:
+
+| Mode | Effect | Color |
+|------|--------|-------|
+| **Red** | Highlights matching spots with a red tint and accent border | Red |
+| **Only** | Shows ONLY spots matching at least one "Only" rule (everything else hidden) | Green |
+| **Not** | Excludes matching spots from the list | Gray |
+
+Match types: **Callsign** (strips portable suffixes like /P, /M), **DXCC** (country name or entity prefix), **Grid** (prefix match — "FN" matches FN31, FN42, etc.), **Ref** (exact park/summit reference, POTA/SOTA only).
+
+Rules are independent per source tab and persist across sessions. Precedence: Only narrows first, Not excludes next, Red highlights without filtering. Gold "my spot" highlight takes visual precedence over red.
 
 ### Reference
 

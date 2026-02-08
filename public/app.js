@@ -194,6 +194,8 @@
         // 'dvoacap' or 'simplified' — which engine produced the data
         voacapTarget: localStorage.getItem("hamtab_voacap_target") || "overview",
         // 'overview' or 'spot'
+        voacapAutoSpot: localStorage.getItem("hamtab_voacap_auto_spot") === "true",
+        // auto-switch to SPOT on selection
         voacapLastFetch: 0,
         // timestamp of last successful /api/voacap fetch
         // Heatmap overlay (REL mode for VOACAP)
@@ -1069,6 +1071,7 @@
     fetchVoacapMatrixThrottled: () => fetchVoacapMatrixThrottled,
     getVoacapOpts: () => getVoacapOpts,
     initVoacapListeners: () => initVoacapListeners,
+    onSpotSelected: () => onSpotSelected,
     renderVoacapMatrix: () => renderVoacapMatrix,
     toggleBandOverlay: () => toggleBandOverlay
   });
@@ -1102,6 +1105,12 @@
           drawBandOverlay(state_default.hfPropOverlayBand);
         }
       }
+      return;
+    }
+    if (name === "autospot") {
+      state_default.voacapAutoSpot = !state_default.voacapAutoSpot;
+      localStorage.setItem("hamtab_voacap_auto_spot", state_default.voacapAutoSpot);
+      renderVoacapMatrix();
       return;
     }
     if (name === "target") {
@@ -1286,6 +1295,9 @@
     html += `<div class="voacap-params">`;
     html += `<span class="voacap-engine-badge ${engineClass}" title="${engineTitle}">${engineLabel}</span>`;
     html += `<span class="voacap-param" data-param="target" title="${targetTitle}">${targetLabel}</span>`;
+    const autoClass = state_default.voacapAutoSpot ? " voacap-param-active" : "";
+    const autoTitle = state_default.voacapAutoSpot ? "Auto-SPOT: ON \u2014 clicking a spot refreshes VOACAP to that path (click to disable)" : "Auto-SPOT: OFF \u2014 click to auto-refresh VOACAP when selecting a spot";
+    html += `<span class="voacap-param${autoClass}" data-param="autospot" title="${autoTitle}">AUTO</span>`;
     html += `<span class="voacap-param" data-param="overlay" title="${overlayTitle}">${overlayLabel}</span>`;
     html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state_default.voacapPower] || state_default.voacapPower}</span>`;
     html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state_default.voacapMode}</span>`;
@@ -1381,6 +1393,14 @@
     clearBandOverlay();
     clearHeatmap();
     state_default.hfPropOverlayBand = null;
+  }
+  function onSpotSelected() {
+    if (!state_default.voacapAutoSpot) return;
+    if (state_default.voacapTarget !== "spot") {
+      state_default.voacapTarget = "spot";
+      localStorage.setItem("hamtab_voacap_target", "spot");
+    }
+    fetchVoacapMatrix();
   }
   var bandOverlayCircles, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
   var init_voacap = __esm({
@@ -2504,6 +2524,7 @@ ${beacon.location}`);
 \u2022 Good (green) \u2014 Above 65% reliability. The band is solidly open. Expect workable signals for the predicted mode and power level.` },
             { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows more green because its low SNR threshold means signals are decodable in conditions where SSB would be unusable." },
             { heading: "Overview vs Spot", content: `Click OVW/SPOT to toggle target mode. "OVW" (overview) shows the average predicted reliability across four worldwide targets (Europe, East Asia, South America, North America). "SPOT" calculates predictions specifically to the station you've selected in the On the Air table, so you can see exactly when a band will open to that DX.` },
+            { heading: "Auto-SPOT", content: "Click the AUTO button to enable automatic SPOT updates. When AUTO is on (highlighted green), clicking any spot in the table or on the map instantly switches VOACAP to SPOT mode and recalculates the grid for the path to that station. This lets you quickly scan propagation to different DX stations by clicking through spots. AUTO is off by default \u2014 enable it when you want live per-spot predictions." },
             { heading: "Engine Badge", content: 'The green "VOACAP" or gray "SIM" badge shows which prediction engine is active. VOACAP uses the real Voice of America Coverage Analysis Program \u2014 a professional ionospheric ray-tracing model used by broadcasters and militaries worldwide. It computes multi-hop propagation paths through actual ionospheric layers, accounting for D-layer absorption, MUF, takeoff angle, power, and mode. SIM is a lightweight approximation based on solar flux and time of day \u2014 useful as a fallback but significantly less accurate. The engine switches automatically; no user action needed.' },
             { heading: "Map Overlay", content: "Click any band row to show propagation on the map. Two modes are available \u2014 click the \u25CB/REL toggle in the param bar to switch. Circle mode (\u25CB) draws concentric range rings from your QTH. REL heatmap mode paints the entire map with a color gradient showing predicted reliability to every point: green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels." },
             { heading: "About the Data", content: "Predictions are monthly median values based on the current smoothed sunspot number (SSN) from NOAA. They represent typical conditions for this month, not real-time ionospheric state. Use them for planning which bands to try at different times of day, rather than as guarantees of what's open right now." }
@@ -3249,6 +3270,7 @@ ${beacon.location}`);
         clearSpotDetail();
         clearDedxSpot();
       }
+      onSpotSelected();
     } else {
       clearSpotDetail();
       clearDedxSpot();
@@ -3279,6 +3301,7 @@ ${beacon.location}`);
       init_filters();
       init_spot_detail();
       init_dedx_info();
+      init_voacap();
       defaultIcon = null;
       selectedIcon = null;
     }

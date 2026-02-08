@@ -806,19 +806,19 @@
     let baseReliability = 0;
     if (bandFreqMHz < mufLower) {
       if (isDay) {
-        baseReliability = Math.max(0, 20 - (mufLower - bandFreqMHz) * 2);
+        baseReliability = Math.max(0, 10 - (mufLower - bandFreqMHz) * 3);
       } else {
-        baseReliability = Math.min(85, 60 + (mufLower - bandFreqMHz) * 1.5);
+        baseReliability = Math.min(70, 40 + (mufLower - bandFreqMHz) * 1);
       }
     } else if (bandFreqMHz <= mufOptimal) {
       const position = (bandFreqMHz - mufLower) / (mufOptimal - mufLower);
-      baseReliability = 70 + 30 * Math.sin(position * Math.PI);
+      baseReliability = 50 + 35 * Math.sin(position * Math.PI);
     } else if (bandFreqMHz <= muf) {
       const position = (bandFreqMHz - mufOptimal) / (muf - mufOptimal);
-      baseReliability = 90 - position * 40;
+      baseReliability = 75 - position * 35;
     } else {
       const excess = bandFreqMHz - muf;
-      baseReliability = Math.max(0, 40 - excess * 3);
+      baseReliability = Math.max(0, 15 - excess * 5);
     }
     let geomagPenalty = 0;
     if (kIndex >= 6) {
@@ -834,16 +834,16 @@
     }
     let adjusted = baseReliability - geomagPenalty - aIndexPenalty;
     if (opts) {
-      if (opts.mode === "CW") adjusted += 10;
-      else if (opts.mode === "FT8") adjusted += 30;
+      if (opts.mode === "CW") adjusted += 8;
+      else if (opts.mode === "FT8") adjusted += 15;
       if (opts.powerWatts && opts.powerWatts !== 100) {
         const dBdiff = 10 * Math.log10(opts.powerWatts / 100);
         adjusted += dBdiff * 1.5;
       }
       if (opts.toaDeg != null) {
-        adjusted += (opts.toaDeg - 5) * 1.5;
+        adjusted += (opts.toaDeg - 5) * 0.5;
       }
-      if (opts.longPath) adjusted -= 25;
+      if (opts.longPath) adjusted -= 30;
     }
     const finalReliability = Math.max(0, Math.min(100, adjusted));
     return Math.round(finalReliability);
@@ -918,10 +918,12 @@
     return map[condition] || "Unknown";
   }
   function getReliabilityColor(rel) {
-    if (rel < 10) return "#1a1a1a";
-    if (rel < 33) return "#c0392b";
-    if (rel < 66) return "#f1c40f";
-    return "#27ae60";
+    if (rel < 5) return "rgba(26, 26, 26, 0.6)";
+    const t = Math.max(0, Math.min(1, (rel - 5) / 90));
+    const hue = t * 120;
+    const sat = 75;
+    const light = 25 + t * 18;
+    return `hsl(${hue}, ${sat}%, ${light}%)`;
   }
   function calculate24HourMatrix(opts) {
     if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {

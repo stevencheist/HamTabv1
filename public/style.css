@@ -5477,10 +5477,20 @@ header {
   padding: 2px 10px;
 }
 
+/* ---- Watch list accordion ---- */
+.wl-accordion { margin-top: 6px; border-top: 1px solid var(--border); padding-top: 4px; }
+.wl-accordion-toggle {
+  background: none; border: none; color: var(--text); cursor: pointer;
+  font-size: 0.75rem; font-weight: 600; padding: 2px 0; width: 100%; text-align: left;
+  display: flex; align-items: center; gap: 4px;
+}
+.wl-accordion-toggle:hover { color: var(--accent); }
+.wl-accordion-arrow { font-size: 0.6rem; transition: transform 0.15s; display: inline-block; }
+.wl-accordion-toggle.open .wl-accordion-arrow { transform: rotate(90deg); }
+.wl-accordion-body { display: none; padding-top: 4px; }
+.wl-accordion-body.open { display: block; }
+
 /* ---- Watch list editor ---- */
-.wl-help-text { font-size: 0.75rem; color: var(--text-dim); margin: 0 0 8px; }
-.wl-source-section { margin-bottom: 12px; }
-.wl-source-header { font-size: 0.8rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .wl-rule-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
 .wl-rule { display: flex; align-items: center; gap: 6px; font-size: 0.75rem;
            padding: 2px 6px; background: var(--surface); border-radius: 3px; }

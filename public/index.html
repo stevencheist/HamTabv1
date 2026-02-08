@@ -124,7 +124,6 @@
         <button type="button" class="config-tab" data-tab="display">Display</button>
         <button type="button" class="config-tab" data-tab="appearance">Appearance</button>
         <button type="button" class="config-tab" data-tab="services">Services</button>
-        <button type="button" class="config-tab" data-tab="filters">Filters</button>
         <button type="button" class="config-tab" data-tab="about">About</button>
       </div>
 
@@ -281,13 +280,6 @@
           </div>
         </div>
 
-        <!-- Tab: Filters (Watch Lists) -->
-        <div class="config-panel" data-panel="filters">
-          <span class="splash-loc-title">Watch Lists</span>
-          <p class="wl-help-text">Highlight, include, or exclude spots by rule. Rules apply independently per source.</p>
-          <div id="watchListEditor"></div>
-        </div>
-
         <!-- Tab 5: About -->
         <div class="config-panel" data-panel="about">
           <div class="about-content">
@@ -438,6 +430,13 @@
             <button id="savePresetBtn">Save</button>
             <button id="deletePresetBtn">Del</button>
             <button id="clearFiltersBtn">Clear All</button>
+          </div>
+          <!-- Row 5: Watch Lists accordion -->
+          <div class="wl-accordion" id="wlAccordion">
+            <button type="button" class="wl-accordion-toggle" id="wlAccordionToggle">Watch Lists <span class="wl-accordion-arrow">&#9654;</span></button>
+            <div class="wl-accordion-body" id="wlAccordionBody">
+              <div id="watchListEditor"></div>
+            </div>
           </div>
         </div>
       </div>

@@ -2312,7 +2312,7 @@ ${beacon.location}`);
             { heading: "Distance Filter", content: "Show only spots within a certain distance from your location (QTH). You'll need to set your location in Config first. Great for finding nearby activations you can reach." },
             { heading: "Age Filter", content: "Show only spots posted within the last N minutes. Older spots may no longer be active, so this helps you find stations that are on the air right now." },
             { heading: "Propagation Filter", content: `Click the "Prop" button to hide spots on bands with poor predicted propagation. Uses your current solar indices and location to estimate which HF bands are likely open. Spots on bands rated below "Fair" (less than 30% reliability) are filtered out. VHF/UHF spots are never filtered since they don't depend on HF propagation.` },
-            { heading: "Watch Lists", content: "Open Config \u2192 Filters tab to create per-source watch list rules. Three modes: Red highlights matching spots with a tinted row, Only shows ONLY matching spots (everything else hidden), Not excludes matching spots. Match by callsign (strips /P, /M suffixes), DXCC entity, grid prefix, or park/summit reference. Rules apply independently per source tab (POTA, SOTA, DXC, PSK) and persist across sessions." },
+            { heading: "Watch Lists", content: 'Click the "Watch Lists" accordion below the presets to add rules for the active source tab. Three modes: Red highlights matching spots with a tinted row, Only shows ONLY matching spots (everything else hidden), Not excludes matching spots. Match by callsign (strips /P, /M suffixes), DXCC entity, grid prefix, or park/summit reference. Rules apply per source tab and persist across sessions.' },
             { heading: "Presets", content: 'Save your favorite filter combinations and switch between them quickly. For example, save a "Local FT8" preset for nearby digital spots, and a "DX SSB" preset for long-distance voice contacts.' }
           ]
         },
@@ -3476,6 +3476,7 @@ ${beacon.location}`);
     loadFiltersForSource: () => loadFiltersForSource,
     loadPreset: () => loadPreset,
     normalizeMode: () => normalizeMode,
+    renderWatchListEditor: () => renderWatchListEditor,
     saveCurrentFilters: () => saveCurrentFilters,
     savePreset: () => savePreset,
     saveWatchLists: () => saveWatchLists,
@@ -3613,6 +3614,98 @@ ${beacon.location}`);
   }
   function saveWatchLists() {
     localStorage.setItem("hamtab_watchlists", JSON.stringify(state_default.watchLists));
+  }
+  function renderWatchListEditor() {
+    const container = document.getElementById("watchListEditor");
+    if (!container) return;
+    container.innerHTML = "";
+    const key = state_default.currentSource;
+    if (!SOURCE_DEFS[key]) return;
+    const rules = state_default.watchLists[key] || [];
+    if (rules.length > 0) {
+      const list = document.createElement("div");
+      list.className = "wl-rule-list";
+      rules.forEach((rule, idx) => {
+        const row = document.createElement("div");
+        row.className = "wl-rule";
+        const badge = document.createElement("span");
+        badge.className = `wl-rule-mode ${rule.mode}`;
+        badge.textContent = rule.mode;
+        row.appendChild(badge);
+        const val = document.createElement("span");
+        val.className = "wl-rule-value";
+        val.textContent = rule.value;
+        row.appendChild(val);
+        const type = document.createElement("span");
+        type.className = "wl-rule-type";
+        type.textContent = `(${rule.type})`;
+        row.appendChild(type);
+        const del = document.createElement("span");
+        del.className = "wl-rule-delete";
+        del.textContent = "\xD7";
+        del.title = "Remove rule";
+        del.addEventListener("click", () => {
+          state_default.watchLists[key].splice(idx, 1);
+          saveWatchLists();
+          applyFilter();
+          renderSpots();
+          renderMarkers();
+          renderWatchListEditor();
+        });
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+      container.appendChild(list);
+    }
+    const form = document.createElement("div");
+    form.className = "wl-add-form";
+    const modes = ["red", "only", "not"];
+    const radioName = `wl-mode-${key}`;
+    modes.forEach((m, i) => {
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = radioName;
+      radio.value = m;
+      if (i === 0) radio.checked = true;
+      const label = document.createElement("label");
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(m.charAt(0).toUpperCase() + m.slice(1)));
+      form.appendChild(label);
+    });
+    const typeSelect = document.createElement("select");
+    const types = ["callsign", "dxcc", "grid"];
+    if (key === "pota" || key === "sota") types.push("ref");
+    types.forEach((t) => {
+      const opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+      typeSelect.appendChild(opt);
+    });
+    form.appendChild(typeSelect);
+    const valueInput = document.createElement("input");
+    valueInput.type = "text";
+    valueInput.placeholder = "Value";
+    form.appendChild(valueInput);
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.textContent = "Add";
+    addBtn.addEventListener("click", () => {
+      const val = valueInput.value.trim().toUpperCase();
+      if (!val) return;
+      const mode = form.querySelector(`input[name="${radioName}"]:checked`).value;
+      const type = typeSelect.value;
+      const existing = state_default.watchLists[key] || [];
+      if (existing.some((r) => r.mode === mode && r.type === type && r.value === val)) return;
+      if (!state_default.watchLists[key]) state_default.watchLists[key] = [];
+      state_default.watchLists[key].push({ mode, type, value: val });
+      saveWatchLists();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+      renderWatchListEditor();
+    });
+    form.appendChild(addBtn);
+    container.appendChild(form);
   }
   function applyFilter() {
     state_default.watchRedSpotIds = /* @__PURE__ */ new Set();
@@ -4003,6 +4096,15 @@ ${beacon.location}`);
     }
     if (state_default.myCallsign) {
       fetchLicenseClass(state_default.myCallsign);
+    }
+    const wlToggle = document.getElementById("wlAccordionToggle");
+    if (wlToggle) {
+      wlToggle.addEventListener("click", () => {
+        const body = document.getElementById("wlAccordionBody");
+        const open = body.classList.toggle("open");
+        wlToggle.classList.toggle("open", open);
+        if (open) renderWatchListEditor();
+      });
     }
   }
   function spotId(spot) {
@@ -5970,6 +6072,7 @@ ${beacon.location}`);
     updateAllFilterUI();
     updatePresetDropdown();
     updateDistanceAgeVisibility();
+    renderWatchListEditor();
   }
   function initSourceListeners() {
     $("sourceTabs").querySelectorAll(".source-tab").forEach((btn) => {
@@ -7198,8 +7301,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.33.1";
-    $("aboutVersion").textContent = "0.33.1";
+    $("splashVersion").textContent = "0.33.2";
+    $("aboutVersion").textContent = "0.33.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -7223,7 +7326,6 @@ ${beacon.location}`);
       renderGridPreview(state_default.gridPermutation);
     }
     updateWidgetSlotEnforcement();
-    renderWatchListEditor();
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -7499,106 +7601,6 @@ ${beacon.location}`);
         document.body.classList.toggle("slim-header", state_default.slimHeader);
       });
     }
-  }
-  function renderWatchListEditor() {
-    const container = document.getElementById("watchListEditor");
-    if (!container) return;
-    container.innerHTML = "";
-    const sourceKeys = ["pota", "sota", "dxc", "psk"];
-    sourceKeys.forEach((key) => {
-      const section = document.createElement("div");
-      section.className = "wl-source-section";
-      const header = document.createElement("div");
-      header.className = "wl-source-header";
-      header.textContent = SOURCE_DEFS[key].label;
-      section.appendChild(header);
-      const rules = state_default.watchLists[key] || [];
-      if (rules.length > 0) {
-        const list = document.createElement("div");
-        list.className = "wl-rule-list";
-        rules.forEach((rule, idx) => {
-          const row = document.createElement("div");
-          row.className = "wl-rule";
-          const badge = document.createElement("span");
-          badge.className = `wl-rule-mode ${rule.mode}`;
-          badge.textContent = rule.mode;
-          row.appendChild(badge);
-          const val = document.createElement("span");
-          val.className = "wl-rule-value";
-          val.textContent = rule.value;
-          row.appendChild(val);
-          const type = document.createElement("span");
-          type.className = "wl-rule-type";
-          type.textContent = `(${rule.type})`;
-          row.appendChild(type);
-          const del = document.createElement("span");
-          del.className = "wl-rule-delete";
-          del.textContent = "\xD7";
-          del.title = "Remove rule";
-          del.addEventListener("click", () => {
-            state_default.watchLists[key].splice(idx, 1);
-            saveWatchLists();
-            applyFilter();
-            renderSpots();
-            renderMarkers();
-            renderWatchListEditor();
-          });
-          row.appendChild(del);
-          list.appendChild(row);
-        });
-        section.appendChild(list);
-      }
-      const form = document.createElement("div");
-      form.className = "wl-add-form";
-      const modes = ["red", "only", "not"];
-      const radioName = `wl-mode-${key}`;
-      modes.forEach((m, i) => {
-        const radio = document.createElement("input");
-        radio.type = "radio";
-        radio.name = radioName;
-        radio.value = m;
-        if (i === 0) radio.checked = true;
-        const label = document.createElement("label");
-        label.appendChild(radio);
-        label.appendChild(document.createTextNode(m.charAt(0).toUpperCase() + m.slice(1)));
-        form.appendChild(label);
-      });
-      const typeSelect = document.createElement("select");
-      const types = ["callsign", "dxcc", "grid"];
-      if (key === "pota" || key === "sota") types.push("ref");
-      types.forEach((t) => {
-        const opt = document.createElement("option");
-        opt.value = t;
-        opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
-        typeSelect.appendChild(opt);
-      });
-      form.appendChild(typeSelect);
-      const valueInput = document.createElement("input");
-      valueInput.type = "text";
-      valueInput.placeholder = "Value";
-      form.appendChild(valueInput);
-      const addBtn = document.createElement("button");
-      addBtn.type = "button";
-      addBtn.textContent = "Add";
-      addBtn.addEventListener("click", () => {
-        const val = valueInput.value.trim().toUpperCase();
-        if (!val) return;
-        const mode = form.querySelector(`input[name="${radioName}"]:checked`).value;
-        const type = typeSelect.value;
-        const existing = state_default.watchLists[key] || [];
-        if (existing.some((r) => r.mode === mode && r.type === type && r.value === val)) return;
-        if (!state_default.watchLists[key]) state_default.watchLists[key] = [];
-        state_default.watchLists[key].push({ mode, type, value: val });
-        saveWatchLists();
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-        renderWatchListEditor();
-      });
-      form.appendChild(addBtn);
-      section.appendChild(form);
-      container.appendChild(section);
-    });
   }
   function renderGridPreview(permId) {
     const container = document.getElementById("gridPermPreview");

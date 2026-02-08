@@ -296,6 +296,26 @@ function shutdown() {
   }
 }
 
+// Kill the stuck worker and respawn — used when a prediction hangs
+function killAndRespawn(reason) {
+  console.log(`[VOACAP] Killing worker: ${reason}`);
+  available = false;
+  lastError = reason;
+  rejectAllPending(reason);
+
+  if (child) {
+    try { child.kill(); } catch {}
+    child = null;
+  }
+
+  // Respawn after a short delay — the worker may work on the next attempt
+  if (!shuttingDown && fullyInitialized) {
+    console.log(`[VOACAP] Respawning worker in ${RESPAWN_DELAY_MS / 1000}s...`);
+    if (respawnTimer) clearTimeout(respawnTimer);
+    respawnTimer = setTimeout(() => spawnWorker(), RESPAWN_DELAY_MS);
+  }
+}
+
 function getStatus() {
   return {
     available,
@@ -307,4 +327,4 @@ function getStatus() {
   };
 }
 
-module.exports = { init, predict, predictMatrix, isAvailable, getStatus, shutdown };
+module.exports = { init, predict, predictMatrix, isAvailable, getStatus, shutdown, killAndRespawn };

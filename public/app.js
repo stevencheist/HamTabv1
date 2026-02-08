@@ -1185,7 +1185,10 @@
       }
     }
     try {
-      const resp = await fetch(`/api/voacap?${params}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25e3);
+      const resp = await fetch(`/api/voacap?${params}`, { signal: controller.signal });
+      clearTimeout(timeout);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       state_default.voacapServerData = data;
@@ -7117,8 +7120,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.30.0";
-    $("aboutVersion").textContent = "0.30.0";
+    $("splashVersion").textContent = "0.30.1";
+    $("aboutVersion").textContent = "0.30.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

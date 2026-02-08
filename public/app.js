@@ -5222,6 +5222,25 @@ ${beacon.location}`);
     const perm = getGridPermutation(state_default.gridPermutation);
     const area = document.getElementById("widgetArea");
     if (!area || !state_default.gridAssignments) return;
+    const vis = state_default.widgetVisibility || {};
+    const assignments = state_default.gridAssignments;
+    let dirty = false;
+    for (const cell of Object.keys(assignments)) {
+      if (vis[assignments[cell]] === false) {
+        delete assignments[cell];
+        dirty = true;
+      }
+    }
+    const assignedSet = new Set(Object.values(assignments));
+    const unassigned = WIDGET_DEFS.filter((w) => w.id !== "widget-map" && vis[w.id] !== false && !assignedSet.has(w.id)).map((w) => w.id);
+    if (unassigned.length > 0) {
+      const emptyCells = perm.cellNames.filter((c) => !assignments[c]);
+      for (let i = 0; i < Math.min(emptyCells.length, unassigned.length); i++) {
+        assignments[emptyCells[i]] = unassigned[i];
+        dirty = true;
+      }
+    }
+    if (dirty) saveGridAssignments();
     if (!customSizes) customSizes = loadCustomTrackSizes(perm.id);
     const mapEl = document.getElementById("widget-map");
     if (mapEl) {
@@ -5234,7 +5253,6 @@ ${beacon.location}`);
     populateWrapper("grid-bar-top", perm.top, "topFlex", false, customSizes);
     populateWrapper("grid-bar-bottom", perm.bottom, "bottomFlex", false, customSizes);
     const assignedWidgets = new Set(Object.values(state_default.gridAssignments));
-    const vis = state_default.widgetVisibility || {};
     WIDGET_DEFS.forEach((def) => {
       if (def.id === "widget-map") return;
       const el = document.getElementById(def.id);
@@ -7010,6 +7028,57 @@ ${beacon.location}`);
       options[state_default.gridHighlightIdx].scrollIntoView({ block: "nearest" });
     }
   }
+  function updateWidgetSlotEnforcement() {
+    const counter = document.getElementById("widgetSlotCounter");
+    const widgetList = document.getElementById("splashWidgetList");
+    if (!counter || !widgetList) return;
+    const floatRadio = document.getElementById("layoutModeFloat");
+    const isGrid = floatRadio ? !floatRadio.checked : false;
+    const supportsGrid = currentThemeSupportsGrid();
+    if (!isGrid || !supportsGrid) {
+      counter.textContent = "";
+      counter.classList.remove("over-limit");
+      widgetList.querySelectorAll("label").forEach((lbl) => {
+        lbl.classList.remove("cb-disabled");
+        const cb = lbl.querySelector('input[type="checkbox"]');
+        if (cb) cb.disabled = false;
+      });
+      return;
+    }
+    const permSelect = document.getElementById("gridPermSelect");
+    const permId = permSelect ? permSelect.value : state_default.gridPermutation;
+    const perm = getGridPermutation(permId);
+    const maxSlots = perm.slots;
+    const checkboxes = widgetList.querySelectorAll('input[type="checkbox"]');
+    let checkedNonMap = 0;
+    checkboxes.forEach((cb) => {
+      if (cb.dataset.widgetId === "widget-map") {
+        cb.checked = true;
+        cb.disabled = true;
+        cb.closest("label").classList.add("cb-disabled");
+      } else if (cb.checked) {
+        checkedNonMap++;
+      }
+    });
+    const atLimit = checkedNonMap >= maxSlots;
+    checkboxes.forEach((cb) => {
+      if (cb.dataset.widgetId === "widget-map") return;
+      if (atLimit && !cb.checked) {
+        cb.disabled = true;
+        cb.closest("label").classList.add("cb-disabled");
+      } else {
+        cb.disabled = false;
+        cb.closest("label").classList.remove("cb-disabled");
+      }
+    });
+    if (checkedNonMap > maxSlots) {
+      counter.textContent = `${checkedNonMap} / ${maxSlots} slots \u2014 excess hidden in grid`;
+      counter.classList.add("over-limit");
+    } else {
+      counter.textContent = `${checkedNonMap} / ${maxSlots} slots`;
+      counter.classList.remove("over-limit");
+    }
+  }
   var _initApp = null;
   function setInitApp(fn) {
     _initApp = fn;
@@ -7059,6 +7128,7 @@ ${beacon.location}`);
       cb.type = "checkbox";
       cb.dataset.widgetId = w.id;
       cb.checked = state_default.widgetVisibility[w.id] !== false;
+      cb.addEventListener("change", updateWidgetSlotEnforcement);
       label.appendChild(cb);
       label.appendChild(document.createTextNode(w.name));
       widgetList.appendChild(label);
@@ -7115,6 +7185,7 @@ ${beacon.location}`);
               if (permSec) permSec.style.display = "none";
             }
           }
+          updateWidgetSlotEnforcement();
         });
         themeSelector.appendChild(swatch);
       });
@@ -7145,6 +7216,7 @@ ${beacon.location}`);
       }
       renderGridPreview(state_default.gridPermutation);
     }
+    updateWidgetSlotEnforcement();
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -7385,15 +7457,18 @@ ${beacon.location}`);
     if (layoutModeFloat && layoutModeGrid) {
       layoutModeFloat.addEventListener("change", () => {
         if (gridPermSection) gridPermSection.style.display = "none";
+        updateWidgetSlotEnforcement();
       });
       layoutModeGrid.addEventListener("change", () => {
         if (gridPermSection) gridPermSection.style.display = "";
         if (gridPermSelect) renderGridPreview(gridPermSelect.value);
+        updateWidgetSlotEnforcement();
       });
     }
     if (gridPermSelect) {
       gridPermSelect.addEventListener("change", () => {
         renderGridPreview(gridPermSelect.value);
+        updateWidgetSlotEnforcement();
       });
     }
     $("editCallBtn").addEventListener("click", () => {

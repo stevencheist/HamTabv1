@@ -630,6 +630,34 @@ export function applyGridAssignments(customSizes) {
   const area = document.getElementById('widgetArea');
   if (!area || !state.gridAssignments) return;
 
+  // Reconcile assignments with visibility — free cells with hidden widgets,
+  // assign visible-but-unplaced widgets to empty cells
+  const vis = state.widgetVisibility || {};
+  const assignments = state.gridAssignments;
+  let dirty = false;
+
+  for (const cell of Object.keys(assignments)) {
+    if (vis[assignments[cell]] === false) {
+      delete assignments[cell];
+      dirty = true;
+    }
+  }
+
+  const assignedSet = new Set(Object.values(assignments));
+  const unassigned = WIDGET_DEFS
+    .filter(w => w.id !== 'widget-map' && vis[w.id] !== false && !assignedSet.has(w.id))
+    .map(w => w.id);
+
+  if (unassigned.length > 0) {
+    const emptyCells = perm.cellNames.filter(c => !assignments[c]);
+    for (let i = 0; i < Math.min(emptyCells.length, unassigned.length); i++) {
+      assignments[emptyCells[i]] = unassigned[i];
+      dirty = true;
+    }
+  }
+
+  if (dirty) saveGridAssignments();
+
   // Load custom sizes if not provided
   if (!customSizes) customSizes = loadCustomTrackSizes(perm.id);
 
@@ -650,7 +678,6 @@ export function applyGridAssignments(customSizes) {
 
   // Hide unassigned widgets and user-hidden widgets
   const assignedWidgets = new Set(Object.values(state.gridAssignments));
-  const vis = state.widgetVisibility || {};
   WIDGET_DEFS.forEach(def => {
     if (def.id === 'widget-map') return;
     const el = document.getElementById(def.id);

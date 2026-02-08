@@ -14,6 +14,7 @@ const state = {
   distanceUnit: localStorage.getItem('hamtab_distance_unit') || 'mi',
   temperatureUnit: localStorage.getItem('hamtab_temperature_unit') || 'F', // F or C
   activeMaxAge: null, // minutes (null = no filter)
+  propagationFilterEnabled: false, // session-only — filter spots by predicted band reliability (≥30%)
 
   // Filter presets per source
   filterPresets: { pota: {}, sota: {}, dxc: {} },
@@ -155,6 +156,7 @@ const state = {
   voacapServerData: null,       // latest /api/voacap response (matrix from server)
   voacapEngine: 'simplified',   // 'dvoacap' or 'simplified' — which engine produced the data
   voacapTarget: localStorage.getItem('hamtab_voacap_target') || 'overview', // 'overview' or 'spot'
+  voacapAutoSpot: localStorage.getItem('hamtab_voacap_auto_spot') === 'true', // auto-switch to SPOT on selection
   voacapLastFetch: 0,           // timestamp of last successful /api/voacap fetch
 
   // Heatmap overlay (REL mode for VOACAP)

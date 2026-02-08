@@ -153,7 +153,7 @@
         zCounter: 10,
         // next z-index to assign when a widget is focused (increments on each click)
         // Grid layout mode
-        gridMode: localStorage.getItem("hamtab_grid_mode") || "float",
+        gridMode: localStorage.getItem("hamtab_grid_mode") || "grid",
         // 'float' or 'grid'
         gridPermutation: localStorage.getItem("hamtab_grid_permutation") || "3L-3R",
         // active permutation ID
@@ -7197,8 +7197,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.32.0";
-    $("aboutVersion").textContent = "0.32.0";
+    $("splashVersion").textContent = "0.32.1";
+    $("aboutVersion").textContent = "0.32.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

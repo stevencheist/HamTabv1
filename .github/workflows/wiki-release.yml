@@ -1,0 +1,120 @@
+name: Auto-Create Release from Wiki
+
+on:
+  gollum: # fires when wiki pages are created or updated
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check if Release-Notes.md was changed
+        uses: actions/github-script@v7
+        id: check
+        with:
+          script: |
+            const pages = context.payload.pages || [];
+            const releaseNotesChanged = pages.some(p => p.page_name === 'Release-Notes');
+            console.log(`Pages changed: ${pages.map(p => p.page_name).join(', ')}`);
+            console.log(`Release-Notes changed: ${releaseNotesChanged}`);
+            return releaseNotesChanged;
+          result-encoding: string
+
+      - name: Parse wiki and create release
+        if: steps.check.outputs.result == 'true'
+        uses: actions/github-script@v7
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
+        with:
+          script: |
+            const { execSync } = require('child_process');
+            const fs = require('fs');
+
+            // Clone the wiki repo
+            execSync(
+              `git clone https://github.com/${context.repo.owner}/${context.repo.repo}.wiki.git wiki`,
+              { stdio: 'inherit' }
+            );
+
+            const content = fs.readFileSync('wiki/Release-Notes.md', 'utf8');
+
+            // Parse the first version entry after the intro text
+            // Format: ## vX.Y.Z (YYYY-MM-DD)\n<body>\n---
+            const match = content.match(
+              /^## (v[\d.]+) \((\d{4}-\d{2}-\d{2})\)\n([\s\S]*?)(?=\n---)/m
+            );
+
+            if (!match) {
+              console.log('No valid release entry found at top of Release-Notes.md');
+              return;
+            }
+
+            const version = match[1];
+            const date = match[2];
+            const body = match[3].trim();
+
+            console.log(`Found: ${version} (${date}), ${body.length} chars`);
+
+            // Check if a release already exists for this tag
+            try {
+              await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: version
+              });
+              console.log(`Release ${version} already exists — skipping`);
+              return;
+            } catch (e) {
+              if (e.status !== 404) throw e;
+              // 404 means no existing release — proceed
+            }
+
+            // Create the GitHub Release
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: version,
+              name: `HamTab ${version}`,
+              body: body,
+              draft: false,
+              prerelease: false,
+              target_commitish: 'main'
+            });
+
+            console.log(`Created release: ${release.data.html_url}`);
+
+            // Post to Discord — GITHUB_TOKEN events don't trigger other
+            // workflows, so we post directly instead of relying on the
+            // discord-release.yml workflow chain.
+            const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+            if (!webhookUrl) {
+              console.log('DISCORD_RELEASES_WEBHOOK secret not set — skipping Discord notification');
+              return;
+            }
+
+            let discordBody = body;
+            if (discordBody.length > 3900) {
+              discordBody = discordBody.substring(0, 3900) + '\n\n*... truncated. See full release notes on GitHub.*';
+            }
+
+            const embed = {
+              title: `HamTab ${version}`,
+              url: release.data.html_url,
+              description: discordBody,
+              color: 0x2ECC71, // green
+              footer: { text: 'HamTab Release' },
+              timestamp: new Date().toISOString()
+            };
+
+            const resp = await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ embeds: [embed] })
+            });
+
+            if (!resp.ok) {
+              console.log(`Discord webhook failed: ${resp.status} ${resp.statusText}`);
+            } else {
+              console.log(`Posted ${version} to Discord #releases`);
+            }

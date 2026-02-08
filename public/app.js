@@ -4796,7 +4796,6 @@ ${beacon.location}`);
   // src/widgets.js
   init_state();
   init_constants();
-  init_map_init();
 
   // src/grid-layout.js
   init_state();
@@ -4821,16 +4820,6 @@ ${beacon.location}`);
     }
     all[permId] = { columns, rows, ...flexRatios || {} };
     localStorage.setItem(GRID_SIZES_KEY, JSON.stringify(all));
-  }
-  function clearCustomTrackSizes(permId) {
-    try {
-      const all = JSON.parse(localStorage.getItem(GRID_SIZES_KEY));
-      if (all && all[permId]) {
-        delete all[permId];
-        localStorage.setItem(GRID_SIZES_KEY, JSON.stringify(all));
-      }
-    } catch (e) {
-    }
   }
   function parseTracks(templateStr) {
     return templateStr.trim().split(/\s+/).map((t) => {
@@ -5324,21 +5313,6 @@ ${beacon.location}`);
       }
     });
   }
-  function resetGridAssignments() {
-    const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
-    state_default.gridAssignments = defaults ? { ...defaults } : {};
-    saveGridAssignments();
-    clearCustomTrackSizes(state_default.gridPermutation);
-    const perm = getGridPermutation(state_default.gridPermutation);
-    const area = document.getElementById("widgetArea");
-    if (area) {
-      area.style.gridTemplateAreas = perm.outerAreas;
-      area.style.gridTemplateColumns = perm.outerColumns;
-      area.style.gridTemplateRows = perm.outerRows;
-    }
-    applyGridAssignments();
-    createTrackHandles();
-  }
   function handleGridDragStart(widget, e) {
     if (widget.id === "widget-map") return;
     if (state_default.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return;
@@ -5749,28 +5723,6 @@ ${beacon.location}`);
     });
     if (state_default.map) state_default.map.invalidateSize();
   }
-  function resetLayout() {
-    if (isGridMode()) {
-      resetGridAssignments();
-      centerMapOnUser();
-      updateUserMarker();
-      return;
-    }
-    localStorage.removeItem(WIDGET_STORAGE_KEY);
-    const userSaved = localStorage.getItem(USER_LAYOUT_KEY);
-    if (userSaved) {
-      try {
-        applyLayout(JSON.parse(userSaved));
-      } catch (e) {
-        applyLayout(getDefaultLayout());
-      }
-    } else {
-      applyLayout(getDefaultLayout());
-    }
-    saveWidgets();
-    centerMapOnUser();
-    updateUserMarker();
-  }
   var prevAreaW = 0;
   var prevAreaH = 0;
   function reflowWidgets() {
@@ -5940,7 +5892,6 @@ ${beacon.location}`);
     if (state_default.map && mapWidget && window.ResizeObserver) {
       new ResizeObserver(() => state_default.map.invalidateSize()).observe(mapWidget);
     }
-    document.getElementById("resetLayoutBtn").addEventListener("click", resetLayout);
     if (window.ResizeObserver) {
       let reflowTimer;
       new ResizeObserver(() => {

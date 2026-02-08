@@ -29,6 +29,7 @@ Whether you're hunting activators from home or setting up a portable station, Ha
 | Filters | Band, mode, distance, age, location, and license filtering |
 | Filter Presets | Save and recall filter combinations |
 | Customizable Layout | Drag, resize, and show/hide any widget |
+| Community | Discord server for discussion, release notes, and support |
 
 ## System Requirements
 

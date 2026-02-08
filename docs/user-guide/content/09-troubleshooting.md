@@ -295,7 +295,7 @@ When reporting issues, include:
 - Screenshots if applicable
 
 ### Feedback
-Use the in-app feedback form (if available) to report issues or suggestions. Your email is encrypted for privacy.
+Use the in-app feedback form to report issues or suggestions. Your email is encrypted for privacy. You can also join the [HamTab Discord server](https://discord.gg/GcX9cHtT) for real-time community discussion and support.
 
 ---
 

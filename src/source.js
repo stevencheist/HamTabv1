@@ -2,7 +2,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
 import { esc } from './utils.js';
-import { applyFilter, updateBandFilterButtons, updateModeFilterButtons, updateCountryFilter, updateStateFilter, updateGridFilter, updateContinentFilter, updatePrivFilterVisibility, loadFiltersForSource, updateAllFilterUI, updatePresetDropdown, updateDistanceAgeVisibility } from './filters.js';
+import { applyFilter, updateBandFilterButtons, updateModeFilterButtons, updateCountryFilter, updateStateFilter, updateGridFilter, updateContinentFilter, updatePrivFilterVisibility, loadFiltersForSource, updateAllFilterUI, updatePresetDropdown, updateDistanceAgeVisibility, renderWatchListEditor } from './filters.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 
@@ -74,6 +74,7 @@ export function switchSource(source) {
   updateAllFilterUI();
   updatePresetDropdown();
   updateDistanceAgeVisibility();
+  renderWatchListEditor();
 }
 
 export function initSourceListeners() {

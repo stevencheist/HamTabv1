@@ -1,6 +1,6 @@
 import state from './state.js';
 import { $ } from './dom.js';
-import { WIDGET_DEFS, SOURCE_DEFS } from './constants.js';
+import { WIDGET_DEFS } from './constants.js';
 import { esc } from './utils.js';
 import { latLonToGrid, gridToLatLon } from './geo.js';
 import { centerMapOnUser, updateUserMarker } from './map-init.js';
@@ -8,7 +8,7 @@ import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
-import { applyFilter, fetchLicenseClass, saveWatchLists } from './filters.js';
+import { applyFilter, fetchLicenseClass } from './filters.js';
 import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
 import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
 import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS } from './constants.js';
@@ -408,9 +408,6 @@ export function showSplash() {
 
   updateWidgetSlotEnforcement();
 
-  // --- Watch list editor ---
-  renderWatchListEditor();
-
   // --- Layout section state ---
   const hasSaved = hasUserLayout();
   $('splashClearLayout').disabled = !hasSaved;
@@ -724,131 +721,6 @@ export function initSplashListeners() {
   }
 }
 
-// --- Watch List Editor ---
-function renderWatchListEditor() {
-  const container = document.getElementById('watchListEditor');
-  if (!container) return;
-  container.innerHTML = '';
-
-  const sourceKeys = ['pota', 'sota', 'dxc', 'psk'];
-  sourceKeys.forEach(key => {
-    const section = document.createElement('div');
-    section.className = 'wl-source-section';
-
-    const header = document.createElement('div');
-    header.className = 'wl-source-header';
-    header.textContent = SOURCE_DEFS[key].label;
-    section.appendChild(header);
-
-    // Rule list
-    const rules = state.watchLists[key] || [];
-    if (rules.length > 0) {
-      const list = document.createElement('div');
-      list.className = 'wl-rule-list';
-      rules.forEach((rule, idx) => {
-        const row = document.createElement('div');
-        row.className = 'wl-rule';
-
-        const badge = document.createElement('span');
-        badge.className = `wl-rule-mode ${rule.mode}`;
-        badge.textContent = rule.mode;
-        row.appendChild(badge);
-
-        const val = document.createElement('span');
-        val.className = 'wl-rule-value';
-        val.textContent = rule.value;
-        row.appendChild(val);
-
-        const type = document.createElement('span');
-        type.className = 'wl-rule-type';
-        type.textContent = `(${rule.type})`;
-        row.appendChild(type);
-
-        const del = document.createElement('span');
-        del.className = 'wl-rule-delete';
-        del.textContent = '\u00d7';
-        del.title = 'Remove rule';
-        del.addEventListener('click', () => {
-          state.watchLists[key].splice(idx, 1);
-          saveWatchLists();
-          applyFilter();
-          renderSpots();
-          renderMarkers();
-          renderWatchListEditor();
-        });
-        row.appendChild(del);
-
-        list.appendChild(row);
-      });
-      section.appendChild(list);
-    }
-
-    // Add form
-    const form = document.createElement('div');
-    form.className = 'wl-add-form';
-
-    // Mode radios
-    const modes = ['red', 'only', 'not'];
-    const radioName = `wl-mode-${key}`;
-    modes.forEach((m, i) => {
-      const radio = document.createElement('input');
-      radio.type = 'radio';
-      radio.name = radioName;
-      radio.value = m;
-      if (i === 0) radio.checked = true;
-      const label = document.createElement('label');
-      label.appendChild(radio);
-      label.appendChild(document.createTextNode(m.charAt(0).toUpperCase() + m.slice(1)));
-      form.appendChild(label);
-    });
-
-    // Type select
-    const typeSelect = document.createElement('select');
-    const types = ['callsign', 'dxcc', 'grid'];
-    // Ref only for pota/sota
-    if (key === 'pota' || key === 'sota') types.push('ref');
-    types.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t;
-      opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
-      typeSelect.appendChild(opt);
-    });
-    form.appendChild(typeSelect);
-
-    // Value input
-    const valueInput = document.createElement('input');
-    valueInput.type = 'text';
-    valueInput.placeholder = 'Value';
-    form.appendChild(valueInput);
-
-    // Add button
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.textContent = 'Add';
-    addBtn.addEventListener('click', () => {
-      const val = valueInput.value.trim().toUpperCase();
-      if (!val) return;
-      const mode = form.querySelector(`input[name="${radioName}"]:checked`).value;
-      const type = typeSelect.value;
-
-      // Reject duplicate (same mode+type+value in this source)
-      const existing = state.watchLists[key] || [];
-      if (existing.some(r => r.mode === mode && r.type === type && r.value === val)) return;
-
-      if (!state.watchLists[key]) state.watchLists[key] = [];
-      state.watchLists[key].push({ mode, type, value: val });
-      saveWatchLists();
-      applyFilter();
-      renderSpots();
-      renderMarkers();
-      renderWatchListEditor();
-    });
-    form.appendChild(addBtn);
-
-    section.appendChild(form);
-    container.appendChild(section);
-  });
-}
 
 // Build a mini CSS Grid preview showing the permutation layout
 function renderGridPreview(permId) {

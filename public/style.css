@@ -570,6 +570,60 @@ header {
   box-shadow: 0 2px 8px rgba(255, 221, 0, 0.3);
 }
 
+/* ---- Discord button ---- */
+
+.discord-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 8px;
+  border: 1px solid #5865F2;
+  background: #5865F2;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.discord-btn:hover {
+  background: #4752C4;
+  border-color: #4752C4;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(88, 101, 242, 0.3);
+}
+
+.discord-icon {
+  width: 18px;
+  height: 18px;
+  color: #fff;
+}
+
+.feedback-discord {
+  font-size: 0.82rem;
+  color: var(--text-dim);
+  margin-bottom: 12px;
+  line-height: 1.4;
+}
+
+.feedback-discord a {
+  color: #5865F2;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.feedback-discord a:hover {
+  text-decoration: underline;
+}
+
+.feedback-discord .discord-icon {
+  width: 14px;
+  height: 14px;
+  color: #5865F2;
+  vertical-align: -2px;
+  margin-right: 2px;
+}
+
 .feedback-btn {
   padding: 4px 10px;
   font-size: 0.8rem;
@@ -3666,6 +3720,13 @@ header {
   background: var(--accent);
   color: #000;
 }
+.theme-lcars .discord-btn {
+  background: var(--surface3);
+  border-color: transparent;
+}
+.theme-lcars .discord-btn .discord-icon {
+  color: #000;
+}
 
 /* Header buttons readable on colored backgrounds */
 .theme-lcars .op-btn,
@@ -3730,7 +3791,8 @@ header {
 .theme-lcars #resetLayoutBtn,
 .theme-lcars #fullscreenBtn,
 .theme-lcars .feedback-btn,
-.theme-lcars .coffee-btn {
+.theme-lcars .coffee-btn,
+.theme-lcars .discord-btn {
   border-radius: 12px;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -4122,7 +4184,8 @@ header {
 .theme-terminal #resetLayoutBtn,
 .theme-terminal #fullscreenBtn,
 .theme-terminal .feedback-btn,
-.theme-terminal .coffee-btn {
+.theme-terminal .coffee-btn,
+.theme-terminal .discord-btn {
   border-radius: 2px;
   font-family: 'Courier New', monospace;
   text-transform: uppercase;
@@ -4302,7 +4365,8 @@ header {
 .theme-hamclock #resetLayoutBtn,
 .theme-hamclock #fullscreenBtn,
 .theme-hamclock .feedback-btn,
-.theme-hamclock .coffee-btn {
+.theme-hamclock .coffee-btn,
+.theme-hamclock .discord-btn {
   border-radius: 2px;
   font-family: 'Courier New', monospace;
   text-transform: uppercase;
@@ -5320,6 +5384,15 @@ header {
 .slim-header .coffee-btn {
   padding: 2px 6px;
   font-size: 0.7rem;
+}
+
+.slim-header .discord-btn {
+  padding: 2px 6px;
+}
+
+.slim-header .discord-icon {
+  width: 14px;
+  height: 14px;
 }
 
 .slim-header .update-indicator {

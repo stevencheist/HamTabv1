@@ -46,6 +46,10 @@
         // session-only — filter spots by predicted band reliability (≥30%)
         // Filter presets per source
         filterPresets: { pota: {}, sota: {}, dxc: {} },
+        // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
+        watchLists: JSON.parse(localStorage.getItem("hamtab_watchlists") || '{"pota":[],"sota":[],"dxc":[],"psk":[]}'),
+        watchRedSpotIds: /* @__PURE__ */ new Set(),
+        // spot IDs matching "red" rules — rebuilt each filter pass
         // Auto-refresh — defaults to on, persisted in localStorage
         autoRefreshEnabled: localStorage.getItem("hamtab_auto_refresh") !== "false",
         countdownSeconds: 60,
@@ -3386,6 +3390,9 @@ ${beacon.location}`);
       if (state_default.myCallsign && spotCall === state_default.myCallsign.toUpperCase()) {
         tr.classList.add("my-spot");
       }
+      if (state_default.watchRedSpotIds.has(sid)) {
+        tr.classList.add("spot-watch-red");
+      }
       cols.forEach((col) => {
         const td = document.createElement("td");
         if (col.class) td.className = col.class;
@@ -3473,6 +3480,7 @@ ${beacon.location}`);
     normalizeMode: () => normalizeMode,
     saveCurrentFilters: () => saveCurrentFilters,
     savePreset: () => savePreset,
+    saveWatchLists: () => saveWatchLists,
     spotId: () => spotId,
     updateAllFilterUI: () => updateAllFilterUI,
     updateBandFilterButtons: () => updateBandFilterButtons,
@@ -3575,8 +3583,46 @@ ${beacon.location}`);
     if (locationDesc.startsWith("US-")) return locationDesc.substring(3);
     return "";
   }
+  function normalizeCallsign(raw) {
+    const call = (raw || "").toUpperCase().trim();
+    const slash = call.lastIndexOf("/");
+    return slash > 0 ? call.substring(0, slash) : call;
+  }
+  function matchWatchRule(rule, spot) {
+    const val = (rule.value || "").toUpperCase();
+    if (!val) return false;
+    switch (rule.type) {
+      case "callsign": {
+        const spotCall = normalizeCallsign(spot.activator || spot.callsign);
+        return spotCall === val;
+      }
+      case "dxcc": {
+        const country = (spot.name || "").toUpperCase();
+        const locPrefix = (spot.locationDesc || "").split("-")[0].toUpperCase();
+        return country.includes(val) || locPrefix === val;
+      }
+      case "grid": {
+        const grid = (spot.grid4 || spot.senderLocator || "").toUpperCase();
+        return grid.startsWith(val);
+      }
+      case "ref": {
+        const ref = (spot.reference || "").toUpperCase();
+        return ref === val;
+      }
+      default:
+        return false;
+    }
+  }
+  function saveWatchLists() {
+    localStorage.setItem("hamtab_watchlists", JSON.stringify(state_default.watchLists));
+  }
   function applyFilter() {
+    state_default.watchRedSpotIds = /* @__PURE__ */ new Set();
     const allowed = SOURCE_DEFS[state_default.currentSource].filters;
+    const wlRules = state_default.watchLists[state_default.currentSource] || [];
+    const onlyRules = wlRules.filter((r) => r.mode === "only");
+    const notRules = wlRules.filter((r) => r.mode === "not");
+    const redRules = wlRules.filter((r) => r.mode === "red");
     state_default.sourceFiltered[state_default.currentSource] = (state_default.sourceData[state_default.currentSource] || []).filter((s) => {
       if (allowed.includes("band") && state_default.activeBands.size > 0) {
         const spotBand = freqToBand(s.frequency);
@@ -3593,6 +3639,13 @@ ${beacon.location}`);
       if (allowed.includes("grid") && state_default.activeGrid && (s.grid4 || "") !== state_default.activeGrid) return false;
       if (allowed.includes("continent") && state_default.activeContinent && (s.continent || "") !== state_default.activeContinent) return false;
       if (allowed.includes("privilege") && state_default.privilegeFilterEnabled && !filterByPrivileges(s)) return false;
+      if (wlRules.length > 0) {
+        if (onlyRules.length > 0 && !onlyRules.some((r) => matchWatchRule(r, s))) return false;
+        if (notRules.some((r) => matchWatchRule(r, s))) return false;
+        if (redRules.length > 0 && redRules.some((r) => matchWatchRule(r, s))) {
+          state_default.watchRedSpotIds.add(SOURCE_DEFS[state_default.currentSource].spotId(s));
+        }
+      }
       return true;
     });
   }
@@ -6115,6 +6168,7 @@ ${beacon.location}`);
 
   // src/splash.js
   init_spots();
+  init_markers();
 
   // src/weather.js
   init_state();
@@ -7195,8 +7249,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.32.1";
-    $("aboutVersion").textContent = "0.32.1";
+    $("splashVersion").textContent = "0.33.0";
+    $("aboutVersion").textContent = "0.33.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -7220,6 +7274,7 @@ ${beacon.location}`);
       renderGridPreview(state_default.gridPermutation);
     }
     updateWidgetSlotEnforcement();
+    renderWatchListEditor();
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -7487,6 +7542,106 @@ ${beacon.location}`);
         document.body.classList.toggle("slim-header", state_default.slimHeader);
       });
     }
+  }
+  function renderWatchListEditor() {
+    const container = document.getElementById("watchListEditor");
+    if (!container) return;
+    container.innerHTML = "";
+    const sourceKeys = ["pota", "sota", "dxc", "psk"];
+    sourceKeys.forEach((key) => {
+      const section = document.createElement("div");
+      section.className = "wl-source-section";
+      const header = document.createElement("div");
+      header.className = "wl-source-header";
+      header.textContent = SOURCE_DEFS[key].label;
+      section.appendChild(header);
+      const rules = state_default.watchLists[key] || [];
+      if (rules.length > 0) {
+        const list = document.createElement("div");
+        list.className = "wl-rule-list";
+        rules.forEach((rule, idx) => {
+          const row = document.createElement("div");
+          row.className = "wl-rule";
+          const badge = document.createElement("span");
+          badge.className = `wl-rule-mode ${rule.mode}`;
+          badge.textContent = rule.mode;
+          row.appendChild(badge);
+          const val = document.createElement("span");
+          val.className = "wl-rule-value";
+          val.textContent = rule.value;
+          row.appendChild(val);
+          const type = document.createElement("span");
+          type.className = "wl-rule-type";
+          type.textContent = `(${rule.type})`;
+          row.appendChild(type);
+          const del = document.createElement("span");
+          del.className = "wl-rule-delete";
+          del.textContent = "\xD7";
+          del.title = "Remove rule";
+          del.addEventListener("click", () => {
+            state_default.watchLists[key].splice(idx, 1);
+            saveWatchLists();
+            applyFilter();
+            renderSpots();
+            renderMarkers();
+            renderWatchListEditor();
+          });
+          row.appendChild(del);
+          list.appendChild(row);
+        });
+        section.appendChild(list);
+      }
+      const form = document.createElement("div");
+      form.className = "wl-add-form";
+      const modes = ["red", "only", "not"];
+      const radioName = `wl-mode-${key}`;
+      modes.forEach((m, i) => {
+        const radio = document.createElement("input");
+        radio.type = "radio";
+        radio.name = radioName;
+        radio.value = m;
+        if (i === 0) radio.checked = true;
+        const label = document.createElement("label");
+        label.appendChild(radio);
+        label.appendChild(document.createTextNode(m.charAt(0).toUpperCase() + m.slice(1)));
+        form.appendChild(label);
+      });
+      const typeSelect = document.createElement("select");
+      const types = ["callsign", "dxcc", "grid"];
+      if (key === "pota" || key === "sota") types.push("ref");
+      types.forEach((t) => {
+        const opt = document.createElement("option");
+        opt.value = t;
+        opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+        typeSelect.appendChild(opt);
+      });
+      form.appendChild(typeSelect);
+      const valueInput = document.createElement("input");
+      valueInput.type = "text";
+      valueInput.placeholder = "Value";
+      form.appendChild(valueInput);
+      const addBtn = document.createElement("button");
+      addBtn.type = "button";
+      addBtn.textContent = "Add";
+      addBtn.addEventListener("click", () => {
+        const val = valueInput.value.trim().toUpperCase();
+        if (!val) return;
+        const mode = form.querySelector(`input[name="${radioName}"]:checked`).value;
+        const type = typeSelect.value;
+        const existing = state_default.watchLists[key] || [];
+        if (existing.some((r) => r.mode === mode && r.type === type && r.value === val)) return;
+        if (!state_default.watchLists[key]) state_default.watchLists[key] = [];
+        state_default.watchLists[key].push({ mode, type, value: val });
+        saveWatchLists();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+        renderWatchListEditor();
+      });
+      form.appendChild(addBtn);
+      section.appendChild(form);
+      container.appendChild(section);
+    });
   }
   function renderGridPreview(permId) {
     const container = document.getElementById("gridPermPreview");

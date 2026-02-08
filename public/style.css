@@ -4620,6 +4620,72 @@ header {
   min-width: 0;
 }
 
+/* Column widgets: override height:auto→0 so flex-grow gives a definite height,
+   enabling widget-body overflow:auto to produce scrollbars */
+.grid-col-wrapper > .widget {
+  height: 0 !important;
+}
+
+/* ---- Grid mode: compact layouts for image+data widgets ---- */
+
+/* Lunar: moon left, data cards right */
+.grid-active #widget-lunar .widget-body {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+}
+
+.grid-active #moonCanvas {
+  flex-shrink: 0;
+  width: 100px;
+  height: 100px;
+  margin: 0;
+}
+
+.grid-active .lunar-cards {
+  flex: 1 1 0%;
+  min-width: 0;
+  gap: 4px;
+  padding: 0;
+  overflow-y: auto;
+}
+
+/* Solar: image left, indices right */
+.grid-active #widget-solar .widget-body {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px;
+}
+
+.grid-active .solar-image-container {
+  flex-shrink: 0;
+  width: 120px;
+  padding: 4px 0 0;
+}
+
+.grid-active .solar-canvas-wrap {
+  margin: 4px auto 0;
+}
+
+.grid-active #solarCanvas {
+  width: 100%;
+  height: auto;
+  max-width: none;
+  aspect-ratio: 1;
+}
+
+.grid-active .solar-indices {
+  flex: 1 1 0%;
+  min-width: 0;
+  gap: 4px;
+  padding: 4px 0;
+  overflow-y: auto;
+}
+
 /* ---- Flex Resize Handles (between widgets in wrappers) ---- */
 
 .grid-flex-handle {

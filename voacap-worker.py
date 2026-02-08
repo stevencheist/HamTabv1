@@ -177,8 +177,10 @@ def handle_predict_matrix(req):
     matrix = []
 
     for hour in range(24):
-        # Accumulate per-band totals across targets for averaging
-        band_totals = {bn: {"rel_sum": 0, "snr_max": 0, "mode": "", "count": 0} for bn in band_names}
+        # Collect per-band reliability lists across targets for percentile calc
+        band_rels = {bn: [] for bn in band_names}
+        band_snr_max = {bn: 0.0 for bn in band_names}
+        band_mode = {bn: "" for bn in band_names}
         max_muf = 0
 
         for target in targets:
@@ -197,31 +199,40 @@ def handle_predict_matrix(req):
                 for i, pred in enumerate(result.get("predictions", [])):
                     if i < len(band_names):
                         bn = band_names[i]
-                        rel = pred.get("reliability", 0)
+                        band_rels[bn].append(pred.get("reliability", 0))
                         snr = pred.get("snr_db", 0)
-                        band_totals[bn]["rel_sum"] += rel
-                        band_totals[bn]["count"] += 1
-                        if snr > band_totals[bn]["snr_max"]:
-                            band_totals[bn]["snr_max"] = snr
-                        if not band_totals[bn]["mode"] and pred.get("mode", ""):
-                            band_totals[bn]["mode"] = pred["mode"]
+                        if snr > band_snr_max[bn]:
+                            band_snr_max[bn] = snr
+                        if not band_mode[bn] and pred.get("mode", ""):
+                            band_mode[bn] = pred["mode"]
             except Exception as e:
                 pass  # skip failed targets, continue with others
 
-        # Average reliability across targets (single target in spot mode = no change)
-        band_avg = {}
+        # 75th percentile reliability — ignores the worst target without being
+        # as optimistic as MAX. One dead direction won't drag everything down.
+        band_result = {}
         for bn in band_names:
-            t = band_totals[bn]
-            count = t["count"] if t["count"] > 0 else 1
-            band_avg[bn] = {
-                "rel": round(t["rel_sum"] / count),
-                "snr": round(t["snr_max"], 1),
-                "mode": t["mode"],
+            rels = sorted(band_rels[bn])
+            n = len(rels)
+            if n == 0:
+                rel_val = 0
+            elif n == 1:
+                rel_val = rels[0]
+            else:
+                pos = (n - 1) * 0.75  # 75th percentile position
+                lo = int(pos)
+                hi = min(lo + 1, n - 1)
+                frac = pos - lo
+                rel_val = rels[lo] * (1 - frac) + rels[hi] * frac
+            band_result[bn] = {
+                "rel": round(rel_val),
+                "snr": round(band_snr_max[bn], 1),
+                "mode": band_mode[bn],
             }
 
         matrix.append({
             "hour": hour,
-            "bands": band_avg,
+            "bands": band_result,
             "muf": round(max_muf, 1),
         })
 

@@ -4665,6 +4665,8 @@ header {
   flex-shrink: 0;
   width: 120px;
   padding: 4px 0 0;
+  position: relative;
+  z-index: 1;
 }
 
 .grid-active .solar-canvas-wrap {

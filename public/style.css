@@ -4667,6 +4667,14 @@ header {
   padding: 4px 0 0;
   position: relative;
   z-index: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Move select below the sun image */
+.grid-active .solar-image-container select {
+  order: 1;
+  margin: 4px 0 0;
 }
 
 .grid-active .solar-canvas-wrap {

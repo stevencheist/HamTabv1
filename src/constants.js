@@ -257,12 +257,13 @@ export const US_PRIVILEGES = {
 export const WIDGET_HELP = {
   'widget-filters': {
     title: 'Filters',
-    description: 'Narrow down the spot list to find exactly what you\'re looking for. Filters let you focus on specific bands, modes, nearby stations, or recent activity.',
+    description: 'Narrow down the spot list to find exactly what you\'re looking for. Filters let you focus on specific bands, modes, nearby stations, or recent activity. Watch lists add per-source highlighting and include/exclude rules.',
     sections: [
       { heading: 'Band & Mode Filters', content: 'Click one or more bands (like 20m, 40m) or modes (like FT8, SSB) to show only those spots. Click again to deselect. You can select as many as you want.' },
       { heading: 'Distance Filter', content: 'Show only spots within a certain distance from your location (QTH). You\'ll need to set your location in Config first. Great for finding nearby activations you can reach.' },
       { heading: 'Age Filter', content: 'Show only spots posted within the last N minutes. Older spots may no longer be active, so this helps you find stations that are on the air right now.' },
       { heading: 'Propagation Filter', content: 'Click the "Prop" button to hide spots on bands with poor predicted propagation. Uses your current solar indices and location to estimate which HF bands are likely open. Spots on bands rated below "Fair" (less than 30% reliability) are filtered out. VHF/UHF spots are never filtered since they don\'t depend on HF propagation.' },
+      { heading: 'Watch Lists', content: 'Open Config → Filters tab to create per-source watch list rules. Three modes: Red highlights matching spots with a tinted row, Only shows ONLY matching spots (everything else hidden), Not excludes matching spots. Match by callsign (strips /P, /M suffixes), DXCC entity, grid prefix, or park/summit reference. Rules apply independently per source tab (POTA, SOTA, DXC, PSK) and persist across sessions.' },
       { heading: 'Presets', content: 'Save your favorite filter combinations and switch between them quickly. For example, save a "Local FT8" preset for nearby digital spots, and a "DX SSB" preset for long-distance voice contacts.' },
     ],
   },

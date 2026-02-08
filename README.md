@@ -49,6 +49,9 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **Clock Styles** — Digital or analog clock face for both Local Time and UTC widgets
 - **Day/Night Indicator** — SVG sun/moon graphic on clock widgets based on computed sunrise/sunset
 
+### Community
+- **Discord** — [Join the HamTab Discord](https://discord.gg/GcX9cHtT) for release notes, community discussion, feature requests, and support. Discord icon in the header links directly to the server.
+
 ### System
 - **Operator Identity** — Callsign prompt at startup with geolocation and Maidenhead grid square display
 - **Feedback System** — In-app feedback with encrypted email submission and privacy notice
@@ -701,6 +704,7 @@ Color coded: **Good** (green), **Fair** (yellow), **Poor** (red).
 | **Reset Layout** | Restore default widget positions and sizes |
 | **Fullscreen** | Toggle browser fullscreen mode |
 | **Feedback** | Open the feedback form to report issues or suggest features |
+| **Discord** | Join the HamTab Discord community (opens invite link) |
 | **Update indicator** | (Lanmode) Shows whether an update is available. Green dot = update ready (click to apply). Restart button appears when server files changed. |
 | **Mode badge** | Shows current deployment mode (Lanmode or Hostedmode) and version |
 

@@ -518,7 +518,7 @@ export function getGridPermutation(permId) {
 export function loadGridAssignments() {
   try {
     const saved = JSON.parse(localStorage.getItem(GRID_ASSIGN_KEY));
-    if (saved && typeof saved === 'object') {
+    if (saved && typeof saved === 'object' && Object.keys(saved).length > 0) {
       state.gridAssignments = saved;
       return saved;
     }
@@ -551,7 +551,7 @@ export function activateGridMode(permId) {
   saveGridPermutation();
 
   // Load assignments (from localStorage or defaults for this permutation)
-  if (!state.gridAssignments) {
+  if (!state.gridAssignments || Object.keys(state.gridAssignments).length === 0) {
     loadGridAssignments();
   }
 
@@ -659,6 +659,8 @@ export function applyGridAssignments(customSizes) {
     if (!assignedWidgets.has(def.id) || vis[def.id] === false) {
       el.style.gridArea = '';
       el.style.display = 'none';
+    } else {
+      el.style.display = '';
     }
   });
 }

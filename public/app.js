@@ -5055,7 +5055,7 @@ ${beacon.location}`);
   function loadGridAssignments() {
     try {
       const saved2 = JSON.parse(localStorage.getItem(GRID_ASSIGN_KEY));
-      if (saved2 && typeof saved2 === "object") {
+      if (saved2 && typeof saved2 === "object" && Object.keys(saved2).length > 0) {
         state_default.gridAssignments = saved2;
         return saved2;
       }
@@ -5082,7 +5082,7 @@ ${beacon.location}`);
     state_default.gridPermutation = perm.id;
     saveGridMode();
     saveGridPermutation();
-    if (!state_default.gridAssignments) {
+    if (!state_default.gridAssignments || Object.keys(state_default.gridAssignments).length === 0) {
       loadGridAssignments();
     }
     area.classList.add("grid-active");
@@ -5160,6 +5160,8 @@ ${beacon.location}`);
       if (!assignedWidgets.has(def.id) || vis[def.id] === false) {
         el.style.gridArea = "";
         el.style.display = "none";
+      } else {
+        el.style.display = "";
       }
     });
   }

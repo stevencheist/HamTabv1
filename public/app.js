@@ -3863,8 +3863,8 @@ ${beacon.location}`);
     const opLoc = $("opLoc");
     if (state_default.myCallsign) {
       const qrz = `https://www.qrz.com/db/${encodeURIComponent(state_default.myCallsign)}`;
-      let classLabel = state_default.licenseClass ? ` [${state_default.licenseClass}]` : "";
-      opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc2(state_default.myCallsign)}</a><span class="op-class">${esc2(classLabel)}</span>`;
+      let classLabel = state_default.licenseClass ? `[${state_default.licenseClass}]` : "";
+      opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc2(state_default.myCallsign)}</a>${classLabel ? `<div class="op-class">${esc2(classLabel)}</div>` : ""}`;
       const info = state_default.callsignCache[state_default.myCallsign.toUpperCase()];
       const opName = document.getElementById("opName");
       if (opName) {
@@ -6909,8 +6909,8 @@ ${beacon.location}`);
     const opLoc = $("opLoc");
     if (state_default.myCallsign) {
       const qrz = `https://www.qrz.com/db/${encodeURIComponent(state_default.myCallsign)}`;
-      let classLabel = state_default.licenseClass ? ` [${state_default.licenseClass}]` : "";
-      opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc(state_default.myCallsign)}</a><span class="op-class">${esc(classLabel)}</span>`;
+      let classLabel = state_default.licenseClass ? `[${state_default.licenseClass}]` : "";
+      opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc(state_default.myCallsign)}</a>${classLabel ? `<div class="op-class">${esc(classLabel)}</div>` : ""}`;
       const info = state_default.callsignCache[state_default.myCallsign.toUpperCase()];
       const opName = document.getElementById("opName");
       if (opName) {
@@ -7201,8 +7201,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.33.0";
-    $("aboutVersion").textContent = "0.33.0";
+    $("splashVersion").textContent = "0.33.1";
+    $("aboutVersion").textContent = "0.33.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

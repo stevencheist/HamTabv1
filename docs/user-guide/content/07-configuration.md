@@ -91,7 +91,8 @@ HamTab includes multiple visual themes to match your operating style and persona
 |-------|-------------|
 | **Default** | Modern dark theme with blue/magenta accents. Clean and readable. |
 | **LCARS** | Inspired by Star Trek: The Next Generation computer displays. Orange, blue, and purple palette with rounded pill-shaped buttons and condensed fonts. |
-| **HamClock** | Classic green-on-black terminal style familiar to HamClock users. Monospace fonts, sharp corners, and a utilitarian feel. |
+| **Terminal** | Retro green-on-black CRT style. Monospace fonts, sharp corners, and a utilitarian feel. |
+| **HamClock** | Dark background with green, cyan, and amber accents matching the real HamClock by WB0OEW. |
 
 <div class="tip">Your theme choice is saved automatically and persists between sessions. You can change it anytime without losing your widget layout or settings.</div>
 
@@ -105,11 +106,16 @@ Check or uncheck widgets to show or hide them:
 - [ ] On the Air
 - [ ] HamMap
 - [ ] Solar
+- [ ] Space Weather History
 - [ ] Band Conditions
 - [ ] HF Propagation
 - [ ] Live Spots
 - [ ] Lunar / EME
 - [ ] Satellites
+- [ ] Contests
+- [ ] DXpeditions
+- [ ] NCDXF Beacons
+- [ ] DE/DX Info
 - [ ] Reference
 - [ ] DX Detail
 
@@ -211,6 +217,21 @@ To completely reset HamTab:
 3. Reload the page
 
 Or use your browser's "Clear site data" feature.
+
+---
+
+## Community
+
+### Discord Server
+
+HamTab has a community Discord server for discussing features, reporting bugs, and general amateur radio topics. Access it two ways:
+
+- **Header bar** — Click the Discord logo button (next to the Buy Me a Coffee button)
+- **Feedback modal** — The feedback form includes a link to the Discord server
+
+The Discord server also has a `#releases` channel that automatically posts release notes whenever a new version is published.
+
+<div class="tip">The Discord server is optional. HamTab works identically whether or not you join the community.</div>
 
 ---
 

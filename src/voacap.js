@@ -69,6 +69,14 @@ function cycleParam(name) {
     return;
   }
 
+  // Auto-spot toggle
+  if (name === 'autospot') {
+    state.voacapAutoSpot = !state.voacapAutoSpot;
+    localStorage.setItem('hamtab_voacap_auto_spot', state.voacapAutoSpot);
+    renderVoacapMatrix();
+    return;
+  }
+
   // Target toggle (overview ↔ spot)
   if (name === 'target') {
     const current = state.voacapTarget;
@@ -286,7 +294,7 @@ export function renderVoacapMatrix() {
   const targetLabel = state.voacapTarget === 'spot' ? 'SPOT' : 'OVW';
   const targetTitle = state.voacapTarget === 'spot'
     ? 'Showing prediction to selected spot (click for overview)'
-    : 'Showing best worldwide prediction (click for spot mode)';
+    : 'Showing average worldwide prediction (click for spot mode)';
 
   // SSN display — prefer server data, show K-index degradation warning
   const serverData = state.voacapServerData;
@@ -319,12 +327,25 @@ export function renderVoacapMatrix() {
   html += `<div class="voacap-params">`;
   html += `<span class="voacap-engine-badge ${engineClass}" title="${engineTitle}">${engineLabel}</span>`;
   html += `<span class="voacap-param" data-param="target" title="${targetTitle}">${targetLabel}</span>`;
+  const autoClass = state.voacapAutoSpot ? ' voacap-param-active' : '';
+  const autoTitle = state.voacapAutoSpot
+    ? 'Auto-SPOT: ON \u2014 clicking a spot refreshes VOACAP to that path (click to disable)'
+    : 'Auto-SPOT: OFF \u2014 click to auto-refresh VOACAP when selecting a spot';
+  html += `<span class="voacap-param${autoClass}" data-param="autospot" title="${autoTitle}">AUTO</span>`;
   html += `<span class="voacap-param" data-param="overlay" title="${overlayTitle}">${overlayLabel}</span>`;
   html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state.voacapPower] || state.voacapPower}</span>`;
   html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state.voacapMode}</span>`;
   html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state.voacapToa}\u00B0</span>`;
   html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state.voacapPath}</span>`;
   html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
+  html += `</div>`;
+
+  // Color legend
+  html += `<div class="voacap-legend">`;
+  html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(0)}"></span>Closed</span>`;
+  html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(20)}"></span>Poor</span>`;
+  html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(50)}"></span>Fair</span>`;
+  html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(80)}"></span>Good</span>`;
   html += `</div>`;
 
   container.innerHTML = html;
@@ -437,4 +458,14 @@ export function clearVoacapOverlay() {
   clearBandOverlay();
   clearHeatmap();
   state.hfPropOverlayBand = null;
+}
+
+// Called by markers.js when a spot is selected — auto-switch to SPOT mode if enabled
+export function onSpotSelected() {
+  if (!state.voacapAutoSpot) return;
+  if (state.voacapTarget !== 'spot') {
+    state.voacapTarget = 'spot';
+    localStorage.setItem('hamtab_voacap_target', 'spot');
+  }
+  fetchVoacapMatrix();
 }

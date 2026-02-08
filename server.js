@@ -2049,6 +2049,9 @@ function getKBand(kIndex) {
 const voacapCache = {}; // { key: { data, expires } }
 const VOACAP_TTL = 60 * 60 * 1000; // 1 hour
 
+// Background dvoacap prediction tracking — prevents duplicate concurrent runs
+const voacapPending = new Set(); // cache keys currently being computed in the background
+
 // Simplified propagation model (server-side fallback when Python unavailable)
 // Mirrors the client-side calculate24HourMatrix from band-conditions.js
 function simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toaDeg, longPath) {
@@ -2311,76 +2314,59 @@ app.get('/api/voacap', async (req, res) => {
       });
     }
 
-    let engine = 'simplified';
-    let matrix;
-    let fallbackReason = null; // diagnostic: why we fell back to simplified
-
-    // Request-level timeout for the entire dvoacap prediction.
-    // Cloudflare Workers timeout at ~30s, so we must respond well within that.
-    // If dvoacap hangs, kill the stuck worker and return simplified immediately.
-    const HANDLER_TIMEOUT_MS = 20000; // 20 seconds — leaves headroom for Cloudflare
-
-    if (voacap.isAvailable()) {
-      // Batch predict: send all 24 hours × all targets in a single IPC call
-      try {
-        const result = await Promise.race([
-          voacap.predictMatrix({
-            tx_lat: txLat,
-            tx_lon: txLon,
-            targets: targets.map(t => ({ name: t.name, lat: t.lat, lon: t.lon })),
-            ssn,
-            month,
-            power,
-            min_angle_deg: toa,
-            long_path: longPath,
-            required_snr: requiredSnr,
-            bandwidth_hz: bandwidthHz,
-            frequencies,
-            band_names: bandNames,
-          }),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Handler timeout')), HANDLER_TIMEOUT_MS)
-          ),
-        ]);
-
-        if (result.ok && result.matrix) {
-          engine = 'dvoacap';
-          matrix = result.matrix;
-        } else {
-          fallbackReason = `predictMatrix returned: ${result.error || 'ok=' + result.ok + ', hasMatrix=' + !!result.matrix}`;
-          console.error('[VOACAP] Matrix prediction failed:', fallbackReason);
-          matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
-        }
-      } catch (err) {
-        fallbackReason = `predictMatrix threw: ${err.message}`;
-        console.error(`[VOACAP] Matrix prediction error: ${err.message}`);
-        matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
-
-        // If the prediction hung (handler timeout), kill the stuck worker so it can respawn
-        if (err.message === 'Handler timeout') {
-          voacap.killAndRespawn('Prediction hung — handler timeout after 20s');
-        }
-      }
-    } else {
-      fallbackReason = 'bridge not available';
-      matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
-    }
+    // Always respond immediately with the best data available.
+    // If dvoacap is available and no background job is running, kick one off
+    // asynchronously — it populates the cache for the NEXT request.
+    const simplifiedMatrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
 
     const response = {
-      engine,
+      engine: 'simplified',
       ssn: Math.round(ssn * 10) / 10,  // effective SSN used for predictions
       ssnBase: Math.round(baseSSN * 10) / 10,  // original NOAA SSN before K-index correction
       kIndex: ssnCorrection.kIndex,  // current K-index (null if unavailable)
       kDegradation: ssnCorrection.degradationPercent,  // % degradation from K-index (0 if none)
       month,
-      matrix,
+      matrix: simplifiedMatrix,
     };
-    if (fallbackReason) response.fallbackReason = fallbackReason;
 
-    // Cache result — only cache dvoacap responses long-term.
-    // Simplified responses use a short TTL so we re-check once the worker is ready.
-    const ttl = engine === 'dvoacap' ? VOACAP_TTL : 30 * 1000; // 1h vs 30s
-    voacapCache[cacheKey] = { data: response, expires: Date.now() + ttl };
+    // Cache simplified with short TTL
+    voacapCache[cacheKey] = { data: response, expires: Date.now() + 30 * 1000 };
+
+    // Fire off background dvoacap prediction (no await — doesn't block the response)
+    if (voacap.isAvailable() && !voacapPending.has(cacheKey)) {
+      voacapPending.add(cacheKey);
+      voacap.predictMatrix({
+        tx_lat: txLat,
+        tx_lon: txLon,
+        targets: targets.map(t => ({ name: t.name, lat: t.lat, lon: t.lon })),
+        ssn,
+        month,
+        power,
+        min_angle_deg: toa,
+        long_path: longPath,
+        required_snr: requiredSnr,
+        bandwidth_hz: bandwidthHz,
+        frequencies,
+        band_names: bandNames,
+      }).then(result => {
+        voacapPending.delete(cacheKey);
+        if (result.ok && result.matrix) {
+          console.log('[VOACAP] Background prediction complete — caching dvoacap result');
+          const dvoacapResponse = { ...response, engine: 'dvoacap', matrix: result.matrix };
+          delete dvoacapResponse.fallbackReason;
+          voacapCache[cacheKey] = { data: dvoacapResponse, expires: Date.now() + VOACAP_TTL };
+        } else {
+          console.error('[VOACAP] Background prediction failed:', result.error || 'unknown');
+        }
+      }).catch(err => {
+        voacapPending.delete(cacheKey);
+        console.error(`[VOACAP] Background prediction error: ${err.message}`);
+        // If the bridge timed out (180s), the Python worker is stuck — kill and respawn
+        if (err.message === 'Request timed out') {
+          voacap.killAndRespawn('Background prediction timed out after 180s');
+        }
+      });
+    }
 
     res.json(response);
   } catch (err) {

@@ -411,6 +411,9 @@
                 <option value="120">2 hr</option>
               </select>
             </div>
+            <div class="prop-filter" id="propFilterWrap">
+              <button id="propFilterBtn" class="prop-filter-btn" title="Filter by propagation prediction (Fair or better)">Prop</button>
+            </div>
           </div>
           <!-- Row 3: Existing dropdowns -->
           <div class="filter-row">
@@ -492,10 +495,10 @@
       <div class="widget-body">
         <div class="solar-image-container">
           <select id="solarImageType">
-            <option value="0193">AIA 193 Å</option>
-            <option value="0171">AIA 171 Å</option>
-            <option value="0304">AIA 304 Å</option>
-            <option value="HMIIC">HMI Intensitygram</option>
+            <option value="0193">Coronal Holes</option>
+            <option value="0171">Coronal Loops</option>
+            <option value="0304">Flares &amp; Prominences</option>
+            <option value="HMIIC">Sunspots</option>
           </select>
           <div class="solar-canvas-wrap">
             <canvas id="solarCanvas" width="200" height="200"></canvas>

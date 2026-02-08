@@ -5,6 +5,7 @@ import { bearingTo, bearingToCardinal, distanceMi, localTimeAtLon, geodesicPoint
 import { spotId } from './filters.js';
 import { updateSpotDetail, clearSpotDetail } from './spot-detail.js';
 import { setDedxSpot, clearDedxSpot } from './dedx-info.js';
+import { onSpotSelected } from './voacap.js';
 
 let defaultIcon = null;
 let selectedIcon = null;
@@ -216,6 +217,7 @@ export function selectSpot(sid) {
       clearSpotDetail();
       clearDedxSpot();
     }
+    onSpotSelected();
   } else {
     clearSpotDetail();
     clearDedxSpot();

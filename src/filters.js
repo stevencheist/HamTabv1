@@ -5,6 +5,7 @@ import { cacheCallsign } from './utils.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 import { distanceMi } from './geo.js';
+import { calculateBandReliability, calculateMUF, dayFraction, HF_BANDS } from './band-conditions.js';
 
 export function freqToBand(freqStr) {
   let freq = parseFloat(freqStr);
@@ -84,6 +85,31 @@ export function filterByAge(spot) {
   return ageMin <= state.activeMaxAge;
 }
 
+// Propagation filter — hide spots on bands with predicted reliability < 30%
+export function filterByPropagation(spot) {
+  if (!state.propagationFilterEnabled) return true;
+  if (!state.lastSolarData?.indices) return true; // no solar data yet — pass through
+
+  const band = freqToBand(spot.frequency);
+  if (!band) return true; // unknown band — pass through
+
+  const bandDef = HF_BANDS.find(b => b.name === band);
+  if (!bandDef) return true; // VHF/UHF — pass through (no HF prop model)
+
+  const { indices } = state.lastSolarData;
+  const sfi = parseFloat(indices.sfi) || 70;
+  const kIndex = parseInt(indices.kindex) || 2;
+  const aIndex = parseInt(indices.aindex) || 5;
+
+  const utcHour = new Date().getUTCHours();
+  const dayFrac = dayFraction(state.myLat, state.myLon, utcHour);
+  const muf = calculateMUF(sfi, dayFrac);
+  const isDay = dayFrac > 0.5;
+
+  const rel = calculateBandReliability(bandDef.freqMHz, muf, kIndex, aIndex, isDay);
+  return rel >= 30; // Fair or better
+}
+
 function getCountryPrefix(ref) {
   if (!ref) return '';
   return ref.split('-')[0];
@@ -111,6 +137,8 @@ export function applyFilter() {
     if (allowed.includes('distance') && !filterByDistance(s)) return false;
     // Age filter
     if (allowed.includes('age') && !filterByAge(s)) return false;
+    // Propagation filter — applies to all sources (HF only; VHF/UHF pass through)
+    if (state.propagationFilterEnabled && !filterByPropagation(s)) return false;
     // Dropdowns (single-select)
     if (allowed.includes('country') && state.activeCountry && getCountryPrefix(s.reference) !== state.activeCountry) return false;
     if (allowed.includes('state') && state.activeState && getUSState(s.locationDesc) !== state.activeState) return false;
@@ -472,6 +500,20 @@ export function initFilterListeners() {
     });
   }
 
+  // Propagation filter toggle
+  const propBtn = $('propFilterBtn');
+  if (propBtn) {
+    propBtn.classList.toggle('active', state.propagationFilterEnabled);
+    propBtn.addEventListener('click', () => {
+      state.propagationFilterEnabled = !state.propagationFilterEnabled;
+      propBtn.classList.toggle('active', state.propagationFilterEnabled);
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+  }
+
   // Clear all filters button
   const clearBtn = $('clearFiltersBtn');
   if (clearBtn) {
@@ -532,6 +574,7 @@ export function saveCurrentFilters() {
     grid: state.activeGrid,
     continent: state.activeContinent,
     privilegeFilter: state.privilegeFilterEnabled,
+    propagationFilter: state.propagationFilterEnabled,
     sortColumn: state.spotSortColumn,
     sortDirection: state.spotSortDirection,
   };
@@ -552,6 +595,7 @@ export function loadFiltersForSource(source) {
       state.activeGrid = saved.grid ?? null;
       state.activeContinent = saved.continent ?? null;
       state.privilegeFilterEnabled = saved.privilegeFilter ?? false;
+      state.propagationFilterEnabled = saved.propagationFilter ?? false;
       state.spotSortColumn = saved.sortColumn ?? null;
       state.spotSortDirection = saved.sortDirection ?? 'desc';
       return;
@@ -567,6 +611,7 @@ export function loadFiltersForSource(source) {
   state.activeGrid = null;
   state.activeContinent = null;
   state.privilegeFilterEnabled = false;
+  state.propagationFilterEnabled = false;
   state.spotSortColumn = null;
   state.spotSortDirection = 'desc';
 }
@@ -601,6 +646,12 @@ export function updateAllFilterUI() {
   if (privFilterCheckbox) {
     privFilterCheckbox.checked = state.privilegeFilterEnabled;
   }
+
+  // Propagation toggle
+  const propBtn = $('propFilterBtn');
+  if (propBtn) {
+    propBtn.classList.toggle('active', state.propagationFilterEnabled);
+  }
 }
 
 // Clear all filters and update UI
@@ -614,6 +665,7 @@ export function clearAllFilters() {
   state.activeGrid = null;
   state.activeContinent = null;
   state.privilegeFilterEnabled = false;
+  state.propagationFilterEnabled = false;
 
   saveCurrentFilters();
   applyFilter();
@@ -656,6 +708,7 @@ export function savePreset(name) {
     grid: state.activeGrid,
     continent: state.activeContinent,
     privilegeFilter: state.privilegeFilterEnabled,
+    propagationFilter: state.propagationFilterEnabled,
     sortColumn: state.spotSortColumn,
     sortDirection: state.spotSortDirection,
   };
@@ -680,6 +733,7 @@ export function loadPreset(name) {
   state.activeGrid = preset.grid ?? null;
   state.activeContinent = preset.continent ?? null;
   state.privilegeFilterEnabled = preset.privilegeFilter ?? false;
+  state.propagationFilterEnabled = preset.propagationFilter ?? false;
   state.spotSortColumn = preset.sortColumn ?? null;
   state.spotSortDirection = preset.sortDirection ?? 'desc';
 

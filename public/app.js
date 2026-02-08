@@ -42,6 +42,8 @@
         // F or C
         activeMaxAge: null,
         // minutes (null = no filter)
+        propagationFilterEnabled: false,
+        // session-only — filter spots by predicted band reliability (≥30%)
         // Filter presets per source
         filterPresets: { pota: {}, sota: {}, dxc: {} },
         // Auto-refresh — defaults to on, persisted in localStorage
@@ -191,6 +193,8 @@
         // 'dvoacap' or 'simplified' — which engine produced the data
         voacapTarget: localStorage.getItem("hamtab_voacap_target") || "overview",
         // 'overview' or 'spot'
+        voacapAutoSpot: localStorage.getItem("hamtab_voacap_auto_spot") === "true",
+        // auto-switch to SPOT on selection
         voacapLastFetch: 0,
         // timestamp of last successful /api/voacap fetch
         // Heatmap overlay (REL mode for VOACAP)
@@ -803,19 +807,19 @@
     let baseReliability = 0;
     if (bandFreqMHz < mufLower) {
       if (isDay) {
-        baseReliability = Math.max(0, 20 - (mufLower - bandFreqMHz) * 2);
+        baseReliability = Math.max(0, 10 - (mufLower - bandFreqMHz) * 3);
       } else {
-        baseReliability = Math.min(85, 60 + (mufLower - bandFreqMHz) * 1.5);
+        baseReliability = Math.min(70, 40 + (mufLower - bandFreqMHz) * 1);
       }
     } else if (bandFreqMHz <= mufOptimal) {
       const position = (bandFreqMHz - mufLower) / (mufOptimal - mufLower);
-      baseReliability = 70 + 30 * Math.sin(position * Math.PI);
+      baseReliability = 50 + 35 * Math.sin(position * Math.PI);
     } else if (bandFreqMHz <= muf) {
       const position = (bandFreqMHz - mufOptimal) / (muf - mufOptimal);
-      baseReliability = 90 - position * 40;
+      baseReliability = 75 - position * 35;
     } else {
       const excess = bandFreqMHz - muf;
-      baseReliability = Math.max(0, 40 - excess * 3);
+      baseReliability = Math.max(0, 15 - excess * 5);
     }
     let geomagPenalty = 0;
     if (kIndex >= 6) {
@@ -831,16 +835,16 @@
     }
     let adjusted = baseReliability - geomagPenalty - aIndexPenalty;
     if (opts) {
-      if (opts.mode === "CW") adjusted += 10;
-      else if (opts.mode === "FT8") adjusted += 30;
+      if (opts.mode === "CW") adjusted += 8;
+      else if (opts.mode === "FT8") adjusted += 15;
       if (opts.powerWatts && opts.powerWatts !== 100) {
         const dBdiff = 10 * Math.log10(opts.powerWatts / 100);
         adjusted += dBdiff * 1.5;
       }
       if (opts.toaDeg != null) {
-        adjusted += (opts.toaDeg - 5) * 1.5;
+        adjusted += (opts.toaDeg - 5) * 0.5;
       }
-      if (opts.longPath) adjusted -= 25;
+      if (opts.longPath) adjusted -= 30;
     }
     const finalReliability = Math.max(0, Math.min(100, adjusted));
     return Math.round(finalReliability);
@@ -915,10 +919,12 @@
     return map[condition] || "Unknown";
   }
   function getReliabilityColor(rel) {
-    if (rel < 10) return "#1a1a1a";
-    if (rel < 33) return "#c0392b";
-    if (rel < 66) return "#f1c40f";
-    return "#27ae60";
+    if (rel < 5) return "rgba(26, 26, 26, 0.6)";
+    const t = Math.max(0, Math.min(1, (rel - 5) / 90));
+    const hue = t * 120;
+    const sat = 90;
+    const light = 42 + t * 13;
+    return `hsl(${hue}, ${sat}%, ${light}%)`;
   }
   function calculate24HourMatrix(opts) {
     if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
@@ -1064,6 +1070,7 @@
     fetchVoacapMatrixThrottled: () => fetchVoacapMatrixThrottled,
     getVoacapOpts: () => getVoacapOpts,
     initVoacapListeners: () => initVoacapListeners,
+    onSpotSelected: () => onSpotSelected,
     renderVoacapMatrix: () => renderVoacapMatrix,
     toggleBandOverlay: () => toggleBandOverlay
   });
@@ -1097,6 +1104,12 @@
           drawBandOverlay(state_default.hfPropOverlayBand);
         }
       }
+      return;
+    }
+    if (name === "autospot") {
+      state_default.voacapAutoSpot = !state_default.voacapAutoSpot;
+      localStorage.setItem("hamtab_voacap_auto_spot", state_default.voacapAutoSpot);
+      renderVoacapMatrix();
       return;
     }
     if (name === "target") {
@@ -1258,7 +1271,7 @@
     const engineClass = state_default.voacapEngine === "dvoacap" ? "voacap-engine-real" : "voacap-engine-sim";
     const engineTitle = state_default.voacapEngine === "dvoacap" ? "Using real VOACAP propagation model" : "Using simplified propagation model";
     const targetLabel = state_default.voacapTarget === "spot" ? "SPOT" : "OVW";
-    const targetTitle = state_default.voacapTarget === "spot" ? "Showing prediction to selected spot (click for overview)" : "Showing best worldwide prediction (click for spot mode)";
+    const targetTitle = state_default.voacapTarget === "spot" ? "Showing prediction to selected spot (click for overview)" : "Showing average worldwide prediction (click for spot mode)";
     const serverData = state_default.voacapServerData;
     const effectiveSSN = serverData?.ssn ? Math.round(serverData.ssn) : null;
     const baseSSN = serverData?.ssnBase ? Math.round(serverData.ssnBase) : null;
@@ -1281,12 +1294,21 @@
     html += `<div class="voacap-params">`;
     html += `<span class="voacap-engine-badge ${engineClass}" title="${engineTitle}">${engineLabel}</span>`;
     html += `<span class="voacap-param" data-param="target" title="${targetTitle}">${targetLabel}</span>`;
+    const autoClass = state_default.voacapAutoSpot ? " voacap-param-active" : "";
+    const autoTitle = state_default.voacapAutoSpot ? "Auto-SPOT: ON \u2014 clicking a spot refreshes VOACAP to that path (click to disable)" : "Auto-SPOT: OFF \u2014 click to auto-refresh VOACAP when selecting a spot";
+    html += `<span class="voacap-param${autoClass}" data-param="autospot" title="${autoTitle}">AUTO</span>`;
     html += `<span class="voacap-param" data-param="overlay" title="${overlayTitle}">${overlayLabel}</span>`;
     html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state_default.voacapPower] || state_default.voacapPower}</span>`;
     html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state_default.voacapMode}</span>`;
     html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
     html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
     html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
+    html += `</div>`;
+    html += `<div class="voacap-legend">`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(0)}"></span>Closed</span>`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(20)}"></span>Poor</span>`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(50)}"></span>Fair</span>`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(80)}"></span>Good</span>`;
     html += `</div>`;
     container.innerHTML = html;
   }
@@ -1370,6 +1392,14 @@
     clearBandOverlay();
     clearHeatmap();
     state_default.hfPropOverlayBand = null;
+  }
+  function onSpotSelected() {
+    if (!state_default.voacapAutoSpot) return;
+    if (state_default.voacapTarget !== "spot") {
+      state_default.voacapTarget = "spot";
+      localStorage.setItem("hamtab_voacap_target", "spot");
+    }
+    fetchVoacapMatrix();
   }
   var bandOverlayCircles, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
   var init_voacap = __esm({
@@ -2485,9 +2515,15 @@ ${beacon.location}`);
           title: "VOACAP DE\u2192DX",
           description: "A dense 24-hour propagation grid showing predicted band reliability from your station (DE) to the world (DX). The current hour starts at the left edge so you can instantly see what's open right now.",
           sections: [
-            { heading: "Reading the Grid", content: 'Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Colors show predicted reliability: black = closed, red = poor, yellow = fair, green = good/excellent.' },
-            { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows significantly more green because of its ~40dB SNR advantage over SSB." },
-            { heading: "Overview vs Spot", content: `Click OVW/SPOT to toggle target mode. "OVW" (overview) shows the best predicted reliability to four representative worldwide targets (Europe, East Asia, South America, North America). "SPOT" calculates predictions specifically to the station you've selected in the On the Air table, so you can see exactly when a band will open to that DX.` },
+            { heading: "Reading the Grid", content: `Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Cell colors show predicted reliability as a continuous gradient:
+
+\u2022 Closed (black) \u2014 Below 5% reliability. The band is not usable on this path. Signals cannot propagate because the frequency is above the MUF or ionospheric conditions block it entirely.
+\u2022 Poor (red) \u2014 5\u201330% reliability. The band may open briefly or weakly. You might make a contact with persistence and good timing, but don't count on it.
+\u2022 Fair (yellow/orange) \u2014 30\u201365% reliability. The band is usable but inconsistent. Signals may fade in and out. Good for CW and digital modes; SSB may be marginal.
+\u2022 Good (green) \u2014 Above 65% reliability. The band is solidly open. Expect workable signals for the predicted mode and power level.` },
+            { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows more green because its low SNR threshold means signals are decodable in conditions where SSB would be unusable." },
+            { heading: "Overview vs Spot", content: `Click OVW/SPOT to toggle target mode. "OVW" (overview) shows the average predicted reliability across four worldwide targets (Europe, East Asia, South America, North America). "SPOT" calculates predictions specifically to the station you've selected in the On the Air table, so you can see exactly when a band will open to that DX.` },
+            { heading: "Auto-SPOT", content: "Click the AUTO button to enable automatic SPOT updates. When AUTO is on (highlighted green), clicking any spot in the table or on the map instantly switches VOACAP to SPOT mode and recalculates the grid for the path to that station. This lets you quickly scan propagation to different DX stations by clicking through spots. AUTO is off by default \u2014 enable it when you want live per-spot predictions." },
             { heading: "Engine Badge", content: 'The green "VOACAP" or gray "SIM" badge shows which prediction engine is active. VOACAP uses the real Voice of America Coverage Analysis Program \u2014 a professional ionospheric ray-tracing model used by broadcasters and militaries worldwide. It computes multi-hop propagation paths through actual ionospheric layers, accounting for D-layer absorption, MUF, takeoff angle, power, and mode. SIM is a lightweight approximation based on solar flux and time of day \u2014 useful as a fallback but significantly less accurate. The engine switches automatically; no user action needed.' },
             { heading: "Map Overlay", content: "Click any band row to show propagation on the map. Two modes are available \u2014 click the \u25CB/REL toggle in the param bar to switch. Circle mode (\u25CB) draws concentric range rings from your QTH. REL heatmap mode paints the entire map with a color gradient showing predicted reliability to every point: green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels." },
             { heading: "About the Data", content: "Predictions are monthly median values based on the current smoothed sunspot number (SSN) from NOAA. They represent typical conditions for this month, not real-time ionospheric state. Use them for planning which bands to try at different times of day, rather than as guarantees of what's open right now." }
@@ -3233,6 +3269,7 @@ ${beacon.location}`);
         clearSpotDetail();
         clearDedxSpot();
       }
+      onSpotSelected();
     } else {
       clearSpotDetail();
       clearDedxSpot();
@@ -3263,6 +3300,7 @@ ${beacon.location}`);
       init_filters();
       init_spot_detail();
       init_dedx_info();
+      init_voacap();
       defaultIcon = null;
       selectedIcon = null;
     }
@@ -3413,6 +3451,7 @@ ${beacon.location}`);
     filterByAge: () => filterByAge,
     filterByDistance: () => filterByDistance,
     filterByPrivileges: () => filterByPrivileges,
+    filterByPropagation: () => filterByPropagation,
     freqToBand: () => freqToBand,
     getAvailableBands: () => getAvailableBands,
     getAvailableContinents: () => getAvailableContinents,
@@ -3502,6 +3541,24 @@ ${beacon.location}`);
     const ageMin = ageMs / 6e4;
     return ageMin <= state_default.activeMaxAge;
   }
+  function filterByPropagation(spot) {
+    if (!state_default.propagationFilterEnabled) return true;
+    if (!state_default.lastSolarData?.indices) return true;
+    const band = freqToBand(spot.frequency);
+    if (!band) return true;
+    const bandDef = HF_BANDS.find((b) => b.name === band);
+    if (!bandDef) return true;
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const dayFrac = dayFraction(state_default.myLat, state_default.myLon, utcHour);
+    const muf = calculateMUF(sfi, dayFrac);
+    const isDay = dayFrac > 0.5;
+    const rel = calculateBandReliability(bandDef.freqMHz, muf, kIndex, aIndex, isDay);
+    return rel >= 30;
+  }
   function getCountryPrefix(ref) {
     if (!ref) return "";
     return ref.split("-")[0];
@@ -3523,6 +3580,7 @@ ${beacon.location}`);
       }
       if (allowed.includes("distance") && !filterByDistance(s)) return false;
       if (allowed.includes("age") && !filterByAge(s)) return false;
+      if (state_default.propagationFilterEnabled && !filterByPropagation(s)) return false;
       if (allowed.includes("country") && state_default.activeCountry && getCountryPrefix(s.reference) !== state_default.activeCountry) return false;
       if (allowed.includes("state") && state_default.activeState && getUSState(s.locationDesc) !== state_default.activeState) return false;
       if (allowed.includes("grid") && state_default.activeGrid && (s.grid4 || "") !== state_default.activeGrid) return false;
@@ -3845,6 +3903,18 @@ ${beacon.location}`);
         renderMarkers();
       });
     }
+    const propBtn = $("propFilterBtn");
+    if (propBtn) {
+      propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
+      propBtn.addEventListener("click", () => {
+        state_default.propagationFilterEnabled = !state_default.propagationFilterEnabled;
+        propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
     const clearBtn = $("clearFiltersBtn");
     if (clearBtn) {
       clearBtn.addEventListener("click", () => {
@@ -3893,6 +3963,7 @@ ${beacon.location}`);
       grid: state_default.activeGrid,
       continent: state_default.activeContinent,
       privilegeFilter: state_default.privilegeFilterEnabled,
+      propagationFilter: state_default.propagationFilterEnabled,
       sortColumn: state_default.spotSortColumn,
       sortDirection: state_default.spotSortDirection
     };
@@ -3911,6 +3982,7 @@ ${beacon.location}`);
         state_default.activeGrid = saved2.grid ?? null;
         state_default.activeContinent = saved2.continent ?? null;
         state_default.privilegeFilterEnabled = saved2.privilegeFilter ?? false;
+        state_default.propagationFilterEnabled = saved2.propagationFilter ?? false;
         state_default.spotSortColumn = saved2.sortColumn ?? null;
         state_default.spotSortDirection = saved2.sortDirection ?? "desc";
         return;
@@ -3926,6 +3998,7 @@ ${beacon.location}`);
     state_default.activeGrid = null;
     state_default.activeContinent = null;
     state_default.privilegeFilterEnabled = false;
+    state_default.propagationFilterEnabled = false;
     state_default.spotSortColumn = null;
     state_default.spotSortDirection = "desc";
   }
@@ -3952,6 +4025,10 @@ ${beacon.location}`);
     if (privFilterCheckbox) {
       privFilterCheckbox.checked = state_default.privilegeFilterEnabled;
     }
+    const propBtn = $("propFilterBtn");
+    if (propBtn) {
+      propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
+    }
   }
   function clearAllFilters() {
     state_default.activeBands.clear();
@@ -3963,6 +4040,7 @@ ${beacon.location}`);
     state_default.activeGrid = null;
     state_default.activeContinent = null;
     state_default.privilegeFilterEnabled = false;
+    state_default.propagationFilterEnabled = false;
     saveCurrentFilters();
     applyFilter();
     renderSpots();
@@ -3996,6 +4074,7 @@ ${beacon.location}`);
       grid: state_default.activeGrid,
       continent: state_default.activeContinent,
       privilegeFilter: state_default.privilegeFilterEnabled,
+      propagationFilter: state_default.propagationFilterEnabled,
       sortColumn: state_default.spotSortColumn,
       sortDirection: state_default.spotSortDirection
     };
@@ -4017,6 +4096,7 @@ ${beacon.location}`);
     state_default.activeGrid = preset.grid ?? null;
     state_default.activeContinent = preset.continent ?? null;
     state_default.privilegeFilterEnabled = preset.privilegeFilter ?? false;
+    state_default.propagationFilterEnabled = preset.propagationFilter ?? false;
     state_default.spotSortColumn = preset.sortColumn ?? null;
     state_default.spotSortDirection = preset.sortDirection ?? "desc";
     saveCurrentFilters();
@@ -4051,6 +4131,7 @@ ${beacon.location}`);
       init_spots();
       init_markers();
       init_geo();
+      init_band_conditions();
     }
   });
 
@@ -5052,7 +5133,7 @@ ${beacon.location}`);
   function loadGridAssignments() {
     try {
       const saved2 = JSON.parse(localStorage.getItem(GRID_ASSIGN_KEY));
-      if (saved2 && typeof saved2 === "object") {
+      if (saved2 && typeof saved2 === "object" && Object.keys(saved2).length > 0) {
         state_default.gridAssignments = saved2;
         return saved2;
       }
@@ -5079,7 +5160,7 @@ ${beacon.location}`);
     state_default.gridPermutation = perm.id;
     saveGridMode();
     saveGridPermutation();
-    if (!state_default.gridAssignments) {
+    if (!state_default.gridAssignments || Object.keys(state_default.gridAssignments).length === 0) {
       loadGridAssignments();
     }
     area.classList.add("grid-active");
@@ -5157,6 +5238,8 @@ ${beacon.location}`);
       if (!assignedWidgets.has(def.id) || vis[def.id] === false) {
         el.style.gridArea = "";
         el.style.display = "none";
+      } else {
+        el.style.display = "";
       }
     });
   }
@@ -7034,8 +7117,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.29.0";
-    $("aboutVersion").textContent = "0.29.0";
+    $("splashVersion").textContent = "0.30.0";
+    $("aboutVersion").textContent = "0.30.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

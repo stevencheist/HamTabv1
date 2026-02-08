@@ -162,6 +162,72 @@ function updateGridHighlight() {
   }
 }
 
+// --- Widget slot enforcement for grid mode ---
+function updateWidgetSlotEnforcement() {
+  const counter = document.getElementById('widgetSlotCounter');
+  const widgetList = document.getElementById('splashWidgetList');
+  if (!counter || !widgetList) return;
+
+  const floatRadio = document.getElementById('layoutModeFloat');
+  const isGrid = floatRadio ? !floatRadio.checked : false;
+  const supportsGrid = currentThemeSupportsGrid();
+
+  // Float mode or non-grid theme — no limits
+  if (!isGrid || !supportsGrid) {
+    counter.textContent = '';
+    counter.classList.remove('over-limit');
+    widgetList.querySelectorAll('label').forEach(lbl => {
+      lbl.classList.remove('cb-disabled');
+      const cb = lbl.querySelector('input[type="checkbox"]');
+      if (cb) cb.disabled = false;
+    });
+    return;
+  }
+
+  // Grid mode — enforce slot limit
+  const permSelect = document.getElementById('gridPermSelect');
+  const permId = permSelect ? permSelect.value : state.gridPermutation;
+  const perm = getGridPermutation(permId);
+  const maxSlots = perm.slots;
+
+  const checkboxes = widgetList.querySelectorAll('input[type="checkbox"]');
+  let checkedNonMap = 0;
+
+  // Force-check and disable the map checkbox; count non-map checked
+  checkboxes.forEach(cb => {
+    if (cb.dataset.widgetId === 'widget-map') {
+      cb.checked = true;
+      cb.disabled = true;
+      cb.closest('label').classList.add('cb-disabled');
+    } else if (cb.checked) {
+      checkedNonMap++;
+    }
+  });
+
+  const atLimit = checkedNonMap >= maxSlots;
+
+  // Disable unchecked non-map boxes when at/over limit
+  checkboxes.forEach(cb => {
+    if (cb.dataset.widgetId === 'widget-map') return; // already handled
+    if (atLimit && !cb.checked) {
+      cb.disabled = true;
+      cb.closest('label').classList.add('cb-disabled');
+    } else {
+      cb.disabled = false;
+      cb.closest('label').classList.remove('cb-disabled');
+    }
+  });
+
+  // Update counter text
+  if (checkedNonMap > maxSlots) {
+    counter.textContent = `${checkedNonMap} / ${maxSlots} slots \u2014 excess hidden in grid`;
+    counter.classList.add('over-limit');
+  } else {
+    counter.textContent = `${checkedNonMap} / ${maxSlots} slots`;
+    counter.classList.remove('over-limit');
+  }
+}
+
 // initApp is passed in to avoid circular dependency
 let _initApp = null;
 export function setInitApp(fn) { _initApp = fn; }
@@ -223,6 +289,7 @@ export function showSplash() {
     cb.type = 'checkbox';
     cb.dataset.widgetId = w.id;
     cb.checked = state.widgetVisibility[w.id] !== false;
+    cb.addEventListener('change', updateWidgetSlotEnforcement);
     label.appendChild(cb);
     label.appendChild(document.createTextNode(w.name));
     widgetList.appendChild(label);
@@ -291,6 +358,7 @@ export function showSplash() {
             if (permSec) permSec.style.display = 'none';
           }
         }
+        updateWidgetSlotEnforcement();
       });
 
       themeSelector.appendChild(swatch);
@@ -336,6 +404,8 @@ export function showSplash() {
     // Render preview
     renderGridPreview(state.gridPermutation);
   }
+
+  updateWidgetSlotEnforcement();
 
   // --- Layout section state ---
   const hasSaved = hasUserLayout();
@@ -617,15 +687,18 @@ export function initSplashListeners() {
   if (layoutModeFloat && layoutModeGrid) {
     layoutModeFloat.addEventListener('change', () => {
       if (gridPermSection) gridPermSection.style.display = 'none';
+      updateWidgetSlotEnforcement();
     });
     layoutModeGrid.addEventListener('change', () => {
       if (gridPermSection) gridPermSection.style.display = '';
       if (gridPermSelect) renderGridPreview(gridPermSelect.value);
+      updateWidgetSlotEnforcement();
     });
   }
   if (gridPermSelect) {
     gridPermSelect.addEventListener('change', () => {
       renderGridPreview(gridPermSelect.value);
+      updateWidgetSlotEnforcement();
     });
   }
 

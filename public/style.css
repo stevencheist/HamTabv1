@@ -1340,6 +1340,20 @@ header {
   background: rgba(255, 215, 0, 0.25);
 }
 
+/* ---- Watch list red highlight ---- */
+#spotsTable tbody tr.spot-watch-red {
+  background: rgba(233, 69, 96, 0.15);
+  border-left: 3px solid var(--accent);
+}
+#spotsTable tbody tr.spot-watch-red.selected {
+  background: rgba(233, 69, 96, 0.25);
+}
+/* my-spot (gold) takes visual precedence over watch-red */
+#spotsTable tbody tr.spot-watch-red.my-spot {
+  background: rgba(255, 215, 0, 0.15);
+  border-left: 3px solid #ffd700;
+}
+
 #spotsTable td a {
   color: inherit;
   text-decoration: underline;
@@ -5472,4 +5486,32 @@ header {
 .slim-header.theme-hamclock .header-clock {
   padding: 2px 10px;
 }
+
+/* ---- Watch list editor ---- */
+.wl-help-text { font-size: 0.75rem; color: var(--text-dim); margin: 0 0 8px; }
+.wl-source-section { margin-bottom: 12px; }
+.wl-source-header { font-size: 0.8rem; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.wl-rule-list { display: flex; flex-direction: column; gap: 2px; margin-bottom: 4px; }
+.wl-rule { display: flex; align-items: center; gap: 6px; font-size: 0.75rem;
+           padding: 2px 6px; background: var(--surface); border-radius: 3px; }
+.wl-rule-mode { font-weight: 600; min-width: 32px; text-transform: uppercase; font-size: 0.65rem; }
+.wl-rule-mode.red { color: #e94560; }
+.wl-rule-mode.only { color: #4CAF50; }
+.wl-rule-mode.not { color: #888; }
+.wl-rule-value { font-family: monospace; }
+.wl-rule-type { color: var(--text-dim); font-size: 0.65rem; }
+.wl-rule-delete { cursor: pointer; color: var(--text-dim); margin-left: auto; font-size: 0.8rem; }
+.wl-rule-delete:hover { color: var(--accent); }
+.wl-add-form { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.wl-add-form label { font-size: 0.7rem; cursor: pointer; }
+.wl-add-form input[type="radio"] { margin: 0 1px 0 4px; }
+.wl-add-form select { font-size: 0.7rem; padding: 2px 4px;
+                       background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+.wl-add-form input[type="text"] { width: 90px; font-size: 0.75rem; padding: 2px 4px;
+                                    text-transform: uppercase; font-family: monospace;
+                                    background: var(--bg); color: var(--text); border: 1px solid var(--border); }
+.wl-add-form button { font-size: 0.7rem; padding: 2px 8px;
+                       background: var(--surface); color: var(--text); border: 1px solid var(--border);
+                       border-radius: 3px; cursor: pointer; }
+.wl-add-form button:hover { border-color: var(--accent); }
 

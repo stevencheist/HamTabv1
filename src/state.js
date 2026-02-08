@@ -14,6 +14,7 @@ const state = {
   distanceUnit: localStorage.getItem('hamtab_distance_unit') || 'mi',
   temperatureUnit: localStorage.getItem('hamtab_temperature_unit') || 'F', // F or C
   activeMaxAge: null, // minutes (null = no filter)
+  propagationFilterEnabled: false, // session-only — filter spots by predicted band reliability (≥30%)
 
   // Filter presets per source
   filterPresets: { pota: {}, sota: {}, dxc: {} },

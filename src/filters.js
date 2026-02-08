@@ -451,8 +451,8 @@ function updateOperatorDisplay() {
 
   if (state.myCallsign) {
     const qrz = `https://www.qrz.com/db/${encodeURIComponent(state.myCallsign)}`;
-    let classLabel = state.licenseClass ? ` [${state.licenseClass}]` : '';
-    opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc(state.myCallsign)}</a><span class="op-class">${esc(classLabel)}</span>`;
+    let classLabel = state.licenseClass ? `[${state.licenseClass}]` : '';
+    opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc(state.myCallsign)}</a>${classLabel ? `<div class="op-class">${esc(classLabel)}</div>` : ''}`;
     const info = state.callsignCache[state.myCallsign.toUpperCase()];
     const opName = document.getElementById('opName');
     if (opName) {

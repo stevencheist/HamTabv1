@@ -160,7 +160,10 @@ export async function fetchVoacapMatrix() {
   }
 
   try {
-    const resp = await fetch(`/api/voacap?${params}`);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 25000); // 25s — slightly above server's 20s handler timeout
+    const resp = await fetch(`/api/voacap?${params}`, { signal: controller.signal });
+    clearTimeout(timeout);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 

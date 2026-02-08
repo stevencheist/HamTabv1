@@ -2559,23 +2559,33 @@ app.get('/api/voacap', async (req, res) => {
     let matrix;
     let fallbackReason = null; // diagnostic: why we fell back to simplified
 
+    // Request-level timeout for the entire dvoacap prediction.
+    // Cloudflare Workers timeout at ~30s, so we must respond well within that.
+    // If dvoacap hangs, kill the stuck worker and return simplified immediately.
+    const HANDLER_TIMEOUT_MS = 20000; // 20 seconds — leaves headroom for Cloudflare
+
     if (voacap.isAvailable()) {
       // Batch predict: send all 24 hours × all targets in a single IPC call
       try {
-        const result = await voacap.predictMatrix({
-          tx_lat: txLat,
-          tx_lon: txLon,
-          targets: targets.map(t => ({ name: t.name, lat: t.lat, lon: t.lon })),
-          ssn,
-          month,
-          power,
-          min_angle_deg: toa,
-          long_path: longPath,
-          required_snr: requiredSnr,
-          bandwidth_hz: bandwidthHz,
-          frequencies,
-          band_names: bandNames,
-        });
+        const result = await Promise.race([
+          voacap.predictMatrix({
+            tx_lat: txLat,
+            tx_lon: txLon,
+            targets: targets.map(t => ({ name: t.name, lat: t.lat, lon: t.lon })),
+            ssn,
+            month,
+            power,
+            min_angle_deg: toa,
+            long_path: longPath,
+            required_snr: requiredSnr,
+            bandwidth_hz: bandwidthHz,
+            frequencies,
+            band_names: bandNames,
+          }),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Handler timeout')), HANDLER_TIMEOUT_MS)
+          ),
+        ]);
 
         if (result.ok && result.matrix) {
           engine = 'dvoacap';
@@ -2589,6 +2599,11 @@ app.get('/api/voacap', async (req, res) => {
         fallbackReason = `predictMatrix threw: ${err.message}`;
         console.error(`[VOACAP] Matrix prediction error: ${err.message}`);
         matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
+
+        // If the prediction hung (handler timeout), kill the stuck worker so it can respawn
+        if (err.message === 'Handler timeout') {
+          voacap.killAndRespawn('Prediction hung — handler timeout after 20s');
+        }
       }
     } else {
       fallbackReason = 'bridge not available';

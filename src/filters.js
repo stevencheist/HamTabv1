@@ -165,6 +165,123 @@ export function saveWatchLists() {
   localStorage.setItem('hamtab_watchlists', JSON.stringify(state.watchLists));
 }
 
+// --- Watch List Editor (active source only) ---
+export function renderWatchListEditor() {
+  const container = document.getElementById('watchListEditor');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const key = state.currentSource;
+  if (!SOURCE_DEFS[key]) return;
+
+  const rules = state.watchLists[key] || [];
+
+  // Rule list
+  if (rules.length > 0) {
+    const list = document.createElement('div');
+    list.className = 'wl-rule-list';
+    rules.forEach((rule, idx) => {
+      const row = document.createElement('div');
+      row.className = 'wl-rule';
+
+      const badge = document.createElement('span');
+      badge.className = `wl-rule-mode ${rule.mode}`;
+      badge.textContent = rule.mode;
+      row.appendChild(badge);
+
+      const val = document.createElement('span');
+      val.className = 'wl-rule-value';
+      val.textContent = rule.value;
+      row.appendChild(val);
+
+      const type = document.createElement('span');
+      type.className = 'wl-rule-type';
+      type.textContent = `(${rule.type})`;
+      row.appendChild(type);
+
+      const del = document.createElement('span');
+      del.className = 'wl-rule-delete';
+      del.textContent = '\u00d7';
+      del.title = 'Remove rule';
+      del.addEventListener('click', () => {
+        state.watchLists[key].splice(idx, 1);
+        saveWatchLists();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+        renderWatchListEditor();
+      });
+      row.appendChild(del);
+
+      list.appendChild(row);
+    });
+    container.appendChild(list);
+  }
+
+  // Add form
+  const form = document.createElement('div');
+  form.className = 'wl-add-form';
+
+  // Mode radios
+  const modes = ['red', 'only', 'not'];
+  const radioName = `wl-mode-${key}`;
+  modes.forEach((m, i) => {
+    const radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = radioName;
+    radio.value = m;
+    if (i === 0) radio.checked = true;
+    const label = document.createElement('label');
+    label.appendChild(radio);
+    label.appendChild(document.createTextNode(m.charAt(0).toUpperCase() + m.slice(1)));
+    form.appendChild(label);
+  });
+
+  // Type select
+  const typeSelect = document.createElement('select');
+  const types = ['callsign', 'dxcc', 'grid'];
+  if (key === 'pota' || key === 'sota') types.push('ref');
+  types.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t;
+    opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+    typeSelect.appendChild(opt);
+  });
+  form.appendChild(typeSelect);
+
+  // Value input
+  const valueInput = document.createElement('input');
+  valueInput.type = 'text';
+  valueInput.placeholder = 'Value';
+  form.appendChild(valueInput);
+
+  // Add button
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.textContent = 'Add';
+  addBtn.addEventListener('click', () => {
+    const val = valueInput.value.trim().toUpperCase();
+    if (!val) return;
+    const mode = form.querySelector(`input[name="${radioName}"]:checked`).value;
+    const type = typeSelect.value;
+
+    // Reject duplicate
+    const existing = state.watchLists[key] || [];
+    if (existing.some(r => r.mode === mode && r.type === type && r.value === val)) return;
+
+    if (!state.watchLists[key]) state.watchLists[key] = [];
+    state.watchLists[key].push({ mode, type, value: val });
+    saveWatchLists();
+    applyFilter();
+    renderSpots();
+    renderMarkers();
+    renderWatchListEditor();
+  });
+  form.appendChild(addBtn);
+
+  container.appendChild(form);
+}
+
 export function applyFilter() {
   state.watchRedSpotIds = new Set();
   const allowed = SOURCE_DEFS[state.currentSource].filters;
@@ -615,6 +732,17 @@ export function initFilterListeners() {
 
   if (state.myCallsign) {
     fetchLicenseClass(state.myCallsign);
+  }
+
+  // Watch list accordion toggle
+  const wlToggle = document.getElementById('wlAccordionToggle');
+  if (wlToggle) {
+    wlToggle.addEventListener('click', () => {
+      const body = document.getElementById('wlAccordionBody');
+      const open = body.classList.toggle('open');
+      wlToggle.classList.toggle('open', open);
+      if (open) renderWatchListEditor();
+    });
   }
 }
 

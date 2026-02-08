@@ -547,7 +547,6 @@ header {
 
 /* Shared base for header-right buttons */
 #refreshBtn,
-#resetLayoutBtn,
 #fullscreenBtn {
   padding: 4px 10px;
   font-size: 0.8rem;
@@ -561,7 +560,6 @@ header {
 }
 
 #refreshBtn:hover,
-#resetLayoutBtn:hover,
 #fullscreenBtn:hover {
   background: var(--accent);
 }
@@ -3738,7 +3736,6 @@ header {
 
 /* Buttons on black — need visible colored backgrounds */
 .theme-lcars #refreshBtn,
-.theme-lcars #resetLayoutBtn,
 .theme-lcars #fullscreenBtn {
   background: var(--accent);
   border-color: transparent;
@@ -3763,7 +3760,6 @@ header {
 /* Header buttons readable on colored backgrounds */
 .theme-lcars .op-btn,
 .theme-lcars #refreshBtn,
-.theme-lcars #resetLayoutBtn,
 .theme-lcars #fullscreenBtn {
   color: #000;
 }
@@ -3820,7 +3816,6 @@ header {
 /* Buttons — pill shaped */
 .theme-lcars .op-btn,
 .theme-lcars #refreshBtn,
-.theme-lcars #resetLayoutBtn,
 .theme-lcars #fullscreenBtn,
 .theme-lcars .feedback-btn,
 .theme-lcars .coffee-btn,
@@ -4057,7 +4052,6 @@ header {
 .theme-lcars .prop-metric-btn:active,
 .theme-lcars .map-center-btn:active,
 .theme-lcars #refreshBtn:active,
-.theme-lcars #resetLayoutBtn:active,
 .theme-lcars #fullscreenBtn:active {
   background: #CC6699 !important; /* hopbush — canonical LCARS click color */
 }
@@ -4066,7 +4060,6 @@ header {
 .theme-lcars .op-btn:hover,
 .theme-lcars .source-tab:hover,
 .theme-lcars #refreshBtn:hover,
-.theme-lcars #resetLayoutBtn:hover,
 .theme-lcars #fullscreenBtn:hover {
   background: #FFFF99; /* pale-canary */
   color: #000;
@@ -4213,7 +4206,6 @@ header {
 /* Buttons — squared off, utilitarian */
 .theme-terminal .op-btn,
 .theme-terminal #refreshBtn,
-.theme-terminal #resetLayoutBtn,
 .theme-terminal #fullscreenBtn,
 .theme-terminal .feedback-btn,
 .theme-terminal .coffee-btn,
@@ -4394,7 +4386,6 @@ header {
 
 .theme-hamclock .op-btn,
 .theme-hamclock #refreshBtn,
-.theme-hamclock #resetLayoutBtn,
 .theme-hamclock #fullscreenBtn,
 .theme-hamclock .feedback-btn,
 .theme-hamclock .coffee-btn,
@@ -5402,7 +5393,6 @@ header {
 
 /* Right buttons — smaller */
 .slim-header #refreshBtn,
-.slim-header #resetLayoutBtn,
 .slim-header #fullscreenBtn {
   padding: 2px 6px;
   font-size: 0.7rem;

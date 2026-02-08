@@ -1,7 +1,6 @@
 import state from './state.js';
 import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
-import { centerMapOnUser, updateUserMarker } from './map-init.js';
-import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, resetGridAssignments, repositionGridHandles } from './grid-layout.js';
+import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, repositionGridHandles } from './grid-layout.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
 
@@ -432,29 +431,6 @@ function applyLayout(layout) {
   if (state.map) state.map.invalidateSize();
 }
 
-function resetLayout() {
-  if (isGridMode()) {
-    resetGridAssignments();
-    centerMapOnUser();
-    updateUserMarker();
-    return;
-  }
-  localStorage.removeItem(WIDGET_STORAGE_KEY);
-  const userSaved = localStorage.getItem(USER_LAYOUT_KEY);
-  if (userSaved) {
-    try {
-      applyLayout(JSON.parse(userSaved));
-    } catch (e) {
-      applyLayout(getDefaultLayout());
-    }
-  } else {
-    applyLayout(getDefaultLayout());
-  }
-  saveWidgets();
-  centerMapOnUser();
-  updateUserMarker();
-}
-
 // --- Responsive reflow: proportionally scale widgets on resize ---
 let prevAreaW = 0;
 let prevAreaH = 0;
@@ -681,8 +657,6 @@ export function initWidgets() {
   if (state.map && mapWidget && window.ResizeObserver) {
     new ResizeObserver(() => state.map.invalidateSize()).observe(mapWidget);
   }
-
-  document.getElementById('resetLayoutBtn').addEventListener('click', resetLayout);
 
   // --- Responsive reflow when widget area resizes ---
   if (window.ResizeObserver) {

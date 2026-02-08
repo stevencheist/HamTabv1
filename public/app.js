@@ -42,6 +42,8 @@
         // F or C
         activeMaxAge: null,
         // minutes (null = no filter)
+        propagationFilterEnabled: false,
+        // session-only — filter spots by predicted band reliability (≥30%)
         // Filter presets per source
         filterPresets: { pota: {}, sota: {}, dxc: {} },
         // Auto-refresh — defaults to on, persisted in localStorage
@@ -3452,6 +3454,7 @@ ${beacon.location}`);
     filterByAge: () => filterByAge,
     filterByDistance: () => filterByDistance,
     filterByPrivileges: () => filterByPrivileges,
+    filterByPropagation: () => filterByPropagation,
     freqToBand: () => freqToBand,
     getAvailableBands: () => getAvailableBands,
     getAvailableContinents: () => getAvailableContinents,
@@ -3541,6 +3544,24 @@ ${beacon.location}`);
     const ageMin = ageMs / 6e4;
     return ageMin <= state_default.activeMaxAge;
   }
+  function filterByPropagation(spot) {
+    if (!state_default.propagationFilterEnabled) return true;
+    if (!state_default.lastSolarData?.indices) return true;
+    const band = freqToBand(spot.frequency);
+    if (!band) return true;
+    const bandDef = HF_BANDS.find((b) => b.name === band);
+    if (!bandDef) return true;
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const dayFrac = dayFraction(state_default.myLat, state_default.myLon, utcHour);
+    const muf = calculateMUF(sfi, dayFrac);
+    const isDay = dayFrac > 0.5;
+    const rel = calculateBandReliability(bandDef.freqMHz, muf, kIndex, aIndex, isDay);
+    return rel >= 30;
+  }
   function getCountryPrefix(ref) {
     if (!ref) return "";
     return ref.split("-")[0];
@@ -3562,6 +3583,7 @@ ${beacon.location}`);
       }
       if (allowed.includes("distance") && !filterByDistance(s)) return false;
       if (allowed.includes("age") && !filterByAge(s)) return false;
+      if (state_default.propagationFilterEnabled && !filterByPropagation(s)) return false;
       if (allowed.includes("country") && state_default.activeCountry && getCountryPrefix(s.reference) !== state_default.activeCountry) return false;
       if (allowed.includes("state") && state_default.activeState && getUSState(s.locationDesc) !== state_default.activeState) return false;
       if (allowed.includes("grid") && state_default.activeGrid && (s.grid4 || "") !== state_default.activeGrid) return false;
@@ -3884,6 +3906,18 @@ ${beacon.location}`);
         renderMarkers();
       });
     }
+    const propBtn = $("propFilterBtn");
+    if (propBtn) {
+      propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
+      propBtn.addEventListener("click", () => {
+        state_default.propagationFilterEnabled = !state_default.propagationFilterEnabled;
+        propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
     const clearBtn = $("clearFiltersBtn");
     if (clearBtn) {
       clearBtn.addEventListener("click", () => {
@@ -3932,6 +3966,7 @@ ${beacon.location}`);
       grid: state_default.activeGrid,
       continent: state_default.activeContinent,
       privilegeFilter: state_default.privilegeFilterEnabled,
+      propagationFilter: state_default.propagationFilterEnabled,
       sortColumn: state_default.spotSortColumn,
       sortDirection: state_default.spotSortDirection
     };
@@ -3950,6 +3985,7 @@ ${beacon.location}`);
         state_default.activeGrid = saved2.grid ?? null;
         state_default.activeContinent = saved2.continent ?? null;
         state_default.privilegeFilterEnabled = saved2.privilegeFilter ?? false;
+        state_default.propagationFilterEnabled = saved2.propagationFilter ?? false;
         state_default.spotSortColumn = saved2.sortColumn ?? null;
         state_default.spotSortDirection = saved2.sortDirection ?? "desc";
         return;
@@ -3965,6 +4001,7 @@ ${beacon.location}`);
     state_default.activeGrid = null;
     state_default.activeContinent = null;
     state_default.privilegeFilterEnabled = false;
+    state_default.propagationFilterEnabled = false;
     state_default.spotSortColumn = null;
     state_default.spotSortDirection = "desc";
   }
@@ -3991,6 +4028,10 @@ ${beacon.location}`);
     if (privFilterCheckbox) {
       privFilterCheckbox.checked = state_default.privilegeFilterEnabled;
     }
+    const propBtn = $("propFilterBtn");
+    if (propBtn) {
+      propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
+    }
   }
   function clearAllFilters() {
     state_default.activeBands.clear();
@@ -4002,6 +4043,7 @@ ${beacon.location}`);
     state_default.activeGrid = null;
     state_default.activeContinent = null;
     state_default.privilegeFilterEnabled = false;
+    state_default.propagationFilterEnabled = false;
     saveCurrentFilters();
     applyFilter();
     renderSpots();
@@ -4035,6 +4077,7 @@ ${beacon.location}`);
       grid: state_default.activeGrid,
       continent: state_default.activeContinent,
       privilegeFilter: state_default.privilegeFilterEnabled,
+      propagationFilter: state_default.propagationFilterEnabled,
       sortColumn: state_default.spotSortColumn,
       sortDirection: state_default.spotSortDirection
     };
@@ -4056,6 +4099,7 @@ ${beacon.location}`);
     state_default.activeGrid = preset.grid ?? null;
     state_default.activeContinent = preset.continent ?? null;
     state_default.privilegeFilterEnabled = preset.privilegeFilter ?? false;
+    state_default.propagationFilterEnabled = preset.propagationFilter ?? false;
     state_default.spotSortColumn = preset.sortColumn ?? null;
     state_default.spotSortDirection = preset.sortDirection ?? "desc";
     saveCurrentFilters();
@@ -4090,6 +4134,7 @@ ${beacon.location}`);
       init_spots();
       init_markers();
       init_geo();
+      init_band_conditions();
     }
   });
 
@@ -7075,8 +7120,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.29.0";
-    $("aboutVersion").textContent = "0.29.0";
+    $("splashVersion").textContent = "0.30.0";
+    $("aboutVersion").textContent = "0.30.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

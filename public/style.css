@@ -1095,6 +1095,23 @@ header {
   appearance: auto;
 }
 
+/* ---- Propagation filter toggle ---- */
+
+.prop-filter-btn {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-widget);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.prop-filter-btn.active {
+  background: var(--green);
+  color: #000;
+  border-color: var(--green);
+}
+
 /* ---- Privilege filter checkbox ---- */
 
 .priv-filter-label {

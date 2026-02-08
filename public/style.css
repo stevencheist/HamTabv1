@@ -414,6 +414,24 @@ html, body {
   cursor: pointer;
 }
 
+/* ---- Widget slot counter ---- */
+.widget-slot-counter {
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  margin-left: 8px;
+}
+.widget-slot-counter.over-limit {
+  color: #e8a838;
+  font-weight: 600;
+}
+.splash-widget-list label.cb-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.splash-widget-list label.cb-disabled input[type="checkbox"] {
+  cursor: not-allowed;
+}
+
 /* ---- Header ---- */
 
 header {

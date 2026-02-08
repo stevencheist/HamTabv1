@@ -24,6 +24,8 @@ jobs:
       - name: Parse wiki and create release
         if: steps.check.outputs.result == 'true'
         uses: actions/github-script@v7
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
         with:
           script: |
             const { execSync } = require('child_process');
@@ -81,3 +83,38 @@ jobs:
             });
 
             console.log(`Created release: ${release.data.html_url}`);
+
+            // Post to Discord — GITHUB_TOKEN events don't trigger other
+            // workflows, so we post directly instead of relying on the
+            // discord-release.yml workflow chain.
+            const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
+            if (!webhookUrl) {
+              console.log('DISCORD_RELEASES_WEBHOOK secret not set — skipping Discord notification');
+              return;
+            }
+
+            let discordBody = body;
+            if (discordBody.length > 3900) {
+              discordBody = discordBody.substring(0, 3900) + '\n\n*... truncated. See full release notes on GitHub.*';
+            }
+
+            const embed = {
+              title: `HamTab ${version}`,
+              url: release.data.html_url,
+              description: discordBody,
+              color: 0x2ECC71, // green
+              footer: { text: 'HamTab Release' },
+              timestamp: new Date().toISOString()
+            };
+
+            const resp = await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ embeds: [embed] })
+            });
+
+            if (!resp.ok) {
+              console.log(`Discord webhook failed: ${resp.status} ${resp.statusText}`);
+            } else {
+              console.log(`Posted ${version} to Discord #releases`);
+            }

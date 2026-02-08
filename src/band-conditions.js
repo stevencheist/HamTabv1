@@ -131,28 +131,24 @@ export function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay
   let baseReliability = 0;
 
   if (bandFreqMHz < mufLower) {
-    // Below 50% MUF: low bands, high absorption
-    // Worse during day, better at night
+    // Below LUF: heavy D-layer absorption during day, better at night
     if (isDay) {
-      // Daytime absorption significant for low bands
-      baseReliability = Math.max(0, 20 - (mufLower - bandFreqMHz) * 2);
+      baseReliability = Math.max(0, 10 - (mufLower - bandFreqMHz) * 3);
     } else {
-      // Nighttime: low bands work better
-      baseReliability = Math.min(85, 60 + (mufLower - bandFreqMHz) * 1.5);
+      baseReliability = Math.min(70, 40 + (mufLower - bandFreqMHz) * 1.0);
     }
   } else if (bandFreqMHz <= mufOptimal) {
-    // 50-85% of MUF: optimal range, high reliability
+    // Between LUF and optimal: good propagation zone
     const position = (bandFreqMHz - mufLower) / (mufOptimal - mufLower);
-    // Peak reliability around 70-80% of MUF
-    baseReliability = 70 + (30 * Math.sin(position * Math.PI));
+    baseReliability = 50 + (35 * Math.sin(position * Math.PI));
   } else if (bandFreqMHz <= muf) {
-    // 85-100% of MUF: usable but variable
+    // Between optimal and MUF: still usable but degrading
     const position = (bandFreqMHz - mufOptimal) / (muf - mufOptimal);
-    baseReliability = 90 - (position * 40); // 90% down to 50%
+    baseReliability = 75 - (position * 35); // 75% down to 40% at MUF
   } else {
-    // Above MUF: signal escapes, poor propagation
+    // Above MUF: rapid dropoff — signals won't reflect
     const excess = bandFreqMHz - muf;
-    baseReliability = Math.max(0, 40 - excess * 3);
+    baseReliability = Math.max(0, 15 - excess * 5);
   }
 
   // Apply geomagnetic disturbance penalty
@@ -181,9 +177,9 @@ export function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay
 
   // --- VOACAP parameter adjustments (when opts provided) ---
   if (opts) {
-    // Mode bonus: CW +10%, SSB baseline, FT8 +30% (reflects ~40dB SNR advantage)
-    if (opts.mode === 'CW') adjusted += 10;
-    else if (opts.mode === 'FT8') adjusted += 30;
+    // Mode adjustments — FT8 helps but isn't magic
+    if (opts.mode === 'CW') adjusted += 8;
+    else if (opts.mode === 'FT8') adjusted += 15;
 
     // Power adjustment: 10 * log10(power/100) dB → map to % (100W = baseline)
     if (opts.powerWatts && opts.powerWatts !== 100) {
@@ -191,13 +187,13 @@ export function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay
       adjusted += dBdiff * 1.5; // ~1.5% per dB
     }
 
-    // TOA adjustment: ±1.5% per degree from reference 5°
+    // TOA adjustment — higher angles slightly better for skip
     if (opts.toaDeg != null) {
-      adjusted += (opts.toaDeg - 5) * 1.5; // higher TOA = more reliability (steeper angle)
+      adjusted += (opts.toaDeg - 5) * 0.5;
     }
 
-    // Long path penalty: -25%
-    if (opts.longPath) adjusted -= 25;
+    // Long path penalty
+    if (opts.longPath) adjusted -= 30;
   }
 
   const finalReliability = Math.max(0, Math.min(100, adjusted));
@@ -321,10 +317,13 @@ export function conditionLabel(condition) {
  * @returns {string} - CSS color string
  */
 export function getReliabilityColor(rel) {
-  if (rel < 10) return '#1a1a1a';  // Black — band closed
-  if (rel < 33) return '#c0392b';  // Red — poor
-  if (rel < 66) return '#f1c40f';  // Yellow — fair
-  return '#27ae60';                 // Green — good
+  if (rel < 5) return 'rgba(26, 26, 26, 0.6)'; // near-transparent — band closed
+  // Continuous HSL gradient: red (0°) → yellow (60°) → green (120°)
+  const t = Math.max(0, Math.min(1, (rel - 5) / 90)); // 5-95% → 0-1
+  const hue = t * 120;        // 0°=red, 60°=yellow, 120°=green
+  const sat = 90;
+  const light = 42 + t * 13;  // 42% (bold red) → 55% (bright green)
+  return `hsl(${hue}, ${sat}%, ${light}%)`;
 }
 
 /**

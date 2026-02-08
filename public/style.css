@@ -1095,6 +1095,23 @@ header {
   appearance: auto;
 }
 
+/* ---- Propagation filter toggle ---- */
+
+.prop-filter-btn {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-widget);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.prop-filter-btn.active {
+  background: var(--green);
+  color: #000;
+  border-color: var(--green);
+}
+
 /* ---- Privilege filter checkbox ---- */
 
 .priv-filter-label {
@@ -3198,6 +3215,17 @@ header {
   background: rgba(233, 69, 96, 0.15);
 }
 
+.voacap-param-active {
+  background: var(--green);
+  color: #000;
+  border-radius: 3px;
+}
+
+.voacap-param-active:hover {
+  background: var(--green);
+  opacity: 0.85;
+}
+
 .voacap-param-static {
   font-size: 0.6rem;
   font-weight: 600;
@@ -3229,6 +3257,30 @@ header {
 .voacap-engine-sim {
   background: var(--text-dim);
   color: #000;
+}
+
+/* VOACAP color legend */
+.voacap-legend {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 2px;
+  font-size: 0.55rem;
+  color: var(--text-dim);
+}
+
+.voacap-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.voacap-legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid var(--text-dim);
 }
 
 /* VOACAP map overlay */

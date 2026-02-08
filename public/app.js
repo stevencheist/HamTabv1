@@ -921,8 +921,8 @@
     if (rel < 5) return "rgba(26, 26, 26, 0.6)";
     const t = Math.max(0, Math.min(1, (rel - 5) / 90));
     const hue = t * 120;
-    const sat = 75;
-    const light = 25 + t * 18;
+    const sat = 90;
+    const light = 42 + t * 13;
     return `hsl(${hue}, ${sat}%, ${light}%)`;
   }
   function calculate24HourMatrix(opts) {
@@ -1292,6 +1292,12 @@
     html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
     html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
     html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
+    html += `</div>`;
+    html += `<div class="voacap-legend">`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(0)}"></span>Closed</span>`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(20)}"></span>Poor</span>`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(50)}"></span>Fair</span>`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(80)}"></span>Good</span>`;
     html += `</div>`;
     container.innerHTML = html;
   }

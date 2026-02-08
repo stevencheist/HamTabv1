@@ -121,8 +121,59 @@ function getUSState(locationDesc) {
   return '';
 }
 
+// --- Watch List Helpers ---
+
+// Strip portable suffix (/P, /M, /QRP, etc.) for callsign matching
+function normalizeCallsign(raw) {
+  const call = (raw || '').toUpperCase().trim();
+  const slash = call.lastIndexOf('/');
+  return slash > 0 ? call.substring(0, slash) : call;
+}
+
+// Pure matcher — returns true if the spot satisfies the rule
+function matchWatchRule(rule, spot) {
+  const val = (rule.value || '').toUpperCase();
+  if (!val) return false;
+
+  switch (rule.type) {
+    case 'callsign': {
+      const spotCall = normalizeCallsign(spot.activator || spot.callsign);
+      return spotCall === val;
+    }
+    case 'dxcc': {
+      // DXC: country name in spot.name; POTA/SOTA: prefix of locationDesc (e.g. "US-TX" → "US")
+      const country = (spot.name || '').toUpperCase();
+      const locPrefix = (spot.locationDesc || '').split('-')[0].toUpperCase();
+      return country.includes(val) || locPrefix === val;
+    }
+    case 'grid': {
+      // Prefix match — rule "FN" matches "FN31", "FN42ab", etc.
+      const grid = (spot.grid4 || spot.senderLocator || '').toUpperCase();
+      return grid.startsWith(val);
+    }
+    case 'ref': {
+      // Exact case-insensitive match on park/summit reference
+      const ref = (spot.reference || '').toUpperCase();
+      return ref === val;
+    }
+    default:
+      return false;
+  }
+}
+
+export function saveWatchLists() {
+  localStorage.setItem('hamtab_watchlists', JSON.stringify(state.watchLists));
+}
+
 export function applyFilter() {
+  state.watchRedSpotIds = new Set();
   const allowed = SOURCE_DEFS[state.currentSource].filters;
+  // Pre-split watch rules by mode to avoid per-spot array allocations
+  const wlRules = state.watchLists[state.currentSource] || [];
+  const onlyRules = wlRules.filter(r => r.mode === 'only');
+  const notRules = wlRules.filter(r => r.mode === 'not');
+  const redRules = wlRules.filter(r => r.mode === 'red');
+
   state.sourceFiltered[state.currentSource] = (state.sourceData[state.currentSource] || []).filter(s => {
     // Band: multi-select — empty Set = all bands pass
     if (allowed.includes('band') && state.activeBands.size > 0) {
@@ -145,6 +196,19 @@ export function applyFilter() {
     if (allowed.includes('grid') && state.activeGrid && (s.grid4 || '') !== state.activeGrid) return false;
     if (allowed.includes('continent') && state.activeContinent && (s.continent || '') !== state.activeContinent) return false;
     if (allowed.includes('privilege') && state.privilegeFilterEnabled && !filterByPrivileges(s)) return false;
+
+    // Watch list — applied after all standard filters
+    if (wlRules.length > 0) {
+      // 1. Only rules: spot must match at least one (if any exist)
+      if (onlyRules.length > 0 && !onlyRules.some(r => matchWatchRule(r, s))) return false;
+      // 2. Not rules: discard if any match
+      if (notRules.some(r => matchWatchRule(r, s))) return false;
+      // 3. Red rules: flag for highlight (never filters)
+      if (redRules.length > 0 && redRules.some(r => matchWatchRule(r, s))) {
+        state.watchRedSpotIds.add(SOURCE_DEFS[state.currentSource].spotId(s));
+      }
+    }
+
     return true;
   });
 }

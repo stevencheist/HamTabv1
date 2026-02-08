@@ -19,6 +19,10 @@ const state = {
   // Filter presets per source
   filterPresets: { pota: {}, sota: {}, dxc: {} },
 
+  // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
+  watchLists: JSON.parse(localStorage.getItem('hamtab_watchlists') || '{"pota":[],"sota":[],"dxc":[],"psk":[]}'),
+  watchRedSpotIds: new Set(), // spot IDs matching "red" rules — rebuilt each filter pass
+
   // Auto-refresh — defaults to on, persisted in localStorage
   autoRefreshEnabled: localStorage.getItem('hamtab_auto_refresh') !== 'false',
   countdownSeconds: 60,

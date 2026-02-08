@@ -123,6 +123,31 @@ Filter by continent code.
 
 ---
 
+## Propagation Filter
+
+Filter spots based on predicted HF propagation quality.
+
+### How It Works
+Click the **Prop** button in the filter row to toggle propagation filtering. When active, spots on HF bands with poor predicted propagation are hidden.
+
+The filter uses your current solar indices (SFI, K-index, A-index) and your location's day/night status to estimate which bands are likely open. Spots on bands rated below "Fair" (less than 30% reliability) are filtered out.
+
+### What Gets Filtered
+- **HF bands** (160m through 10m) — checked against the propagation model
+- **VHF/UHF spots** (6m, 2m, 70cm) — always pass through, since they don't depend on ionospheric HF propagation
+- **Unknown bands** — pass through unfiltered
+
+### When to Use It
+- **Cluttered spot list** — Too many spots on dead bands? Prop filter removes the noise
+- **Contest operating** — Focus only on bands that are actually open right now
+- **New operators** — Not sure which bands to try? The Prop filter shows you where signals are likely getting through
+
+<div class="tip">The Prop filter uses a simplified propagation model based on solar indices. It estimates general band conditions, not specific path predictions. A band may show as "open" even if propagation to a particular station is poor, and vice versa.</div>
+
+<div class="important">The Prop filter is session-only — it resets when you reload the page. Solar conditions change constantly, so a persistent setting could be misleading if you return to HamTab hours later.</div>
+
+---
+
 ## License Privilege Filter
 
 Filter spots based on what frequencies you can legally transmit on.
@@ -173,6 +198,7 @@ Long-press (click and hold) a preset button to delete it.
 | "FT8 DX" | 20m+17m+15m, Digital | Hunting digital DX |
 | "Tech HF" | Technician privilege | Tech operators |
 | "Fresh Spots" | 15min age | Only current activity |
+| "Open Bands" | Prop filter on | Only spots on propagation-viable bands |
 | "Weekend" | 20m+40m, Phone | Casual SSB operating |
 
 ---

@@ -2312,6 +2312,7 @@ ${beacon.location}`);
             { heading: "Band & Mode Filters", content: "Click one or more bands (like 20m, 40m) or modes (like FT8, SSB) to show only those spots. Click again to deselect. You can select as many as you want." },
             { heading: "Distance Filter", content: "Show only spots within a certain distance from your location (QTH). You'll need to set your location in Config first. Great for finding nearby activations you can reach." },
             { heading: "Age Filter", content: "Show only spots posted within the last N minutes. Older spots may no longer be active, so this helps you find stations that are on the air right now." },
+            { heading: "Propagation Filter", content: `Click the "Prop" button to hide spots on bands with poor predicted propagation. Uses your current solar indices and location to estimate which HF bands are likely open. Spots on bands rated below "Fair" (less than 30% reliability) are filtered out. VHF/UHF spots are never filtered since they don't depend on HF propagation.` },
             { heading: "Presets", content: 'Save your favorite filter combinations and switch between them quickly. For example, save a "Local FT8" preset for nearby digital spots, and a "DX SSB" preset for long-distance voice contacts.' }
           ]
         },
@@ -7125,8 +7126,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.31.1";
-    $("aboutVersion").textContent = "0.31.1";
+    $("splashVersion").textContent = "0.31.2";
+    $("aboutVersion").textContent = "0.31.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

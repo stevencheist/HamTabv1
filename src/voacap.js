@@ -286,7 +286,7 @@ export function renderVoacapMatrix() {
   const targetLabel = state.voacapTarget === 'spot' ? 'SPOT' : 'OVW';
   const targetTitle = state.voacapTarget === 'spot'
     ? 'Showing prediction to selected spot (click for overview)'
-    : 'Showing best worldwide prediction (click for spot mode)';
+    : 'Showing average worldwide prediction (click for spot mode)';
 
   // SSN display — prefer server data, show K-index degradation warning
   const serverData = state.voacapServerData;

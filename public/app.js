@@ -1263,7 +1263,7 @@
     const engineClass = state_default.voacapEngine === "dvoacap" ? "voacap-engine-real" : "voacap-engine-sim";
     const engineTitle = state_default.voacapEngine === "dvoacap" ? "Using real VOACAP propagation model" : "Using simplified propagation model";
     const targetLabel = state_default.voacapTarget === "spot" ? "SPOT" : "OVW";
-    const targetTitle = state_default.voacapTarget === "spot" ? "Showing prediction to selected spot (click for overview)" : "Showing best worldwide prediction (click for spot mode)";
+    const targetTitle = state_default.voacapTarget === "spot" ? "Showing prediction to selected spot (click for overview)" : "Showing average worldwide prediction (click for spot mode)";
     const serverData = state_default.voacapServerData;
     const effectiveSSN = serverData?.ssn ? Math.round(serverData.ssn) : null;
     const baseSSN = serverData?.ssnBase ? Math.round(serverData.ssnBase) : null;

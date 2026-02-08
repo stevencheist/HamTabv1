@@ -106,6 +106,10 @@ export function renderSpots() {
     if (state.myCallsign && spotCall === state.myCallsign.toUpperCase()) {
       tr.classList.add('my-spot');
     }
+    // Watch list red highlight
+    if (state.watchRedSpotIds.has(sid)) {
+      tr.classList.add('spot-watch-red');
+    }
 
     cols.forEach(col => {
       const td = document.createElement('td');

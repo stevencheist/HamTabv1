@@ -3231,6 +3231,29 @@ header {
   color: #000;
 }
 
+/* VOACAP color legend */
+.voacap-legend {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 2px;
+  font-size: 0.55rem;
+  color: var(--text-dim);
+}
+
+.voacap-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.voacap-legend-swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
 /* VOACAP map overlay */
 .voacap-center-marker {
   background: transparent !important;

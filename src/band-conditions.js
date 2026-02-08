@@ -321,8 +321,8 @@ export function getReliabilityColor(rel) {
   // Continuous HSL gradient: red (0°) → yellow (60°) → green (120°)
   const t = Math.max(0, Math.min(1, (rel - 5) / 90)); // 5-95% → 0-1
   const hue = t * 120;        // 0°=red, 60°=yellow, 120°=green
-  const sat = 75;
-  const light = 25 + t * 18;  // 25% (dark red) → 43% (vivid green)
+  const sat = 90;
+  const light = 42 + t * 13;  // 42% (bold red) → 55% (bright green)
   return `hsl(${hue}, ${sat}%, ${light}%)`;
 }
 

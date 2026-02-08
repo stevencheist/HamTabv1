@@ -175,7 +175,7 @@ Privileges vary by mode:
 
 ## Watch Lists
 
-Watch lists let you highlight, include, or exclude spots by rule — similar to HamClock's watch lists. Configure them in **Config → Filters** tab.
+Watch lists let you highlight, include, or exclude spots by rule — similar to HamClock's watch lists. Click the **Watch Lists** accordion at the bottom of the Filters widget to expand the editor. Rules apply to whichever source tab (POTA, SOTA, DXC, PSK) is currently active.
 
 ### Watch List Modes
 
@@ -208,12 +208,11 @@ Each source tab (POTA, SOTA, DXC, PSK) has its own independent rule set. A calls
 
 ### Adding a Rule
 
-1. Open **Config** (click the Config button in the header)
-2. Switch to the **Filters** tab
-3. Find the source section you want (POTA, SOTA, DXC, or PSK)
-4. Select a mode (Red, Only, or Not)
-5. Choose a match type (Callsign, DXCC, Grid, or Ref)
-6. Enter the value and click **Add**
+1. Switch to the source tab you want (POTA, SOTA, DXC, or PSK) in the On the Air widget
+2. Click **Watch Lists** at the bottom of the Filters widget to expand the editor
+3. Select a mode (Red, Only, or Not)
+4. Choose a match type (Callsign, DXCC, Grid, or Ref)
+5. Enter the value and click **Add**
 
 Rules take effect immediately — the spot list updates as soon as you add or remove a rule.
 

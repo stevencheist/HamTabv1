@@ -485,11 +485,11 @@ header {
 }
 
 .op-class {
-  /* Scale with callsign */
-  font-size: clamp(1.1rem, 6cqw, 1.65rem);
+  display: block;
+  font-size: clamp(0.7rem, 3.5cqw, 0.95rem);
   color: var(--yellow);
   font-weight: 600;
-  margin-left: 8px;
+  margin-top: -2px;
 }
 
 .op-name {
@@ -5124,7 +5124,7 @@ header {
   .op-call { font-size: 1.6rem; }
   .op-name { font-size: 1rem; }
   .op-loc  { font-size: 0.85rem; }
-  .op-class { font-size: 0.85rem; }
+  .op-class { font-size: 0.75rem; }
 
   .op-btn {
     padding: 6px 10px;
@@ -5339,8 +5339,8 @@ header {
 }
 
 .slim-header .op-class {
-  font-size: clamp(0.75rem, 4cqw, 0.95rem);
-  margin-left: 4px;
+  font-size: clamp(0.6rem, 3cqw, 0.8rem);
+  margin-top: -1px;
 }
 
 .slim-header .op-name {

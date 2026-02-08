@@ -1188,7 +1188,10 @@
       }
     }
     try {
-      const resp = await fetch(`/api/voacap?${params}`);
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25e3);
+      const resp = await fetch(`/api/voacap?${params}`, { signal: controller.signal });
+      clearTimeout(timeout);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       state_default.voacapServerData = data;

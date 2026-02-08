@@ -40,7 +40,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 ### Reference & Tools
 - **Reference Tabs** — Five built-in reference tabs: RST signal reports, NATO phonetic alphabet, Morse code with prosigns, Q-codes, and band plan privileges by license class
 - **License Privilege Filter** — For US callsigns, filter spots to only show frequencies and modes your license class allows
-- **Filters** — Dedicated filter widget for band, mode, country, state, grid, distance, spot age, and license privilege filtering
+- **Filters** — Dedicated filter widget for band, mode, country, state, grid, distance, spot age, license privilege, and propagation quality filtering
 
 ### Customization
 - **Themes** — Four built-in visual themes: Default (dark), LCARS (Star Trek TNG), Terminal (retro green), and HamClock (WB0OEW-inspired with political map tiles)
@@ -655,6 +655,7 @@ Dedicated filter controls for the On the Air widget. Available filters depend on
 | State | POTA | Filter by US state |
 | Grid | POTA | Filter by 4-character Maidenhead grid square |
 | My privileges | POTA | US callsigns — hides spots outside your license class privileges |
+| Propagation | All | Hides spots on HF bands with poor predicted propagation (below 30% reliability) |
 
 ### Reference
 

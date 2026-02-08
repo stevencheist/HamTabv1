@@ -2011,8 +2011,6 @@ function getKBand(kIndex) {
 const voacapCache = {}; // { key: { data, expires } }
 const VOACAP_TTL = 60 * 60 * 1000; // 1 hour
 
-// Background dvoacap prediction tracking — prevents duplicate concurrent runs
-const voacapPending = new Set(); // cache keys currently being computed in the background
 
 // Simplified propagation model (server-side fallback when Python unavailable)
 // Mirrors the client-side calculate24HourMatrix from band-conditions.js
@@ -2276,59 +2274,100 @@ app.get('/api/voacap', async (req, res) => {
       });
     }
 
-    // Always respond immediately with the best data available.
-    // If dvoacap is available and no background job is running, kick one off
-    // asynchronously — it populates the cache for the NEXT request.
-    const simplifiedMatrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
+    // Hybrid approach: try dvoacap with a short inline timeout.
+    // On lanmode (fast CPU), dvoacap completes in seconds — return it inline.
+    // On hostedmode (slow container), timeout fires — return simplified immediately,
+    // let dvoacap continue in the background and cache for the next request.
+    const INLINE_TIMEOUT_MS = 15000; // 15 seconds — enough for lanmode, fast-fail for container
 
-    const response = {
-      engine: 'simplified',
-      ssn: Math.round(ssn * 10) / 10,  // effective SSN used for predictions
-      ssnBase: Math.round(baseSSN * 10) / 10,  // original NOAA SSN before K-index correction
-      kIndex: ssnCorrection.kIndex,  // current K-index (null if unavailable)
-      kDegradation: ssnCorrection.degradationPercent,  // % degradation from K-index (0 if none)
+    let engine = 'simplified';
+    let matrix;
+    let fallbackReason = null;
+
+    const predictionParams = {
+      tx_lat: txLat,
+      tx_lon: txLon,
+      targets: targets.map(t => ({ name: t.name, lat: t.lat, lon: t.lon })),
+      ssn,
       month,
-      matrix: simplifiedMatrix,
+      power,
+      min_angle_deg: toa,
+      long_path: longPath,
+      required_snr: requiredSnr,
+      bandwidth_hz: bandwidthHz,
+      frequencies,
+      band_names: bandNames,
     };
 
-    // Cache simplified with short TTL
-    voacapCache[cacheKey] = { data: response, expires: Date.now() + 30 * 1000 };
+    if (voacap.isAvailable()) {
+      // Start the prediction — we'll race it against a timeout
+      const predictionPromise = voacap.predictMatrix(predictionParams);
 
-    // Fire off background dvoacap prediction (no await — doesn't block the response)
-    if (voacap.isAvailable() && !voacapPending.has(cacheKey)) {
-      voacapPending.add(cacheKey);
-      voacap.predictMatrix({
-        tx_lat: txLat,
-        tx_lon: txLon,
-        targets: targets.map(t => ({ name: t.name, lat: t.lat, lon: t.lon })),
-        ssn,
-        month,
-        power,
-        min_angle_deg: toa,
-        long_path: longPath,
-        required_snr: requiredSnr,
-        bandwidth_hz: bandwidthHz,
-        frequencies,
-        band_names: bandNames,
-      }).then(result => {
-        voacapPending.delete(cacheKey);
+      try {
+        const result = await Promise.race([
+          predictionPromise,
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('inline timeout')), INLINE_TIMEOUT_MS)
+          ),
+        ]);
+
+        // dvoacap completed in time — use it
         if (result.ok && result.matrix) {
-          console.log('[VOACAP] Background prediction complete — caching dvoacap result');
-          const dvoacapResponse = { ...response, engine: 'dvoacap', matrix: result.matrix };
-          delete dvoacapResponse.fallbackReason;
-          voacapCache[cacheKey] = { data: dvoacapResponse, expires: Date.now() + VOACAP_TTL };
+          engine = 'dvoacap';
+          matrix = result.matrix;
         } else {
-          console.error('[VOACAP] Background prediction failed:', result.error || 'unknown');
+          fallbackReason = `predictMatrix returned: ${result.error || 'no matrix'}`;
+          matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
         }
-      }).catch(err => {
-        voacapPending.delete(cacheKey);
-        console.error(`[VOACAP] Background prediction error: ${err.message}`);
-        // If the bridge timed out (180s), the Python worker is stuck — kill and respawn
-        if (err.message === 'Request timed out') {
-          voacap.killAndRespawn('Background prediction timed out after 180s');
+      } catch (err) {
+        // Inline timeout or prediction error — return simplified now
+        matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
+
+        if (err.message === 'inline timeout') {
+          fallbackReason = 'dvoacap too slow — running in background';
+          // Let the prediction continue in the background — cache result when done
+          predictionPromise.then(result => {
+            if (result.ok && result.matrix) {
+              console.log('[VOACAP] Background prediction complete — caching dvoacap result');
+              const bgResponse = {
+                engine: 'dvoacap',
+                ssn: Math.round(ssn * 10) / 10,
+                ssnBase: Math.round(baseSSN * 10) / 10,
+                kIndex: ssnCorrection.kIndex,
+                kDegradation: ssnCorrection.degradationPercent,
+                month,
+                matrix: result.matrix,
+              };
+              voacapCache[cacheKey] = { data: bgResponse, expires: Date.now() + VOACAP_TTL };
+            }
+          }).catch(bgErr => {
+            console.error(`[VOACAP] Background prediction error: ${bgErr.message}`);
+            if (bgErr.message === 'Request timed out') {
+              voacap.killAndRespawn('Background prediction timed out after 180s');
+            }
+          });
+        } else {
+          fallbackReason = `predictMatrix threw: ${err.message}`;
         }
-      });
+      }
+    } else {
+      fallbackReason = 'bridge not available';
+      matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
     }
+
+    const response = {
+      engine,
+      ssn: Math.round(ssn * 10) / 10,
+      ssnBase: Math.round(baseSSN * 10) / 10,
+      kIndex: ssnCorrection.kIndex,
+      kDegradation: ssnCorrection.degradationPercent,
+      month,
+      matrix,
+    };
+    if (fallbackReason) response.fallbackReason = fallbackReason;
+
+    const ttl = engine === 'dvoacap' ? VOACAP_TTL : 30 * 1000; // 1h vs 30s
+    voacapCache[cacheKey] = { data: response, expires: Date.now() + ttl };
 
     res.json(response);
   } catch (err) {

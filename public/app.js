@@ -7125,8 +7125,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.30.1";
-    $("aboutVersion").textContent = "0.30.1";
+    $("splashVersion").textContent = "0.30.2";
+    $("aboutVersion").textContent = "0.30.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

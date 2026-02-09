@@ -111,6 +111,110 @@ const THEMES = {
       '--dx-color': '#00ff00',      // bright green — DX panel accent
     },
   },
+
+  rebel: {
+    id: 'rebel',
+    name: 'Rebel',
+    description: 'Desert outpost warmth',
+    bodyClass: '',
+    supportsGrid: true,
+    vars: {
+      '--bg': '#1a120b',            // deep charred brown
+      '--surface': '#2a1a0e',       // dark burnt sienna
+      '--surface2': '#3d2614',      // warm leather brown
+      '--surface3': '#4a3020',      // dusty canyon
+      '--accent': '#ff6f00',        // blazing orange — rally signal
+      '--text': '#f0dcc0',          // warm parchment
+      '--text-dim': '#9a8060',      // faded sand
+      '--green': '#7cb342',         // olive rebel green
+      '--yellow': '#ffc107',        // gold
+      '--red': '#e53935',           // alert red
+      '--orange': '#ff8f00',        // deep amber
+      '--border': '#5c3a1e',        // worn leather edge
+      '--bg-secondary': '#1a120b',
+      '--bg-tertiary': '#221610',
+      '--de-color': '#ff6f00',      // blazing orange — DE panel accent
+      '--dx-color': '#7cb342',      // olive green — DX panel accent
+    },
+  },
+
+  imperial: {
+    id: 'imperial',
+    name: 'Imperial',
+    description: 'Cold steel command deck',
+    bodyClass: '',
+    supportsGrid: true,
+    vars: {
+      '--bg': '#0a0c10',            // near-black with cold blue cast
+      '--surface': '#12151c',       // dark gunmetal
+      '--surface2': '#1c2030',      // brushed steel
+      '--surface3': '#262b3e',      // polished durasteel
+      '--accent': '#90caf9',        // cold ice blue — command highlight
+      '--text': '#cfd8e0',          // cool gray-white
+      '--text-dim': '#607080',      // muted steel
+      '--green': '#66bb6a',         // tactical green
+      '--yellow': '#ffee58',        // caution yellow
+      '--red': '#ef5350',           // imperial red
+      '--orange': '#ffa726',        // amber alert
+      '--border': '#2a3040',        // cold steel border
+      '--bg-secondary': '#0a0c10',
+      '--bg-tertiary': '#0e1018',
+      '--de-color': '#90caf9',      // ice blue — DE panel accent
+      '--dx-color': '#ef5350',      // imperial red — DX panel accent
+    },
+  },
+
+  neon: {
+    id: 'neon',
+    name: 'Neon',
+    description: 'Digital grid, neon glow',
+    bodyClass: 'theme-neon',
+    supportsGrid: true,
+    vars: {
+      '--bg': '#050510',            // void black with blue tint
+      '--surface': '#0a0a1a',       // deep digital dark
+      '--surface2': '#0f1028',      // dark grid
+      '--surface3': '#141838',      // subtle grid highlight
+      '--accent': '#00e5ff',        // neon cyan — primary glow
+      '--text': '#e0f0ff',          // cool white
+      '--text-dim': '#4a6080',      // dim circuit trace
+      '--green': '#00e676',         // neon green
+      '--yellow': '#eeff41',        // electric yellow
+      '--red': '#ff1744',           // neon red
+      '--orange': '#ff6e40',        // neon orange
+      '--border': '#0d2040',        // dark grid line
+      '--bg-secondary': '#050510',
+      '--bg-tertiary': '#080818',
+      '--de-color': '#00e5ff',      // neon cyan — DE panel accent
+      '--dx-color': '#ff1744',      // neon red — DX panel accent
+    },
+  },
+
+  steampunk: {
+    id: 'steampunk',
+    name: 'Steampunk',
+    description: 'Brass, gears & gaslight',
+    bodyClass: 'theme-steampunk',
+    supportsGrid: true,
+    vars: {
+      '--bg': '#1a1408',            // dark aged wood
+      '--surface': '#241c0e',       // oiled mahogany
+      '--surface2': '#3a2e18',      // polished walnut
+      '--surface3': '#4a3c22',      // brass-touched panel
+      '--accent': '#d4a04a',        // polished brass
+      '--text': '#e8d8b8',          // aged parchment
+      '--text-dim': '#8a7a5a',      // faded ink
+      '--green': '#6b8e23',         // oxidized copper green
+      '--yellow': '#daa520',        // goldenrod
+      '--red': '#b22222',           // firebrick
+      '--orange': '#cd853f',        // peru — warm copper
+      '--border': '#5a4a2a',        // brass trim
+      '--bg-secondary': '#1a1408',
+      '--bg-tertiary': '#1e180c',
+      '--de-color': '#d4a04a',      // polished brass — DE panel accent
+      '--dx-color': '#6b8e23',      // oxidized copper — DX panel accent
+    },
+  },
 };
 
 // --- Current active theme ID ---

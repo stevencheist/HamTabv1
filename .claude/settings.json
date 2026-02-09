@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"MANDATORY SESSION START CHECKLIST — Complete ALL steps BEFORE responding to the user: (1) Read session-state.md from your auto memory directory, (2) Read ~/sffoundry/ai-workflows/shared-memory.md, (3) Read ~/sffoundry/ai-workflows/messages.md and show unread messages for this developer, (4) Run git fetch --dry-run on HamTabV1 ai-workflows and hamtab-planning — report which are behind remote, (5) Read ~/sffoundry/hamtab-planning/working-on.md and check for conflicts. Summarize previous session and ask if continuing or starting fresh. Do NOT skip any step.\"",
+            "once": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-hostedmode-health.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -4536,6 +4536,103 @@ header {
 /* UTC badge in HamClock theme */
 .theme-hamclock .dedx-utc-badge { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
+/* ---- Theme: Neon (digital grid glow) ---- */
+/* Glow effects on widgets and interactive elements */
+
+.theme-neon .widget {
+  border-color: rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 8px rgba(0, 229, 255, 0.15), inset 0 0 8px rgba(0, 229, 255, 0.05);
+}
+
+.theme-neon .widget-header {
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
+}
+
+.theme-neon .widget:hover {
+  box-shadow: 0 0 14px rgba(0, 229, 255, 0.25), inset 0 0 10px rgba(0, 229, 255, 0.08);
+}
+
+.theme-neon header {
+  border-bottom: 1px solid rgba(0, 229, 255, 0.2);
+  box-shadow: 0 2px 12px rgba(0, 229, 255, 0.1);
+}
+
+.theme-neon .header-clock-time {
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
+}
+
+.theme-neon .op-call a {
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.4);
+}
+
+.theme-neon .source-tab.active {
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
+}
+
+.theme-neon .band-btn.active,
+.theme-neon .mode-btn.active {
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
+}
+
+.theme-neon .toggle-btn,
+.theme-neon .prop-metric-btn,
+.theme-neon .map-center-btn {
+  border-color: rgba(0, 229, 255, 0.3);
+}
+
+.theme-neon .solar-card {
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.1);
+}
+
+/* ---- Theme: Steampunk (brass & gaslight) ---- */
+/* Warm metallic borders and aged styling */
+
+.theme-steampunk .widget {
+  border-color: rgba(212, 160, 74, 0.4);
+  border-width: 2px;
+  border-radius: 2px;
+}
+
+.theme-steampunk .widget-header {
+  font-variant: small-caps;
+  letter-spacing: 1px;
+}
+
+.theme-steampunk .widget:hover {
+  border-color: rgba(212, 160, 74, 0.6);
+}
+
+.theme-steampunk header {
+  border-bottom: 2px solid rgba(212, 160, 74, 0.3);
+}
+
+.theme-steampunk .source-tab.active {
+  border-bottom: 2px solid var(--accent);
+}
+
+.theme-steampunk .band-btn.active,
+.theme-steampunk .mode-btn.active {
+  border: 1px solid rgba(212, 160, 74, 0.5);
+}
+
+.theme-steampunk .toggle-btn,
+.theme-steampunk .prop-metric-btn,
+.theme-steampunk .map-center-btn {
+  border-color: rgba(212, 160, 74, 0.4);
+  border-radius: 2px;
+}
+
+.theme-steampunk .solar-card {
+  border: 1px solid rgba(212, 160, 74, 0.2);
+  border-radius: 2px;
+}
+
+.theme-steampunk .header-clock-time {
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---- Theme Selector (Config Modal Appearance Tab) ---- */
 
 .theme-selector {

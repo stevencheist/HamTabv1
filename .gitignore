@@ -4,6 +4,7 @@ certs/
 tools/
 logs/
 .claude/
+!.claude/settings.json
 .wrangler/
 feedback-private-key.pem
 FEEDBACK_DECRYPTION_GUIDE.md

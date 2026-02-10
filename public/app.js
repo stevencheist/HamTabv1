@@ -7457,8 +7457,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.34.1";
-    $("aboutVersion").textContent = "0.34.1";
+    $("splashVersion").textContent = "0.35.0";
+    $("aboutVersion").textContent = "0.35.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -7898,7 +7898,7 @@ ${beacon.location}`);
   init_dom();
   function initUpdateDisplay() {
     const el = $("platformLabel");
-    if (el) el.textContent = "v0.34.1";
+    if (el) el.textContent = "v0.35.0";
   }
 
   // src/settings-sync.js

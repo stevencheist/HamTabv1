@@ -2761,7 +2761,7 @@ function parseSolarXML(xml) {
 
 // --- Cache eviction (runs every 30 minutes, removes expired entries) ---
 const allCaches = [dxcCallCache, pskHeardCache, satPassCache, satTleCache, nwsGridCache, sdoDirCache, sotaSummitCache, voacapCache, dxpeditionCache, contestCache];
-setInterval(() => {
+const cacheEvictionTimer = setInterval(() => {
   const now = Date.now();
   for (const cache of allCaches) {
     for (const key of Object.keys(cache)) {
@@ -2774,15 +2774,78 @@ setInterval(() => {
 
 // --- Server startup ---
 
+const PID_FILE = path.join(__dirname, 'server.pid');
+
 // Initialize VOACAP bridge (Python child process for real predictions)
 voacap.init();
 
 // Write PID file so dev tooling can find and kill this process cleanly
-fs.writeFileSync(path.join(__dirname, 'server.pid'), String(process.pid));
-process.on('exit', () => {
-  voacap.shutdown();
-  try { fs.unlinkSync(path.join(__dirname, 'server.pid')); } catch {}
-});
+fs.writeFileSync(PID_FILE, String(process.pid));
 
 // Start HTTP (always) and HTTPS (lanmode only)
-startListeners(app, config);
+const servers = startListeners(app, config);
+
+// --- Graceful shutdown ---
+
+let shutdownInProgress = false;
+
+function gracefulShutdown(signal) {
+  if (shutdownInProgress) return; // prevent double Ctrl+C crash
+  shutdownInProgress = true;
+  console.log(`\n[shutdown] ${signal} received — draining connections...`);
+
+  // Force exit after 10s if drain stalls
+  const forceTimer = setTimeout(() => {
+    console.error('[shutdown] Timed out waiting for connections to drain — forcing exit');
+    process.exit(1);
+  }, 10000); // 10s — covers voacap 1s grace + generous drain margin
+  forceTimer.unref(); // don't keep process alive just for this timer
+
+  let pendingCloses = 0;
+
+  function onServerClosed() {
+    pendingCloses--;
+    if (pendingCloses === 0) finishShutdown();
+  }
+
+  // Stop accepting new connections, drain existing
+  if (servers.httpServer) {
+    pendingCloses++;
+    servers.httpServer.close(onServerClosed);
+  }
+  if (servers.httpsServer) {
+    pendingCloses++;
+    servers.httpsServer.close(onServerClosed);
+  }
+
+  // No servers to close (shouldn't happen, but handle it)
+  if (pendingCloses === 0) finishShutdown();
+}
+
+function finishShutdown() {
+  voacap.shutdown(); // sends stdin.end(), 1s grace, then force kill
+  clearInterval(cacheEvictionTimer);
+  try { fs.unlinkSync(PID_FILE); } catch {}
+  console.log('[shutdown] Clean exit');
+  process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+process.on('uncaughtException', (err) => {
+  console.error('[fatal] Uncaught exception:', err);
+  try { fs.unlinkSync(PID_FILE); } catch {}
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal] Unhandled rejection:', reason);
+  try { fs.unlinkSync(PID_FILE); } catch {}
+  process.exit(1);
+});
+
+// Safety net — sync-only PID cleanup for any exit path (e.g. EADDRINUSE)
+process.on('exit', () => {
+  try { fs.unlinkSync(PID_FILE); } catch {}
+});

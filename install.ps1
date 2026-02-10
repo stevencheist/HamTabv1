@@ -160,6 +160,15 @@ $LogFile = Join-Path $LogDir "hamtab.log"
 & $NssmExe set $ServiceName Start SERVICE_AUTO_START
 & $NssmExe set $ServiceName Description "HamTab POTA/SOTA Dashboard"
 
+# Graceful stop — send Ctrl+C, then WM_CLOSE, then WM_QUIT before force-kill
+& $NssmExe set $ServiceName AppStopMethodConsole 5000
+& $NssmExe set $ServiceName AppStopMethodWindow 5000
+& $NssmExe set $ServiceName AppStopMethodThreads 10000
+
+# Auto-restart on crash with 5s delay (mirrors systemd Restart=on-failure)
+& $NssmExe set $ServiceName AppExit Default Restart
+& $NssmExe set $ServiceName AppRestartDelay 5000
+
 # --- Start the service ---
 Write-Host "Starting $ServiceName ..."
 & $NssmExe start $ServiceName

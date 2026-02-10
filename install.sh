@@ -171,6 +171,9 @@ Restart=on-failure
 RestartSec=5
 StartLimitIntervalSec=60
 StartLimitBurst=5
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=15
 Environment=NODE_ENV=production
 
 StandardOutput=journal

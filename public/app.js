@@ -7462,8 +7462,8 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.34.0";
-    $("aboutVersion").textContent = "0.34.0";
+    $("splashVersion").textContent = "0.35.0";
+    $("aboutVersion").textContent = "0.35.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -7897,7 +7897,7 @@ ${beacon.location}`);
   init_utils();
   async function checkUpdateStatus() {
     const el = $("platformLabel");
-    if (el && !el.textContent) el.textContent = "v0.28.2";
+    if (el && !el.textContent) el.textContent = "v0.35.0";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;

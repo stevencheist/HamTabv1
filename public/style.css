@@ -3531,9 +3531,9 @@ header {
 
 /* ---- DXpeditions Widget ---- */
 
-#widget-dxpeditions .widget-body { padding: 6px; overflow-y: auto; }
+#widget-dxpeditions .widget-body { padding: 6px; overflow-y: auto; display: flex; flex-direction: column; }
 
-.dxped-list { display: flex; flex-direction: column; gap: 4px; }
+.dxped-list { display: flex; flex-direction: column; gap: 4px; flex: 1; overflow-y: auto; }
 
 .dxped-empty { text-align: center; color: var(--text-dim); font-size: 0.8rem; padding: 12px; font-style: italic; }
 

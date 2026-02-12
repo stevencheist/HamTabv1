@@ -1,22 +1,23 @@
 # HamTab
 
-A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstitute.com/ham/HamClock/) alternative. Displays live POTA, SOTA, DX Cluster, and PSKReporter spots on an interactive map with VOACAP propagation predictions, HF band conditions, space weather, satellite tracking, contests, DXpeditions, NCDXF beacons, weather, and lunar/EME data — all in a customizable, themeable widget layout.
+A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstitute.com/ham/HamClock/) alternative. Displays live POTA, SOTA, DX Cluster, WWFF, and PSKReporter spots on an interactive map with VOACAP propagation predictions, HF band conditions, space weather, satellite tracking, contests, DXpeditions, NCDXF beacons, weather, and lunar/EME data — all in a customizable, themeable widget layout.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green) ![Express](https://img.shields.io/badge/Express-4.x-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ## Features
 
 ### Spots & Activations
-- **On the Air** — Real-time POTA, SOTA, DX Cluster, and PSKReporter spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
+- **On the Air** — Real-time POTA, SOTA, DX Cluster, WWFF, and PSKReporter spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
 - **Live Spots** — See where your signal is being received via PSKReporter — band cards show spot count or farthest distance per band with visual map lines
 - **DX Detail** — Detailed view of a selected spot with callsign info, frequency, distance/bearing, and QRZ link
 
 ### Map & Overlays
-- **Interactive Map** — Leaflet map with clustered markers for POTA, SOTA, DX Cluster, and PSKReporter spots, dark tiles, and clickable popups with QRZ callsign links
+- **Interactive Map** — Leaflet map with clustered markers for POTA, SOTA, DX Cluster, WWFF, and PSKReporter spots, dark tiles, and clickable popups with QRZ callsign links
 - **Map Center Controls** — Quick buttons to center on your QTH, prime meridian, or selected spot
 - **Day/Night Terminator** — Gray line overlay showing the solar terminator with a subtle daylight tint on the illuminated hemisphere
 - **Propagation Contours** — MUF and foF2 HF propagation overlays on the map from prop.kc2g.com
-- **Map Overlays** — Toggleable lat/lon grid, Maidenhead grid squares, and timezone lines via map gear icon
+- **MUF Map Overlay** — Real-time Maximum Usable Frequency image overlay from prop.kc2g.com showing worldwide MUF conditions, auto-refreshes every 15 minutes
+- **Map Overlays** — Toggleable lat/lon grid, Maidenhead grid squares, timezone lines, and MUF image overlay via map gear icon
 - **Satellite Tracking** — Real-time positions for ISS, SO-50, TEVEL, and custom satellites via N2YO with orbital ground tracks and radio footprint circles
 
 ### Propagation & Space Weather
@@ -44,7 +45,8 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **Watch Lists** — HamClock-style per-source watch lists with three modes: Red (highlight matching spots), Only (show only matching), and Not (exclude matching). Match by callsign, DXCC entity, grid prefix, or park/summit reference
 
 ### Customization
-- **Themes** — Four built-in visual themes: Default (dark), LCARS (Star Trek TNG), Terminal (retro green), and HamClock (WB0OEW-inspired with political map tiles)
+- **Themes** — Eight built-in visual themes: Default, LCARS, Terminal, HamClock, Rebel, Imperial, Neon, and Steampunk
+- **Band Colors** — Customize the color assigned to each amateur band in Live Spots and map lines via Config > Appearance
 - **Widget Layout** — All panels are draggable and resizable with snap-to-edge, persisted across sessions
 - **Grid Layout Mode** — Alternative to free-float with 5 grid permutations for organized widget arrangements
 - **Clock Styles** — Digital or analog clock face for both Local Time and UTC widgets
@@ -423,7 +425,7 @@ If both are provided, weather data comes from your chosen WU station. If left bl
 
 ### Theme
 
-Choose from built-in themes: **Default** (dark), **LCARS** (Star Trek TNG-inspired), **Terminal** (retro green CRT), or **HamClock** (familiar to HamClock users). Themes swap CSS variables for colors, borders, and shapes.
+Choose from 8 built-in themes: **Default** (dark), **LCARS** (Star Trek TNG-inspired), **Terminal** (retro green CRT), **HamClock** (familiar to HamClock users), **Rebel** (warm desert), **Imperial** (cold steel), **Neon** (cyan glow), or **Steampunk** (brass and copper). Themes swap CSS variables for colors, borders, and shapes.
 
 ### Layout Mode
 
@@ -486,15 +488,16 @@ Displays UTC time, day, date, and year. Shares the same clock style setting as L
 
 ### On the Air
 
-Real-time spots from four data sources.
+Real-time spots from five data sources.
 
-**Source tabs** — Switch between POTA, SOTA, DXC (DX Cluster), and PSK (PSKReporter). Active tab is saved across sessions.
+**Source tabs** — Switch between POTA, SOTA, DXC (DX Cluster), WWFF, and PSK (PSKReporter). Active tab is saved across sessions.
 
 | Source | Data | Columns |
 |--------|------|---------|
 | **POTA** | Parks on the Air activator spots | Callsign, Freq, Mode, Ref, Park Name, Time |
 | **SOTA** | Summits on the Air spots | Callsign, Freq, Mode, Ref, Summit, Time |
 | **DXC** | DX Cluster worldwide spots | Callsign, Freq, Mode, DX, Distance, Age |
+| **WWFF** | World Wide Flora & Fauna activator spots | Callsign, Freq, Mode, Ref, Name, Time |
 | **PSK** | PSKReporter digital mode reports | TX Call, Freq, Mode, RX Call, SNR, Grid |
 
 Callsign columns link to QRZ. Hover for name/address/class tooltip.
@@ -503,7 +506,7 @@ Click any row to fly to that spot on the map. The selected spot is highlighted i
 
 ### HamMap
 
-Interactive Leaflet map with dark tiles showing activation markers, your QTH, satellite positions, propagation overlays, VOACAP coverage, and the gray line terminator. Tiles automatically switch to CARTO Voyager (political) in HamClock theme.
+Interactive Leaflet map with dark tiles showing activation markers, your QTH, satellite positions, propagation overlays, MUF image overlay, VOACAP coverage, and the gray line terminator. Tiles automatically switch to CARTO Voyager (political) in HamClock theme.
 
 **Map center controls** (buttons in the header):
 
@@ -525,11 +528,12 @@ Interactive Leaflet map with dark tiles showing activation markers, your QTH, sa
 
 | Feature | Description |
 |---------|-------------|
-| **Spot markers** | Clustered markers for all visible POTA/SOTA/DXC/PSK spots. Click for popup with callsign (QRZ link), frequency, reference, distance/bearing from your QTH |
+| **Spot markers** | Clustered markers for all visible POTA/SOTA/DXC/WWFF/PSK spots. Click for popup with callsign (QRZ link), frequency, reference, distance/bearing from your QTH |
 | **Your QTH** | Lightning bolt marker with your callsign at your location |
 | **Satellites** | Real-time positions for ISS, amateur radio satellites, and custom NORAD IDs via N2YO. Orbital ground tracks and radio footprint circles |
 | **Gray line** | Day/night terminator overlay showing the solar terminator boundary |
 | **Propagation contours** | Color-coded MHz contour lines when MUF or foF2 is enabled |
+| **MUF image overlay** | Full-map MUF visualization from prop.kc2g.com, toggleable via map gear icon, auto-refreshes every 15 minutes |
 | **VOACAP overlays** | Circle and heatmap overlays showing propagation reach from your QTH |
 | **Lat/lon grid** | Toggleable coordinate grid overlay |
 | **Maidenhead grid** | Toggleable grid square boundaries overlay |
@@ -652,7 +656,7 @@ Dedicated filter controls for the On the Air widget. Available filters depend on
 |--------|---------|-------------|
 | Band | All | Filter by amateur band (160m through 2m) |
 | Mode | All | Filter by mode (CW, SSB, FM, FT8, etc.) |
-| Country | POTA, DXC | Filter by DXCC entity prefix |
+| Country | POTA, DXC, WWFF | Filter by DXCC entity prefix |
 | State | POTA | Filter by US state |
 | Grid | POTA | Filter by 4-character Maidenhead grid square |
 | My privileges | POTA | US callsigns — hides spots outside your license class privileges |
@@ -668,7 +672,7 @@ Per-source watch lists in the Config **Filters** tab with three modes:
 | **Only** | Shows ONLY spots matching at least one "Only" rule (everything else hidden) | Green |
 | **Not** | Excludes matching spots from the list | Gray |
 
-Match types: **Callsign** (strips portable suffixes like /P, /M), **DXCC** (country name or entity prefix), **Grid** (prefix match — "FN" matches FN31, FN42, etc.), **Ref** (exact park/summit reference, POTA/SOTA only).
+Match types: **Callsign** (strips portable suffixes like /P, /M), **DXCC** (country name or entity prefix), **Grid** (prefix match — "FN" matches FN31, FN42, etc.), **Ref** (exact park/summit/flora reference, POTA/SOTA/WWFF only).
 
 Rules are independent per source tab and persist across sessions. Precedence: Only narrows first, Not excludes next, Red highlights without filtering. Gold "my spot" highlight takes visual precedence over red.
 
@@ -751,7 +755,8 @@ Leaflet maps and marker clustering are bundled locally in the `public/vendor/` d
 | [POTA API](https://api.pota.app/) | Live activator spots | None |
 | [SOTA API](https://api2.sota.org.uk/) | Summit spots and coordinates | None |
 | [HamQSL Solar XML](https://www.hamqsl.com/solarxml.php) | Solar indices and band conditions | None |
-| [Propagation Contours](https://prop.kc2g.com/) | MUF and foF2 HF propagation overlays | None |
+| [Propagation Contours](https://prop.kc2g.com/) | MUF and foF2 HF propagation contours and image overlays | None |
+| [WWFF Spots](https://spots.wwff.co/) | World Wide Flora & Fauna activator spots | None |
 | [Where the ISS at?](https://wheretheiss.at/w/developer) | ISS position and orbit data | None |
 | [NWS API](https://www.weather.gov/documentation/services-web-api) | Weather conditions, forecasts, and alerts | None (US only) |
 | [Weather Underground](https://www.wunderground.com/member/api-keys) | Personal weather station observations | Free API key (optional) |

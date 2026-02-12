@@ -1722,7 +1722,7 @@
         worldCopyJump: true,
         maxBoundsViscosity: 1,
         maxBounds: [[-90, -180], [90, 180]],
-        minZoom: 2
+        minZoom: 1
       }).setView([39.8, -98.5], 4);
       state_default.tileLayer = L.tileLayer(TILE_DARK, {
         attribution: "&copy; OpenStreetMap &copy; CARTO",
@@ -7622,8 +7622,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.37.2";
-    $("aboutVersion").textContent = "0.37.2";
+    $("splashVersion").textContent = "0.37.3";
+    $("aboutVersion").textContent = "0.37.3";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

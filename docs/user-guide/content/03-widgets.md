@@ -18,6 +18,30 @@ Drag the edges or corners of any widget to resize it. Most widgets have minimum 
 ### Widget Settings
 Many widgets have their own settings. Click the **gear icon** in the widget's title bar to access widget-specific configuration.
 
+### Grid Layout Mode
+
+Grid mode arranges widgets into fixed cells instead of free-floating positions. Switch between modes in Config > Display.
+
+**Grid Permutations:**
+
+| Permutation | Layout | Slots |
+|-------------|--------|-------|
+| 2L-2R | 2 left, 2 right | 4 |
+| 3L-3R | 3 left, 3 right | 6 |
+| 1T-2L-2R-1B | 1 top, 2 left, 2 right, 1 bottom | 6 |
+| 1T-3L-3R-1B | 1 top, 3 left, 3 right, 1 bottom | 8 |
+| 2T-3L-3R-2B | 2 top, 3 left, 3 right, 2 bottom | 10 |
+
+The map always occupies the center cell and doesn't count toward the slot limit.
+
+**Slot Counter:**
+In the Display tab, a slot counter shows "N / M slots" (e.g., "5 / 6 slots"). When you reach the limit, unchecked widgets are greyed out and can't be enabled until you hide another widget to free a slot. If more widgets are enabled than slots allow, an amber warning appears.
+
+**Switching Permutations:**
+Use the permutation dropdown in Config > Display to change layouts. Larger permutations (more slots) let you show more widgets at once.
+
+<div class="tip">If you want to see more widgets than your current grid allows, switch to a larger permutation (e.g., 3L-3R → 1T-3L-3R-1B) or switch to free-float mode where there's no slot limit.</div>
+
 ---
 
 ## Filters Widget
@@ -230,30 +254,49 @@ All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 1
 
 ## Band Conditions Widget
 
-Global propagation forecast showing conditions by band and region.
+At-a-glance HF band conditions and VHF propagation status. Shows per-band reliability predictions for day and night simultaneously in a compact color-coded table.
 
-### Metrics
-Toggle between display modes:
-- **MUFD** — Maximum Usable Frequency (Day)
-- **SS** — Signal Strength
-- **SNR** — Signal-to-Noise Ratio
+### Propagation Summary
 
-### Day/Night Toggle
-Switch between current conditions and 12-hour forecast.
+The summary bar at the top shows three key solar metrics:
 
-### Regions
-Shows propagation for paths from your location to:
-- North America
-- South America
-- Europe
-- Africa
-- Asia
-- Oceania
+| Metric | What It Means |
+|--------|---------------|
+| **MUF** | Maximum Usable Frequency — the highest frequency likely to propagate. Higher = more bands open. |
+| **SFI** | Solar Flux Index — overall solar activity. Above 100 is good for HF; above 150 is excellent. |
+| **K** | K-Index — geomagnetic disturbance (0–9). Green (0–2) is quiet; yellow (3–5) is unsettled; red (6+) means storm conditions that can shut down HF bands. |
 
-### Color Scale
-- <span class="color-good">Green</span> — Good propagation
-- <span class="color-fair">Yellow</span> — Fair propagation
-- <span class="color-poor">Red</span> — Poor/closed
+### HF Bands Tab
+
+The default view shows a compact table with 10 HF bands (160m through 10m). Each row has:
+
+- **Band label** — The amateur band name
+- **Day column** (orange header) — Predicted daytime reliability percentage
+- **Night column** (blue header) — Predicted nighttime reliability percentage
+
+Cell colors use a continuous gradient:
+
+| Color | Reliability | Meaning |
+|-------|-------------|---------|
+| Dark/black | 0–10% | Band closed |
+| Red | 10–30% | Poor conditions |
+| Yellow | 30–60% | Fair — marginal openings |
+| Green | 60–100% | Good to excellent |
+
+Hover over any cell to see the band name and condition label (e.g., "20m Day: Excellent").
+
+### VHF Tab
+
+Click the **VHF** tab to see VHF propagation phenomena:
+
+- **Aurora** — Northern hemisphere auroral activity. When active, VHF/UHF signals (especially 2m and above) can bounce off the aurora for unusual contacts.
+- **E-Skip** — Sporadic E-layer openings by region (North America, Europe, EU 6m, EU 4m). When open, 6m and sometimes 2m/4m can propagate over long distances.
+
+Each phenomenon shows a condition label color-coded from red (closed) through yellow (fair) to green (open).
+
+### Data Source
+
+All data comes from HamQSL and updates with the solar data refresh cycle. HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model.
 
 ---
 

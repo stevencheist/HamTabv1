@@ -240,6 +240,8 @@
         // L.marker for moon position on map
         beaconMarkers: {},
         // { freq: L.circleMarker } for active NCDXF beacon map markers
+        dxpedMarkers: [],
+        // L.circleMarker[] for DXpedition map markers
         // Day/night
         lastLocalDay: null,
         lastUtcDay: null
@@ -2606,7 +2608,7 @@ ${beacon.location}`);
           description: "A calendar of upcoming and active amateur radio contests. Contests are time-limited on-air competitions where operators try to make as many contacts as possible. They're a great way to fill your logbook and practice your operating skills.",
           sections: [
             { heading: "What Are Contests?", content: "Ham radio contests run for a set period (usually a weekend). Operators exchange brief messages and try to contact as many stations or regions as possible. Contests happen nearly every weekend \u2014 from casual events to major international competitions." },
-            { heading: "Reading the List", content: 'Each card shows the contest name, date/time window, and operating mode. Cards marked "NOW" are currently running. Click any card to view the full rules and exchange format on the contest website.' },
+            { heading: "Reading the List", content: 'Each card shows the contest name, date/time window, and operating mode. Contests update in real time \u2014 when a contest starts, it moves to the top with a green "NOW" badge. When it ends, it disappears automatically. Click any card to view the full rules and exchange format on the contest website.' },
             { heading: "Mode Badges", content: "CW = Morse code only. PHONE = voice modes (SSB/FM). DIGITAL = digital modes (RTTY, FT8, etc.). Contests without a badge accept mixed modes." }
           ],
           links: [
@@ -2618,7 +2620,7 @@ ${beacon.location}`);
           description: "Track upcoming and active DXpeditions \u2014 organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.",
           sections: [
             { heading: "What Is a DXpedition?", content: "A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade." },
-            { heading: "Reading the Cards", content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details.' },
+            { heading: "Reading the Cards", content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map \u2014 bright orange for active, dimmer for upcoming.' },
             { heading: "QSL Information", content: `QSL means "I confirm" \u2014 it's how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).` }
           ],
           links: [
@@ -7126,6 +7128,7 @@ ${beacon.location}`);
       empty.textContent = "No DXpeditions found";
       list.appendChild(empty);
       if (countEl) countEl.textContent = "";
+      updateDxpeditionMarkers([]);
       return;
     }
     if (countEl) countEl.textContent = data.length;
@@ -7160,6 +7163,34 @@ ${beacon.location}`);
       detail.textContent = parts.join("  \xB7  ");
       card.appendChild(detail);
       list.appendChild(card);
+    }
+    updateDxpeditionMarkers(data);
+  }
+  function updateDxpeditionMarkers(data) {
+    if (!state_default.map || typeof L === "undefined") return;
+    for (const m of state_default.dxpedMarkers) {
+      state_default.map.removeLayer(m);
+    }
+    state_default.dxpedMarkers = [];
+    if (!Array.isArray(data)) return;
+    for (const dx of data) {
+      if (dx.lat == null || dx.lon == null) continue;
+      const isActive = !!dx.active;
+      const marker = L.circleMarker([dx.lat, dx.lon], {
+        radius: isActive ? 6 : 4,
+        color: isActive ? "#ff9800" : "#9e6b00",
+        // orange outline
+        fillColor: isActive ? "#ff9800" : "#9e6b00",
+        fillOpacity: isActive ? 0.8 : 0.4,
+        weight: isActive ? 2 : 1,
+        interactive: true
+      }).addTo(state_default.map);
+      const lines = [dx.callsign || "??"];
+      if (dx.entity) lines.push(dx.entity);
+      if (dx.dateStr) lines.push(dx.dateStr);
+      if (isActive) lines.push("ACTIVE NOW");
+      marker.bindTooltip(lines.join("\n"));
+      state_default.dxpedMarkers.push(marker);
     }
   }
 
@@ -7200,12 +7231,36 @@ ${beacon.location}`);
       if (countEl) countEl.textContent = "";
       return;
     }
-    if (countEl) countEl.textContent = data.length;
-    list.textContent = "";
+    const now = Date.now();
+    const visible = [];
     for (const c of data) {
+      const start = c.startDate ? new Date(c.startDate).getTime() : null;
+      const end = c.endDate ? new Date(c.endDate).getTime() : null;
+      if (end && now > end) continue;
+      const isActive = start && end && now >= start && now <= end;
+      visible.push({ ...c, _active: isActive });
+    }
+    if (visible.length === 0) {
+      list.textContent = "";
+      const empty = document.createElement("div");
+      empty.className = "contest-empty";
+      empty.textContent = "No upcoming contests found";
+      list.appendChild(empty);
+      if (countEl) countEl.textContent = "";
+      return;
+    }
+    visible.sort((a, b) => {
+      if (a._active !== b._active) return a._active ? -1 : 1;
+      const aDate = a.startDate ? new Date(a.startDate).getTime() : 0;
+      const bDate = b.startDate ? new Date(b.startDate).getTime() : 0;
+      return aDate - bDate;
+    });
+    if (countEl) countEl.textContent = visible.length;
+    list.textContent = "";
+    for (const c of visible) {
       const card = document.createElement("div");
       card.className = "contest-card";
-      if (c.status === "active") card.classList.add("contest-active-card");
+      if (c._active) card.classList.add("contest-active-card");
       if (c.link) card.dataset.link = c.link;
       const header = document.createElement("div");
       header.className = "contest-header";
@@ -7219,7 +7274,7 @@ ${beacon.location}`);
         modeBadge.textContent = c.mode.toUpperCase();
         header.appendChild(modeBadge);
       }
-      if (c.status === "active") {
+      if (c._active) {
         const badge = document.createElement("span");
         badge.className = "contest-now-badge";
         badge.textContent = "NOW";
@@ -7622,8 +7677,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.37.3";
-    $("aboutVersion").textContent = "0.37.3";
+    $("splashVersion").textContent = "0.38.0";
+    $("aboutVersion").textContent = "0.38.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

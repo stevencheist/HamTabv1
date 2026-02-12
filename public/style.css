@@ -1639,74 +1639,107 @@ header {
 .prop-summary {
   display: flex;
   justify-content: space-around;
-  padding: 10px;
+  padding: 6px 10px;
   background: var(--surface2);
   border-radius: 6px;
-  margin: 10px;
+  margin: 6px 10px;
 }
 
 .prop-summary-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 1px;
 }
 
 .prop-summary-label {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .prop-summary-value {
-  font-size: 1.1rem;
+  font-size: 0.95rem;
   font-weight: 700;
   color: var(--text);
+}
+
+/* ---- Band Conditions HF/VHF Tabs ---- */
+
+.band-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 1px solid var(--border);
+  margin: 0 10px;
+}
+
+.band-tab {
+  flex: 1;
+  padding: 3px 8px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  border: none;
+  background: var(--surface);
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border-bottom: 2px solid transparent;
+}
+
+.band-tab:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.band-tab.active {
+  background: var(--surface2);
+  color: var(--accent);
+  border-bottom-color: var(--accent);
 }
 
 /* ---- Per-Band Conditions (side-by-side Day/Night) ---- */
 
 .band-conditions-grid {
-  padding: 6px 10px;
+  padding: 2px 10px 4px;
 }
 
 /* Compact color-coded band conditions table */
 .band-table {
   border-collapse: separate;
-  border-spacing: 1px;
+  border-spacing: 1px 1px;
   width: 100%;
-  font-size: 0.6rem;
   table-layout: fixed;
 }
 
 .band-table td,
 .band-table th {
-  padding: 2px 4px;
+  padding: 1px 4px;
   text-align: center;
+  line-height: 1.1;
 }
 
 .band-table-label {
   text-align: right;
   font-weight: 600;
-  padding-right: 6px;
-  width: 36px;
+  font-size: 0.6rem;
+  padding-right: 4px;
+  width: 34px;
   color: var(--text);
 }
 
 .band-table-cell {
   font-weight: 700;
-  font-size: 0.7rem;
+  font-size: 0.6rem;
   border-radius: 2px;
-  height: 18px;
 }
 
 .band-table-header {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  padding-bottom: 4px;
+  padding-bottom: 2px;
 }
 
 .band-table-header-day {
@@ -1720,18 +1753,7 @@ header {
 /* ---- VHF Conditions ---- */
 
 .vhf-conditions {
-  padding: 0 10px 8px;
-}
-
-.vhf-header {
-  font-size: 0.65rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: var(--text-dim);
-  padding: 4px 0 4px;
-  border-top: 1px solid var(--border);
-  margin-top: 2px;
+  padding: 4px 10px 8px;
 }
 
 .vhf-list {

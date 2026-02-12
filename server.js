@@ -77,10 +77,10 @@ const apiLimiter = rateLimit({
 });
 app.use('/api/', apiLimiter);
 
-// Stricter rate limit for feedback endpoint (3 submissions per day per IP)
+// Rate limit for feedback endpoint (10 submissions per day per IP)
 const feedbackLimiter = rateLimit({
   windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: 3,
+  max: 10,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many feedback submissions. Please try again tomorrow.' },

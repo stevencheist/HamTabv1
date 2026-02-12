@@ -1611,11 +1611,7 @@ header {
 
 /* ---- Propagation Widget ---- */
 
-.day-night-toggle {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
-}
+/* day-night-toggle removed — band conditions now shows side-by-side Day/Night */
 
 .day-night-toggle .toggle-btn {
   padding: 2px 8px;
@@ -1669,19 +1665,39 @@ header {
   color: var(--text);
 }
 
-/* ---- Per-Band Conditions ---- */
+/* ---- Per-Band Conditions (side-by-side Day/Night) ---- */
 
 .band-conditions-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
-  padding: 10px;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  padding: 8px 10px;
+}
+
+.band-col-header {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: center;
+  padding: 2px 0 4px;
+  border-bottom: 2px solid;
+}
+
+.band-col-header-day {
+  color: #ffa726;
+  border-color: #ffa726;
+}
+
+.band-col-header-night {
+  color: #5c6bc0;
+  border-color: #5c6bc0;
 }
 
 .band-card {
   background: var(--surface2);
   border-radius: 4px;
-  padding: 6px 4px;
+  padding: 4px 4px;
   text-align: center;
   border: 1px solid transparent;
   transition: all 0.2s;
@@ -1692,22 +1708,22 @@ header {
 }
 
 .band-name {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 600;
   color: var(--text);
-  display: block;
-  margin-bottom: 3px;
-}
-
-.band-reliability {
-  font-size: 1rem;
-  font-weight: 700;
   display: block;
   margin-bottom: 2px;
 }
 
+.band-reliability {
+  font-size: 0.9rem;
+  font-weight: 700;
+  display: block;
+  margin-bottom: 1px;
+}
+
 .band-condition-label {
-  font-size: 0.55rem;
+  font-size: 0.5rem;
   text-transform: uppercase;
   letter-spacing: 0.3px;
   opacity: 0.8;
@@ -1765,13 +1781,54 @@ header {
 
 /* Day/night border indicators */
 .band-card-day {
-  border-left: 3px solid #ffa726;
-  box-shadow: -2px 0 8px rgba(255, 167, 38, 0.2);
+  border-left: 2px solid #ffa726;
 }
 
 .band-card-night {
-  border-left: 3px solid #5c6bc0;
-  box-shadow: -2px 0 8px rgba(92, 107, 192, 0.2);
+  border-left: 2px solid #5c6bc0;
+}
+
+/* ---- VHF Conditions ---- */
+
+.vhf-conditions {
+  padding: 0 10px 8px;
+}
+
+.vhf-header {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-dim);
+  padding: 4px 0 4px;
+  border-top: 1px solid var(--border);
+  margin-top: 2px;
+}
+
+.vhf-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 8px;
+}
+
+.vhf-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 3px 6px;
+  background: var(--surface2);
+  border-radius: 3px;
+  font-size: 0.6rem;
+}
+
+.vhf-label {
+  color: var(--text);
+  font-weight: 500;
+}
+
+.vhf-value {
+  font-weight: 600;
+  text-align: right;
 }
 
 /* ---- Header center clocks ---- */

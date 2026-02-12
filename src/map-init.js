@@ -17,7 +17,7 @@ export function initMap() {
       worldCopyJump: true,
       maxBoundsViscosity: 1.0,
       maxBounds: [[-90, -180], [90, 180]],
-      minZoom: 2,
+      minZoom: 1,
     }).setView([39.8, -98.5], 4);
 
     state.tileLayer = L.tileLayer(TILE_DARK, {

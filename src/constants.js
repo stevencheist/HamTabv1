@@ -301,7 +301,7 @@ export const WIDGET_HELP = {
     description: 'An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who\'s on the air and where.',
     sections: [
       { heading: 'Spot Markers', content: 'Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station.' },
-      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, and the MUF map overlay (a color-filled image from prop.kc2g.com showing real-time Maximum Usable Frequency across the world).' },
+      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (real-time Maximum Usable Frequency from prop.kc2g.com), and DX Paths — band-colored great circle lines from your location to every visible spot, showing at a glance which bands are open and where.' },
       { heading: 'Geodesic Paths', content: 'The curved line between you and a selected station is called a geodesic (great-circle) path — this is the shortest route over the Earth\'s surface and the direction to point your antenna.' },
       { heading: 'Center Mode', content: 'In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot.' },
     ],

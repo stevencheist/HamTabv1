@@ -7550,8 +7550,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.36.4";
-    $("aboutVersion").textContent = "0.36.4";
+    $("splashVersion").textContent = "0.36.5";
+    $("aboutVersion").textContent = "0.36.5";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -8022,7 +8022,7 @@ ${beacon.location}`);
   init_utils();
   async function checkUpdateStatus() {
     const el = $("platformLabel");
-    if (el && !el.textContent) el.textContent = "v0.36.4";
+    if (el && !el.textContent) el.textContent = "v0.36.5";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;

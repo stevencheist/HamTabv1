@@ -332,14 +332,15 @@ export const WIDGET_HELP = {
   },
   'widget-propagation': {
     title: 'Band Conditions',
-    description: 'A forecast of current HF band conditions by region. This helps you decide which band to use based on where you want to communicate.',
+    description: 'HF band conditions and VHF propagation status. Shows per-band reliability predictions for both day and night simultaneously, plus VHF phenomena like Aurora and E-Skip.',
     sections: [
-      { heading: 'How to Read It', content: 'Each row is a geographic region. The columns show band condition ratings. Green means the band is likely open to that region, yellow means marginal, and red means closed or poor.' },
-      { heading: 'Metrics', content: 'Choose what to display: MUFD (Maximum Usable Frequency — the highest frequency likely to work), Signal Strength, or SNR (Signal-to-Noise Ratio). MUFD is the most commonly used.' },
-      { heading: 'Day/Night Toggle', content: 'Switch between current conditions and the 12-hour forecast. Propagation changes significantly between day and night.' },
+      { heading: 'HF Bands', content: 'Each band shows a reliability percentage and condition (Excellent/Good/Fair/Poor/Closed). Day and night are shown side by side — day conditions appear in the left column (orange border), night in the right column (blue border). Green means the band is likely open, yellow means marginal, red means closed.' },
+      { heading: 'VHF Conditions', content: 'Below the HF bands, VHF propagation phenomena are shown: Aurora (affects 2m and above in northern latitudes) and E-Skip (sporadic E-layer openings on 6m/4m/2m by region). Data comes directly from HamQSL.' },
+      { heading: 'How It Works', content: 'HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model. Higher SFI means better HF conditions. K-index above 4 can shut down HF bands. The summary bar shows current MUF (Maximum Usable Frequency), SFI, and K-index.' },
     ],
     links: [
       { label: 'NOAA Space Weather', url: 'https://www.swpc.noaa.gov/' },
+      { label: 'HamQSL Solar Data', url: 'https://www.hamqsl.com/solar.html' },
     ],
   },
   'widget-lunar': {

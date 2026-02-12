@@ -110,6 +110,7 @@ const CACHE_RULES = [
   { prefix: '/api/spots/psk/heard',    cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
   { prefix: '/api/spots/psk',          cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
   { prefix: '/api/spots/dxc',          cc: 'public, max-age=15, s-maxage=30' },        // server caches 10s; browser 15s, edge 30s
+  { prefix: '/api/spots/wwff',          cc: 'public, max-age=30, s-maxage=60' },        // no server cache; browser 30s, edge 60s
   { prefix: '/api/spots/sota',         cc: 'public, max-age=30, s-maxage=60' },        // no server cache; browser 30s, edge 60s
   { prefix: '/api/spots',              cc: 'public, max-age=30, s-maxage=60' },        // POTA; client polls 60s
   { prefix: '/api/iss/position',       cc: 'public, max-age=5, s-maxage=10' },         // real-time; client polls 10s
@@ -579,6 +580,29 @@ app.get('/api/spots/sota', async (req, res) => {
   } catch (err) {
     console.error('Error fetching SOTA spots:', err.message);
     res.status(502).json({ error: 'Failed to fetch SOTA spots' });
+  }
+});
+
+// --- WWFF (World Wide Flora & Fauna) Spots API ---
+
+app.get('/api/spots/wwff', async (req, res) => {
+  try {
+    const data = await fetchJSON('https://spots.wwff.co/static/spots.json');
+    const spots = (Array.isArray(data) ? data : []).map(s => ({
+      callsign:   s.activator || '',
+      frequency:  s.frequency_khz ? String(s.frequency_khz / 1000) : '', // kHz → MHz
+      mode:       s.mode || '',
+      reference:  s.reference || '',
+      name:       s.reference_name || '',
+      spotTime:   s.spot_time ? new Date(s.spot_time * 1000).toISOString() : '', // Unix → ISO
+      comments:   s.remarks || '',
+      latitude:   s.latitude ?? null,
+      longitude:  s.longitude ?? null,
+    }));
+    res.json(spots);
+  } catch (err) {
+    console.error('Error fetching WWFF spots:', err.message);
+    res.status(502).json({ error: 'Failed to fetch WWFF spots' });
   }
 });
 
@@ -2136,6 +2160,24 @@ app.get('/api/propagation', async (req, res) => {
   } catch (err) {
     console.error('Error fetching propagation data:', err.message);
     res.status(502).json({ error: 'Failed to fetch propagation data' });
+  }
+});
+
+// Proxy prop.kc2g.com MUF/foF2 bare image overlay (4096×2048 Plate Carree)
+app.get('/api/propagation/image', async (req, res) => {
+  try {
+    const validTypes = ['mufd', 'fof2'];
+    const type = validTypes.includes(req.query.type) ? req.query.type : 'mufd';
+    const url = `https://prop.kc2g.com/renders/current/${type}-bare-now.jpg`;
+    const response = await secureFetch(url, { timeout: 15000 });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    res.set('Content-Type', 'image/jpeg');
+    res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.send(buffer);
+  } catch (err) {
+    console.error('Error fetching propagation image:', err.message);
+    res.status(502).json({ error: 'Failed to fetch propagation image' });
   }
 });
 

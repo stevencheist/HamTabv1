@@ -1668,124 +1668,53 @@ header {
 /* ---- Per-Band Conditions (side-by-side Day/Night) ---- */
 
 .band-conditions-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 8px;
-  padding: 8px 10px;
+  padding: 6px 10px;
 }
 
-.band-col-header {
+/* Compact color-coded band conditions table */
+.band-table {
+  border-collapse: separate;
+  border-spacing: 1px;
+  width: 100%;
+  font-size: 0.6rem;
+  table-layout: fixed;
+}
+
+.band-table td,
+.band-table th {
+  padding: 2px 4px;
+  text-align: center;
+}
+
+.band-table-label {
+  text-align: right;
+  font-weight: 600;
+  padding-right: 6px;
+  width: 36px;
+  color: var(--text);
+}
+
+.band-table-cell {
+  font-weight: 700;
+  font-size: 0.7rem;
+  border-radius: 2px;
+  height: 18px;
+}
+
+.band-table-header {
   font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  text-align: center;
-  padding: 2px 0 4px;
-  border-bottom: 2px solid;
+  padding-bottom: 4px;
 }
 
-.band-col-header-day {
+.band-table-header-day {
   color: #ffa726;
-  border-color: #ffa726;
 }
 
-.band-col-header-night {
+.band-table-header-night {
   color: #5c6bc0;
-  border-color: #5c6bc0;
-}
-
-.band-card {
-  background: var(--surface2);
-  border-radius: 4px;
-  padding: 4px 4px;
-  text-align: center;
-  border: 1px solid transparent;
-  transition: all 0.2s;
-}
-
-.band-card:hover {
-  background: var(--surface3);
-}
-
-.band-name {
-  font-size: 0.65rem;
-  font-weight: 600;
-  color: var(--text);
-  display: block;
-  margin-bottom: 2px;
-}
-
-.band-reliability {
-  font-size: 0.9rem;
-  font-weight: 700;
-  display: block;
-  margin-bottom: 1px;
-}
-
-.band-condition-label {
-  font-size: 0.5rem;
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  opacity: 0.8;
-  display: block;
-}
-
-/* Band condition colors */
-.band-excellent {
-  border-color: var(--green);
-}
-
-.band-excellent .band-reliability {
-  color: var(--green);
-}
-
-.band-good {
-  border-color: #4caf50;
-}
-
-.band-good .band-reliability {
-  color: #4caf50;
-}
-
-.band-fair {
-  border-color: var(--yellow);
-}
-
-.band-fair .band-reliability {
-  color: var(--yellow);
-}
-
-.band-poor {
-  border-color: var(--orange);
-}
-
-.band-poor .band-reliability {
-  color: var(--orange);
-}
-
-.band-closed {
-  border-color: var(--red);
-}
-
-.band-closed .band-reliability {
-  color: var(--red);
-}
-
-.band-unknown {
-  opacity: 0.5;
-}
-
-.band-unknown .band-reliability {
-  color: var(--text-dim);
-}
-
-/* Day/night border indicators */
-.band-card-day {
-  border-left: 2px solid #ffa726;
-}
-
-.band-card-night {
-  border-left: 2px solid #5c6bc0;
 }
 
 /* ---- VHF Conditions ---- */
@@ -1805,20 +1734,22 @@ header {
   margin-top: 2px;
 }
 
-.vhf-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3px 8px;
+.vhf-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
 }
 
-.vhf-card {
+.vhf-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 3px 6px;
+  padding: 1px 6px;
   background: var(--surface2);
   border-radius: 3px;
   font-size: 0.6rem;
+  flex: 1 1 45%;
+  min-width: 120px;
 }
 
 .vhf-label {

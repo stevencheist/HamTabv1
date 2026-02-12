@@ -379,10 +379,32 @@ export function calculate24HourMatrix(opts) {
 // --- UI Rendering ---
 
 /**
- * Initialize day/night toggle listeners (no-op — side-by-side display, no toggle needed)
+ * Initialize HF/VHF tab switching in the Band Conditions widget
  */
 export function initDayNightToggle() {
-  // Side-by-side layout renders both day and night; no toggle needed
+  const tabContainer = $('bandTabs');
+  if (!tabContainer) return;
+
+  tabContainer.addEventListener('click', (e) => {
+    const btn = e.target.closest('.band-tab');
+    if (!btn) return;
+
+    const tab = btn.dataset.bandTab;
+    const hfGrid = $('bandConditionsGrid');
+    const vhfPanel = $('vhfConditions');
+
+    // Toggle active tab
+    tabContainer.querySelectorAll('.band-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+
+    if (tab === 'hf') {
+      if (hfGrid) hfGrid.style.display = '';
+      if (vhfPanel) vhfPanel.style.display = 'none';
+    } else {
+      if (hfGrid) hfGrid.style.display = 'none';
+      if (vhfPanel) vhfPanel.style.display = '';
+    }
+  });
 }
 
 /**
@@ -543,11 +565,6 @@ function renderVhfConditions(container) {
 
   const vhfData = state.lastSolarData?.vhf;
   if (!vhfData || vhfData.length === 0) return;
-
-  const header = document.createElement('div');
-  header.className = 'vhf-header';
-  header.textContent = 'VHF Conditions';
-  container.appendChild(header);
 
   const list = document.createElement('div');
   list.className = 'vhf-list';

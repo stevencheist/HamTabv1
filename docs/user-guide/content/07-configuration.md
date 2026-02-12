@@ -139,6 +139,14 @@ Check or uncheck widgets to show or hide them:
 
 Hidden widgets can be re-enabled anytime.
 
+### Grid Mode Slot Limits
+
+In grid mode, each permutation has a fixed number of widget slots. The Display tab shows a **slot counter** (e.g., "5 / 6 slots") next to the Widgets heading. When all slots are full, remaining unchecked widgets are greyed out. To enable a hidden widget, first uncheck another to free a slot, or switch to a larger grid permutation.
+
+The HamMap checkbox is locked on in grid mode — the map always occupies the center cell and doesn't count toward the slot limit.
+
+In free-float mode there is no slot limit.
+
 ---
 
 ## Widget-Specific Settings

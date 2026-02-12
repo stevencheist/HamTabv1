@@ -49,6 +49,7 @@ export function refreshAll() {
   fetchSourceData('pota');
   fetchSourceData('sota');
   fetchSourceData('dxc');
+  fetchSourceData('wwff');
   fetchSourceData('psk');
   fetchSolar();
   fetchLunar();

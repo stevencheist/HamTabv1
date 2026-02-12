@@ -164,6 +164,23 @@ export const SOURCE_DEFS = {
     spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
     sortKey: 'spotTime',
   },
+  wwff: {
+    label: 'WWFF',
+    endpoint: '/api/spots/wwff',
+    columns: [
+      { key: 'callsign',  label: 'Callsign', class: 'callsign', sortable: true },
+      { key: 'frequency',  label: 'Freq',     class: 'freq', sortable: true },
+      { key: 'mode',       label: 'Mode',     class: 'mode', sortable: true },
+      { key: 'reference',  label: 'Ref (link)', class: '' },
+      { key: 'name',       label: 'Name',     class: '' },
+      { key: 'spotTime',   label: 'Time',     class: '', sortable: true },
+      { key: 'age',        label: 'Age',      class: '', sortable: true },
+    ],
+    filters: ['band', 'mode', 'distance', 'age'],
+    hasMap: true,
+    spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
+    sortKey: 'spotTime',
+  },
   psk: {
     label: 'PSK',
     endpoint: '/api/spots/psk',
@@ -269,12 +286,13 @@ export const WIDGET_HELP = {
   },
   'widget-activations': {
     title: 'On the Air',
-    description: 'A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from four sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), and PSKReporter (digital mode reception reports).',
+    description: 'A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from five sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), and PSKReporter (digital mode reception reports).',
     sections: [
-      { heading: 'How to Use', content: 'Use the tabs at the top to switch between POTA, SOTA, DXC, and PSK sources. Click any row to select that station — its details will appear in the DX Detail widget and its location will be highlighted on the map.' },
+      { heading: 'How to Use', content: 'Use the tabs at the top to switch between POTA, SOTA, DXC, WWFF, and PSK sources. Click any row to select that station — its details will appear in the DX Detail widget and its location will be highlighted on the map.' },
       { heading: 'POTA', content: 'Shows operators activating parks for the Parks on the Air program. Click the park reference link to see park details on the POTA website.' },
       { heading: 'SOTA', content: 'Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details.' },
       { heading: 'DX Cluster', content: 'Worldwide spots from the DX Cluster network. Great for finding rare or distant (DX) stations.' },
+      { heading: 'WWFF', content: 'Shows operators activating nature reserves for the World Wide Flora & Fauna program. Similar to POTA but with a worldwide scope — especially popular in Europe. Click the reference link for reserve details.' },
       { heading: 'PSK Reporter', content: 'Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions.' },
     ],
   },
@@ -283,7 +301,7 @@ export const WIDGET_HELP = {
     description: 'An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who\'s on the air and where.',
     sections: [
       { heading: 'Spot Markers', content: 'Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station.' },
-      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, and propagation layers.' },
+      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, and the MUF map overlay (a color-filled image from prop.kc2g.com showing real-time Maximum Usable Frequency across the world).' },
       { heading: 'Geodesic Paths', content: 'The curved line between you and a selected station is called a geodesic (great-circle) path — this is the shortest route over the Earth\'s surface and the direction to point your antenna.' },
       { heading: 'Center Mode', content: 'In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot.' },
     ],
@@ -628,6 +646,47 @@ export function getLayoutMode() {
   const w = window.innerWidth;
   if (w < SCALE_REFLOW_WIDTH) return 'mobile';
   return 'desktop';
+}
+
+// --- Band Colors ---
+// Default color per amateur band — used for Live Spots cards, map lines, and markers
+export const DEFAULT_BAND_COLORS = {
+  '160m': '#9c27b0',
+  '80m': '#673ab7',
+  '60m': '#3f51b5',
+  '40m': '#2196f3',
+  '30m': '#00bcd4',
+  '20m': '#4caf50',
+  '17m': '#8bc34a',
+  '15m': '#cddc39',
+  '12m': '#ffeb3b',
+  '10m': '#ff9800',
+  '6m': '#ff5722',
+  '2m': '#f44336',
+  '70cm': '#e91e63',
+};
+
+// User overrides loaded from localStorage
+let bandColorOverrides = {};
+try {
+  const saved = JSON.parse(localStorage.getItem('hamtab_band_colors'));
+  if (saved && typeof saved === 'object') bandColorOverrides = saved;
+} catch (e) {}
+
+// Get the effective color for a band (user override or default)
+export function getBandColor(band) {
+  return bandColorOverrides[band] || DEFAULT_BAND_COLORS[band] || '#888';
+}
+
+// Save user band color overrides to localStorage
+export function saveBandColors(overrides) {
+  bandColorOverrides = overrides;
+  localStorage.setItem('hamtab_band_colors', JSON.stringify(overrides));
+}
+
+// Get the current overrides object (for the settings UI)
+export function getBandColorOverrides() {
+  return { ...bandColorOverrides };
 }
 
 export const WIDGET_STORAGE_KEY = 'hamtab_widgets';

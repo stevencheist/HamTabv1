@@ -20,7 +20,7 @@ const state = {
   filterPresets: { pota: {}, sota: {}, dxc: {} },
 
   // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
-  watchLists: JSON.parse(localStorage.getItem('hamtab_watchlists') || '{"pota":[],"sota":[],"dxc":[],"psk":[]}'),
+  watchLists: JSON.parse(localStorage.getItem('hamtab_watchlists') || '{"pota":[],"sota":[],"dxc":[],"wwff":[],"psk":[]}'),
   watchRedSpotIds: new Set(), // spot IDs matching "red" rules — rebuilt each filter pass
 
   // Auto-refresh — defaults to on, persisted in localStorage
@@ -45,12 +45,12 @@ const state = {
   maidenheadDebounceTimer: null,
 
   // Map overlay config
-  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false },
+  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false },
 
   // Source
   currentSource: localStorage.getItem('hamtab_spot_source') || 'pota',
-  sourceData: { pota: [], sota: [], dxc: [] },
-  sourceFiltered: { pota: [], sota: [], dxc: [] },
+  sourceData: { pota: [], sota: [], dxc: [], wwff: [] },
+  sourceFiltered: { pota: [], sota: [], dxc: [], wwff: [] },
 
   // Widget visibility
   widgetVisibility: null, // loaded in widgets.js
@@ -248,7 +248,7 @@ try {
 try {
   const savedPresets = JSON.parse(localStorage.getItem('hamtab_filter_presets'));
   if (savedPresets) {
-    state.filterPresets = { pota: {}, sota: {}, dxc: {}, ...savedPresets };
+    state.filterPresets = { pota: {}, sota: {}, dxc: {}, wwff: {}, ...savedPresets };
   }
 } catch (e) {}
 

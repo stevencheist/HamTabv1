@@ -11,7 +11,7 @@ import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
 import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
 import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
-import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS } from './constants.js';
+import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, DEFAULT_BAND_COLORS, getBandColor, getBandColorOverrides, saveBandColors } from './constants.js';
 import { activateGridMode, deactivateGridMode, saveGridAssignments, getGridPermutation } from './grid-layout.js';
 import { startAutoRefresh, stopAutoRefresh } from './refresh.js';
 
@@ -370,6 +370,9 @@ export function showSplash() {
   const cfgSlimHeader = $('cfgSlimHeader');
   if (cfgSlimHeader) cfgSlimHeader.checked = state.slimHeader;
 
+  // Band color pickers
+  populateBandColorPickers();
+
   $('splashVersion').textContent = __APP_VERSION__;
   $('aboutVersion').textContent = __APP_VERSION__;
 
@@ -719,6 +722,50 @@ export function initSplashListeners() {
       document.body.classList.toggle('slim-header', state.slimHeader);
     });
   }
+
+  // Band color reset button
+  const bandColorResetBtn = document.getElementById('bandColorResetBtn');
+  if (bandColorResetBtn) {
+    bandColorResetBtn.addEventListener('click', () => {
+      saveBandColors({});
+      populateBandColorPickers();
+    });
+  }
+}
+
+// --- Band Color Pickers ---
+
+function populateBandColorPickers() {
+  const container = document.getElementById('bandColorPickers');
+  if (!container) return;
+  container.innerHTML = '';
+
+  const bands = Object.keys(DEFAULT_BAND_COLORS);
+  bands.forEach(band => {
+    const row = document.createElement('div');
+    row.className = 'band-color-row';
+
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = getBandColor(band);
+    input.dataset.band = band;
+    input.addEventListener('input', () => {
+      const overrides = getBandColorOverrides();
+      if (input.value === DEFAULT_BAND_COLORS[band]) {
+        delete overrides[band];
+      } else {
+        overrides[band] = input.value;
+      }
+      saveBandColors(overrides);
+    });
+
+    const label = document.createElement('label');
+    label.textContent = band;
+
+    row.appendChild(input);
+    row.appendChild(label);
+    container.appendChild(row);
+  });
 }
 
 

@@ -1507,6 +1507,30 @@ app.post('/api/update/apply', async (req, res) => {
     return res.status(400).json({ error: 'No update available' });
   }
 
+  // Pre-flight: check write permissions on APP_DIR and node_modules
+  // Catches the common case where install.sh ran as root and left files owned by root
+  try {
+    const testFile = path.join(APP_DIR, '.update-write-test');
+    fs.writeFileSync(testFile, '');
+    fs.unlinkSync(testFile);
+  } catch {
+    return res.status(500).json({
+      error: `Permission denied on ${APP_DIR}. Run: sudo chown -R $(whoami) ${APP_DIR}`,
+    });
+  }
+  const nmDir = path.join(APP_DIR, 'node_modules');
+  if (fs.existsSync(nmDir)) {
+    try {
+      const testFile = path.join(nmDir, '.update-write-test');
+      fs.writeFileSync(testFile, '');
+      fs.unlinkSync(testFile);
+    } catch {
+      return res.status(500).json({
+        error: `Permission denied on node_modules. Run: sudo chown -R $(whoami) ${APP_DIR}`,
+      });
+    }
+  }
+
   updateInProgress = true;
   const tmpDir = path.join(os.tmpdir(), `hamtab-update-${Date.now()}`);
 

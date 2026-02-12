@@ -186,6 +186,7 @@ const state = {
   sunMarker: null,      // L.marker for sun position on map
   moonMarker: null,     // L.marker for moon position on map
   beaconMarkers: {},    // { freq: L.circleMarker } for active NCDXF beacon map markers
+  dxpedMarkers: [],     // L.circleMarker[] for DXpedition map markers
 
   // Day/night
   lastLocalDay: null,

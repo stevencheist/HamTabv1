@@ -436,7 +436,7 @@ export const WIDGET_HELP = {
     description: 'A calendar of upcoming and active amateur radio contests. Contests are time-limited on-air competitions where operators try to make as many contacts as possible. They\'re a great way to fill your logbook and practice your operating skills.',
     sections: [
       { heading: 'What Are Contests?', content: 'Ham radio contests run for a set period (usually a weekend). Operators exchange brief messages and try to contact as many stations or regions as possible. Contests happen nearly every weekend — from casual events to major international competitions.' },
-      { heading: 'Reading the List', content: 'Each card shows the contest name, date/time window, and operating mode. Cards marked "NOW" are currently running. Click any card to view the full rules and exchange format on the contest website.' },
+      { heading: 'Reading the List', content: 'Each card shows the contest name, date/time window, and operating mode. Contests update in real time — when a contest starts, it moves to the top with a green "NOW" badge. When it ends, it disappears automatically. Click any card to view the full rules and exchange format on the contest website.' },
       { heading: 'Mode Badges', content: 'CW = Morse code only. PHONE = voice modes (SSB/FM). DIGITAL = digital modes (RTTY, FT8, etc.). Contests without a badge accept mixed modes.' },
     ],
     links: [
@@ -448,7 +448,7 @@ export const WIDGET_HELP = {
     description: 'Track upcoming and active DXpeditions — organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.',
     sections: [
       { heading: 'What Is a DXpedition?', content: 'A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade.' },
-      { heading: 'Reading the Cards', content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details.' },
+      { heading: 'Reading the Cards', content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map — bright orange for active, dimmer for upcoming.' },
       { heading: 'QSL Information', content: 'QSL means "I confirm" — it\'s how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).' },
     ],
     links: [

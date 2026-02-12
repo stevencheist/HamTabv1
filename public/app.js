@@ -69,7 +69,7 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false },
         // Source
         currentSource: localStorage.getItem("hamtab_spot_source") || "pota",
         sourceData: { pota: [], sota: [], dxc: [], wwff: [] },
@@ -242,6 +242,8 @@
         // { freq: L.circleMarker } for active NCDXF beacon map markers
         dxpedMarkers: [],
         // L.circleMarker[] for DXpedition map markers
+        dxPathLines: [],
+        // L.polyline[] for band-colored DX contact paths
         // Day/night
         lastLocalDay: null,
         lastUtcDay: null
@@ -2473,7 +2475,7 @@ ${beacon.location}`);
           description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
           sections: [
             { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
-            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, and the MUF map overlay (a color-filled image from prop.kc2g.com showing real-time Maximum Usable Frequency across the world)." },
+            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (real-time Maximum Usable Frequency from prop.kc2g.com), and DX Paths \u2014 band-colored great circle lines from your location to every visible spot, showing at a glance which bands are open and where." },
             { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
             { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
           ]
@@ -3354,10 +3356,60 @@ ${beacon.location}`);
     });
     state_default.geodesicLineLong.addTo(state_default.map);
   }
+  function clearBandPaths() {
+    for (const line of state_default.dxPathLines) {
+      state_default.map.removeLayer(line);
+    }
+    state_default.dxPathLines = [];
+  }
+  function drawBandPaths() {
+    clearBandPaths();
+    if (!state_default.mapOverlays.bandPaths) return;
+    if (state_default.myLat == null || state_default.myLon == null || !state_default.map) return;
+    const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
+    function splitAtDateline2(points) {
+      const segments = [[]];
+      for (let i = 0; i < points.length; i++) {
+        segments[segments.length - 1].push(points[i]);
+        if (i < points.length - 1 && Math.abs(points[i + 1][1] - points[i][1]) > 180) {
+          segments.push([]);
+        }
+      }
+      return segments;
+    }
+    for (const spot of filtered) {
+      let spotLat, spotLon;
+      const lat = parseFloat(spot.latitude);
+      const lon = parseFloat(spot.longitude);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        spotLat = lat;
+        spotLon = lon;
+      } else if (spot.grid4) {
+        const center = gridToLatLon(spot.grid4);
+        if (!center) continue;
+        spotLat = center.lat;
+        spotLon = center.lon;
+      } else {
+        continue;
+      }
+      const band = freqToBand(spot.frequency);
+      const color = band ? getBandColor(band) : "#888";
+      const pts = geodesicPoints(state_default.myLat, state_default.myLon, spotLat, spotLon, 32);
+      const line = L.polyline(splitAtDateline2(pts), {
+        color,
+        weight: 1.5,
+        opacity: 0.45,
+        interactive: false
+      });
+      line.addTo(state_default.map);
+      state_default.dxPathLines.push(line);
+    }
+  }
   function renderMarkers() {
     if (!state_default.map) return;
     ensureIcons();
     clearGeodesicLine();
+    clearBandPaths();
     state_default.clusterGroup.clearLayers();
     state_default.markers = {};
     if (!SOURCE_DEFS[state_default.currentSource].hasMap) return;
@@ -3397,6 +3449,7 @@ ${beacon.location}`);
       state_default.markers[sid] = marker;
       state_default.clusterGroup.addLayer(marker);
     });
+    drawBandPaths();
   }
   function selectSpot(sid) {
     ensureIcons();
@@ -7677,8 +7730,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.38.0";
-    $("aboutVersion").textContent = "0.38.0";
+    $("splashVersion").textContent = "0.38.1";
+    $("aboutVersion").textContent = "0.38.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -8034,6 +8087,7 @@ ${beacon.location}`);
   init_solar();
   init_lunar();
   init_map_overlays();
+  init_markers();
   init_spots();
   function initConfigListeners() {
     $("solarCfgBtn").addEventListener("mousedown", (e) => {
@@ -8100,6 +8154,7 @@ ${beacon.location}`);
         $("mapOvMaidenhead").checked = state_default.mapOverlays.maidenheadGrid;
         $("mapOvTimezone").checked = state_default.mapOverlays.timezoneGrid;
         $("mapOvMufImage").checked = state_default.mapOverlays.mufImageOverlay;
+        $("mapOvBandPaths").checked = state_default.mapOverlays.bandPaths;
         mapOverlayCfgSplash.classList.remove("hidden");
       });
     }
@@ -8109,9 +8164,11 @@ ${beacon.location}`);
         state_default.mapOverlays.maidenheadGrid = $("mapOvMaidenhead").checked;
         state_default.mapOverlays.timezoneGrid = $("mapOvTimezone").checked;
         state_default.mapOverlays.mufImageOverlay = $("mapOvMufImage").checked;
+        state_default.mapOverlays.bandPaths = $("mapOvBandPaths").checked;
         saveMapOverlays();
         mapOverlayCfgSplash.classList.add("hidden");
         renderAllMapOverlays();
+        renderMarkers();
       });
     }
     $("spotColCfgBtn").addEventListener("mousedown", (e) => {

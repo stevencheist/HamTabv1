@@ -669,6 +669,13 @@
     <div class="widget" id="widget-dxpeditions">
       <div class="widget-header">DXpeditions
         <span id="dxpeditionCount" class="spot-count"></span>
+        <select id="dxpedTimeFilter" class="widget-header-select" title="Time window filter">
+          <option value="active">Active Now</option>
+          <option value="7d">Within 1 Week</option>
+          <option value="30d">Within 1 Month</option>
+          <option value="180d">Within 6 Months</option>
+          <option value="all">All</option>
+        </select>
         <button class="widget-help-btn" data-widget="widget-dxpeditions" title="Help">?</button>
       </div>
       <div class="widget-body">
@@ -722,6 +729,7 @@
         <label><input type="checkbox" id="mapOvTimezone" /> Timezone Lines</label>
         <label><input type="checkbox" id="mapOvMufImage" /> MUF Map (prop.kc2g.com)</label>
         <label><input type="checkbox" id="mapOvBandPaths" /> DX Paths (band-colored)</label>
+        <label><input type="checkbox" id="mapOvDxpedMarkers" /> DXpedition Markers</label>
       </div>
       <button id="mapOverlayCfgOk">OK</button>
     </div>

@@ -7,6 +7,7 @@ import { renderAllMapOverlays, saveMapOverlays } from './map-overlays.js';
 import { renderMarkers } from './markers.js';
 import { renderSpots, saveSpotColumnVisibility } from './spots.js';
 import { updateTableColumns } from './source.js';
+import { renderDxpeditions } from './dxpeditions.js';
 
 export function initConfigListeners() {
   // Solar config
@@ -76,6 +77,7 @@ export function initConfigListeners() {
       $('mapOvTimezone').checked = state.mapOverlays.timezoneGrid;
       $('mapOvMufImage').checked = state.mapOverlays.mufImageOverlay;
       $('mapOvBandPaths').checked = state.mapOverlays.bandPaths;
+      $('mapOvDxpedMarkers').checked = state.mapOverlays.dxpedMarkers;
       mapOverlayCfgSplash.classList.remove('hidden');
     });
   }
@@ -87,10 +89,12 @@ export function initConfigListeners() {
       state.mapOverlays.timezoneGrid = $('mapOvTimezone').checked;
       state.mapOverlays.mufImageOverlay = $('mapOvMufImage').checked;
       state.mapOverlays.bandPaths = $('mapOvBandPaths').checked;
+      state.mapOverlays.dxpedMarkers = $('mapOvDxpedMarkers').checked;
       saveMapOverlays();
       mapOverlayCfgSplash.classList.add('hidden');
       renderAllMapOverlays();
       renderMarkers(); // refresh band path lines
+      renderDxpeditions(); // refresh DXpedition markers on map
     });
   }
 

@@ -5,6 +5,34 @@
 import state from './state.js';
 import { $ } from './dom.js';
 
+// Time filter cutoffs in milliseconds from now
+const TIME_FILTER_MS = {
+  active: 0,       // special case — only items where active === true
+  '7d':  7 * 24 * 60 * 60 * 1000,
+  '30d': 30 * 24 * 60 * 60 * 1000,
+  '180d': 180 * 24 * 60 * 60 * 1000,
+  all: Infinity,
+};
+
+function filterByTime(data) {
+  const filter = state.dxpedTimeFilter || 'all';
+  if (filter === 'all') return data;
+  if (filter === 'active') return data.filter(d => d.active);
+
+  const cutoff = TIME_FILTER_MS[filter];
+  if (!cutoff) return data;
+
+  const now = Date.now();
+  return data.filter(d => {
+    if (d.active) return true; // always show active
+    // Show if starts within the time window
+    if (d.startDate) {
+      const start = new Date(d.startDate).getTime();
+      return start - now <= cutoff;
+    }
+    return false; // no date info — exclude when filtering
+  });
+}
 
 export function initDxpeditionListeners() {
   const list = $('dxpedList');
@@ -16,6 +44,19 @@ export function initDxpeditionListeners() {
     const url = card.dataset.link;
     if (url) window.open(url, '_blank', 'noopener');
   });
+
+  // Time filter dropdown
+  const filterSel = $('dxpedTimeFilter');
+  if (filterSel) {
+    filterSel.value = state.dxpedTimeFilter;
+    filterSel.addEventListener('change', () => {
+      state.dxpedTimeFilter = filterSel.value;
+      localStorage.setItem('hamtab_dxped_time_filter', filterSel.value);
+      renderDxpeditions();
+    });
+    // Prevent widget drag when interacting with dropdown
+    filterSel.addEventListener('mousedown', (e) => { e.stopPropagation(); });
+  }
 }
 
 export async function fetchDxpeditions() {
@@ -46,10 +87,20 @@ export function renderDxpeditions() {
     return;
   }
 
-  if (countEl) countEl.textContent = data.length;
+  const filtered = filterByTime(data);
+  if (countEl) countEl.textContent = filtered.length;
 
   list.textContent = '';
-  for (const dx of data) {
+  if (filtered.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'dxped-empty';
+    empty.textContent = 'No DXpeditions match the selected time filter';
+    list.appendChild(empty);
+    updateDxpeditionMarkers([]);
+    return;
+  }
+
+  for (const dx of filtered) {
     const card = document.createElement('div');
     card.className = 'dxped-card';
     if (dx.active) card.classList.add('dxped-active-card');
@@ -88,7 +139,8 @@ export function renderDxpeditions() {
     list.appendChild(card);
   }
 
-  updateDxpeditionMarkers(data);
+  // Map markers show same filtered set
+  updateDxpeditionMarkers(filtered);
 }
 
 // --- DXpedition Map Markers ---
@@ -103,6 +155,7 @@ function updateDxpeditionMarkers(data) {
   state.dxpedMarkers = [];
 
   if (!Array.isArray(data)) return;
+  if (!state.mapOverlays.dxpedMarkers) return; // overlay disabled
 
   for (const dx of data) {
     if (dx.lat == null || dx.lon == null) continue;

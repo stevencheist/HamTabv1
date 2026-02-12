@@ -45,7 +45,10 @@ const state = {
   maidenheadDebounceTimer: null,
 
   // Map overlay config
-  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false },
+  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false, dxpedMarkers: true },
+
+  // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
+  dxpedTimeFilter: localStorage.getItem('hamtab_dxped_time_filter') || 'all',
 
   // Source
   currentSource: localStorage.getItem('hamtab_spot_source') || 'pota',

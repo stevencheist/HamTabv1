@@ -90,7 +90,7 @@ Save commonly-used filter combinations:
 
 ## On the Air Widget
 
-Displays live spots in a tabular format with source tabs for POTA, SOTA, DXC, and PSK.
+Displays live spots in a tabular format with source tabs for POTA, SOTA, DXC, WWFF, and PSK.
 
 ### Source Tabs
 Click tabs to switch between data sources:
@@ -100,6 +100,7 @@ Click tabs to switch between data sources:
 | POTA | Parks on the Air API | Park activations |
 | SOTA | SOTA Cluster | Summit activations |
 | DXC | DX Cluster | DX spots worldwide |
+| WWFF | World Wide Flora & Fauna | Flora & fauna reserve activations |
 | PSK | PSKReporter | Digital mode reports |
 
 ### Table Columns
@@ -138,6 +139,7 @@ Interactive map showing spots, your location, satellites, and propagation overla
 | Green | POTA activation |
 | Orange | SOTA activation |
 | Red | DX Cluster spot |
+| Teal | WWFF activation |
 | Purple | PSK report |
 | Yellow | Selected spot |
 
@@ -147,6 +149,7 @@ Click the gear icon to toggle map overlays:
 - **Lat/Lon Grid** — Geographic coordinate grid
 - **Maidenhead Grid** — Ham radio grid squares
 - **Timezone** — World timezone boundaries
+- **MUF Map** — Real-time Maximum Usable Frequency image overlay from prop.kc2g.com, showing a color-filled worldwide MUF map that auto-refreshes every 15 minutes
 - **Gray Line** — Day/night terminator
 
 ### Geodesic Paths

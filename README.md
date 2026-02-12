@@ -659,7 +659,7 @@ Dedicated filter controls for the On the Air widget. Available filters depend on
 | Country | POTA, DXC, WWFF | Filter by DXCC entity prefix |
 | State | POTA | Filter by US state |
 | Grid | POTA | Filter by 4-character Maidenhead grid square |
-| My privileges | POTA | US callsigns — hides spots outside your license class privileges |
+| My privileges | All | US callsigns — hides spots outside your license class privileges |
 | Propagation | All | Hides spots on HF bands with poor predicted propagation (below 30% reliability) |
 
 #### Watch Lists

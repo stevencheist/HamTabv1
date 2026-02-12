@@ -244,8 +244,8 @@
         localStorage.setItem("hamtab_prop_metric", state.propMetric);
       }
       try {
-        const saved2 = JSON.parse(localStorage.getItem("hamtab_map_overlays"));
-        if (saved2) Object.assign(state.mapOverlays, saved2);
+        const saved = JSON.parse(localStorage.getItem("hamtab_map_overlays"));
+        if (saved) Object.assign(state.mapOverlays, saved);
       } catch (e) {
       }
       savedLat = localStorage.getItem("hamtab_lat");
@@ -1002,38 +1002,61 @@
     return matrix;
   }
   function initDayNightToggle() {
-    const dayBtn = $("dayToggle");
-    const nightBtn = $("nightToggle");
-    if (!dayBtn || !nightBtn) return;
-    updateToggleButtons();
-    dayBtn.addEventListener("click", () => {
-      dayNightTime = "day";
-      localStorage.setItem("hamtab_band_time", dayNightTime);
-      updateToggleButtons();
-      renderPropagationWidget();
-    });
-    nightBtn.addEventListener("click", () => {
-      dayNightTime = "night";
-      localStorage.setItem("hamtab_band_time", dayNightTime);
-      updateToggleButtons();
-      renderPropagationWidget();
-    });
   }
-  function updateToggleButtons() {
-    const dayBtn = $("dayToggle");
-    const nightBtn = $("nightToggle");
-    if (dayBtn) dayBtn.classList.toggle("active", dayNightTime === "day");
-    if (nightBtn) nightBtn.classList.toggle("active", dayNightTime === "night");
+  function renderBandCard(band, timeClass) {
+    const card = document.createElement("div");
+    card.className = `band-card ${conditionColorClass(band.condition)} ${timeClass}`;
+    const name = document.createElement("span");
+    name.className = "band-name";
+    name.textContent = band.label;
+    const reliability = document.createElement("span");
+    reliability.className = "band-reliability";
+    reliability.textContent = `${band.reliability}%`;
+    const condLbl = document.createElement("span");
+    condLbl.className = "band-condition-label";
+    condLbl.textContent = conditionLabel(band.condition);
+    card.appendChild(name);
+    card.appendChild(reliability);
+    card.appendChild(condLbl);
+    return card;
+  }
+  function vhfConditionColor(condition) {
+    const c = condition.toLowerCase();
+    if (c.includes("closed")) return "var(--red)";
+    if (c.includes("poor")) return "var(--orange)";
+    if (c.includes("fair")) return "var(--yellow)";
+    if (c.includes("good") || c.includes("high")) return "var(--green)";
+    if (c.includes("excellent") || c.includes("open")) return "var(--green)";
+    return "var(--text-dim)";
+  }
+  function formatVhfLocation(location2) {
+    const map = {
+      "northern_hemi": "N. Hemi",
+      "north_america": "NA",
+      "europe": "EU",
+      "europe_6m": "EU 6m",
+      "europe_4m": "EU 4m"
+    };
+    return map[location2] || location2;
+  }
+  function formatVhfName(name) {
+    const map = {
+      "vhf-aurora": "Aurora",
+      "E-Skip": "E-Skip"
+    };
+    return map[name] || name;
   }
   function renderPropagationWidget() {
     const grid = $("bandConditionsGrid");
     const mufValue = $("propMufValue");
     const sfiValue = $("propSfiValue");
     const kindexValue = $("propKindexValue");
+    const vhfEl = $("vhfConditions");
     if (!grid) return;
-    const conditions = calculateBandConditions(dayNightTime);
+    const dayConditions = calculateBandConditions("day");
+    const nightConditions = calculateBandConditions("night");
     if (mufValue) {
-      const muf = conditions[0]?.muf || 0;
+      const muf = dayConditions[0]?.muf || 0;
       mufValue.textContent = muf > 0 ? `${muf} MHz` : "--";
     }
     if (state_default.lastSolarData && state_default.lastSolarData.indices) {
@@ -1051,36 +1074,54 @@
       }
     }
     grid.innerHTML = "";
-    conditions.forEach((band) => {
+    const dayHeader = document.createElement("div");
+    dayHeader.className = "band-col-header band-col-header-day";
+    dayHeader.textContent = "Day";
+    grid.appendChild(dayHeader);
+    const nightHeader = document.createElement("div");
+    nightHeader.className = "band-col-header band-col-header-night";
+    nightHeader.textContent = "Night";
+    grid.appendChild(nightHeader);
+    for (let i = 0; i < dayConditions.length; i++) {
+      grid.appendChild(renderBandCard(dayConditions[i], "band-card-day"));
+      grid.appendChild(renderBandCard(nightConditions[i], "band-card-night"));
+    }
+    if (vhfEl) {
+      renderVhfConditions(vhfEl);
+    }
+  }
+  function renderVhfConditions(container) {
+    container.innerHTML = "";
+    const vhfData = state_default.lastSolarData?.vhf;
+    if (!vhfData || vhfData.length === 0) return;
+    const header = document.createElement("div");
+    header.className = "vhf-header";
+    header.textContent = "VHF Conditions";
+    container.appendChild(header);
+    const grid = document.createElement("div");
+    grid.className = "vhf-grid";
+    vhfData.forEach((item) => {
       const card = document.createElement("div");
-      const timeClass = dayNightTime === "day" ? "band-card-day" : "band-card-night";
-      card.className = `band-card ${conditionColorClass(band.condition)} ${timeClass}`;
-      const name = document.createElement("span");
-      name.className = "band-name";
-      name.textContent = band.label;
-      const reliability = document.createElement("span");
-      reliability.className = "band-reliability";
-      reliability.textContent = `${band.reliability}%`;
-      const condLabel = document.createElement("span");
-      condLabel.className = "band-condition-label";
-      condLabel.textContent = conditionLabel(band.condition);
-      card.appendChild(name);
-      card.appendChild(reliability);
-      card.appendChild(condLabel);
+      card.className = "vhf-card";
+      const label = document.createElement("span");
+      label.className = "vhf-label";
+      label.textContent = `${esc(formatVhfName(item.name))} ${esc(formatVhfLocation(item.location))}`;
+      const value = document.createElement("span");
+      value.className = "vhf-value";
+      value.textContent = esc(item.condition);
+      value.style.color = vhfConditionColor(item.condition);
+      card.appendChild(label);
+      card.appendChild(value);
       grid.appendChild(card);
     });
+    container.appendChild(grid);
   }
-  var dayNightTime, saved, HF_BANDS, VOACAP_BANDS;
+  var HF_BANDS, VOACAP_BANDS;
   var init_band_conditions = __esm({
     "src/band-conditions.js"() {
       init_state();
       init_dom();
       init_utils();
-      dayNightTime = "day";
-      saved = localStorage.getItem("hamtab_band_time");
-      if (saved === "day" || saved === "night") {
-        dayNightTime = saved;
-      }
       HF_BANDS = [
         { name: "160m", freqMHz: 1.9, label: "160m" },
         { name: "80m", freqMHz: 3.7, label: "80m" },
@@ -1898,8 +1939,8 @@ ${beacon.location}`);
   }
   function loadLunarFieldVisibility() {
     try {
-      const saved2 = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
-      if (saved2 && typeof saved2 === "object") return saved2;
+      const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
+      if (saved && typeof saved === "object") return saved;
     } catch (e) {
     }
     const vis = {};
@@ -2426,14 +2467,15 @@ ${beacon.location}`);
         },
         "widget-propagation": {
           title: "Band Conditions",
-          description: "A forecast of current HF band conditions by region. This helps you decide which band to use based on where you want to communicate.",
+          description: "HF band conditions and VHF propagation status. Shows per-band reliability predictions for both day and night simultaneously, plus VHF phenomena like Aurora and E-Skip.",
           sections: [
-            { heading: "How to Read It", content: "Each row is a geographic region. The columns show band condition ratings. Green means the band is likely open to that region, yellow means marginal, and red means closed or poor." },
-            { heading: "Metrics", content: "Choose what to display: MUFD (Maximum Usable Frequency \u2014 the highest frequency likely to work), Signal Strength, or SNR (Signal-to-Noise Ratio). MUFD is the most commonly used." },
-            { heading: "Day/Night Toggle", content: "Switch between current conditions and the 12-hour forecast. Propagation changes significantly between day and night." }
+            { heading: "HF Bands", content: "Each band shows a reliability percentage and condition (Excellent/Good/Fair/Poor/Closed). Day and night are shown side by side \u2014 day conditions appear in the left column (orange border), night in the right column (blue border). Green means the band is likely open, yellow means marginal, red means closed." },
+            { heading: "VHF Conditions", content: "Below the HF bands, VHF propagation phenomena are shown: Aurora (affects 2m and above in northern latitudes) and E-Skip (sporadic E-layer openings on 6m/4m/2m by region). Data comes directly from HamQSL." },
+            { heading: "How It Works", content: "HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model. Higher SFI means better HF conditions. K-index above 4 can shut down HF bands. The summary bar shows current MUF (Maximum Usable Frequency), SFI, and K-index." }
           ],
           links: [
-            { label: "NOAA Space Weather", url: "https://www.swpc.noaa.gov/" }
+            { label: "NOAA Space Weather", url: "https://www.swpc.noaa.gov/" },
+            { label: "HamQSL Solar Data", url: "https://www.hamqsl.com/solar.html" }
           ]
         },
         "widget-lunar": {
@@ -2749,8 +2791,8 @@ ${beacon.location}`);
       };
       bandColorOverrides = {};
       try {
-        const saved2 = JSON.parse(localStorage.getItem("hamtab_band_colors"));
-        if (saved2 && typeof saved2 === "object") bandColorOverrides = saved2;
+        const saved = JSON.parse(localStorage.getItem("hamtab_band_colors"));
+        if (saved && typeof saved === "object") bandColorOverrides = saved;
       } catch (e) {
       }
       WIDGET_STORAGE_KEY = "hamtab_widgets";
@@ -3402,8 +3444,8 @@ ${beacon.location}`);
   // src/spots.js
   function loadSpotColumnVisibility() {
     try {
-      const saved2 = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
-      if (saved2 && typeof saved2 === "object") return saved2;
+      const saved = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
+      if (saved && typeof saved === "object") return saved;
     } catch (e) {
     }
     const vis = {};
@@ -4217,20 +4259,20 @@ ${beacon.location}`);
   }
   function loadFiltersForSource(source) {
     try {
-      const saved2 = JSON.parse(localStorage.getItem(`hamtab_filter_${source}`));
-      if (saved2) {
-        state_default.activeBands = new Set(saved2.bands || []);
-        state_default.activeModes = new Set(saved2.modes || []);
-        state_default.activeMaxDistance = saved2.maxDistance ?? null;
-        state_default.activeMaxAge = saved2.maxAge ?? null;
-        state_default.activeCountry = saved2.country ?? null;
-        state_default.activeState = saved2.state ?? null;
-        state_default.activeGrid = saved2.grid ?? null;
-        state_default.activeContinent = saved2.continent ?? null;
-        state_default.privilegeFilterEnabled = saved2.privilegeFilter ?? false;
-        state_default.propagationFilterEnabled = saved2.propagationFilter ?? false;
-        state_default.spotSortColumn = saved2.sortColumn ?? null;
-        state_default.spotSortDirection = saved2.sortDirection ?? "desc";
+      const saved = JSON.parse(localStorage.getItem(`hamtab_filter_${source}`));
+      if (saved) {
+        state_default.activeBands = new Set(saved.bands || []);
+        state_default.activeModes = new Set(saved.modes || []);
+        state_default.activeMaxDistance = saved.maxDistance ?? null;
+        state_default.activeMaxAge = saved.maxAge ?? null;
+        state_default.activeCountry = saved.country ?? null;
+        state_default.activeState = saved.state ?? null;
+        state_default.activeGrid = saved.grid ?? null;
+        state_default.activeContinent = saved.continent ?? null;
+        state_default.privilegeFilterEnabled = saved.privilegeFilter ?? false;
+        state_default.propagationFilterEnabled = saved.propagationFilter ?? false;
+        state_default.spotSortColumn = saved.sortColumn ?? null;
+        state_default.spotSortDirection = saved.sortDirection ?? "desc";
         return;
       }
     } catch (e) {
@@ -4427,8 +4469,8 @@ ${beacon.location}`);
   function loadSolarFieldVisibility() {
     const { SOLAR_FIELD_DEFS: SOLAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
     try {
-      const saved2 = JSON.parse(localStorage.getItem(SOLAR_VIS_KEY));
-      if (saved2 && typeof saved2 === "object") return saved2;
+      const saved = JSON.parse(localStorage.getItem(SOLAR_VIS_KEY));
+      if (saved && typeof saved === "object") return saved;
     } catch (e) {
     }
     const vis = {};
@@ -4443,8 +4485,8 @@ ${beacon.location}`);
     const canvas = $("solarCanvas");
     const playBtn = $("solarPlayBtn");
     if (!select || !canvas) return;
-    const saved2 = localStorage.getItem("hamtab_sdo_type");
-    if (saved2) select.value = saved2;
+    const saved = localStorage.getItem("hamtab_sdo_type");
+    if (saved) select.value = saved;
     select.addEventListener("change", () => {
       localStorage.setItem("hamtab_sdo_type", select.value);
       solarFrames = [];
@@ -5153,8 +5195,8 @@ ${beacon.location}`);
   function saveCustomTrackSizes(permId, columns, rows, flexRatios) {
     let all = {};
     try {
-      const saved2 = JSON.parse(localStorage.getItem(GRID_SIZES_KEY));
-      if (saved2 && typeof saved2 === "object") all = saved2;
+      const saved = JSON.parse(localStorage.getItem(GRID_SIZES_KEY));
+      if (saved && typeof saved === "object") all = saved;
     } catch (e) {
     }
     all[permId] = { columns, rows, ...flexRatios || {} };
@@ -5523,10 +5565,10 @@ ${beacon.location}`);
   }
   function loadGridAssignments() {
     try {
-      const saved2 = JSON.parse(localStorage.getItem(GRID_ASSIGN_KEY));
-      if (saved2 && typeof saved2 === "object" && Object.keys(saved2).length > 0) {
-        state_default.gridAssignments = saved2;
-        return saved2;
+      const saved = JSON.parse(localStorage.getItem(GRID_ASSIGN_KEY));
+      if (saved && typeof saved === "object" && Object.keys(saved).length > 0) {
+        state_default.gridAssignments = saved;
+        return saved;
       }
     } catch (e) {
     }
@@ -5578,18 +5620,18 @@ ${beacon.location}`);
     area.style.gridTemplateAreas = "";
     area.style.gridTemplateColumns = "";
     area.style.gridTemplateRows = "";
-    const saved2 = getSavedFloatLayout();
+    const saved = getSavedFloatLayout();
     document.querySelectorAll(".widget").forEach((w) => {
       w.style.gridArea = "";
       w.style.flex = "";
       w.style.flexGrow = "";
       w.style.flexShrink = "";
       w.style.flexBasis = "";
-      if (saved2 && saved2[w.id]) {
-        w.style.left = saved2[w.id].left + "px";
-        w.style.top = saved2[w.id].top + "px";
-        w.style.width = saved2[w.id].width + "px";
-        w.style.height = saved2[w.id].height + "px";
+      if (saved && saved[w.id]) {
+        w.style.left = saved[w.id].left + "px";
+        w.style.top = saved[w.id].top + "px";
+        w.style.width = saved[w.id].width + "px";
+        w.style.height = saved[w.id].height + "px";
       }
     });
     area.querySelectorAll(".grid-cell-placeholder").forEach((el) => el.remove());
@@ -5599,8 +5641,8 @@ ${beacon.location}`);
   }
   function getSavedFloatLayout() {
     try {
-      const saved2 = localStorage.getItem("hamtab_widgets");
-      if (saved2) return JSON.parse(saved2);
+      const saved = localStorage.getItem("hamtab_widgets");
+      if (saved) return JSON.parse(saved);
     } catch (e) {
     }
     return null;
@@ -5722,8 +5764,8 @@ ${beacon.location}`);
   var WIDGET_VIS_KEY = "hamtab_widget_vis";
   function loadWidgetVisibility() {
     try {
-      const saved2 = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
-      if (saved2 && typeof saved2 === "object") return saved2;
+      const saved = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
+      if (saved && typeof saved === "object") return saved;
     } catch (e) {
     }
     const vis = {};
@@ -6162,8 +6204,8 @@ ${beacon.location}`);
     } else {
       let layout;
       try {
-        const saved2 = localStorage.getItem(WIDGET_STORAGE_KEY);
-        if (saved2) layout = JSON.parse(saved2);
+        const saved = localStorage.getItem(WIDGET_STORAGE_KEY);
+        if (saved) layout = JSON.parse(saved);
       } catch (e) {
       }
       if (!layout) layout = getDefaultLayout();
@@ -6175,9 +6217,9 @@ ${beacon.location}`);
   function initWidgets() {
     let layout;
     try {
-      const saved2 = localStorage.getItem(WIDGET_STORAGE_KEY);
-      if (saved2) {
-        layout = JSON.parse(saved2);
+      const saved = localStorage.getItem(WIDGET_STORAGE_KEY);
+      if (saved) {
+        layout = JSON.parse(saved);
         if (layout["widget-clock-local"] || layout["widget-clock-utc"]) {
           console.log("Clearing old layout with clock widgets");
           localStorage.removeItem(WIDGET_STORAGE_KEY);
@@ -7545,8 +7587,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.36.3";
-    $("aboutVersion").textContent = "0.36.3";
+    $("splashVersion").textContent = "0.37.0";
+    $("aboutVersion").textContent = "0.37.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -8023,7 +8065,7 @@ ${beacon.location}`);
   init_dom();
   function initUpdateDisplay() {
     const el = $("platformLabel");
-    if (el) el.textContent = "v0.36.3";
+    if (el) el.textContent = "v0.37.0";
   }
 
   // src/settings-sync.js

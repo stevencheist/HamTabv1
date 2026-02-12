@@ -175,7 +175,7 @@ Privileges vary by mode:
 
 ## Watch Lists
 
-Watch lists let you highlight, include, or exclude spots by rule — similar to HamClock's watch lists. Click the **Watch Lists** accordion at the bottom of the Filters widget to expand the editor. Rules apply to whichever source tab (POTA, SOTA, DXC, PSK) is currently active.
+Watch lists let you highlight, include, or exclude spots by rule — similar to HamClock's watch lists. Click the **Watch Lists** accordion at the bottom of the Filters widget to expand the editor. Rules apply to whichever source tab (POTA, SOTA, DXC, WWFF, PSK) is currently active.
 
 ### Watch List Modes
 
@@ -192,7 +192,7 @@ Watch lists let you highlight, include, or exclude spots by rule — similar to 
 | **Callsign** | Exact match after stripping portable suffixes (/P, /M, /QRP) | `K1ABC` matches K1ABC, K1ABC/P, K1ABC/QRP |
 | **DXCC** | Case-insensitive match on country name or entity prefix | `JA` matches Japan; `US` matches US-prefixed locations |
 | **Grid** | Prefix match — shorter rules match more broadly | `FN` matches FN31, FN42ab, etc. |
-| **Ref** | Exact match on park or summit reference (POTA/SOTA only) | `K-1234` matches that specific park |
+| **Ref** | Exact match on park, summit, or flora reference (POTA/SOTA/WWFF only) | `K-1234` matches that specific park |
 
 ### How Rules Interact
 
@@ -204,11 +204,11 @@ Rules are evaluated in this fixed order:
 
 ### Per-Source Rules
 
-Each source tab (POTA, SOTA, DXC, PSK) has its own independent rule set. A callsign rule on POTA won't affect your DXC spots. The Ref match type is only available for POTA and SOTA since DXC and PSK don't have park/summit references.
+Each source tab (POTA, SOTA, DXC, WWFF, PSK) has its own independent rule set. A callsign rule on POTA won't affect your DXC spots. The Ref match type is only available for POTA, SOTA, and WWFF since DXC and PSK don't have park/summit/flora references.
 
 ### Adding a Rule
 
-1. Switch to the source tab you want (POTA, SOTA, DXC, or PSK) in the On the Air widget
+1. Switch to the source tab you want (POTA, SOTA, DXC, WWFF, or PSK) in the On the Air widget
 2. Click **Watch Lists** at the bottom of the Filters widget to expand the editor
 3. Select a mode (Red, Only, or Not)
 4. Choose a match type (Callsign, DXCC, Grid, or Ref)

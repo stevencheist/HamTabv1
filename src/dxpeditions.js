@@ -1,8 +1,10 @@
 // --- DXpeditions Widget ---
 // Fetches DXpedition data from /api/dxpeditions (NG3K RSS feed) and renders card list.
+// Also plots DXpedition locations on the map as circle markers.
 
 import state from './state.js';
 import { $ } from './dom.js';
+
 
 export function initDxpeditionListeners() {
   const list = $('dxpedList');
@@ -40,6 +42,7 @@ export function renderDxpeditions() {
     empty.textContent = 'No DXpeditions found';
     list.appendChild(empty);
     if (countEl) countEl.textContent = '';
+    updateDxpeditionMarkers([]);
     return;
   }
 
@@ -83,5 +86,43 @@ export function renderDxpeditions() {
     card.appendChild(detail);
 
     list.appendChild(card);
+  }
+
+  updateDxpeditionMarkers(data);
+}
+
+// --- DXpedition Map Markers ---
+
+function updateDxpeditionMarkers(data) {
+  if (!state.map || typeof L === 'undefined') return;
+
+  // Remove old markers
+  for (const m of state.dxpedMarkers) {
+    state.map.removeLayer(m);
+  }
+  state.dxpedMarkers = [];
+
+  if (!Array.isArray(data)) return;
+
+  for (const dx of data) {
+    if (dx.lat == null || dx.lon == null) continue;
+
+    const isActive = !!dx.active;
+    const marker = L.circleMarker([dx.lat, dx.lon], {
+      radius: isActive ? 6 : 4,
+      color: isActive ? '#ff9800' : '#9e6b00',       // orange outline
+      fillColor: isActive ? '#ff9800' : '#9e6b00',
+      fillOpacity: isActive ? 0.8 : 0.4,
+      weight: isActive ? 2 : 1,
+      interactive: true,
+    }).addTo(state.map);
+
+    const lines = [dx.callsign || '??'];
+    if (dx.entity) lines.push(dx.entity);
+    if (dx.dateStr) lines.push(dx.dateStr);
+    if (isActive) lines.push('ACTIVE NOW');
+    marker.bindTooltip(lines.join('\n'));
+
+    state.dxpedMarkers.push(marker);
   }
 }

@@ -301,7 +301,7 @@ export const WIDGET_HELP = {
     description: 'An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who\'s on the air and where.',
     sections: [
       { heading: 'Spot Markers', content: 'Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station.' },
-      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (real-time Maximum Usable Frequency from prop.kc2g.com), and DX Paths — band-colored great circle lines from your location to every visible spot, showing at a glance which bands are open and where.' },
+      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (real-time Maximum Usable Frequency from prop.kc2g.com), DX Paths (band-colored great circle lines from your location to every visible spot), and DXpedition Markers (orange circles for active and upcoming DXpeditions).' },
       { heading: 'Geodesic Paths', content: 'The curved line between you and a selected station is called a geodesic (great-circle) path — this is the shortest route over the Earth\'s surface and the direction to point your antenna.' },
       { heading: 'Center Mode', content: 'In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot.' },
     ],
@@ -448,7 +448,8 @@ export const WIDGET_HELP = {
     description: 'Track upcoming and active DXpeditions — organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.',
     sections: [
       { heading: 'What Is a DXpedition?', content: 'A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade.' },
-      { heading: 'Reading the Cards', content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map — bright orange for active, dimmer for upcoming.' },
+      { heading: 'Reading the Cards', content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map (toggle via Map Overlays gear icon) — bright orange for active, dimmer for upcoming.' },
+      { heading: 'Time Filter', content: 'Use the dropdown in the widget header to filter DXpeditions by time window: Active Now, Within 1 Week, Within 1 Month, Within 6 Months, or All. Active DXpeditions always appear regardless of the filter. The map markers match whatever the widget shows.' },
       { heading: 'QSL Information', content: 'QSL means "I confirm" — it\'s how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).' },
     ],
     links: [

@@ -386,28 +386,11 @@ export function initDayNightToggle() {
 }
 
 /**
- * Render a single band card
+ * Choose text color for readability against a reliability-colored background.
+ * Low reliability = dark bg → white text; high reliability = bright bg → dark text.
  */
-function renderBandCard(band, timeClass) {
-  const card = document.createElement('div');
-  card.className = `band-card ${conditionColorClass(band.condition)} ${timeClass}`;
-
-  const name = document.createElement('span');
-  name.className = 'band-name';
-  name.textContent = band.label;
-
-  const reliability = document.createElement('span');
-  reliability.className = 'band-reliability';
-  reliability.textContent = `${band.reliability}%`;
-
-  const condLbl = document.createElement('span');
-  condLbl.className = 'band-condition-label';
-  condLbl.textContent = conditionLabel(band.condition);
-
-  card.appendChild(name);
-  card.appendChild(reliability);
-  card.appendChild(condLbl);
-  return card;
+function cellTextColor(reliability) {
+  return reliability < 40 ? '#fff' : '#1a1a1a';
 }
 
 /**
@@ -449,7 +432,7 @@ function formatVhfName(name) {
 }
 
 /**
- * Render the propagation widget with side-by-side day/night band conditions + VHF
+ * Render the propagation widget as a compact color-coded table + VHF row
  */
 export function renderPropagationWidget() {
   const grid = $('bandConditionsGrid');
@@ -485,25 +468,66 @@ export function renderPropagationWidget() {
     }
   }
 
-  // Render side-by-side Day + Night columns
+  // Build compact table
   grid.innerHTML = '';
 
-  // Column headers
-  const dayHeader = document.createElement('div');
-  dayHeader.className = 'band-col-header band-col-header-day';
-  dayHeader.textContent = 'Day';
-  grid.appendChild(dayHeader);
+  const table = document.createElement('table');
+  table.className = 'band-table';
 
-  const nightHeader = document.createElement('div');
-  nightHeader.className = 'band-col-header band-col-header-night';
-  nightHeader.textContent = 'Night';
-  grid.appendChild(nightHeader);
+  // Header row
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
 
-  // Render each band as a day/night pair row
+  const emptyTh = document.createElement('th');
+  emptyTh.className = 'band-table-label';
+  headerRow.appendChild(emptyTh);
+
+  const dayTh = document.createElement('th');
+  dayTh.className = 'band-table-header band-table-header-day';
+  dayTh.textContent = 'Day';
+  headerRow.appendChild(dayTh);
+
+  const nightTh = document.createElement('th');
+  nightTh.className = 'band-table-header band-table-header-night';
+  nightTh.textContent = 'Night';
+  headerRow.appendChild(nightTh);
+
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  // Band rows
+  const tbody = document.createElement('tbody');
   for (let i = 0; i < dayConditions.length; i++) {
-    grid.appendChild(renderBandCard(dayConditions[i], 'band-card-day'));
-    grid.appendChild(renderBandCard(nightConditions[i], 'band-card-night'));
+    const row = document.createElement('tr');
+
+    // Band label
+    const labelTd = document.createElement('td');
+    labelTd.className = 'band-table-label';
+    labelTd.textContent = dayConditions[i].label;
+    row.appendChild(labelTd);
+
+    // Day cell
+    const dayTd = document.createElement('td');
+    dayTd.className = 'band-table-cell';
+    dayTd.style.backgroundColor = getReliabilityColor(dayConditions[i].reliability);
+    dayTd.style.color = cellTextColor(dayConditions[i].reliability);
+    dayTd.textContent = `${dayConditions[i].reliability}%`;
+    dayTd.title = `${dayConditions[i].label} Day: ${conditionLabel(dayConditions[i].condition)}`;
+    row.appendChild(dayTd);
+
+    // Night cell
+    const nightTd = document.createElement('td');
+    nightTd.className = 'band-table-cell';
+    nightTd.style.backgroundColor = getReliabilityColor(nightConditions[i].reliability);
+    nightTd.style.color = cellTextColor(nightConditions[i].reliability);
+    nightTd.textContent = `${nightConditions[i].reliability}%`;
+    nightTd.title = `${nightConditions[i].label} Night: ${conditionLabel(nightConditions[i].condition)}`;
+    row.appendChild(nightTd);
+
+    tbody.appendChild(row);
   }
+  table.appendChild(tbody);
+  grid.appendChild(table);
 
   // Render VHF conditions
   if (vhfEl) {
@@ -512,7 +536,7 @@ export function renderPropagationWidget() {
 }
 
 /**
- * Render VHF conditions (Aurora, E-Skip) from HamQSL data
+ * Render VHF conditions (Aurora, E-Skip) from HamQSL data as compact rows
  */
 function renderVhfConditions(container) {
   container.innerHTML = '';
@@ -525,12 +549,12 @@ function renderVhfConditions(container) {
   header.textContent = 'VHF Conditions';
   container.appendChild(header);
 
-  const grid = document.createElement('div');
-  grid.className = 'vhf-grid';
+  const list = document.createElement('div');
+  list.className = 'vhf-list';
 
   vhfData.forEach(item => {
-    const card = document.createElement('div');
-    card.className = 'vhf-card';
+    const row = document.createElement('div');
+    row.className = 'vhf-row';
 
     const label = document.createElement('span');
     label.className = 'vhf-label';
@@ -541,10 +565,10 @@ function renderVhfConditions(container) {
     value.textContent = esc(item.condition);
     value.style.color = vhfConditionColor(item.condition);
 
-    card.appendChild(label);
-    card.appendChild(value);
-    grid.appendChild(card);
+    row.appendChild(label);
+    row.appendChild(value);
+    list.appendChild(row);
   });
 
-  container.appendChild(grid);
+  container.appendChild(list);
 }

@@ -2220,7 +2220,7 @@ ${beacon.location}`);
             { key: "spotTime", label: "Time", class: "", sortable: true },
             { key: "age", label: "Age", class: "", sortable: true }
           ],
-          filters: ["band", "mode", "distance", "age"],
+          filters: ["band", "mode", "distance", "age", "privilege"],
           hasMap: true,
           spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
           sortKey: "spotTime"
@@ -2238,7 +2238,7 @@ ${beacon.location}`);
             { key: "spotTime", label: "Time", class: "", sortable: true },
             { key: "age", label: "Age", class: "", sortable: true }
           ],
-          filters: ["band", "mode", "distance", "age", "continent"],
+          filters: ["band", "mode", "distance", "age", "continent", "privilege"],
           hasMap: true,
           spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
           sortKey: "spotTime"
@@ -2255,7 +2255,7 @@ ${beacon.location}`);
             { key: "spotTime", label: "Time", class: "", sortable: true },
             { key: "age", label: "Age", class: "", sortable: true }
           ],
-          filters: ["band", "mode", "distance", "age"],
+          filters: ["band", "mode", "distance", "age", "privilege"],
           hasMap: true,
           spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
           sortKey: "spotTime"
@@ -2274,7 +2274,7 @@ ${beacon.location}`);
             { key: "spotTime", label: "Time", class: "", sortable: true },
             { key: "age", label: "Age", class: "", sortable: true }
           ],
-          filters: ["band", "mode", "distance", "age"],
+          filters: ["band", "mode", "distance", "age", "privilege"],
           hasMap: true,
           spotId: (s) => `${s.callsign}-${s.reporter}-${s.frequency}-${s.spotTime}`,
           sortKey: "spotTime"
@@ -7548,8 +7548,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.36.1";
-    $("aboutVersion").textContent = "0.36.1";
+    $("splashVersion").textContent = "0.36.2";
+    $("aboutVersion").textContent = "0.36.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

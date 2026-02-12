@@ -5251,6 +5251,26 @@ header {
     font-size: 16px;
     min-height: 44px;
   }
+
+  /* Shrink header clocks so they don't cover fullscreen button on iPad (#113) */
+  .header-center {
+    gap: 16px;
+  }
+
+  .header-clock {
+    min-width: 140px;
+    padding: 6px 12px;
+  }
+
+  .header-clock-time {
+    font-size: 1.4rem;
+    letter-spacing: 1px;
+  }
+
+  .header-right {
+    position: relative;
+    z-index: 2;
+  }
 }
 
 /* ==== Responsive — Mobile (< 768px) ==== */

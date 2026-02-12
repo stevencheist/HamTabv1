@@ -21,7 +21,7 @@ jobs:
       - name: Scan for duplicate declarations
         run: |
           echo "Checking for duplicate let/const/var declarations..."
-          DUPES=$(grep -oP '(?<=^(let|const|var) )\w+' server.js | sort | uniq -d)
+          DUPES=$(grep -oP '^(?:let|const|var)\s+\K\w+' server.js | sort | uniq -d)
           if [ -n "$DUPES" ]; then
             echo "DUPLICATE DECLARATIONS FOUND:"
             echo "$DUPES"

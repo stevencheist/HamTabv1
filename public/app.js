@@ -47,7 +47,7 @@
         // Filter presets per source
         filterPresets: { pota: {}, sota: {}, dxc: {} },
         // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
-        watchLists: JSON.parse(localStorage.getItem("hamtab_watchlists") || '{"pota":[],"sota":[],"dxc":[],"psk":[]}'),
+        watchLists: JSON.parse(localStorage.getItem("hamtab_watchlists") || '{"pota":[],"sota":[],"dxc":[],"wwff":[],"psk":[]}'),
         watchRedSpotIds: /* @__PURE__ */ new Set(),
         // spot IDs matching "red" rules — rebuilt each filter pass
         // Auto-refresh — defaults to on, persisted in localStorage
@@ -69,11 +69,11 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false },
         // Source
         currentSource: localStorage.getItem("hamtab_spot_source") || "pota",
-        sourceData: { pota: [], sota: [], dxc: [] },
-        sourceFiltered: { pota: [], sota: [], dxc: [] },
+        sourceData: { pota: [], sota: [], dxc: [], wwff: [] },
+        sourceFiltered: { pota: [], sota: [], dxc: [], wwff: [] },
         // Widget visibility
         widgetVisibility: null,
         // loaded in widgets.js
@@ -290,7 +290,7 @@
       try {
         const savedPresets = JSON.parse(localStorage.getItem("hamtab_filter_presets"));
         if (savedPresets) {
-          state.filterPresets = { pota: {}, sota: {}, dxc: {}, ...savedPresets };
+          state.filterPresets = { pota: {}, sota: {}, dxc: {}, wwff: {}, ...savedPresets };
         }
       } catch (e) {
       }
@@ -494,6 +494,7 @@
     renderAllMapOverlays: () => renderAllMapOverlays,
     renderLatLonGrid: () => renderLatLonGrid,
     renderMaidenheadGrid: () => renderMaidenheadGrid,
+    renderMufImageOverlay: () => renderMufImageOverlay,
     renderTimezoneGrid: () => renderTimezoneGrid,
     saveMapOverlays: () => saveMapOverlays
   });
@@ -502,6 +503,7 @@
     renderLatLonGrid();
     renderMaidenheadGrid();
     renderTimezoneGrid();
+    renderMufImageOverlay();
   }
   function renderLatLonGrid() {
     if (state_default.latLonLayer) {
@@ -657,12 +659,41 @@
       }).addTo(state_default.timezoneLayer);
     }
   }
+  function renderMufImageOverlay() {
+    if (mufImageLayer) {
+      state_default.map.removeLayer(mufImageLayer);
+      mufImageLayer = null;
+    }
+    if (mufImageRefreshTimer) {
+      clearInterval(mufImageRefreshTimer);
+      mufImageRefreshTimer = null;
+    }
+    if (!state_default.mapOverlays.mufImageOverlay) return;
+    const L2 = window.L;
+    const type = state_default.propMetric === "fof2" ? "fof2" : "mufd";
+    const url = `/api/propagation/image?type=${type}&_t=${Date.now()}`;
+    const bounds = [[-90, -180], [90, 180]];
+    mufImageLayer = L2.imageOverlay(url, bounds, {
+      opacity: 0.45,
+      pane: "propagation",
+      // z-index 300, below mapOverlays (350)
+      interactive: false
+    }).addTo(state_default.map);
+    mufImageRefreshTimer = setInterval(() => {
+      if (!state_default.mapOverlays.mufImageOverlay || !mufImageLayer) return;
+      const freshUrl = `/api/propagation/image?type=${type}&_t=${Date.now()}`;
+      mufImageLayer.setUrl(freshUrl);
+    }, 15 * 60 * 1e3);
+  }
   function saveMapOverlays() {
     localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
   }
+  var mufImageLayer, mufImageRefreshTimer;
   var init_map_overlays = __esm({
     "src/map-overlays.js"() {
       init_state();
+      mufImageLayer = null;
+      mufImageRefreshTimer = null;
     }
   });
 
@@ -2007,6 +2038,7 @@ ${beacon.location}`);
   __export(constants_exports, {
     BREAKPOINT_MOBILE: () => BREAKPOINT_MOBILE,
     BREAKPOINT_TABLET: () => BREAKPOINT_TABLET,
+    DEFAULT_BAND_COLORS: () => DEFAULT_BAND_COLORS,
     DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
     DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
     GRID_ASSIGN_KEY: () => GRID_ASSIGN_KEY,
@@ -2031,14 +2063,27 @@ ${beacon.location}`);
     WIDGET_DEFS: () => WIDGET_DEFS,
     WIDGET_HELP: () => WIDGET_HELP,
     WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY,
-    getLayoutMode: () => getLayoutMode
+    getBandColor: () => getBandColor,
+    getBandColorOverrides: () => getBandColorOverrides,
+    getLayoutMode: () => getLayoutMode,
+    saveBandColors: () => saveBandColors
   });
   function getLayoutMode() {
     const w = window.innerWidth;
     if (w < SCALE_REFLOW_WIDTH) return "mobile";
     return "desktop";
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
+  function getBandColor(band) {
+    return bandColorOverrides[band] || DEFAULT_BAND_COLORS[band] || "#888";
+  }
+  function saveBandColors(overrides) {
+    bandColorOverrides = overrides;
+    localStorage.setItem("hamtab_band_colors", JSON.stringify(overrides));
+  }
+  function getBandColorOverrides() {
+    return { ...bandColorOverrides };
+  }
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -2200,6 +2245,23 @@ ${beacon.location}`);
           spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
           sortKey: "spotTime"
         },
+        wwff: {
+          label: "WWFF",
+          endpoint: "/api/spots/wwff",
+          columns: [
+            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "reference", label: "Ref (link)", class: "" },
+            { key: "name", label: "Name", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
+          sortKey: "spotTime"
+        },
         psk: {
           label: "PSK",
           endpoint: "/api/spots/psk",
@@ -2323,12 +2385,13 @@ ${beacon.location}`);
         },
         "widget-activations": {
           title: "On the Air",
-          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from four sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), and PSKReporter (digital mode reception reports).",
+          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from five sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), and PSKReporter (digital mode reception reports).",
           sections: [
-            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, SOTA, DXC, and PSK sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
+            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, SOTA, DXC, WWFF, and PSK sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
             { heading: "POTA", content: "Shows operators activating parks for the Parks on the Air program. Click the park reference link to see park details on the POTA website." },
             { heading: "SOTA", content: "Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details." },
             { heading: "DX Cluster", content: "Worldwide spots from the DX Cluster network. Great for finding rare or distant (DX) stations." },
+            { heading: "WWFF", content: "Shows operators activating nature reserves for the World Wide Flora & Fauna program. Similar to POTA but with a worldwide scope \u2014 especially popular in Europe. Click the reference link for reserve details." },
             { heading: "PSK Reporter", content: "Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions." }
           ]
         },
@@ -2337,7 +2400,7 @@ ${beacon.location}`);
           description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
           sections: [
             { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
-            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, and propagation layers." },
+            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, and the MUF map overlay (a color-filled image from prop.kc2g.com showing real-time Maximum Usable Frequency across the world)." },
             { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
             { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
           ]
@@ -2674,6 +2737,27 @@ ${beacon.location}`);
         "widget-beacons",
         "widget-dedx"
       ];
+      DEFAULT_BAND_COLORS = {
+        "160m": "#9c27b0",
+        "80m": "#673ab7",
+        "60m": "#3f51b5",
+        "40m": "#2196f3",
+        "30m": "#00bcd4",
+        "20m": "#4caf50",
+        "17m": "#8bc34a",
+        "15m": "#cddc39",
+        "12m": "#ffeb3b",
+        "10m": "#ff9800",
+        "6m": "#ff5722",
+        "2m": "#f44336",
+        "70cm": "#e91e63"
+      };
+      bandColorOverrides = {};
+      try {
+        const saved2 = JSON.parse(localStorage.getItem("hamtab_band_colors"));
+        if (saved2 && typeof saved2 === "object") bandColorOverrides = saved2;
+      } catch (e) {
+      }
       WIDGET_STORAGE_KEY = "hamtab_widgets";
       USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
@@ -2885,7 +2969,7 @@ ${beacon.location}`);
     const continent = spot.continent || "";
     let refHtml = "";
     if (ref) {
-      const refUrl = state_default.currentSource === "sota" ? `https://www.sota.org.uk/Summit/${encodeURIComponent(ref)}` : `https://pota.app/#/park/${encodeURIComponent(ref)}`;
+      const refUrl = state_default.currentSource === "sota" ? `https://www.sota.org.uk/Summit/${encodeURIComponent(ref)}` : state_default.currentSource === "wwff" ? `https://wwff.co/directory/?showRef=${encodeURIComponent(ref)}` : `https://pota.app/#/park/${encodeURIComponent(ref)}`;
       refHtml = `<a href="${refUrl}" target="_blank" rel="noopener">${esc(ref)}</a>`;
     }
     let spotterHtml = "";
@@ -3415,6 +3499,8 @@ ${beacon.location}`);
             a.rel = "noopener";
             if (state_default.currentSource === "sota") {
               a.href = `https://www.sota.org.uk/Summit/${ref}`;
+            } else if (state_default.currentSource === "wwff") {
+              a.href = `https://wwff.co/directory/?showRef=${encodeURIComponent(ref)}`;
             } else {
               a.href = `https://pota.app/#/park/${ref}`;
             }
@@ -3679,7 +3765,7 @@ ${beacon.location}`);
     });
     const typeSelect = document.createElement("select");
     const types = ["callsign", "dxcc", "grid"];
-    if (key === "pota" || key === "sota") types.push("ref");
+    if (key === "pota" || key === "sota" || key === "wwff") types.push("ref");
     types.forEach((t) => {
       const opt = document.createElement("option");
       opt.value = t;
@@ -7112,6 +7198,7 @@ ${beacon.location}`);
     fetchSourceData("pota");
     fetchSourceData("sota");
     fetchSourceData("dxc");
+    fetchSourceData("wwff");
     fetchSourceData("psk");
     fetchSolar();
     fetchLunar();
@@ -7462,8 +7549,9 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
-    $("splashVersion").textContent = "0.35.0";
-    $("aboutVersion").textContent = "0.35.0";
+    populateBandColorPickers();
+    $("splashVersion").textContent = "0.36.0";
+    $("aboutVersion").textContent = "0.36.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -7754,6 +7842,41 @@ ${beacon.location}`);
         document.body.classList.toggle("slim-header", state_default.slimHeader);
       });
     }
+    const bandColorResetBtn = document.getElementById("bandColorResetBtn");
+    if (bandColorResetBtn) {
+      bandColorResetBtn.addEventListener("click", () => {
+        saveBandColors({});
+        populateBandColorPickers();
+      });
+    }
+  }
+  function populateBandColorPickers() {
+    const container = document.getElementById("bandColorPickers");
+    if (!container) return;
+    container.innerHTML = "";
+    const bands = Object.keys(DEFAULT_BAND_COLORS);
+    bands.forEach((band) => {
+      const row = document.createElement("div");
+      row.className = "band-color-row";
+      const input = document.createElement("input");
+      input.type = "color";
+      input.value = getBandColor(band);
+      input.dataset.band = band;
+      input.addEventListener("input", () => {
+        const overrides = getBandColorOverrides();
+        if (input.value === DEFAULT_BAND_COLORS[band]) {
+          delete overrides[band];
+        } else {
+          overrides[band] = input.value;
+        }
+        saveBandColors(overrides);
+      });
+      const label = document.createElement("label");
+      label.textContent = band;
+      row.appendChild(input);
+      row.appendChild(label);
+      container.appendChild(row);
+    });
   }
   function renderGridPreview(permId) {
     const container = document.getElementById("gridPermPreview");
@@ -7849,6 +7972,7 @@ ${beacon.location}`);
         $("mapOvLatLon").checked = state_default.mapOverlays.latLonGrid;
         $("mapOvMaidenhead").checked = state_default.mapOverlays.maidenheadGrid;
         $("mapOvTimezone").checked = state_default.mapOverlays.timezoneGrid;
+        $("mapOvMufImage").checked = state_default.mapOverlays.mufImageOverlay;
         mapOverlayCfgSplash.classList.remove("hidden");
       });
     }
@@ -7857,6 +7981,7 @@ ${beacon.location}`);
         state_default.mapOverlays.latLonGrid = $("mapOvLatLon").checked;
         state_default.mapOverlays.maidenheadGrid = $("mapOvMaidenhead").checked;
         state_default.mapOverlays.timezoneGrid = $("mapOvTimezone").checked;
+        state_default.mapOverlays.mufImageOverlay = $("mapOvMufImage").checked;
         saveMapOverlays();
         mapOverlayCfgSplash.classList.add("hidden");
         renderAllMapOverlays();
@@ -8783,21 +8908,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   init_dom();
   init_geo();
   init_utils();
-  var BAND_COLORS = {
-    "160m": "#9c27b0",
-    "80m": "#673ab7",
-    "60m": "#3f51b5",
-    "40m": "#2196f3",
-    "30m": "#00bcd4",
-    "20m": "#4caf50",
-    "17m": "#8bc34a",
-    "15m": "#cddc39",
-    "12m": "#ffeb3b",
-    "10m": "#ff9800",
-    "6m": "#ff5722",
-    "2m": "#f44336",
-    "70cm": "#e91e63"
-  };
+  init_constants();
   function initLiveSpotsListeners() {
     const cfgBtn = $("liveSpotsCfgBtn");
     if (cfgBtn) {
@@ -8895,7 +9006,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       const info = state_default.liveSpots.summary[band];
       const isActive = state_default.liveSpots.visibleBands.has(band);
       const activeClass = isActive ? "active" : "";
-      const color = BAND_COLORS[band] || "#888";
+      const color = getBandColor(band);
       let valueHtml;
       if (state_default.liveSpots.displayMode === "distance") {
         const km = info.farthestKm || 0;
@@ -8944,7 +9055,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       spotsByBand[spot.band].push(spot);
     }
     for (const band of Object.keys(spotsByBand)) {
-      const color = BAND_COLORS[band] || "#888";
+      const color = getBandColor(band);
       const spots = spotsByBand[band];
       for (const spot of spots) {
         const pts = geodesicPoints(state_default.myLat, state_default.myLon, spot.receiverLat, spot.receiverLon, 50);

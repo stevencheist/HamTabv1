@@ -801,6 +801,52 @@ header {
   margin: 0;
 }
 
+/* ---- Band Color Picker ---- */
+
+.band-color-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 4px 8px;
+  margin-top: 6px;
+}
+
+.band-color-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.band-color-row label {
+  font-size: 0.8rem;
+  color: var(--text);
+  min-width: 40px;
+}
+
+.band-color-row input[type="color"] {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.band-color-reset {
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.band-color-reset:hover {
+  background: var(--surface2);
+}
+
 /* ---- Widget system ---- */
 
 .widget-area {

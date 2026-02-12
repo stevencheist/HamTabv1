@@ -246,6 +246,13 @@
               Compact header (hides weather &amp; name, shrinks clocks)
             </label>
           </div>
+
+          <div class="splash-divider"></div>
+          <div class="splash-band-colors-section">
+            <span class="splash-loc-title">Band Colors</span>
+            <div id="bandColorPickers" class="band-color-grid"></div>
+            <button type="button" id="bandColorResetBtn" class="band-color-reset">Reset to Defaults</button>
+          </div>
         </div>
 
         <!-- Tab 4: Services -->
@@ -454,6 +461,7 @@
           <button class="source-tab active" data-source="pota">POTA</button>
           <button class="source-tab" data-source="sota">SOTA</button>
           <button class="source-tab" data-source="dxc">DXC</button>
+          <button class="source-tab" data-source="wwff">WWFF</button>
           <button class="source-tab" data-source="psk">PSK</button>
         </div>
         <div class="table-wrap">
@@ -712,6 +720,7 @@
         <label><input type="checkbox" id="mapOvLatLon" /> Lat/Lon Grid</label>
         <label><input type="checkbox" id="mapOvMaidenhead" /> Grid Squares (Maidenhead)</label>
         <label><input type="checkbox" id="mapOvTimezone" /> Timezone Lines</label>
+        <label><input type="checkbox" id="mapOvMufImage" /> MUF Map (prop.kc2g.com)</label>
       </div>
       <button id="mapOverlayCfgOk">OK</button>
     </div>

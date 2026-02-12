@@ -5,6 +5,7 @@ export function renderAllMapOverlays() {
   renderLatLonGrid();
   renderMaidenheadGrid();
   renderTimezoneGrid();
+  renderMufImageOverlay();
 }
 
 export function renderLatLonGrid() {
@@ -142,6 +143,36 @@ export function renderTimezoneGrid() {
       pane: 'mapOverlays', interactive: false
     }).addTo(state.timezoneLayer);
   }
+}
+
+// --- MUF Image Overlay (prop.kc2g.com bare JPG) ---
+
+let mufImageLayer = null;
+let mufImageRefreshTimer = null;
+
+export function renderMufImageOverlay() {
+  // Remove existing layer
+  if (mufImageLayer) { state.map.removeLayer(mufImageLayer); mufImageLayer = null; }
+  if (mufImageRefreshTimer) { clearInterval(mufImageRefreshTimer); mufImageRefreshTimer = null; }
+  if (!state.mapOverlays.mufImageOverlay) return;
+
+  const L = window.L;
+  const type = state.propMetric === 'fof2' ? 'fof2' : 'mufd';
+  const url = `/api/propagation/image?type=${type}&_t=${Date.now()}`; // cache-bust
+  const bounds = [[-90, -180], [90, 180]]; // Plate Carree covers full world
+
+  mufImageLayer = L.imageOverlay(url, bounds, {
+    opacity: 0.45,
+    pane: 'propagation', // z-index 300, below mapOverlays (350)
+    interactive: false,
+  }).addTo(state.map);
+
+  // Refresh every 15 minutes (prop.kc2g.com regenerates renders on that cadence)
+  mufImageRefreshTimer = setInterval(() => {
+    if (!state.mapOverlays.mufImageOverlay || !mufImageLayer) return;
+    const freshUrl = `/api/propagation/image?type=${type}&_t=${Date.now()}`;
+    mufImageLayer.setUrl(freshUrl);
+  }, 15 * 60 * 1000); // 15 minutes
 }
 
 export function saveMapOverlays() {

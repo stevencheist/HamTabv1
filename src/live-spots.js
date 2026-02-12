@@ -5,23 +5,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { geodesicPoints } from './geo.js';
 import { esc } from './utils.js';
-
-// --- Band colors for map lines ---
-const BAND_COLORS = {
-  '160m': '#9c27b0',
-  '80m': '#673ab7',
-  '60m': '#3f51b5',
-  '40m': '#2196f3',
-  '30m': '#00bcd4',
-  '20m': '#4caf50',
-  '17m': '#8bc34a',
-  '15m': '#cddc39',
-  '12m': '#ffeb3b',
-  '10m': '#ff9800',
-  '6m': '#ff5722',
-  '2m': '#f44336',
-  '70cm': '#e91e63',
-};
+import { getBandColor } from './constants.js';
 
 // --- Initialization ---
 
@@ -154,7 +138,7 @@ export function renderLiveSpots() {
     const info = state.liveSpots.summary[band];
     const isActive = state.liveSpots.visibleBands.has(band);
     const activeClass = isActive ? 'active' : '';
-    const color = BAND_COLORS[band] || '#888';
+    const color = getBandColor(band);
 
     let valueHtml;
     if (state.liveSpots.displayMode === 'distance') {
@@ -220,7 +204,7 @@ export function renderLiveSpotsOnMap() {
 
   // Draw lines and markers for each band
   for (const band of Object.keys(spotsByBand)) {
-    const color = BAND_COLORS[band] || '#888';
+    const color = getBandColor(band);
     const spots = spotsByBand[band];
 
     for (const spot of spots) {

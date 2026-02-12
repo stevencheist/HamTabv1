@@ -85,7 +85,9 @@ export async function updateSpotDetail(spot) {
   if (ref) {
     const refUrl = state.currentSource === 'sota'
       ? `https://www.sota.org.uk/Summit/${encodeURIComponent(ref)}`
-      : `https://pota.app/#/park/${encodeURIComponent(ref)}`;
+      : state.currentSource === 'wwff'
+        ? `https://wwff.co/directory/?showRef=${encodeURIComponent(ref)}`
+        : `https://pota.app/#/park/${encodeURIComponent(ref)}`;
     refHtml = `<a href="${refUrl}" target="_blank" rel="noopener">${esc(ref)}</a>`;
   }
 

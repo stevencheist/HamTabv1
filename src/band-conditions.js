@@ -5,15 +5,6 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
 
-// Day/night toggle state
-let dayNightTime = 'day'; // 'day' or 'night'
-
-// Load preference
-const saved = localStorage.getItem('hamtab_band_time');
-if (saved === 'day' || saved === 'night') {
-  dayNightTime = saved;
-}
-
 // HF amateur bands (MHz)
 export const HF_BANDS = [
   { name: '160m', freqMHz: 1.9,   label: '160m' },
@@ -388,57 +379,94 @@ export function calculate24HourMatrix(opts) {
 // --- UI Rendering ---
 
 /**
- * Initialize day/night toggle listeners
+ * Initialize day/night toggle listeners (no-op — side-by-side display, no toggle needed)
  */
 export function initDayNightToggle() {
-  const dayBtn = $('dayToggle');
-  const nightBtn = $('nightToggle');
-
-  if (!dayBtn || !nightBtn) return;
-
-  // Set initial state
-  updateToggleButtons();
-
-  dayBtn.addEventListener('click', () => {
-    dayNightTime = 'day';
-    localStorage.setItem('hamtab_band_time', dayNightTime);
-    updateToggleButtons();
-    renderPropagationWidget();
-  });
-
-  nightBtn.addEventListener('click', () => {
-    dayNightTime = 'night';
-    localStorage.setItem('hamtab_band_time', dayNightTime);
-    updateToggleButtons();
-    renderPropagationWidget();
-  });
-}
-
-function updateToggleButtons() {
-  const dayBtn = $('dayToggle');
-  const nightBtn = $('nightToggle');
-
-  if (dayBtn) dayBtn.classList.toggle('active', dayNightTime === 'day');
-  if (nightBtn) nightBtn.classList.toggle('active', dayNightTime === 'night');
+  // Side-by-side layout renders both day and night; no toggle needed
 }
 
 /**
- * Render the propagation widget with band conditions
+ * Render a single band card
+ */
+function renderBandCard(band, timeClass) {
+  const card = document.createElement('div');
+  card.className = `band-card ${conditionColorClass(band.condition)} ${timeClass}`;
+
+  const name = document.createElement('span');
+  name.className = 'band-name';
+  name.textContent = band.label;
+
+  const reliability = document.createElement('span');
+  reliability.className = 'band-reliability';
+  reliability.textContent = `${band.reliability}%`;
+
+  const condLbl = document.createElement('span');
+  condLbl.className = 'band-condition-label';
+  condLbl.textContent = conditionLabel(band.condition);
+
+  card.appendChild(name);
+  card.appendChild(reliability);
+  card.appendChild(condLbl);
+  return card;
+}
+
+/**
+ * Get color for VHF condition text
+ */
+function vhfConditionColor(condition) {
+  const c = condition.toLowerCase();
+  if (c.includes('closed')) return 'var(--red)';
+  if (c.includes('poor')) return 'var(--orange)';
+  if (c.includes('fair')) return 'var(--yellow)';
+  if (c.includes('good') || c.includes('high')) return 'var(--green)';
+  if (c.includes('excellent') || c.includes('open')) return 'var(--green)';
+  return 'var(--text-dim)';
+}
+
+/**
+ * Format VHF location for display
+ */
+function formatVhfLocation(location) {
+  const map = {
+    'northern_hemi': 'N. Hemi',
+    'north_america': 'NA',
+    'europe':        'EU',
+    'europe_6m':     'EU 6m',
+    'europe_4m':     'EU 4m',
+  };
+  return map[location] || location;
+}
+
+/**
+ * Format VHF phenomenon name for display
+ */
+function formatVhfName(name) {
+  const map = {
+    'vhf-aurora': 'Aurora',
+    'E-Skip':     'E-Skip',
+  };
+  return map[name] || name;
+}
+
+/**
+ * Render the propagation widget with side-by-side day/night band conditions + VHF
  */
 export function renderPropagationWidget() {
   const grid = $('bandConditionsGrid');
   const mufValue = $('propMufValue');
   const sfiValue = $('propSfiValue');
   const kindexValue = $('propKindexValue');
+  const vhfEl = $('vhfConditions');
 
   if (!grid) return;
 
-  // Calculate per-band conditions using selected day/night mode
-  const conditions = calculateBandConditions(dayNightTime);
+  // Calculate both day and night conditions
+  const dayConditions = calculateBandConditions('day');
+  const nightConditions = calculateBandConditions('night');
 
-  // Update summary values
+  // Update summary values (use day MUF as primary)
   if (mufValue) {
-    const muf = conditions[0]?.muf || 0;
+    const muf = dayConditions[0]?.muf || 0;
     mufValue.textContent = muf > 0 ? `${muf} MHz` : '--';
   }
 
@@ -448,7 +476,6 @@ export function renderPropagationWidget() {
     if (kindexValue) {
       const kindex = indices.kindex || '--';
       kindexValue.textContent = kindex;
-      // Color-code K-index
       if (kindex !== '--') {
         const k = parseInt(kindex);
         if (k <= 2) kindexValue.style.color = 'var(--green)';
@@ -458,28 +485,66 @@ export function renderPropagationWidget() {
     }
   }
 
-  // Render per-band prediction cards with day/night indicator
+  // Render side-by-side Day + Night columns
   grid.innerHTML = '';
-  conditions.forEach(band => {
+
+  // Column headers
+  const dayHeader = document.createElement('div');
+  dayHeader.className = 'band-col-header band-col-header-day';
+  dayHeader.textContent = 'Day';
+  grid.appendChild(dayHeader);
+
+  const nightHeader = document.createElement('div');
+  nightHeader.className = 'band-col-header band-col-header-night';
+  nightHeader.textContent = 'Night';
+  grid.appendChild(nightHeader);
+
+  // Render each band as a day/night pair row
+  for (let i = 0; i < dayConditions.length; i++) {
+    grid.appendChild(renderBandCard(dayConditions[i], 'band-card-day'));
+    grid.appendChild(renderBandCard(nightConditions[i], 'band-card-night'));
+  }
+
+  // Render VHF conditions
+  if (vhfEl) {
+    renderVhfConditions(vhfEl);
+  }
+}
+
+/**
+ * Render VHF conditions (Aurora, E-Skip) from HamQSL data
+ */
+function renderVhfConditions(container) {
+  container.innerHTML = '';
+
+  const vhfData = state.lastSolarData?.vhf;
+  if (!vhfData || vhfData.length === 0) return;
+
+  const header = document.createElement('div');
+  header.className = 'vhf-header';
+  header.textContent = 'VHF Conditions';
+  container.appendChild(header);
+
+  const grid = document.createElement('div');
+  grid.className = 'vhf-grid';
+
+  vhfData.forEach(item => {
     const card = document.createElement('div');
-    const timeClass = dayNightTime === 'day' ? 'band-card-day' : 'band-card-night';
-    card.className = `band-card ${conditionColorClass(band.condition)} ${timeClass}`;
+    card.className = 'vhf-card';
 
-    const name = document.createElement('span');
-    name.className = 'band-name';
-    name.textContent = band.label;
+    const label = document.createElement('span');
+    label.className = 'vhf-label';
+    label.textContent = `${esc(formatVhfName(item.name))} ${esc(formatVhfLocation(item.location))}`;
 
-    const reliability = document.createElement('span');
-    reliability.className = 'band-reliability';
-    reliability.textContent = `${band.reliability}%`;
+    const value = document.createElement('span');
+    value.className = 'vhf-value';
+    value.textContent = esc(item.condition);
+    value.style.color = vhfConditionColor(item.condition);
 
-    const condLabel = document.createElement('span');
-    condLabel.className = 'band-condition-label';
-    condLabel.textContent = conditionLabel(band.condition);
-
-    card.appendChild(name);
-    card.appendChild(reliability);
-    card.appendChild(condLabel);
+    card.appendChild(label);
+    card.appendChild(value);
     grid.appendChild(card);
   });
+
+  container.appendChild(grid);
 }

@@ -3531,6 +3531,17 @@ header {
 
 /* ---- DXpeditions Widget ---- */
 
+.widget-header-select {
+  font-size: 0.65rem;
+  padding: 1px 4px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--surface2);
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-left: auto;
+}
+
 #widget-dxpeditions .widget-body { padding: 6px; overflow-y: auto; display: flex; flex-direction: column; }
 
 .dxped-list { display: flex; flex-direction: column; gap: 4px; flex: 1; overflow-y: auto; }

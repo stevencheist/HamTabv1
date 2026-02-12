@@ -69,7 +69,9 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false, dxpedMarkers: true },
+        // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
+        dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
         // Source
         currentSource: localStorage.getItem("hamtab_spot_source") || "pota",
         sourceData: { pota: [], sota: [], dxc: [], wwff: [] },
@@ -2473,7 +2475,7 @@ ${beacon.location}`);
           description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
           sections: [
             { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
-            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (real-time Maximum Usable Frequency from prop.kc2g.com), and DX Paths \u2014 band-colored great circle lines from your location to every visible spot, showing at a glance which bands are open and where." },
+            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (real-time Maximum Usable Frequency from prop.kc2g.com), DX Paths (band-colored great circle lines from your location to every visible spot), and DXpedition Markers (orange circles for active and upcoming DXpeditions)." },
             { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
             { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
           ]
@@ -2620,7 +2622,8 @@ ${beacon.location}`);
           description: "Track upcoming and active DXpeditions \u2014 organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.",
           sections: [
             { heading: "What Is a DXpedition?", content: "A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade." },
-            { heading: "Reading the Cards", content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map \u2014 bright orange for active, dimmer for upcoming.' },
+            { heading: "Reading the Cards", content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map (toggle via Map Overlays gear icon) \u2014 bright orange for active, dimmer for upcoming.' },
+            { heading: "Time Filter", content: "Use the dropdown in the widget header to filter DXpeditions by time window: Active Now, Within 1 Week, Within 1 Month, Within 6 Months, or All. Active DXpeditions always appear regardless of the filter. The map markers match whatever the widget shows." },
             { heading: "QSL Information", content: `QSL means "I confirm" \u2014 it's how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).` }
           ],
           links: [
@@ -7147,6 +7150,30 @@ ${beacon.location}`);
   // src/dxpeditions.js
   init_state();
   init_dom();
+  var TIME_FILTER_MS = {
+    active: 0,
+    // special case — only items where active === true
+    "7d": 7 * 24 * 60 * 60 * 1e3,
+    "30d": 30 * 24 * 60 * 60 * 1e3,
+    "180d": 180 * 24 * 60 * 60 * 1e3,
+    all: Infinity
+  };
+  function filterByTime(data) {
+    const filter = state_default.dxpedTimeFilter || "all";
+    if (filter === "all") return data;
+    if (filter === "active") return data.filter((d) => d.active);
+    const cutoff = TIME_FILTER_MS[filter];
+    if (!cutoff) return data;
+    const now = Date.now();
+    return data.filter((d) => {
+      if (d.active) return true;
+      if (d.startDate) {
+        const start = new Date(d.startDate).getTime();
+        return start - now <= cutoff;
+      }
+      return false;
+    });
+  }
   function initDxpeditionListeners() {
     const list = $("dxpedList");
     if (!list) return;
@@ -7156,6 +7183,18 @@ ${beacon.location}`);
       const url = card.dataset.link;
       if (url) window.open(url, "_blank", "noopener");
     });
+    const filterSel = $("dxpedTimeFilter");
+    if (filterSel) {
+      filterSel.value = state_default.dxpedTimeFilter;
+      filterSel.addEventListener("change", () => {
+        state_default.dxpedTimeFilter = filterSel.value;
+        localStorage.setItem("hamtab_dxped_time_filter", filterSel.value);
+        renderDxpeditions();
+      });
+      filterSel.addEventListener("mousedown", (e) => {
+        e.stopPropagation();
+      });
+    }
   }
   async function fetchDxpeditions() {
     try {
@@ -7182,9 +7221,18 @@ ${beacon.location}`);
       updateDxpeditionMarkers([]);
       return;
     }
-    if (countEl) countEl.textContent = data.length;
+    const filtered = filterByTime(data);
+    if (countEl) countEl.textContent = filtered.length;
     list.textContent = "";
-    for (const dx of data) {
+    if (filtered.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "dxped-empty";
+      empty.textContent = "No DXpeditions match the selected time filter";
+      list.appendChild(empty);
+      updateDxpeditionMarkers([]);
+      return;
+    }
+    for (const dx of filtered) {
       const card = document.createElement("div");
       card.className = "dxped-card";
       if (dx.active) card.classList.add("dxped-active-card");
@@ -7215,7 +7263,7 @@ ${beacon.location}`);
       card.appendChild(detail);
       list.appendChild(card);
     }
-    updateDxpeditionMarkers(data);
+    updateDxpeditionMarkers(filtered);
   }
   function updateDxpeditionMarkers(data) {
     if (!state_default.map || typeof L === "undefined") return;
@@ -7224,6 +7272,7 @@ ${beacon.location}`);
     }
     state_default.dxpedMarkers = [];
     if (!Array.isArray(data)) return;
+    if (!state_default.mapOverlays.dxpedMarkers) return;
     for (const dx of data) {
       if (dx.lat == null || dx.lon == null) continue;
       const isActive = !!dx.active;
@@ -7728,8 +7777,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.38.2";
-    $("aboutVersion").textContent = "0.38.2";
+    $("splashVersion").textContent = "0.39.0";
+    $("aboutVersion").textContent = "0.39.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -8153,6 +8202,7 @@ ${beacon.location}`);
         $("mapOvTimezone").checked = state_default.mapOverlays.timezoneGrid;
         $("mapOvMufImage").checked = state_default.mapOverlays.mufImageOverlay;
         $("mapOvBandPaths").checked = state_default.mapOverlays.bandPaths;
+        $("mapOvDxpedMarkers").checked = state_default.mapOverlays.dxpedMarkers;
         mapOverlayCfgSplash.classList.remove("hidden");
       });
     }
@@ -8163,10 +8213,12 @@ ${beacon.location}`);
         state_default.mapOverlays.timezoneGrid = $("mapOvTimezone").checked;
         state_default.mapOverlays.mufImageOverlay = $("mapOvMufImage").checked;
         state_default.mapOverlays.bandPaths = $("mapOvBandPaths").checked;
+        state_default.mapOverlays.dxpedMarkers = $("mapOvDxpedMarkers").checked;
         saveMapOverlays();
         mapOverlayCfgSplash.classList.add("hidden");
         renderAllMapOverlays();
         renderMarkers();
+        renderDxpeditions();
       });
     }
     $("spotColCfgBtn").addEventListener("mousedown", (e) => {

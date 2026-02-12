@@ -117,11 +117,24 @@ fi
 echo ""
 echo "Installing npm dependencies ..."
 cd "$INSTALL_DIR"
-sudo -u "$REAL_USER" npm install
+BUILD_OK=true
+if ! sudo -u "$REAL_USER" npm install; then
+  echo ""
+  echo "  Warning: npm install failed. You can re-run it manually:"
+  echo "    cd $INSTALL_DIR && npm install"
+  BUILD_OK=false
+fi
 
 # --- Build client bundle ---
-echo "Building client ..."
-sudo -u "$REAL_USER" npm run build
+if [ "$BUILD_OK" = true ]; then
+  echo "Building client ..."
+  if ! sudo -u "$REAL_USER" npm run build; then
+    echo ""
+    echo "  Warning: build failed. You can re-run it manually:"
+    echo "    cd $INSTALL_DIR && npm run build"
+    BUILD_OK=false
+  fi
+fi
 
 # --- Optional: VOACAP propagation engine ---
 echo ""
@@ -186,10 +199,16 @@ EOF
 
   systemctl daemon-reload
   systemctl enable "$SERVICE_NAME"
-  systemctl restart "$SERVICE_NAME"
 
-  echo ""
-  echo "Service installed and started."
+  if [ "$BUILD_OK" = true ]; then
+    systemctl restart "$SERVICE_NAME"
+    echo ""
+    echo "Service installed and started."
+  else
+    echo ""
+    echo "Service installed but NOT started (build failed above)."
+    echo "Fix the build, then run: sudo systemctl start $SERVICE_NAME"
+  fi
   echo ""
   echo "  Status:   sudo systemctl status $SERVICE_NAME"
   echo "  Logs:     sudo journalctl -u $SERVICE_NAME -f"

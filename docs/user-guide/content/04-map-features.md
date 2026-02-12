@@ -32,6 +32,11 @@ The default base map uses OpenStreetMap tiles. The map supports standard interac
 - **Shape**: Circle marker
 - Click to select and view DX station details
 
+### WWFF Activations
+- **Color**: Teal
+- **Shape**: Circle marker
+- Click to select and view flora & fauna reserve details
+
 ### PSKReporter Spots
 - **Color**: Purple
 - **Shape**: Circle marker
@@ -61,6 +66,16 @@ Displays the amateur radio grid square overlay. Grid squares are labeled with th
 
 ### Timezone Overlay
 Shows world timezone boundaries. Helpful for determining local time at DX stations.
+
+### MUF Map Overlay
+A full-map image overlay showing real-time Maximum Usable Frequency conditions from [prop.kc2g.com](https://prop.kc2g.com/). The overlay renders a color-filled map of worldwide MUF values, giving you an at-a-glance view of which parts of the world currently support HF propagation on which frequencies.
+
+- **Toggle:** Map gear icon → "MUF Map (prop.kc2g.com)" checkbox
+- **Auto-refresh:** Updates every 15 minutes
+- **Respects propagation metric:** Shows MUF or foF2 depending on your current propagation overlay selection
+- **Semi-transparent:** Overlaid at 45% opacity so you can still see spot markers and map details underneath
+
+<div class="tip">The MUF image overlay complements the contour lines. Contours show precise MHz values along lines; the MUF image overlay fills the entire map with color so you can see regional patterns at a glance.</div>
 
 ### Gray Line (Day/Night Terminator)
 Shows the current position of the day/night boundary on Earth. The gray line is the region transitioning between day and night.

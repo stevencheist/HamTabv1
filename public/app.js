@@ -1002,6 +1002,24 @@
     return matrix;
   }
   function initDayNightToggle() {
+    const tabContainer = $("bandTabs");
+    if (!tabContainer) return;
+    tabContainer.addEventListener("click", (e) => {
+      const btn = e.target.closest(".band-tab");
+      if (!btn) return;
+      const tab = btn.dataset.bandTab;
+      const hfGrid = $("bandConditionsGrid");
+      const vhfPanel = $("vhfConditions");
+      tabContainer.querySelectorAll(".band-tab").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      if (tab === "hf") {
+        if (hfGrid) hfGrid.style.display = "";
+        if (vhfPanel) vhfPanel.style.display = "none";
+      } else {
+        if (hfGrid) hfGrid.style.display = "none";
+        if (vhfPanel) vhfPanel.style.display = "";
+      }
+    });
   }
   function cellTextColor(reliability) {
     return reliability < 40 ? "#fff" : "#1a1a1a";
@@ -1110,10 +1128,6 @@
     container.innerHTML = "";
     const vhfData = state_default.lastSolarData?.vhf;
     if (!vhfData || vhfData.length === 0) return;
-    const header = document.createElement("div");
-    header.className = "vhf-header";
-    header.textContent = "VHF Conditions";
-    container.appendChild(header);
     const list = document.createElement("div");
     list.className = "vhf-list";
     vhfData.forEach((item) => {
@@ -7603,8 +7617,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.37.1";
-    $("aboutVersion").textContent = "0.37.1";
+    $("splashVersion").textContent = "0.37.2";
+    $("aboutVersion").textContent = "0.37.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

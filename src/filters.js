@@ -240,7 +240,7 @@ export function renderWatchListEditor() {
   // Type select
   const typeSelect = document.createElement('select');
   const types = ['callsign', 'dxcc', 'grid'];
-  if (key === 'pota' || key === 'sota') types.push('ref');
+  if (key === 'pota' || key === 'sota' || key === 'wwff') types.push('ref');
   types.forEach(t => {
     const opt = document.createElement('option');
     opt.value = t;

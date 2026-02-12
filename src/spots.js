@@ -130,6 +130,8 @@ export function renderSpots() {
           a.rel = 'noopener';
           if (state.currentSource === 'sota') {
             a.href = `https://www.sota.org.uk/Summit/${ref}`;
+          } else if (state.currentSource === 'wwff') {
+            a.href = `https://wwff.co/directory/?showRef=${encodeURIComponent(ref)}`;
           } else {
             a.href = `https://pota.app/#/park/${ref}`;
           }

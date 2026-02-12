@@ -73,6 +73,7 @@ export function initConfigListeners() {
       $('mapOvLatLon').checked = state.mapOverlays.latLonGrid;
       $('mapOvMaidenhead').checked = state.mapOverlays.maidenheadGrid;
       $('mapOvTimezone').checked = state.mapOverlays.timezoneGrid;
+      $('mapOvMufImage').checked = state.mapOverlays.mufImageOverlay;
       mapOverlayCfgSplash.classList.remove('hidden');
     });
   }
@@ -82,6 +83,7 @@ export function initConfigListeners() {
       state.mapOverlays.latLonGrid = $('mapOvLatLon').checked;
       state.mapOverlays.maidenheadGrid = $('mapOvMaidenhead').checked;
       state.mapOverlays.timezoneGrid = $('mapOvTimezone').checked;
+      state.mapOverlays.mufImageOverlay = $('mapOvMufImage').checked;
       saveMapOverlays();
       mapOverlayCfgSplash.classList.add('hidden');
       renderAllMapOverlays();

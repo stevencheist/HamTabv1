@@ -166,6 +166,11 @@ export default {
         });
       }
 
+      // --- Redirect /api to Swagger docs ---
+      if (url.pathname === '/api' || url.pathname === '/api/') {
+        return Response.redirect(new URL('/api/docs/', request.url).toString(), 302);
+      }
+
       // --- Settings KV routes ---
       if (url.pathname === '/api/settings') {
         const userId = getUserId(request);

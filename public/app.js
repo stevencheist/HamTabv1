@@ -7548,8 +7548,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.36.0";
-    $("aboutVersion").textContent = "0.36.0";
+    $("splashVersion").textContent = "0.36.1";
+    $("aboutVersion").textContent = "0.36.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

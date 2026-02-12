@@ -93,8 +93,26 @@ HamTab includes multiple visual themes to match your operating style and persona
 | **LCARS** | Inspired by Star Trek: The Next Generation computer displays. Orange, blue, and purple palette with rounded pill-shaped buttons and condensed fonts. |
 | **Terminal** | Retro green-on-black CRT style. Monospace fonts, sharp corners, and a utilitarian feel. |
 | **HamClock** | Dark background with green, cyan, and amber accents matching the real HamClock by WB0OEW. |
+| **Rebel** | Warm desert outpost palette with blazing orange accents and olive green highlights. |
+| **Imperial** | Cold steel command deck with ice blue highlights and gunmetal surfaces. |
+| **Neon** | Digital grid aesthetic with neon cyan glow effects on widgets, headers, and controls. |
+| **Steampunk** | Brass, gears, and gaslight with polished copper accents and aged parchment text. |
 
 <div class="tip">Your theme choice is saved automatically and persists between sessions. You can change it anytime without losing your widget layout or settings.</div>
+
+### Band Colors
+
+Customize the color assigned to each amateur band in the Live Spots widget and map path lines.
+
+1. Open Config → **Appearance** tab
+2. Scroll to the **Band Colors** section
+3. Click any color swatch to open a color picker
+4. Choose a new color — it applies immediately
+5. Click **Reset to Defaults** to restore the original band color scheme
+
+Band colors are saved to localStorage and persist across sessions. Custom colors affect:
+- **Live Spots** band cards and map path lines
+- Any other UI element that uses band-based color coding
 
 ---
 
@@ -208,7 +226,8 @@ HamTab stores all data in browser localStorage with the `hamtab_` prefix:
 | `hamtab_solar_fields` | Solar field visibility |
 | `hamtab_lunar_fields` | Lunar field visibility |
 | `hamtab_tracked_sats` | Tracked satellite IDs |
-| `hamtab_theme` | Active theme ID (default, lcars, hamclock) |
+| `hamtab_theme` | Active theme ID (default, lcars, hamclock, etc.) |
+| `hamtab_band_colors` | Custom band color overrides |
 
 ### Clearing All Data
 To completely reset HamTab:

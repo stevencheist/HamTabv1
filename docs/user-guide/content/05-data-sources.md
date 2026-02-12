@@ -50,6 +50,28 @@ Summits on the Air is an award program for amateur radio operators who operate f
 
 ---
 
+## WWFF (World Wide Flora & Fauna)
+
+### What is WWFF?
+World Wide Flora & Fauna (WWFF) is an international amateur radio program that encourages portable operation from protected flora and fauna areas — nature reserves, national parks, wildlife refuges, and similar sites worldwide. It's especially popular in Europe and complements POTA with a broader international scope.
+
+### Data Provided
+- **Activator callsign** — Station operating in the reserve
+- **Frequency** — Operating frequency in MHz
+- **Mode** — Operating mode
+- **Reference** — WWFF reference number (e.g., DLFF-0001)
+- **Reserve name** — Name of the flora & fauna area
+- **Spot time** — When the spot was posted
+
+### Filtering Options
+- Band, Mode, Distance, Age
+
+### Links
+- References link to wwff.co/directory with full reserve information
+- Includes reserve location, activation history, and program details
+
+---
+
 ## DX Cluster (DXC)
 
 ### What is DX Cluster?
@@ -223,6 +245,7 @@ Updated every second (client-side timer). No network requests needed.
 | POTA spots | 60 seconds |
 | SOTA spots | 60 seconds |
 | DX Cluster | 60 seconds |
+| WWFF spots | 60 seconds |
 | PSKReporter | 60 seconds |
 | Space weather | 5 minutes |
 | Satellite positions | 5 seconds |

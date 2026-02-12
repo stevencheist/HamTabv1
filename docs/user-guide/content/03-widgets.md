@@ -18,6 +18,30 @@ Drag the edges or corners of any widget to resize it. Most widgets have minimum 
 ### Widget Settings
 Many widgets have their own settings. Click the **gear icon** in the widget's title bar to access widget-specific configuration.
 
+### Grid Layout Mode
+
+Grid mode arranges widgets into fixed cells instead of free-floating positions. Switch between modes in Config > Display.
+
+**Grid Permutations:**
+
+| Permutation | Layout | Slots |
+|-------------|--------|-------|
+| 2L-2R | 2 left, 2 right | 4 |
+| 3L-3R | 3 left, 3 right | 6 |
+| 1T-2L-2R-1B | 1 top, 2 left, 2 right, 1 bottom | 6 |
+| 1T-3L-3R-1B | 1 top, 3 left, 3 right, 1 bottom | 8 |
+| 2T-3L-3R-2B | 2 top, 3 left, 3 right, 2 bottom | 10 |
+
+The map always occupies the center cell and doesn't count toward the slot limit.
+
+**Slot Counter:**
+In the Display tab, a slot counter shows "N / M slots" (e.g., "5 / 6 slots"). When you reach the limit, unchecked widgets are greyed out and can't be enabled until you hide another widget to free a slot. If more widgets are enabled than slots allow, an amber warning appears.
+
+**Switching Permutations:**
+Use the permutation dropdown in Config > Display to change layouts. Larger permutations (more slots) let you show more widgets at once.
+
+<div class="tip">If you want to see more widgets than your current grid allows, switch to a larger permutation (e.g., 3L-3R → 1T-3L-3R-1B) or switch to free-float mode where there's no slot limit.</div>
+
 ---
 
 ## Filters Widget

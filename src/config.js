@@ -4,6 +4,7 @@ import { SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, SOURCE_DEFS } from './constants.js'
 import { renderSolar, saveSolarFieldVisibility } from './solar.js';
 import { renderLunar, saveLunarFieldVisibility } from './lunar.js';
 import { renderAllMapOverlays, saveMapOverlays } from './map-overlays.js';
+import { renderMarkers } from './markers.js';
 import { renderSpots, saveSpotColumnVisibility } from './spots.js';
 import { updateTableColumns } from './source.js';
 
@@ -74,6 +75,7 @@ export function initConfigListeners() {
       $('mapOvMaidenhead').checked = state.mapOverlays.maidenheadGrid;
       $('mapOvTimezone').checked = state.mapOverlays.timezoneGrid;
       $('mapOvMufImage').checked = state.mapOverlays.mufImageOverlay;
+      $('mapOvBandPaths').checked = state.mapOverlays.bandPaths;
       mapOverlayCfgSplash.classList.remove('hidden');
     });
   }
@@ -84,9 +86,11 @@ export function initConfigListeners() {
       state.mapOverlays.maidenheadGrid = $('mapOvMaidenhead').checked;
       state.mapOverlays.timezoneGrid = $('mapOvTimezone').checked;
       state.mapOverlays.mufImageOverlay = $('mapOvMufImage').checked;
+      state.mapOverlays.bandPaths = $('mapOvBandPaths').checked;
       saveMapOverlays();
       mapOverlayCfgSplash.classList.add('hidden');
       renderAllMapOverlays();
+      renderMarkers(); // refresh band path lines
     });
   }
 

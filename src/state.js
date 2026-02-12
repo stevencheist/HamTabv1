@@ -45,7 +45,7 @@ const state = {
   maidenheadDebounceTimer: null,
 
   // Map overlay config
-  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false },
+  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false },
 
   // Source
   currentSource: localStorage.getItem('hamtab_spot_source') || 'pota',
@@ -187,6 +187,7 @@ const state = {
   moonMarker: null,     // L.marker for moon position on map
   beaconMarkers: {},    // { freq: L.circleMarker } for active NCDXF beacon map markers
   dxpedMarkers: [],     // L.circleMarker[] for DXpedition map markers
+  dxPathLines: [],      // L.polyline[] for band-colored DX contact paths
 
   // Day/night
   lastLocalDay: null,

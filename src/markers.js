@@ -1,8 +1,8 @@
 import state from './state.js';
-import { SOURCE_DEFS } from './constants.js';
+import { SOURCE_DEFS, getBandColor } from './constants.js';
 import { esc } from './utils.js';
 import { bearingTo, bearingToCardinal, distanceMi, localTimeAtLon, geodesicPoints, gridToLatLon } from './geo.js';
-import { spotId } from './filters.js';
+import { spotId, freqToBand } from './filters.js';
 import { updateSpotDetail, clearSpotDetail } from './spot-detail.js';
 import { setDedxSpot, clearDedxSpot } from './dedx-info.js';
 import { onSpotSelected } from './voacap.js';
@@ -114,10 +114,70 @@ function drawGeodesicLine(spot) {
   state.geodesicLineLong.addTo(state.map);
 }
 
+// --- Band-colored DX path lines ---
+
+function clearBandPaths() {
+  for (const line of state.dxPathLines) {
+    state.map.removeLayer(line);
+  }
+  state.dxPathLines = [];
+}
+
+function drawBandPaths() {
+  clearBandPaths();
+  if (!state.mapOverlays.bandPaths) return;
+  if (state.myLat == null || state.myLon == null || !state.map) return;
+
+  const filtered = state.sourceFiltered[state.currentSource] || [];
+
+  // Helper: split points at dateline crossings
+  function splitAtDateline(points) {
+    const segments = [[]];
+    for (let i = 0; i < points.length; i++) {
+      segments[segments.length - 1].push(points[i]);
+      if (i < points.length - 1 && Math.abs(points[i + 1][1] - points[i][1]) > 180) {
+        segments.push([]);
+      }
+    }
+    return segments;
+  }
+
+  for (const spot of filtered) {
+    let spotLat, spotLon;
+    const lat = parseFloat(spot.latitude);
+    const lon = parseFloat(spot.longitude);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      spotLat = lat;
+      spotLon = lon;
+    } else if (spot.grid4) {
+      const center = gridToLatLon(spot.grid4);
+      if (!center) continue;
+      spotLat = center.lat;
+      spotLon = center.lon;
+    } else {
+      continue;
+    }
+
+    const band = freqToBand(spot.frequency);
+    const color = band ? getBandColor(band) : '#888';
+    const pts = geodesicPoints(state.myLat, state.myLon, spotLat, spotLon, 32); // fewer points for performance
+
+    const line = L.polyline(splitAtDateline(pts), {
+      color,
+      weight: 1.5,
+      opacity: 0.45,
+      interactive: false,
+    });
+    line.addTo(state.map);
+    state.dxPathLines.push(line);
+  }
+}
+
 export function renderMarkers() {
   if (!state.map) return;
   ensureIcons();
   clearGeodesicLine();
+  clearBandPaths();
   state.clusterGroup.clearLayers();
   state.markers = {};
 
@@ -164,6 +224,8 @@ export function renderMarkers() {
     state.markers[sid] = marker;
     state.clusterGroup.addLayer(marker);
   });
+
+  drawBandPaths();
 }
 
 export function selectSpot(sid) {

@@ -6039,6 +6039,11 @@
           state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
         }
       });
+      window.addEventListener("orientationchange", () => {
+        setTimeout(() => {
+          if (state_default.map) state_default.map.invalidateSize();
+        }, 200);
+      });
       setTimeout(renderAllMapOverlays, 200);
     } catch (e) {
       console.error("Map initialization failed:", e);
@@ -7532,6 +7537,22 @@ ${beacon.location}`);
       if (state_default.debug) console.error("Failed to fetch contests:", err);
     }
   }
+  var SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function fmtContestRange(startISO, endISO) {
+    const s = new Date(startISO);
+    const e = new Date(endISO);
+    if (isNaN(s) || isNaN(e)) return "";
+    const fmt = (d) => {
+      const day = SHORT_DAYS[d.getUTCDay()];
+      const mon = SHORT_MONTHS[d.getUTCMonth()];
+      const date = d.getUTCDate();
+      const hh = String(d.getUTCHours()).padStart(2, "0");
+      const mm = String(d.getUTCMinutes()).padStart(2, "0");
+      return `${day} ${mon} ${date}, ${hh}:${mm}z`;
+    };
+    return `${fmt(s)} \u2013 ${fmt(e)}`;
+  }
   function renderContests() {
     const list = $("contestList");
     const countEl = $("contestCount");
@@ -7598,7 +7619,11 @@ ${beacon.location}`);
       card.appendChild(header);
       const detail = document.createElement("div");
       detail.className = "contest-detail";
-      detail.textContent = c.dateStr || "";
+      if (c.startDate && c.endDate) {
+        detail.textContent = fmtContestRange(c.startDate, c.endDate);
+      } else {
+        detail.textContent = c.dateStr || "";
+      }
       card.appendChild(detail);
       list.appendChild(card);
     }
@@ -8695,8 +8720,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.44.0";
-    $("aboutVersion").textContent = "0.44.0";
+    $("splashVersion").textContent = "0.44.1";
+    $("aboutVersion").textContent = "0.44.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

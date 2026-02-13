@@ -81,7 +81,7 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false, dxpedMarkers: true },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true },
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
         // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
@@ -525,6 +525,7 @@
   var map_overlays_exports = {};
   __export(map_overlays_exports, {
     renderAllMapOverlays: () => renderAllMapOverlays,
+    renderDrapOverlay: () => renderDrapOverlay,
     renderLatLonGrid: () => renderLatLonGrid,
     renderMaidenheadGrid: () => renderMaidenheadGrid,
     renderMufImageOverlay: () => renderMufImageOverlay,
@@ -537,6 +538,7 @@
     renderMaidenheadGrid();
     renderTimezoneGrid();
     renderMufImageOverlay();
+    renderDrapOverlay();
   }
   function renderLatLonGrid() {
     if (state_default.latLonLayer) {
@@ -718,15 +720,41 @@
       mufImageLayer.setUrl(freshUrl);
     }, 15 * 60 * 1e3);
   }
+  function renderDrapOverlay() {
+    if (drapImageLayer) {
+      state_default.map.removeLayer(drapImageLayer);
+      drapImageLayer = null;
+    }
+    if (drapImageRefreshTimer) {
+      clearInterval(drapImageRefreshTimer);
+      drapImageRefreshTimer = null;
+    }
+    if (!state_default.mapOverlays.drapOverlay) return;
+    const L2 = window.L;
+    const url = `/api/drap/image?_t=${Date.now()}`;
+    const bounds = [[-90, -180], [90, 180]];
+    drapImageLayer = L2.imageOverlay(url, bounds, {
+      opacity: 0.5,
+      pane: "propagation",
+      // same z-index as MUF overlay (300)
+      interactive: false
+    }).addTo(state_default.map);
+    drapImageRefreshTimer = setInterval(() => {
+      if (!state_default.mapOverlays.drapOverlay || !drapImageLayer) return;
+      drapImageLayer.setUrl(`/api/drap/image?_t=${Date.now()}`);
+    }, 15 * 60 * 1e3);
+  }
   function saveMapOverlays() {
     localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
   }
-  var mufImageLayer, mufImageRefreshTimer;
+  var mufImageLayer, mufImageRefreshTimer, drapImageLayer, drapImageRefreshTimer;
   var init_map_overlays = __esm({
     "src/map-overlays.js"() {
       init_state();
       mufImageLayer = null;
       mufImageRefreshTimer = null;
+      drapImageLayer = null;
+      drapImageRefreshTimer = null;
     }
   });
 
@@ -2810,9 +2838,9 @@
   function updatePrivFilterVisibility() {
     const label = document.querySelector(".priv-filter-label");
     if (!label) return;
-    const show = isUSCallsign(state_default.myCallsign) && !!state_default.licenseClass;
-    label.classList.toggle("hidden", !show);
-    if (!show) {
+    const show2 = isUSCallsign(state_default.myCallsign) && !!state_default.licenseClass;
+    label.classList.toggle("hidden", !show2);
+    if (!show2) {
       state_default.privilegeFilterEnabled = false;
       const cb = $("privFilter");
       if (cb) cb.checked = false;
@@ -3393,6 +3421,7 @@
       renderPropagationWidget2();
       const { renderVoacapMatrix: renderVoacapMatrix2 } = await Promise.resolve().then(() => (init_voacap(), voacap_exports));
       renderVoacapMatrix2();
+      checkAutoStormOverlay(data);
     } catch (err) {
       console.error("Failed to fetch solar:", err);
     }
@@ -3556,7 +3585,20 @@
       }
     }
   }
-  var SOLAR_VIS_KEY, solarFrames, solarFrameNames, solarFrameIndex, solarPlaying, solarIntervalId, solarLoadingFrames, solarCurrentType;
+  async function checkAutoStormOverlay(data) {
+    const kp = parseInt(data?.indices?.kindex);
+    if (isNaN(kp)) return;
+    if (kp >= 5 && !state_default.mapOverlays.drapOverlay && !lastStormAutoEnabled) {
+      state_default.mapOverlays.drapOverlay = true;
+      lastStormAutoEnabled = true;
+      const { saveMapOverlays: saveMapOverlays2, renderDrapOverlay: renderDrapOverlay2 } = await Promise.resolve().then(() => (init_map_overlays(), map_overlays_exports));
+      saveMapOverlays2();
+      renderDrapOverlay2();
+    } else if (kp < 5) {
+      lastStormAutoEnabled = false;
+    }
+  }
+  var SOLAR_VIS_KEY, solarFrames, solarFrameNames, solarFrameIndex, solarPlaying, solarIntervalId, solarLoadingFrames, solarCurrentType, lastStormAutoEnabled;
   var init_solar = __esm({
     "src/solar.js"() {
       init_state();
@@ -3570,6 +3612,7 @@
       solarIntervalId = null;
       solarLoadingFrames = false;
       solarCurrentType = "";
+      lastStormAutoEnabled = false;
     }
   });
 
@@ -4106,7 +4149,7 @@
           description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
           sections: [
             { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
-            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (real-time Maximum Usable Frequency from prop.kc2g.com), DX Paths (band-colored great circle lines from your location to every visible spot), and DXpedition Markers (orange circles for active and upcoming DXpeditions)." },
+            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), and DXpedition Markers (active/upcoming DXpeditions). D-RAP auto-enables when Kp reaches storm level (\u22655)." },
             { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
             { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
           ]
@@ -4168,6 +4211,7 @@
             { heading: "ISS Tracking", content: "The ISS (International Space Station) is tracked automatically \u2014 no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard." },
             { heading: "Adding More Satellites", content: "To track additional satellites like AO-91, SO-50, and others, you'll need a free API key from N2YO.com \u2014 enter it in Config. Click the gear icon to search for and add satellites." },
             { heading: "Live Position", content: "See where each satellite is right now on the map, along with its altitude, speed, and whether it's above your horizon (visible to you)." },
+            { heading: "TLE Age", content: "Each satellite row shows the age of its TLE (orbital element) data in days. Green (0-3d) = fresh, yellow (4-7d) = aging, red (8d+) = stale. Stale TLEs reduce position accuracy. The ISS TLE is refreshed from CelesTrak every 6 hours." },
             { heading: "Pass Predictions", content: "Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work." }
           ],
           links: [
@@ -5754,10 +5798,10 @@
     if (!isWidgetVisible("widget-beacons")) return;
     const tbody = $("beaconTbody");
     if (!tbody) return;
-    const active = getActiveBeacons();
-    if (tbody.children.length !== active.length) {
+    const active2 = getActiveBeacons();
+    if (tbody.children.length !== active2.length) {
       tbody.textContent = "";
-      for (const entry of active) {
+      for (const entry of active2) {
         const tr = document.createElement("tr");
         const tdFreq = document.createElement("td");
         tdFreq.textContent = (entry.freq / 1e3).toFixed(3);
@@ -5777,11 +5821,11 @@
         tbody.appendChild(tr);
       }
     } else {
-      for (let i = 0; i < active.length; i++) {
+      for (let i = 0; i < active2.length; i++) {
         const cells = tbody.children[i].children;
-        cells[1].textContent = active[i].beacon.call;
-        cells[2].textContent = active[i].beacon.location;
-        cells[3].textContent = active[i].secondsLeft + "s";
+        cells[1].textContent = active2[i].beacon.call;
+        cells[2].textContent = active2[i].beacon.location;
+        cells[3].textContent = active2[i].secondsLeft + "s";
       }
     }
   }
@@ -6012,12 +6056,12 @@ ${dec.toFixed(1)}\xB0, ${moonLon.toFixed(1)}\xB0`;
   }
   function updateBeaconMarkers() {
     if (!state_default.map) return;
-    const active = getActiveBeacons();
+    const active2 = getActiveBeacons();
     for (const key of Object.keys(state_default.beaconMarkers)) {
       state_default.map.removeLayer(state_default.beaconMarkers[key]);
       delete state_default.beaconMarkers[key];
     }
-    for (const entry of active) {
+    for (const entry of active2) {
       const { freq, beacon } = entry;
       const color = BEACON_COLORS[freq] || "#ffffff";
       const marker = L.circleMarker([beacon.lat, beacon.lon], {
@@ -7617,7 +7661,8 @@ ${beacon.location}`);
         alt: data.alt,
         azimuth: data.azimuth,
         elevation: data.elevation,
-        timestamp: data.timestamp
+        timestamp: data.timestamp,
+        tleEpoch: data.tleEpoch || null
       };
       state_default.satellites.issOrbitPath = data.orbitPath || [];
       updateSatelliteMarkers();
@@ -7799,6 +7844,12 @@ ${beacon.location}`);
     html += `<div class="${rowClass}">Alt: ${Math.round(pos.alt)} km</div>`;
     html += `<div class="${rowClass}">Az: ${pos.azimuth.toFixed(1)}&deg; &bull; El: ${pos.elevation.toFixed(1)}&deg;</div>`;
     html += `<div class="${rowClass}" style="color:${statusColor}">${statusText}</div>`;
+    if (pos.tleEpoch) {
+      const ageDays = Math.floor((Date.now() / 1e3 - pos.tleEpoch) / 86400);
+      const ageColor = ageDays <= 3 ? "var(--green)" : ageDays <= 7 ? "var(--yellow)" : "var(--red)";
+      const epochDate = new Date(pos.tleEpoch * 1e3).toLocaleDateString(void 0, { month: "short", day: "numeric" });
+      html += `<div class="${rowClass}">TLE: <span style="color:${ageColor}">${ageDays}d old</span> (${epochDate})</div>`;
+    }
     if (satInfo.uplinks || satInfo.downlinks) {
       html += `<div class="${headerClass}">${isISS ? "Amateur Radio (ARISS)" : "Amateur Radio Frequencies"}</div>`;
       html += `<table class="${tableClass}">`;
@@ -7866,9 +7917,15 @@ ${beacon.location}`);
           dopplerStr = `${doppler > 0 ? "+" : ""}${doppler.toFixed(1)}`;
         }
       }
+      let tleAgeHtml = "";
+      if (pos.tleEpoch) {
+        const ageDays = Math.floor((Date.now() / 1e3 - pos.tleEpoch) / 86400);
+        const cls = ageDays <= 3 ? "tle-fresh" : ageDays <= 7 ? "tle-aging" : "tle-stale";
+        tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d">${ageDays}d</span>`;
+      }
       const rowClass = `sat-row${isSelected ? " selected" : ""}${isAbove ? "" : " below-horizon"}`;
       html += `<div class="${rowClass}" data-sat-id="${satId}">`;
-      html += `<span class="sat-name">${esc(shortName)}</span>`;
+      html += `<span class="sat-name">${esc(shortName)}${tleAgeHtml}</span>`;
       html += `<span class="sat-azel">Az ${pos.azimuth.toFixed(0)}&deg; El ${pos.elevation.toFixed(0)}&deg;</span>`;
       if (dopplerStr) {
         html += `<span class="sat-doppler">${dopplerStr} kHz</span>`;
@@ -8542,8 +8599,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.40.1";
-    $("aboutVersion").textContent = "0.40.1";
+    $("splashVersion").textContent = "0.41.0";
+    $("aboutVersion").textContent = "0.41.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -8985,6 +9042,7 @@ ${beacon.location}`);
         $("mapOvMaidenhead").checked = state_default.mapOverlays.maidenheadGrid;
         $("mapOvTimezone").checked = state_default.mapOverlays.timezoneGrid;
         $("mapOvMufImage").checked = state_default.mapOverlays.mufImageOverlay;
+        $("mapOvDrap").checked = state_default.mapOverlays.drapOverlay;
         $("mapOvBandPaths").checked = state_default.mapOverlays.bandPaths;
         $("mapOvDxpedMarkers").checked = state_default.mapOverlays.dxpedMarkers;
         mapOverlayCfgSplash.classList.remove("hidden");
@@ -8996,6 +9054,7 @@ ${beacon.location}`);
         state_default.mapOverlays.maidenheadGrid = $("mapOvMaidenhead").checked;
         state_default.mapOverlays.timezoneGrid = $("mapOvTimezone").checked;
         state_default.mapOverlays.mufImageOverlay = $("mapOvMufImage").checked;
+        state_default.mapOverlays.drapOverlay = $("mapOvDrap").checked;
         state_default.mapOverlays.bandPaths = $("mapOvBandPaths").checked;
         state_default.mapOverlays.dxpedMarkers = $("mapOvDxpedMarkers").checked;
         saveMapOverlays();
@@ -9458,6 +9517,66 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   init_rel_heatmap();
   init_beacons();
   init_dedx_info();
+
+  // src/big-clock.js
+  init_state();
+  init_dom();
+  init_utils();
+  var active = false;
+  function fmtDate(date, options) {
+    return date.toLocaleDateString(void 0, Object.assign({
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    }, options || {}));
+  }
+  function updateBigClock() {
+    if (!active) return;
+    const now = /* @__PURE__ */ new Date();
+    const localEl = $("bigClockLocal");
+    const utcEl = $("bigClockUtc");
+    const dateEl = $("bigClockDate");
+    const utcDateEl = $("bigClockUtcDate");
+    if (localEl) localEl.textContent = fmtTime(now);
+    if (utcEl) utcEl.textContent = fmtTime(now, { timeZone: "UTC" });
+    if (dateEl) dateEl.textContent = fmtDate(now);
+    if (utcDateEl) utcDateEl.textContent = fmtDate(now, { timeZone: "UTC" });
+  }
+  function show() {
+    const overlay = $("bigClockOverlay");
+    if (!overlay) return;
+    active = true;
+    overlay.classList.remove("hidden");
+    updateBigClock();
+  }
+  function hide() {
+    const overlay = $("bigClockOverlay");
+    if (!overlay) return;
+    active = false;
+    overlay.classList.add("hidden");
+  }
+  function toggleBigClock() {
+    if (active) hide();
+    else show();
+  }
+  function initBigClock() {
+    const clockGroup = $("headerClockLocal");
+    const clockUtc = $("headerClockUtc");
+    if (clockGroup) clockGroup.addEventListener("click", toggleBigClock);
+    if (clockUtc) clockUtc.addEventListener("click", toggleBigClock);
+    const overlay = $("bigClockOverlay");
+    if (overlay) {
+      overlay.addEventListener("click", hide);
+      const inner = overlay.querySelector(".big-clock-inner");
+      if (inner) inner.addEventListener("click", (e) => e.stopPropagation());
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && active) hide();
+    });
+  }
+
+  // src/main.js
   migrate();
   migrateV2();
   initTheme();
@@ -9480,7 +9599,10 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (isWidgetVisible("widget-satellites")) fetchSatellitePositions();
   }, 1e4);
   updateClocks();
-  setInterval(updateClocks, 1e3);
+  setInterval(() => {
+    updateClocks();
+    updateBigClock();
+  }, 1e3);
   setInterval(renderSpots, 3e4);
   initSourceListeners();
   initFilterListeners();
@@ -9506,6 +9628,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initDxpeditionListeners();
   initContestListeners();
   initDedxListeners();
+  initBigClock();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

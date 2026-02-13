@@ -301,7 +301,7 @@ export const WIDGET_HELP = {
     description: 'An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who\'s on the air and where.',
     sections: [
       { heading: 'Spot Markers', content: 'Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station.' },
-      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (real-time Maximum Usable Frequency from prop.kc2g.com), DX Paths (band-colored great circle lines from your location to every visible spot), and DXpedition Markers (orange circles for active and upcoming DXpeditions).' },
+      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC — shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), and DXpedition Markers (active/upcoming DXpeditions). D-RAP auto-enables when Kp reaches storm level (≥5).' },
       { heading: 'Geodesic Paths', content: 'The curved line between you and a selected station is called a geodesic (great-circle) path — this is the shortest route over the Earth\'s surface and the direction to point your antenna.' },
       { heading: 'Center Mode', content: 'In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot.' },
     ],
@@ -363,6 +363,7 @@ export const WIDGET_HELP = {
       { heading: 'ISS Tracking', content: 'The ISS (International Space Station) is tracked automatically — no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard.' },
       { heading: 'Adding More Satellites', content: 'To track additional satellites like AO-91, SO-50, and others, you\'ll need a free API key from N2YO.com — enter it in Config. Click the gear icon to search for and add satellites.' },
       { heading: 'Live Position', content: 'See where each satellite is right now on the map, along with its altitude, speed, and whether it\'s above your horizon (visible to you).' },
+      { heading: 'TLE Age', content: 'Each satellite row shows the age of its TLE (orbital element) data in days. Green (0-3d) = fresh, yellow (4-7d) = aging, red (8d+) = stale. Stale TLEs reduce position accuracy. The ISS TLE is refreshed from CelesTrak every 6 hours.' },
       { heading: 'Pass Predictions', content: 'Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work.' },
     ],
     links: [

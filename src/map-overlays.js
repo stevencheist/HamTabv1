@@ -6,6 +6,9 @@ export function renderAllMapOverlays() {
   renderMaidenheadGrid();
   renderTimezoneGrid();
   renderMufImageOverlay();
+  renderTropicsLines();
+  renderWeatherRadar();
+  renderSymbolLegend();
 }
 
 export function renderLatLonGrid() {
@@ -173,6 +176,127 @@ export function renderMufImageOverlay() {
     const freshUrl = `/api/propagation/image?type=${type}&_t=${Date.now()}`;
     mufImageLayer.setUrl(freshUrl);
   }, 15 * 60 * 1000); // 15 minutes
+}
+
+// --- Tropics & Arctic Lines ---
+
+let tropicsLayer = null;
+
+export function renderTropicsLines() {
+  if (tropicsLayer) { state.map.removeLayer(tropicsLayer); tropicsLayer = null; }
+  if (!state.mapOverlays.tropicsLines) return;
+
+  tropicsLayer = L.layerGroup().addTo(state.map);
+
+  const lines = [
+    { lat: 66.5634,  name: 'Arctic Circle',        color: '#6ec6ff', dash: '8,6' },
+    { lat: 23.4362,  name: 'Tropic of Cancer',      color: '#f0a050', dash: '8,6' },
+    { lat: 0,        name: 'Equator',                color: '#f0d060', dash: null },
+    { lat: -23.4362, name: 'Tropic of Capricorn',    color: '#f0a050', dash: '8,6' },
+    { lat: -66.5634, name: 'Antarctic Circle',       color: '#6ec6ff', dash: '8,6' },
+  ];
+
+  const bounds = state.map.getBounds();
+  const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.02;
+
+  for (const ln of lines) {
+    const style = {
+      color: ln.color, weight: ln.dash ? 1.5 : 2, opacity: 0.6,
+      dashArray: ln.dash || undefined,
+      pane: 'mapOverlays', interactive: false,
+    };
+    L.polyline([[ln.lat, -180], [ln.lat, 180]], style).addTo(tropicsLayer);
+
+    // Label at left edge of viewport
+    if (ln.lat >= bounds.getSouth() && ln.lat <= bounds.getNorth()) {
+      const isArctic = Math.abs(ln.lat) > 60;
+      L.marker([ln.lat, labelLon], {
+        icon: L.divIcon({
+          className: 'grid-label tropics-label' + (isArctic ? ' tropics-arctic' : ''),
+          html: ln.name,
+          iconSize: null,
+        }),
+        pane: 'mapOverlays', interactive: false,
+      }).addTo(tropicsLayer);
+    }
+  }
+}
+
+// --- Weather Radar (RainViewer tile layer) ---
+
+let weatherRadarLayer = null;
+let weatherRadarTimer = null;
+
+export function renderWeatherRadar() {
+  if (weatherRadarLayer) { state.map.removeLayer(weatherRadarLayer); weatherRadarLayer = null; }
+  if (weatherRadarTimer) { clearInterval(weatherRadarTimer); weatherRadarTimer = null; }
+  if (!state.mapOverlays.weatherRadar) return;
+
+  fetchRadarAndShow();
+  weatherRadarTimer = setInterval(fetchRadarAndShow, 5 * 60 * 1000); // 5min refresh
+}
+
+async function fetchRadarAndShow() {
+  try {
+    const res = await fetch('/api/weather/radar');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.host || !data.path) return;
+
+    const tileUrl = `${data.host}${data.path}/256/{z}/{x}/{y}/2/1_1.png`;
+
+    // Remove old layer before adding new one
+    if (weatherRadarLayer) state.map.removeLayer(weatherRadarLayer);
+
+    weatherRadarLayer = L.tileLayer(tileUrl, {
+      opacity: 0.35,
+      pane: 'propagation', // z-300, below mapOverlays (350)
+      interactive: false,
+      attribution: '&copy; RainViewer',
+    }).addTo(state.map);
+  } catch (e) {
+    if (state.debug) console.error('Weather radar fetch failed:', e);
+  }
+}
+
+// --- Symbol Legend (L.Control) ---
+
+let legendControl = null;
+
+export function renderSymbolLegend() {
+  if (legendControl) { state.map.removeControl(legendControl); legendControl = null; }
+  if (!state.mapOverlays.symbolLegend) return;
+
+  const LegendControl = L.Control.extend({
+    options: { position: 'bottomright' },
+    onAdd() {
+      const div = L.DomUtil.create('div', 'map-legend');
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
+
+      const items = [
+        { symbol: '<span class="legend-dot" style="background:#4CAF50"></span>', label: 'POTA' },
+        { symbol: '<span class="legend-dot" style="background:#FF9800"></span>', label: 'SOTA' },
+        { symbol: '<span class="legend-dot" style="background:#f44336"></span>', label: 'DX Cluster' },
+        { symbol: '<span class="legend-dot" style="background:#009688"></span>', label: 'WWFF' },
+        { symbol: '<span class="legend-dot" style="background:#9C27B0"></span>', label: 'PSKReporter' },
+        { symbol: '<span class="legend-circle" style="border-color:#FF9800"></span>', label: 'DXped (active)' },
+        { symbol: '<span class="legend-circle" style="border-color:#888"></span>', label: 'DXped (upcoming)' },
+        { symbol: '<span class="legend-dot legend-sun"></span>', label: 'Sun sub-point' },
+        { symbol: '<span class="legend-dot legend-moon"></span>', label: 'Moon sub-point' },
+        { symbol: '<span class="legend-line" style="border-color:#666"></span>', label: 'Gray line' },
+        { symbol: '<span class="legend-line" style="border-color:#4a90e2"></span>', label: 'Geodesic path' },
+        { symbol: '<span class="legend-dot legend-beacon"></span>', label: 'NCDXF beacon' },
+      ];
+
+      div.innerHTML = '<div class="legend-title">Legend</div>' +
+        items.map(i => `<div class="legend-row">${i.symbol}<span class="legend-label">${i.label}</span></div>`).join('');
+      return div;
+    },
+  });
+
+  legendControl = new LegendControl();
+  state.map.addControl(legendControl);
 }
 
 export function saveMapOverlays() {

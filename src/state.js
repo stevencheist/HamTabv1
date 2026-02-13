@@ -45,7 +45,7 @@ const state = {
   maidenheadDebounceTimer: null,
 
   // Map overlay config
-  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false, dxpedMarkers: true },
+  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, symbolLegend: false },
 
   // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
   dxpedTimeFilter: localStorage.getItem('hamtab_dxped_time_filter') || 'all',

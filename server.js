@@ -114,6 +114,7 @@ const CACHE_RULES = [
   { prefix: '/api/spots/sota',         cc: 'public, max-age=30, s-maxage=60' },        // no server cache; browser 30s, edge 60s
   { prefix: '/api/spots',              cc: 'public, max-age=30, s-maxage=60' },        // POTA; client polls 60s
   { prefix: '/api/iss/position',       cc: 'public, max-age=5, s-maxage=10' },         // real-time; client polls 10s
+  { prefix: '/api/weather/radar',      cc: 'public, max-age=120, s-maxage=300' },      // RainViewer; browser 2m, edge 5m
   { prefix: '/api/weather/conditions', cc: 'public, max-age=300, s-maxage=900' },      // NWS 15m refresh; browser 5m, edge 15m
   { prefix: '/api/weather/alerts',     cc: 'public, max-age=120, s-maxage=300' },      // safety-critical; browser 2m, edge 5m
   { prefix: '/api/weather',            cc: 'public, max-age=120, s-maxage=300' },      // WU data; browser 2m, edge 5m
@@ -2389,6 +2390,35 @@ app.get('/api/drap/image', async (req, res) => {
   } catch (err) {
     console.error('Error fetching D-RAP image:', err.message);
     res.status(502).json({ error: 'Failed to fetch D-RAP image' });
+  }
+});
+
+// --- Weather Radar (RainViewer) ---
+
+const radarCache = { data: null, expires: 0 };
+const RADAR_TTL = 5 * 60 * 1000; // 5 minutes
+
+app.get('/api/weather/radar', async (req, res) => {
+  try {
+    if (radarCache.data && Date.now() < radarCache.expires) {
+      return res.json(radarCache.data);
+    }
+    const response = await secureFetch('https://api.rainviewer.com/public/weather-maps.json', { timeout: 10000 });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const json = await response.json();
+    // Extract latest radar frame
+    const radar = json.radar;
+    if (!radar || !radar.past || !radar.past.length) {
+      throw new Error('No radar frames available');
+    }
+    const latest = radar.past[radar.past.length - 1];
+    const result = { host: json.host, path: latest.path, time: latest.time };
+    radarCache.data = result;
+    radarCache.expires = Date.now() + RADAR_TTL;
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching weather radar:', err.message);
+    res.status(502).json({ error: 'Failed to fetch weather radar data' });
   }
 });
 

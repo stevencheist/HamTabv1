@@ -272,6 +272,11 @@ export function initTheme() {
   if (localStorage.getItem('hamtab_slim_header') === 'true') {
     document.body.classList.add('slim-header');
   }
+
+  // Apply grayscale mode early to prevent flash of color
+  if (localStorage.getItem('hamtab_grayscale') === 'true') {
+    document.body.classList.add('grayscale');
+  }
 }
 
 /** Check if the currently active theme supports grid layout */

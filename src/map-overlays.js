@@ -6,6 +6,7 @@ export function renderAllMapOverlays() {
   renderMaidenheadGrid();
   renderTimezoneGrid();
   renderMufImageOverlay();
+  renderDrapOverlay();
 }
 
 export function renderLatLonGrid() {
@@ -172,6 +173,34 @@ export function renderMufImageOverlay() {
     if (!state.mapOverlays.mufImageOverlay || !mufImageLayer) return;
     const freshUrl = `/api/propagation/image?type=${type}&_t=${Date.now()}`;
     mufImageLayer.setUrl(freshUrl);
+  }, 15 * 60 * 1000); // 15 minutes
+}
+
+// --- D-RAP (D Region Absorption Prediction) Overlay ---
+// NOAA SWPC global absorption map — shows where HF signals are being absorbed
+
+let drapImageLayer = null;
+let drapImageRefreshTimer = null;
+
+export function renderDrapOverlay() {
+  if (drapImageLayer) { state.map.removeLayer(drapImageLayer); drapImageLayer = null; }
+  if (drapImageRefreshTimer) { clearInterval(drapImageRefreshTimer); drapImageRefreshTimer = null; }
+  if (!state.mapOverlays.drapOverlay) return;
+
+  const L = window.L;
+  const url = `/api/drap/image?_t=${Date.now()}`;
+  const bounds = [[-90, -180], [90, 180]]; // Plate Carree full world
+
+  drapImageLayer = L.imageOverlay(url, bounds, {
+    opacity: 0.5,
+    pane: 'propagation', // same z-index as MUF overlay (300)
+    interactive: false,
+  }).addTo(state.map);
+
+  // Refresh every 15 minutes (SWPC updates D-RAP on ~15m cadence)
+  drapImageRefreshTimer = setInterval(() => {
+    if (!state.mapOverlays.drapOverlay || !drapImageLayer) return;
+    drapImageLayer.setUrl(`/api/drap/image?_t=${Date.now()}`);
   }, 15 * 60 * 1000); // 15 minutes
 }
 

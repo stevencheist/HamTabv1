@@ -2946,6 +2946,17 @@ header {
   font-family: monospace;
 }
 
+.sat-tle-age {
+  font-size: 0.6rem;
+  margin-left: 4px;
+  padding: 0 3px;
+  border-radius: 2px;
+  font-family: monospace;
+}
+.sat-tle-age.tle-fresh { color: var(--green); }
+.sat-tle-age.tle-aging { color: var(--yellow); }
+.sat-tle-age.tle-stale { color: var(--red); }
+
 .sat-no-key,
 .sat-no-data {
   padding: 16px;
@@ -5735,4 +5746,56 @@ header {
                        background: var(--surface); color: var(--text); border: 1px solid var(--border);
                        border-radius: 3px; cursor: pointer; }
 .wl-add-form button:hover { border-color: var(--accent); }
+
+/* ---- Big Clock Overlay ---- */
+.big-clock-overlay {
+  position: fixed; inset: 0;
+  z-index: 10001;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.big-clock-overlay.hidden { display: none; }
+.big-clock-inner {
+  text-align: center;
+  cursor: default;
+}
+.big-clock-section { margin-bottom: 2rem; }
+.big-clock-label {
+  font-size: 1.2rem;
+  color: var(--text-dim, #888);
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  margin-bottom: 0.25rem;
+}
+.big-clock-time {
+  font-size: 10rem;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  color: var(--text, #e0e0e0);
+  letter-spacing: 6px;
+  line-height: 1.1;
+}
+.big-clock-date {
+  font-size: 1.4rem;
+  color: var(--text-dim, #888);
+  margin-top: 0.25rem;
+}
+.big-clock-hint {
+  font-size: 0.8rem;
+  color: var(--text-dim, #555);
+  margin-top: 2rem;
+}
+/* Header clocks get pointer cursor to indicate clickability */
+.header-clock { cursor: pointer; }
+
+/* Responsive — shrink Big Clock on smaller screens */
+@media (max-width: 900px) {
+  .big-clock-time { font-size: 5rem; letter-spacing: 3px; }
+  .big-clock-date { font-size: 1rem; }
+}
+@media (max-width: 500px) {
+  .big-clock-time { font-size: 3rem; letter-spacing: 2px; }
+  .big-clock-label { font-size: 0.9rem; }
+}
 

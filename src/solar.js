@@ -247,6 +247,8 @@ export async function fetchSolar() {
     renderPropagationWidget();
     const { renderVoacapMatrix } = await import('./voacap.js');
     renderVoacapMatrix();
+    // Auto-enable D-RAP overlay when Kp ≥ 5 (geomagnetic storm)
+    checkAutoStormOverlay(data);
   } catch (err) {
     console.error('Failed to fetch solar:', err);
   }
@@ -431,5 +433,25 @@ export function centerMap() {
         if (!isNaN(lat) && !isNaN(lon)) state.map.flyTo([lat, lon], 5, { duration: 0.8 });
       }
     }
+  }
+}
+
+// --- Auto Storm Overlay ---
+// When Kp ≥ 5, auto-enable D-RAP absorption overlay to show HF blackout zones.
+// Only auto-enables — never auto-disables (user may have turned it on manually).
+let lastStormAutoEnabled = false;
+
+async function checkAutoStormOverlay(data) {
+  const kp = parseInt(data?.indices?.kindex);
+  if (isNaN(kp)) return;
+
+  if (kp >= 5 && !state.mapOverlays.drapOverlay && !lastStormAutoEnabled) {
+    state.mapOverlays.drapOverlay = true;
+    lastStormAutoEnabled = true;
+    const { saveMapOverlays, renderDrapOverlay } = await import('./map-overlays.js');
+    saveMapOverlays();
+    renderDrapOverlay();
+  } else if (kp < 5) {
+    lastStormAutoEnabled = false; // reset so it can auto-enable again next storm
   }
 }

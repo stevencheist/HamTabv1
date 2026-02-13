@@ -18,6 +18,10 @@ export function saveWidgetVisibility() {
   localStorage.setItem(WIDGET_VIS_KEY, JSON.stringify(state.widgetVisibility));
 }
 
+export function isWidgetVisible(id) {
+  return state.widgetVisibility[id] !== false;
+}
+
 export function applyWidgetVisibility() {
   if (isGridMode()) {
     applyGridAssignments();

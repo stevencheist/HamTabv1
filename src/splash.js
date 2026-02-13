@@ -9,11 +9,22 @@ import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
-import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
+import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, isWidgetVisible, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
 import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
 import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, DEFAULT_BAND_COLORS, getBandColor, getBandColorOverrides, saveBandColors } from './constants.js';
 import { activateGridMode, deactivateGridMode, saveGridAssignments, getGridPermutation } from './grid-layout.js';
 import { startAutoRefresh, stopAutoRefresh } from './refresh.js';
+import { fetchSatellitePositions } from './satellites.js';
+import { startBeaconTimer, stopBeaconTimer } from './beacons.js';
+import { updateBeaconMarkers } from './map-init.js';
+import { fetchVoacapMatrixThrottled } from './voacap.js';
+import { fetchLiveSpots } from './live-spots.js';
+import { renderDedxInfo } from './dedx-info.js';
+import { fetchSolar } from './solar.js';
+import { fetchLunar } from './lunar.js';
+import { fetchSpaceWxData } from './spacewx-graphs.js';
+import { fetchDxpeditions } from './dxpeditions.js';
+import { fetchContests } from './contests.js';
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -460,6 +471,9 @@ function dismissSplash() {
 
   fetchWeather();
 
+  // Capture old visibility before applying changes (for refresh-on-show hook)
+  const oldVis = { ...state.widgetVisibility };
+
   const widgetList = document.getElementById('splashWidgetList');
   widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
     state.widgetVisibility[cb.dataset.widgetId] = cb.checked;
@@ -493,6 +507,24 @@ function dismissSplash() {
   }
 
   applyWidgetVisibility();
+
+  // --- Refresh data for widgets that just became visible ---
+  const justShown = (id) => oldVis[id] === false && state.widgetVisibility[id] !== false;
+  const justHidden = (id) => oldVis[id] !== false && state.widgetVisibility[id] === false;
+
+  if (justShown('widget-satellites'))   fetchSatellitePositions();
+  if (justShown('widget-voacap'))       fetchVoacapMatrixThrottled();
+  if (justShown('widget-live-spots'))   fetchLiveSpots();
+  if (justShown('widget-dedx'))         renderDedxInfo();
+  if (justShown('widget-solar'))        fetchSolar();
+  if (justShown('widget-lunar'))        fetchLunar();
+  if (justShown('widget-spacewx'))      fetchSpaceWxData();
+  if (justShown('widget-dxpeditions'))  fetchDxpeditions();
+  if (justShown('widget-contests'))     fetchContests();
+
+  // Beacon timer start/stop — avoid 1 Hz timer running for a hidden widget
+  if (justShown('widget-beacons'))  { startBeaconTimer(); updateBeaconMarkers(); }
+  if (justHidden('widget-beacons')) { stopBeaconTimer(); }
 
   // Update interval — lanmode only (element absent in hostedmode)
   const intervalSelect = $('splashUpdateInterval');

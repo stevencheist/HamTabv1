@@ -5,6 +5,7 @@
 
 import state from './state.js';
 import { $ } from './dom.js';
+import { isWidgetVisible } from './widgets.js';
 
 // 18 beacons in transmission order (per NCDXF schedule)
 export const BEACONS = [
@@ -49,6 +50,7 @@ export function getActiveBeacons() {
 
 // Render the 5-row beacon table
 function renderBeacons() {
+  if (!isWidgetVisible('widget-beacons')) return;
   const tbody = $('beaconTbody');
   if (!tbody) return;
 

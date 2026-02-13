@@ -382,6 +382,10 @@ export function showSplash() {
   const cfgSlimHeader = $('cfgSlimHeader');
   if (cfgSlimHeader) cfgSlimHeader.checked = state.slimHeader;
 
+  // Grayscale toggle
+  const cfgGrayscale = $('cfgGrayscale');
+  if (cfgGrayscale) cfgGrayscale.checked = state.grayscale;
+
   // Band color pickers
   populateBandColorPickers();
 
@@ -757,6 +761,16 @@ export function initSplashListeners() {
       state.slimHeader = cfgSlimHeaderCb.checked;
       localStorage.setItem('hamtab_slim_header', String(state.slimHeader));
       document.body.classList.toggle('slim-header', state.slimHeader);
+    });
+  }
+
+  // Grayscale toggle in Appearance tab
+  const cfgGrayscaleCb = $('cfgGrayscale');
+  if (cfgGrayscaleCb) {
+    cfgGrayscaleCb.addEventListener('change', () => {
+      state.grayscale = cfgGrayscaleCb.checked;
+      localStorage.setItem('hamtab_grayscale', String(state.grayscale));
+      document.body.classList.toggle('grayscale', state.grayscale);
     });
   }
 

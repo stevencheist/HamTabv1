@@ -70,6 +70,7 @@ export async function fetchIssPosition() {
       azimuth: data.azimuth,
       elevation: data.elevation,
       timestamp: data.timestamp,
+      tleEpoch: data.tleEpoch || null,
     };
 
     // Store orbit path
@@ -300,6 +301,14 @@ function buildSatellitePopup(satId, pos, satInfo) {
   html += `<div class="${rowClass}">Az: ${pos.azimuth.toFixed(1)}&deg; &bull; El: ${pos.elevation.toFixed(1)}&deg;</div>`;
   html += `<div class="${rowClass}" style="color:${statusColor}">${statusText}</div>`;
 
+  // TLE epoch age
+  if (pos.tleEpoch) {
+    const ageDays = Math.floor((Date.now() / 1000 - pos.tleEpoch) / 86400);
+    const ageColor = ageDays <= 3 ? 'var(--green)' : ageDays <= 7 ? 'var(--yellow)' : 'var(--red)';
+    const epochDate = new Date(pos.tleEpoch * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    html += `<div class="${rowClass}">TLE: <span style="color:${ageColor}">${ageDays}d old</span> (${epochDate})</div>`;
+  }
+
   // Radio frequencies if known
   if (satInfo.uplinks || satInfo.downlinks) {
     html += `<div class="${headerClass}">${isISS ? 'Amateur Radio (ARISS)' : 'Amateur Radio Frequencies'}</div>`;
@@ -404,9 +413,17 @@ export function renderSatelliteWidget() {
       }
     }
 
+    // TLE age badge — days since TLE epoch
+    let tleAgeHtml = '';
+    if (pos.tleEpoch) {
+      const ageDays = Math.floor((Date.now() / 1000 - pos.tleEpoch) / 86400);
+      const cls = ageDays <= 3 ? 'tle-fresh' : ageDays <= 7 ? 'tle-aging' : 'tle-stale';
+      tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d">${ageDays}d</span>`;
+    }
+
     const rowClass = `sat-row${isSelected ? ' selected' : ''}${isAbove ? '' : ' below-horizon'}`;
     html += `<div class="${rowClass}" data-sat-id="${satId}">`;
-    html += `<span class="sat-name">${esc(shortName)}</span>`;
+    html += `<span class="sat-name">${esc(shortName)}${tleAgeHtml}</span>`;
     html += `<span class="sat-azel">Az ${pos.azimuth.toFixed(0)}&deg; El ${pos.elevation.toFixed(0)}&deg;</span>`;
     if (dopplerStr) {
       html += `<span class="sat-doppler">${dopplerStr} kHz</span>`;

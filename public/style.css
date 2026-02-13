@@ -5462,6 +5462,18 @@ header {
     height: 280px;
   }
 
+  /* --- Mobile map controls: larger touch targets --- */
+  .leaflet-control-zoom a {
+    width: 36px !important;
+    height: 36px !important;
+    line-height: 36px !important;
+    font-size: 20px !important;
+  }
+
+  .leaflet-control-zoom {
+    border-radius: 6px !important;
+  }
+
   #widget-activations {
     min-height: 250px;
   }

@@ -50,6 +50,9 @@ const state = {
   // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
   dxpedTimeFilter: localStorage.getItem('hamtab_dxped_time_filter') || 'all',
 
+  // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
+  hiddenDxpeditions: new Set(JSON.parse(localStorage.getItem('hamtab_dxped_hidden') || '[]')),
+
   // Source
   currentSource: localStorage.getItem('hamtab_spot_source') || 'pota',
   sourceData: { pota: [], sota: [], dxc: [], wwff: [] },

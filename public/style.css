@@ -3579,6 +3579,43 @@ header {
 
 .dxped-detail { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
 
+.dxped-hide-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.dxped-card:hover .dxped-hide-btn { opacity: 1; }
+.dxped-hide-btn:hover { color: var(--red, #f44336); }
+
+/* When badge is present, badge takes margin-left:auto and hide btn sits after it */
+.dxped-badge + .dxped-hide-btn { margin-left: 0; }
+
+.dxped-unhide-row {
+  text-align: center;
+  padding: 4px 0;
+}
+.dxped-unhide-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  padding: 2px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.dxped-unhide-btn:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+
 /* ---- Contests Widget ---- */
 
 #widget-contests .widget-body { padding: 6px; overflow-y: auto; display: flex; flex-direction: column; }

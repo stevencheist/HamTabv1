@@ -192,6 +192,8 @@ const state = {
 
   // Beacons / DXpeditions / Contests
   beaconTimer: null,          // setInterval ID for 1-second beacon updates
+  dedxTimer: null,            // setInterval ID for 1-second DE/DX Info clock updates
+  stopwatchTimer: null,       // setInterval ID for 100ms stopwatch/countdown updates
   lastDxpeditionData: null,   // cached /api/dxpeditions response
   lastContestData: null,      // cached /api/contests response
 

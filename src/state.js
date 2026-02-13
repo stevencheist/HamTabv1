@@ -39,6 +39,7 @@ const state = {
 
   // Preferences
   slimHeader: localStorage.getItem('hamtab_slim_header') === 'true',
+  grayscale: localStorage.getItem('hamtab_grayscale') === 'true',
   use24h: localStorage.getItem('hamtab_time24') !== 'false',
   privilegeFilterEnabled: localStorage.getItem('hamtab_privilege_filter') === 'true',
   licenseClass: localStorage.getItem('hamtab_license_class') || '',
@@ -184,6 +185,7 @@ const state = {
   heatmapOverlayMode: localStorage.getItem('hamtab_heatmap_mode') || 'circles', // 'circles' or 'heatmap'
   heatmapLayer: null,       // L.imageOverlay instance
   heatmapRenderTimer: null, // debounce timer for pan/zoom re-render
+  voacapParamTimer: null,   // debounce timer for power/mode/TOA/path button clicks
 
   // Beacons / DXpeditions / Contests
   beaconTimer: null,          // setInterval ID for 1-second beacon updates

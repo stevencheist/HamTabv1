@@ -386,6 +386,10 @@ export function showSplash() {
   const cfgGrayscale = $('cfgGrayscale');
   if (cfgGrayscale) cfgGrayscale.checked = state.grayscale;
 
+  // Disable weather backgrounds toggle
+  const cfgDisableWxBg = $('cfgDisableWxBg');
+  if (cfgDisableWxBg) cfgDisableWxBg.checked = state.disableWxBackgrounds;
+
   // Band color pickers
   populateBandColorPickers();
 
@@ -771,6 +775,24 @@ export function initSplashListeners() {
       state.grayscale = cfgGrayscaleCb.checked;
       localStorage.setItem('hamtab_grayscale', String(state.grayscale));
       document.body.classList.toggle('grayscale', state.grayscale);
+    });
+  }
+
+  // Disable weather backgrounds toggle in Appearance tab
+  const cfgDisableWxBgCb = $('cfgDisableWxBg');
+  if (cfgDisableWxBgCb) {
+    cfgDisableWxBgCb.addEventListener('change', () => {
+      state.disableWxBackgrounds = cfgDisableWxBgCb.checked;
+      localStorage.setItem('hamtab_disable_wx_bg', String(state.disableWxBackgrounds));
+      // Immediately strip or re-apply weather background classes
+      const hcl = document.getElementById('headerClockLocal');
+      if (hcl) {
+        const wxClasses = ['wx-clear-day','wx-clear-night','wx-partly-cloudy-day','wx-partly-cloudy-night','wx-cloudy','wx-rain','wx-thunderstorm','wx-snow','wx-fog'];
+        if (state.disableWxBackgrounds) {
+          wxClasses.forEach(c => hcl.classList.remove(c));
+        }
+        // If re-enabling, next weather fetch will re-apply the class
+      }
     });
   }
 

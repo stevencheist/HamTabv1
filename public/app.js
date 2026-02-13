@@ -83,7 +83,7 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, symbolLegend: false },
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
         // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
@@ -539,7 +539,10 @@
     renderLatLonGrid: () => renderLatLonGrid,
     renderMaidenheadGrid: () => renderMaidenheadGrid,
     renderMufImageOverlay: () => renderMufImageOverlay,
+    renderSymbolLegend: () => renderSymbolLegend,
     renderTimezoneGrid: () => renderTimezoneGrid,
+    renderTropicsLines: () => renderTropicsLines,
+    renderWeatherRadar: () => renderWeatherRadar,
     saveMapOverlays: () => saveMapOverlays
   });
   function renderAllMapOverlays() {
@@ -549,6 +552,9 @@
     renderTimezoneGrid();
     renderMufImageOverlay();
     renderDrapOverlay();
+    renderTropicsLines();
+    renderWeatherRadar();
+    renderSymbolLegend();
   }
   function renderLatLonGrid() {
     if (state_default.latLonLayer) {
@@ -754,10 +760,115 @@
       drapImageLayer.setUrl(`/api/drap/image?_t=${Date.now()}`);
     }, 15 * 60 * 1e3);
   }
+  function renderTropicsLines() {
+    if (tropicsLayer) {
+      state_default.map.removeLayer(tropicsLayer);
+      tropicsLayer = null;
+    }
+    if (!state_default.mapOverlays.tropicsLines) return;
+    tropicsLayer = L.layerGroup().addTo(state_default.map);
+    const lines = [
+      { lat: 66.5634, name: "Arctic Circle", color: "#6ec6ff", dash: "8,6" },
+      { lat: 23.4362, name: "Tropic of Cancer", color: "#f0a050", dash: "8,6" },
+      { lat: 0, name: "Equator", color: "#f0d060", dash: null },
+      { lat: -23.4362, name: "Tropic of Capricorn", color: "#f0a050", dash: "8,6" },
+      { lat: -66.5634, name: "Antarctic Circle", color: "#6ec6ff", dash: "8,6" }
+    ];
+    const bounds = state_default.map.getBounds();
+    const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.02;
+    for (const ln of lines) {
+      const style = {
+        color: ln.color,
+        weight: ln.dash ? 1.5 : 2,
+        opacity: 0.6,
+        dashArray: ln.dash || void 0,
+        pane: "mapOverlays",
+        interactive: false
+      };
+      L.polyline([[ln.lat, -180], [ln.lat, 180]], style).addTo(tropicsLayer);
+      if (ln.lat >= bounds.getSouth() && ln.lat <= bounds.getNorth()) {
+        const isArctic = Math.abs(ln.lat) > 60;
+        L.marker([ln.lat, labelLon], {
+          icon: L.divIcon({
+            className: "grid-label tropics-label" + (isArctic ? " tropics-arctic" : ""),
+            html: ln.name,
+            iconSize: null
+          }),
+          pane: "mapOverlays",
+          interactive: false
+        }).addTo(tropicsLayer);
+      }
+    }
+  }
+  function renderWeatherRadar() {
+    if (weatherRadarLayer) {
+      state_default.map.removeLayer(weatherRadarLayer);
+      weatherRadarLayer = null;
+    }
+    if (weatherRadarTimer) {
+      clearInterval(weatherRadarTimer);
+      weatherRadarTimer = null;
+    }
+    if (!state_default.mapOverlays.weatherRadar) return;
+    fetchRadarAndShow();
+    weatherRadarTimer = setInterval(fetchRadarAndShow, 5 * 60 * 1e3);
+  }
+  async function fetchRadarAndShow() {
+    try {
+      const res = await fetch("/api/weather/radar");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.host || !data.path) return;
+      const tileUrl = `${data.host}${data.path}/256/{z}/{x}/{y}/2/1_1.png`;
+      if (weatherRadarLayer) state_default.map.removeLayer(weatherRadarLayer);
+      weatherRadarLayer = L.tileLayer(tileUrl, {
+        opacity: 0.35,
+        pane: "propagation",
+        // z-300, below mapOverlays (350)
+        interactive: false,
+        attribution: "&copy; RainViewer"
+      }).addTo(state_default.map);
+    } catch (e) {
+      if (state_default.debug) console.error("Weather radar fetch failed:", e);
+    }
+  }
+  function renderSymbolLegend() {
+    if (legendControl) {
+      state_default.map.removeControl(legendControl);
+      legendControl = null;
+    }
+    if (!state_default.mapOverlays.symbolLegend) return;
+    const LegendControl = L.Control.extend({
+      options: { position: "bottomright" },
+      onAdd() {
+        const div = L.DomUtil.create("div", "map-legend");
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+        const items = [
+          { symbol: '<span class="legend-dot" style="background:#4CAF50"></span>', label: "POTA" },
+          { symbol: '<span class="legend-dot" style="background:#FF9800"></span>', label: "SOTA" },
+          { symbol: '<span class="legend-dot" style="background:#f44336"></span>', label: "DX Cluster" },
+          { symbol: '<span class="legend-dot" style="background:#009688"></span>', label: "WWFF" },
+          { symbol: '<span class="legend-dot" style="background:#9C27B0"></span>', label: "PSKReporter" },
+          { symbol: '<span class="legend-circle" style="border-color:#FF9800"></span>', label: "DXped (active)" },
+          { symbol: '<span class="legend-circle" style="border-color:#888"></span>', label: "DXped (upcoming)" },
+          { symbol: '<span class="legend-dot legend-sun"></span>', label: "Sun sub-point" },
+          { symbol: '<span class="legend-dot legend-moon"></span>', label: "Moon sub-point" },
+          { symbol: '<span class="legend-line" style="border-color:#666"></span>', label: "Gray line" },
+          { symbol: '<span class="legend-line" style="border-color:#4a90e2"></span>', label: "Geodesic path" },
+          { symbol: '<span class="legend-dot legend-beacon"></span>', label: "NCDXF beacon" }
+        ];
+        div.innerHTML = '<div class="legend-title">Legend</div>' + items.map((i) => `<div class="legend-row">${i.symbol}<span class="legend-label">${i.label}</span></div>`).join("");
+        return div;
+      }
+    });
+    legendControl = new LegendControl();
+    state_default.map.addControl(legendControl);
+  }
   function saveMapOverlays() {
     localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
   }
-  var mufImageLayer, mufImageRefreshTimer, drapImageLayer, drapImageRefreshTimer;
+  var mufImageLayer, mufImageRefreshTimer, drapImageLayer, drapImageRefreshTimer, tropicsLayer, weatherRadarLayer, weatherRadarTimer, legendControl;
   var init_map_overlays = __esm({
     "src/map-overlays.js"() {
       init_state();
@@ -765,6 +876,10 @@
       mufImageRefreshTimer = null;
       drapImageLayer = null;
       drapImageRefreshTimer = null;
+      tropicsLayer = null;
+      weatherRadarLayer = null;
+      weatherRadarTimer = null;
+      legendControl = null;
     }
   });
 
@@ -4221,7 +4336,7 @@
           description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
           sections: [
             { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
-            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), and DXpedition Markers (active/upcoming DXpeditions). D-RAP auto-enables when Kp reaches storm level (\u22655)." },
+            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (\u22655)." },
             { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
             { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
           ]
@@ -6023,6 +6138,7 @@
           const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
           state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
         }
+        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
         if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
           clearTimeout(state_default.heatmapRenderTimer);
           const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
@@ -6039,6 +6155,7 @@
           const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
           state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
         }
+        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
         if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
           clearTimeout(state_default.heatmapRenderTimer);
           const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
@@ -8739,8 +8856,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.44.4";
-    $("aboutVersion").textContent = "0.44.4";
+    $("splashVersion").textContent = "0.45.1";
+    $("aboutVersion").textContent = "0.45.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -9213,6 +9330,9 @@ ${beacon.location}`);
         $("mapOvDrap").checked = state_default.mapOverlays.drapOverlay;
         $("mapOvBandPaths").checked = state_default.mapOverlays.bandPaths;
         $("mapOvDxpedMarkers").checked = state_default.mapOverlays.dxpedMarkers;
+        $("mapOvTropics").checked = state_default.mapOverlays.tropicsLines;
+        $("mapOvWeatherRadar").checked = state_default.mapOverlays.weatherRadar;
+        $("mapOvLegend").checked = state_default.mapOverlays.symbolLegend;
         mapOverlayCfgSplash.classList.remove("hidden");
       });
     }
@@ -9225,6 +9345,9 @@ ${beacon.location}`);
         state_default.mapOverlays.drapOverlay = $("mapOvDrap").checked;
         state_default.mapOverlays.bandPaths = $("mapOvBandPaths").checked;
         state_default.mapOverlays.dxpedMarkers = $("mapOvDxpedMarkers").checked;
+        state_default.mapOverlays.tropicsLines = $("mapOvTropics").checked;
+        state_default.mapOverlays.weatherRadar = $("mapOvWeatherRadar").checked;
+        state_default.mapOverlays.symbolLegend = $("mapOvLegend").checked;
         saveMapOverlays();
         mapOverlayCfgSplash.classList.add("hidden");
         renderAllMapOverlays();

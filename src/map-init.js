@@ -1,7 +1,7 @@
 import state from './state.js';
 import { latLonToGrid } from './geo.js';
 import { esc } from './utils.js';
-import { renderAllMapOverlays } from './map-overlays.js';
+import { renderAllMapOverlays, renderTropicsLines } from './map-overlays.js';
 import { BEACONS, getActiveBeacons } from './beacons.js';
 
 // --- Tile URL constants ---
@@ -68,6 +68,7 @@ export function initMap() {
         const { renderMaidenheadGrid } = require('./map-overlays.js');
         state.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid, 150);
       }
+      if (state.mapOverlays.tropicsLines) renderTropicsLines();
       if (state.hfPropOverlayBand && state.heatmapOverlayMode === 'heatmap') {
         clearTimeout(state.heatmapRenderTimer);
         const { renderHeatmapCanvas } = require('./rel-heatmap.js');
@@ -84,6 +85,7 @@ export function initMap() {
         const { renderMaidenheadGrid } = require('./map-overlays.js');
         state.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid, 150);
       }
+      if (state.mapOverlays.tropicsLines) renderTropicsLines();
       if (state.hfPropOverlayBand && state.heatmapOverlayMode === 'heatmap') {
         clearTimeout(state.heatmapRenderTimer);
         const { renderHeatmapCanvas } = require('./rel-heatmap.js');

@@ -11,7 +11,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { loadSolarFieldVisibility } from './solar.js';
 import { loadLunarFieldVisibility } from './lunar.js';
-import { loadWidgetVisibility } from './widgets.js';
+import { loadWidgetVisibility, isWidgetVisible } from './widgets.js';
 import { loadSpotColumnVisibility } from './spots.js';
 
 // Initialize visibility state
@@ -59,8 +59,8 @@ setInterval(() => { updateGrayLine(); updateSunMarker(); }, 60000); // 60 s — 
 
 // Satellite tracking (multi-satellite via N2YO)
 initSatellites();
-setInterval(fetchIssPosition, 10000); // 10 s — ISS position refresh (free, no API key)
-setInterval(fetchSatellitePositions, 10000); // 10 s — other satellite position refresh (N2YO)
+setInterval(() => { if (isWidgetVisible('widget-satellites')) fetchIssPosition(); }, 10000); // 10 s — ISS position refresh (free, no API key)
+setInterval(() => { if (isWidgetVisible('widget-satellites')) fetchSatellitePositions(); }, 10000); // 10 s — other satellite position refresh (N2YO)
 
 // Clocks
 updateClocks();
@@ -104,28 +104,28 @@ function initApp() {
   sendUpdateInterval();
   fetchWeather();
   startNwsPolling();
-  fetchLiveSpots();
-  fetchVoacapMatrix();
-  fetchSpaceWxData();
-  startBeaconTimer();
-  fetchDxpeditions();
-  fetchContests();
-  renderDedxInfo();
-  updateBeaconMarkers();
+  if (isWidgetVisible('widget-live-spots')) fetchLiveSpots();
+  if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) fetchVoacapMatrix();
+  if (isWidgetVisible('widget-spacewx')) fetchSpaceWxData();
+  if (isWidgetVisible('widget-beacons')) startBeaconTimer();
+  if (isWidgetVisible('widget-dxpeditions') || state.mapOverlays.dxpedMarkers) fetchDxpeditions();
+  if (isWidgetVisible('widget-contests')) fetchContests();
+  if (isWidgetVisible('widget-dedx')) renderDedxInfo();
+  if (isWidgetVisible('widget-beacons')) updateBeaconMarkers();
 }
 
 // Live Spots refresh (5 min — PSKReporter rate limit)
-setInterval(fetchLiveSpots, 5 * 60 * 1000);
+setInterval(() => { if (isWidgetVisible('widget-live-spots')) fetchLiveSpots(); }, 5 * 60 * 1000);
 
 // VOACAP matrix refresh — render every minute (for hour transitions), server fetch throttled to 5 min
-setInterval(renderVoacapMatrix, 60 * 1000);
-setInterval(fetchVoacapMatrixThrottled, 60 * 1000);
+setInterval(() => { if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) renderVoacapMatrix(); }, 60 * 1000);
+setInterval(() => { if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) fetchVoacapMatrixThrottled(); }, 60 * 1000);
 
 // Beacon map markers — refresh every 10s (same as beacon rotation)
-setInterval(updateBeaconMarkers, 10000);
+setInterval(() => { if (isWidgetVisible('widget-beacons')) updateBeaconMarkers(); }, 10000);
 
 // DE/DX countdown refresh — update sunrise/sunset countdowns every 60s
-setInterval(renderDedxInfo, 60000);
+setInterval(() => { if (isWidgetVisible('widget-dedx')) renderDedxInfo(); }, 60000);
 
 setInitApp(initApp);
 

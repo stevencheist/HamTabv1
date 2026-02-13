@@ -77,6 +77,36 @@ A full-map image overlay showing real-time Maximum Usable Frequency conditions f
 
 <div class="tip">The MUF image overlay complements the contour lines. Contours show precise MHz values along lines; the MUF image overlay fills the entire map with color so you can see regional patterns at a glance.</div>
 
+### Tropics & Arctic Lines
+Draws five major latitude circles on the map with colored, labeled lines:
+- **Arctic Circle** (66.5°N) — light blue dashed line
+- **Tropic of Cancer** (23.4°N) — warm orange dashed line
+- **Equator** (0°) — yellow solid line
+- **Tropic of Capricorn** (23.4°S) — warm orange dashed line
+- **Antarctic Circle** (66.5°S) — light blue dashed line
+
+Labels automatically reposition as you pan the map. These lines are useful for understanding propagation paths relative to the sun's declination range.
+
+### Weather Radar
+A global precipitation overlay using data from [RainViewer](https://www.rainviewer.com/). Shows current radar returns as a semi-transparent tile layer over the map.
+
+- **Toggle:** Map gear icon → "Weather Radar" checkbox
+- **Auto-refresh:** Updates every 5 minutes with the latest radar frame
+- **Semi-transparent:** Overlaid at 35% opacity so map details remain visible
+- **Free service:** No API key required
+
+<div class="tip">Weather radar can help you anticipate local noise levels and plan around storms that affect VHF/UHF propagation.</div>
+
+### Map Legend
+A compact panel in the bottom-right corner showing what each marker and line color represents on the map. Includes:
+- Spot source markers (POTA, SOTA, DX Cluster, WWFF, PSKReporter)
+- DXpedition markers (active and upcoming)
+- Sun and moon sub-points
+- Gray line and geodesic path lines
+- NCDXF beacon markers
+
+Toggle via the map gear icon → "Map Legend" checkbox.
+
 ### Gray Line (Day/Night Terminator)
 Shows the current position of the day/night boundary on Earth. The gray line is the region transitioning between day and night.
 

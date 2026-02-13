@@ -17,7 +17,9 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **Day/Night Terminator** — Gray line overlay showing the solar terminator with a subtle daylight tint on the illuminated hemisphere
 - **Propagation Contours** — MUF and foF2 HF propagation overlays on the map from prop.kc2g.com
 - **MUF Map Overlay** — Real-time Maximum Usable Frequency image overlay from prop.kc2g.com showing worldwide MUF conditions, auto-refreshes every 15 minutes
-- **Map Overlays** — Toggleable lat/lon grid, Maidenhead grid squares, timezone lines, and MUF image overlay via map gear icon
+- **Map Overlays** — Toggleable lat/lon grid, Maidenhead grid squares, timezone lines, MUF image overlay, tropics & arctic lines, and weather radar via map gear icon
+- **Weather Radar** — Global precipitation overlay from RainViewer, semi-transparent tile layer with 5-minute auto-refresh
+- **Map Legend** — Toggleable legend panel showing color keys for all marker and line types on the map
 - **Satellite Tracking** — Real-time positions for ISS, SO-50, TEVEL, and custom satellites via N2YO with orbital ground tracks and radio footprint circles
 
 ### Propagation & Space Weather
@@ -832,6 +834,7 @@ Leaflet maps and marker clustering are bundled locally in the `public/vendor/` d
 | [NASA SVS](https://svs.gsfc.nasa.gov/) | Lunar phase images | None |
 | [NG3K ADXO](https://www.ng3k.com/adxo.xml) | Upcoming and active DXpeditions | None |
 | [WA7BNM Contest Calendar](https://www.contestcalendar.com/) | Upcoming and active contests | None |
+| [RainViewer](https://www.rainviewer.com/) | Global weather radar tiles | None |
 
 Lunar/EME data is computed server-side using Meeus astronomical algorithms — no external API needed.
 VOACAP propagation predictions use a Python bridge (dvoacap) when available, with a server-side simplified model as fallback.

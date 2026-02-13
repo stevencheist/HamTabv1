@@ -425,7 +425,7 @@ export const WIDGET_HELP = {
     title: 'DX Detail',
     description: 'Shows detailed information about whichever station you\'ve selected. Click any row in the On the Air table or any marker on the map to see that station\'s details here.',
     sections: [
-      { heading: 'Station Info', content: 'Displays the operator\'s name, location, license class, and grid square (looked up from their callsign). This helps you know who you\'re about to contact.' },
+      { heading: 'Station Info', content: 'Displays the operator\'s name, location, license class, and grid square (looked up from their callsign). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown. This helps you know who you\'re about to contact.' },
       { heading: 'Distance & Bearing', content: 'Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config.' },
       { heading: 'Frequency & Mode', content: 'The frequency and mode the station is operating on, so you know exactly where to tune your radio.' },
       { heading: 'Weather', content: 'Shows current weather conditions at the station\'s location, if available.' },
@@ -450,6 +450,7 @@ export const WIDGET_HELP = {
       { heading: 'What Is a DXpedition?', content: 'A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade.' },
       { heading: 'Reading the Cards', content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map (toggle via Map Overlays gear icon) — bright orange for active, dimmer for upcoming.' },
       { heading: 'Time Filter', content: 'Use the dropdown in the widget header to filter DXpeditions by time window: Active Now, Within 1 Week, Within 1 Month, Within 6 Months, or All. Active DXpeditions always appear regardless of the filter. The map markers match whatever the widget shows.' },
+      { heading: 'Hiding DXpeditions', content: 'Hover over any card and click the \u00D7 button to hide it. Hidden DXpeditions are also removed from the map. A "Show N hidden" button appears at the bottom to restore all hidden items at once.' },
       { heading: 'QSL Information', content: 'QSL means "I confirm" — it\'s how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).' },
     ],
     links: [

@@ -159,6 +159,8 @@
           // currently selected satellite for pass display
         },
         n2yoApiKey: localStorage.getItem("hamtab_n2yo_apikey") || "",
+        maxTleAge: parseInt(localStorage.getItem("hamtab_max_tle_age"), 10) || 7,
+        // days — warn when TLE exceeds this
         // Geodesic
         geodesicLine: null,
         // L.polyline for short path great circle from QTH to selected spot
@@ -3647,6 +3649,13 @@
     if (n < 0.5) return "var(--yellow)";
     return "var(--red)";
   }
+  function lunarElColor(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return "";
+    if (n >= 20) return "var(--green)";
+    if (n >= 0) return "var(--yellow)";
+    return "var(--text-dim)";
+  }
   function loadLunarFieldVisibility() {
     try {
       const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
@@ -3662,7 +3671,11 @@
   }
   async function fetchLunar() {
     try {
-      const resp = await fetch("/api/lunar");
+      let url = "/api/lunar";
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        url += `?lat=${state_default.myLat}&lon=${state_default.myLon}`;
+      }
+      const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       state_default.lastLunarData = data;
@@ -3745,6 +3758,8 @@
       let displayVal;
       if (rawVal === void 0 || rawVal === null || rawVal === "") {
         displayVal = "-";
+      } else if (f.format === "time") {
+        displayVal = fmtTime(new Date(rawVal * 1e3));
       } else if (f.key === "distance") {
         displayVal = Number(rawVal).toLocaleString() + f.unit;
       } else if (f.key === "pathLoss") {
@@ -3773,6 +3788,7 @@
       init_state();
       init_dom();
       init_constants();
+      init_utils();
       moonImage = null;
       moonImageLoading = false;
       LUNAR_VIS_KEY = "hamtab_lunar_fields";
@@ -4051,6 +4067,10 @@
       LUNAR_FIELD_DEFS = [
         { key: "phase", label: "Moon Phase", unit: "", colorFn: null, defaultVisible: true },
         { key: "illumination", label: "Illumination", unit: "%", colorFn: null, defaultVisible: true },
+        { key: "elevation", label: "Elevation", unit: "\xB0", colorFn: lunarElColor, defaultVisible: true },
+        { key: "azimuth", label: "Azimuth", unit: "\xB0", colorFn: null, defaultVisible: true },
+        { key: "moonrise", label: "Moonrise", unit: "", colorFn: null, defaultVisible: true, format: "time" },
+        { key: "moonset", label: "Moonset", unit: "", colorFn: null, defaultVisible: true, format: "time" },
         { key: "declination", label: "Declination", unit: "\xB0", colorFn: lunarDecColor, defaultVisible: true },
         { key: "distance", label: "Distance", unit: " km", colorFn: null, defaultVisible: true },
         { key: "pathLoss", label: "Path Loss", unit: " dB", colorFn: lunarPlColor, defaultVisible: true },
@@ -4193,12 +4213,15 @@
           description: 'Moon tracking data for Earth-Moon-Earth (EME or "moonbounce") communication. EME is an advanced technique where operators bounce radio signals off the moon to make contacts over very long distances.',
           sections: [
             { heading: "Moon Phase & Position", content: "Shows the current moon phase, illumination, and sky position. The moon needs to be above the horizon at both your location and the other station's location for EME to work." },
+            { heading: "Azimuth & Elevation", content: "Shows where the moon is in your sky right now. Elevation is the angle above your horizon \u2014 green (20\xB0+) is ideal for EME, yellow (0-20\xB0) is marginal, dim means below the horizon. Azimuth is the compass bearing (0\xB0 = North, 90\xB0 = East, etc.)." },
+            { heading: "Moonrise & Moonset", content: "Shows the next moonrise and moonset times for your location. These help you plan EME operating windows. Requires your location to be set in Configuration." },
             { heading: "EME Path Loss", content: "Shows how much signal is lost on the round trip to the moon and back, calculated at 144 MHz (2m band). Lower path loss means better EME conditions. Loss varies with moon distance \u2014 closer moon (perigee) means less loss." },
             { heading: "Declination", content: "The moon's angle relative to the equator. Higher declination generally means longer EME windows (more time with the moon above the horizon)." },
             { heading: "Customize Fields", content: "Click the gear icon to show additional data like elongation, ecliptic coordinates, and right ascension for advanced planning." }
           ],
           links: [
-            { label: "ARRL EME Guide", url: "https://www.arrl.org/eme" }
+            { label: "ARRL EME Guide", url: "https://www.arrl.org/eme" },
+            { label: "NASA Moon Visualization", url: "https://svs.gsfc.nasa.gov/5187" }
           ]
         },
         "widget-satellites": {
@@ -4208,7 +4231,7 @@
             { heading: "ISS Tracking", content: "The ISS (International Space Station) is tracked automatically \u2014 no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard." },
             { heading: "Adding More Satellites", content: "To track additional satellites like AO-91, SO-50, and others, you'll need a free API key from N2YO.com \u2014 enter it in Config. Click the gear icon to search for and add satellites." },
             { heading: "Live Position", content: "See where each satellite is right now on the map, along with its altitude, speed, and whether it's above your horizon (visible to you)." },
-            { heading: "TLE Age", content: "Each satellite row shows the age of its TLE (orbital element) data in days. Green (0-3d) = fresh, yellow (4-7d) = aging, red (8d+) = stale. Stale TLEs reduce position accuracy. The ISS TLE is refreshed from CelesTrak every 6 hours." },
+            { heading: "TLE Age", content: 'Each satellite row shows the age of its TLE (orbital element) data in days. Color thresholds are based on the configurable "Max TLE Age" setting (default: 7 days) \u2014 green = fresh, yellow = aging, red + \u26A0 = exceeds max age. Stale TLEs reduce position accuracy. The ISS TLE is refreshed from CelesTrak every 6 hours. Set the max age in the satellite config (gear icon).' },
             { heading: "Pass Predictions", content: "Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work." }
           ],
           links: [
@@ -7843,9 +7866,11 @@ ${beacon.location}`);
     html += `<div class="${rowClass}" style="color:${statusColor}">${statusText}</div>`;
     if (pos.tleEpoch) {
       const ageDays = Math.floor((Date.now() / 1e3 - pos.tleEpoch) / 86400);
-      const ageColor = ageDays <= 3 ? "var(--green)" : ageDays <= 7 ? "var(--yellow)" : "var(--red)";
+      const maxAge = state_default.maxTleAge || 7;
+      const ageColor = ageDays <= Math.floor(maxAge * 0.4) ? "var(--green)" : ageDays <= maxAge ? "var(--yellow)" : "var(--red)";
       const epochDate = new Date(pos.tleEpoch * 1e3).toLocaleDateString(void 0, { month: "short", day: "numeric" });
-      html += `<div class="${rowClass}">TLE: <span style="color:${ageColor}">${ageDays}d old</span> (${epochDate})</div>`;
+      const warn = ageDays > maxAge ? " \u26A0" : "";
+      html += `<div class="${rowClass}">TLE: <span style="color:${ageColor}">${ageDays}d old${warn}</span> (${epochDate})</div>`;
     }
     if (satInfo.uplinks || satInfo.downlinks) {
       html += `<div class="${headerClass}">${isISS ? "Amateur Radio (ARISS)" : "Amateur Radio Frequencies"}</div>`;
@@ -7917,8 +7942,10 @@ ${beacon.location}`);
       let tleAgeHtml = "";
       if (pos.tleEpoch) {
         const ageDays = Math.floor((Date.now() / 1e3 - pos.tleEpoch) / 86400);
-        const cls = ageDays <= 3 ? "tle-fresh" : ageDays <= 7 ? "tle-aging" : "tle-stale";
-        tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d">${ageDays}d</span>`;
+        const maxAge = state_default.maxTleAge || 7;
+        const cls = ageDays <= Math.floor(maxAge * 0.4) ? "tle-fresh" : ageDays <= maxAge ? "tle-aging" : "tle-stale";
+        const warn = ageDays > maxAge ? " \u26A0" : "";
+        tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d (max: ${maxAge}d)">${ageDays}d${warn}</span>`;
       }
       const rowClass = `sat-row${isSelected ? " selected" : ""}${isAbove ? "" : " below-horizon"}`;
       html += `<div class="${rowClass}" data-sat-id="${satId}">`;
@@ -8010,6 +8037,10 @@ ${beacon.location}`);
     if (apiKeyInput) {
       apiKeyInput.value = state_default.n2yoApiKey;
     }
+    const tleAgeInput = $("satMaxTleAge");
+    if (tleAgeInput) {
+      tleAgeInput.value = state_default.maxTleAge;
+    }
     if (state_default.n2yoApiKey && state_default.satellites.available.length === 0) {
       fetchSatelliteList();
     }
@@ -8030,6 +8061,14 @@ ${beacon.location}`);
           body: JSON.stringify({ N2YO_API_KEY: state_default.n2yoApiKey })
         }).catch(() => {
         });
+      }
+    }
+    const tleAgeInput = $("satMaxTleAge");
+    if (tleAgeInput) {
+      const age = parseInt(tleAgeInput.value, 10);
+      if (!isNaN(age) && age >= 1 && age <= 30) {
+        state_default.maxTleAge = age;
+        localStorage.setItem("hamtab_max_tle_age", String(age));
       }
     }
     const selectList = $("satSelectList");
@@ -8595,8 +8634,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.41.0";
-    $("aboutVersion").textContent = "0.41.0";
+    $("splashVersion").textContent = "0.42.0";
+    $("aboutVersion").textContent = "0.42.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

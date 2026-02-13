@@ -25,6 +25,7 @@ import { fetchLunar } from './lunar.js';
 import { fetchSpaceWxData } from './spacewx-graphs.js';
 import { fetchDxpeditions } from './dxpeditions.js';
 import { fetchContests } from './contests.js';
+import { startDedxTimer, stopDedxTimer } from './dedx-info.js';
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -525,6 +526,10 @@ function dismissSplash() {
   // Beacon timer start/stop — avoid 1 Hz timer running for a hidden widget
   if (justShown('widget-beacons'))  { startBeaconTimer(); updateBeaconMarkers(); }
   if (justHidden('widget-beacons')) { stopBeaconTimer(); }
+
+  // DE/DX Info timer start/stop — avoid 1 Hz timer running for a hidden widget
+  if (justShown('widget-dedx'))  { startDedxTimer(); }
+  if (justHidden('widget-dedx')) { stopDedxTimer(); }
 
   // Update interval — lanmode only (element absent in hostedmode)
   const intervalSelect = $('splashUpdateInterval');

@@ -241,6 +241,10 @@
         // Beacons / DXpeditions / Contests
         beaconTimer: null,
         // setInterval ID for 1-second beacon updates
+        dedxTimer: null,
+        // setInterval ID for 1-second DE/DX Info clock updates
+        stopwatchTimer: null,
+        // setInterval ID for 100ms stopwatch/countdown updates
         lastDxpeditionData: null,
         // cached /api/dxpeditions response
         lastContestData: null,
@@ -1747,7 +1751,7 @@
     const displayCall = spot.callsign || spot.activator || "";
     const qrzUrl = `https://www.qrz.com/db/${encodeURIComponent(displayCall)}`;
     const freq = spot.frequency || "";
-    const mode = spot.mode || "";
+    const mode2 = spot.mode || "";
     const band = freqToBand(freq) || "";
     const ref = spot.reference || "";
     const spotter = spot.spotter || "";
@@ -1785,7 +1789,7 @@
     <div class="spot-detail-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${esc(displayCall)}</a></div>
     <div class="spot-detail-name" id="spotDetailName"></div>
     <div class="spot-detail-row"><span class="spot-detail-label">Freq:</span> ${esc(freq)} MHz</div>
-    <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode)}</div>
+    <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode2)}</div>
     ${band ? `<div class="spot-detail-row"><span class="spot-detail-label">Band:</span> ${esc(band)}</div>` : ""}
     ${refHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Ref:</span> ${refHtml}</div>` : ""}
     ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state_default.currentSource === "dxc" ? "Country:" : "Name:"}</span> ${esc(spot.name)}</div>` : ""}
@@ -1864,15 +1868,37 @@
   }
   function setDedxSpot(spot) {
     selectedSpot = spot;
-    renderDedxDx();
+    renderDedxInfo();
   }
   function clearDedxSpot() {
     selectedSpot = null;
-    renderDedxDx();
+    renderDedxInfo();
   }
-  function renderDedxInfo() {
-    renderDedxDe();
-    renderDedxDx();
+  function startDedxTimer() {
+    renderDedxInfo();
+    if (state_default.dedxTimer) return;
+    state_default.dedxTimer = setInterval(renderDedxInfo, 1e3);
+  }
+  function stopDedxTimer() {
+    if (state_default.dedxTimer) {
+      clearInterval(state_default.dedxTimer);
+      state_default.dedxTimer = null;
+    }
+  }
+  function fmtTime2(date, use24h) {
+    const h = date.getHours();
+    const m = String(date.getMinutes()).padStart(2, "0");
+    const s = String(date.getSeconds()).padStart(2, "0");
+    if (use24h) return `${String(h).padStart(2, "0")}:${m}:${s}`;
+    const h12 = h % 12 || 12;
+    const ampm = h < 12 ? "AM" : "PM";
+    return `${h12}:${m}:${s} ${ampm}`;
+  }
+  function localTimeAtLonDate(lon) {
+    const now = /* @__PURE__ */ new Date();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 6e4;
+    const offsetMs = lon / 15 * 36e5;
+    return new Date(utcMs + offsetMs);
   }
   function fmtSunCountdown(target, now, prefix) {
     if (!target) return null;
@@ -1886,20 +1912,22 @@
     }
     return `${prefix} ${h}:${mm} ago`;
   }
+  function renderDedxInfo() {
+    if (!isWidgetVisible("widget-dedx")) return;
+    renderDedxDe();
+    renderDedxDx();
+  }
   function renderDedxDe() {
+    const timeEl = $("dedxDeTime");
     const el = $("dedxDeContent");
     if (!el) return;
+    const now = /* @__PURE__ */ new Date();
+    if (timeEl) timeEl.textContent = fmtTime2(now, state_default.use24h);
     const call = state_default.myCallsign || "\u2014";
     const lat = state_default.myLat;
     const lon = state_default.myLon;
     let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
     if (lat !== null && lon !== null) {
-      const now = /* @__PURE__ */ new Date();
-      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const dayStr = days[now.getDay()];
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mm = String(now.getMinutes()).padStart(2, "0");
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Time</span><span class="dedx-value">${dayStr} ${hh}:${mm}</span></div>`;
       const grid = latLonToGrid(lat, lon).substring(0, 6).toUpperCase();
       rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
       const cardinal = latLonToCardinal(lat, lon);
@@ -1919,27 +1947,43 @@
     el.innerHTML = rows;
   }
   function renderDedxDx() {
+    const timeEl = $("dedxDxTime");
     const el = $("dedxDxContent");
     if (!el) return;
     if (!selectedSpot) {
-      el.innerHTML = '<div class="dedx-row dedx-empty">Select a spot</div>';
+      if (timeEl) {
+        const now = /* @__PURE__ */ new Date();
+        const h = String(now.getUTCHours()).padStart(2, "0");
+        const m = String(now.getUTCMinutes()).padStart(2, "0");
+        const s = String(now.getUTCSeconds()).padStart(2, "0");
+        timeEl.textContent = `${h}:${m}:${s}`;
+      }
+      el.innerHTML = '<div class="dedx-utc-label">UTC</div><div class="dedx-row dedx-empty">Select a spot</div>';
       return;
     }
     const spot = selectedSpot;
     const call = spot.callsign || spot.activator || "\u2014";
     const freq = spot.frequency || "";
-    const mode = spot.mode || "";
+    const mode2 = spot.mode || "";
     const band = freqToBand(freq) || "";
     const lat = parseFloat(spot.latitude);
     const lon = parseFloat(spot.longitude);
+    if (timeEl) {
+      if (!isNaN(lat) && !isNaN(lon)) {
+        const dxLocal = localTimeAtLonDate(lon);
+        timeEl.textContent = fmtTime2(dxLocal, state_default.use24h);
+      } else {
+        timeEl.textContent = "--:--:--";
+      }
+    }
     let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
     if (freq) {
       const parts = [freq];
       if (band) parts.push(`(${band})`);
-      if (mode) parts.push(mode);
+      if (mode2) parts.push(mode2);
       rows += `<div class="dedx-row"><span class="dedx-label-sm">Freq</span><span class="dedx-value">${esc(parts.join(" "))}</span></div>`;
-    } else if (mode) {
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode)}</span></div>`;
+    } else if (mode2) {
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode2)}</span></div>`;
     }
     if (!isNaN(lat) && !isNaN(lon)) {
       const grid = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
@@ -1974,6 +2018,7 @@
     "src/dedx-info.js"() {
       init_state();
       init_dom();
+      init_widgets();
       init_geo();
       init_utils();
       init_filters();
@@ -2443,9 +2488,9 @@
     if (!call) return false;
     return /^[AKNW][A-Z]?\d/.test(call.toUpperCase());
   }
-  function normalizeMode(mode) {
-    if (!mode) return "phone";
-    const m = mode.toUpperCase();
+  function normalizeMode(mode2) {
+    if (!mode2) return "phone";
+    const m = mode2.toUpperCase();
     if (m === "CW") return "cw";
     if (m === "SSB" || m === "FM" || m === "AM" || m === "LSB" || m === "USB") return "phone";
     return "digital";
@@ -2620,12 +2665,12 @@
     addBtn.addEventListener("click", () => {
       const val = valueInput.value.trim().toUpperCase();
       if (!val) return;
-      const mode = form.querySelector(`input[name="${radioName}"]:checked`).value;
+      const mode2 = form.querySelector(`input[name="${radioName}"]:checked`).value;
       const type = typeSelect.value;
       const existing = state_default.watchLists[key] || [];
-      if (existing.some((r) => r.mode === mode && r.type === type && r.value === val)) return;
+      if (existing.some((r) => r.mode === mode2 && r.type === type && r.value === val)) return;
       if (!state_default.watchLists[key]) state_default.watchLists[key] = [];
-      state_default.watchLists[key].push({ mode, type, value: val });
+      state_default.watchLists[key].push({ mode: mode2, type, value: val });
       saveWatchLists();
       applyFilter();
       renderSpots();
@@ -2735,15 +2780,15 @@
       updateModeFilterButtons();
     });
     modeFilters.appendChild(allBtn);
-    modes.forEach((mode) => {
+    modes.forEach((mode2) => {
       const btn = document.createElement("button");
-      btn.textContent = mode;
-      btn.className = state_default.activeModes.has(mode) ? "active" : "";
+      btn.textContent = mode2;
+      btn.className = state_default.activeModes.has(mode2) ? "active" : "";
       btn.addEventListener("click", () => {
-        if (state_default.activeModes.has(mode)) {
-          state_default.activeModes.delete(mode);
+        if (state_default.activeModes.has(mode2)) {
+          state_default.activeModes.delete(mode2);
         } else {
-          state_default.activeModes.add(mode);
+          state_default.activeModes.add(mode2);
         }
         saveCurrentFilters();
         applyFilter();
@@ -3871,7 +3916,8 @@
         { id: "widget-contests", name: "Contests" },
         { id: "widget-dxpeditions", name: "DXpeditions" },
         { id: "widget-beacons", name: "NCDXF Beacons" },
-        { id: "widget-dedx", name: "DE/DX Info" }
+        { id: "widget-dedx", name: "DE/DX Info" },
+        { id: "widget-stopwatch", name: "Stopwatch / Timer" }
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -4345,12 +4391,21 @@
         },
         "widget-dedx": {
           title: "DE/DX Info",
-          description: "A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock layout, this widget gives you the key information you need at a glance when making contacts.",
+          description: "A side-by-side display of your station (DE) and the currently selected distant station (DX) with live clocks. Inspired by the classic HamClock dual-pane layout, this widget shows large local time displays at each location plus key contact information at a glance.",
           sections: [
-            { heading: "DE (Your Station)", content: "The left panel shows your callsign, Maidenhead grid square, latitude/longitude, and today's sunrise and sunset times at your location (in UTC). This requires your callsign and location to be set in Config." },
-            { heading: "DX (Selected Station)", content: "The right panel shows details for whichever station you've clicked in the On the Air table or on the map. It displays their callsign, frequency, mode, grid square, bearing (compass direction to point your antenna), distance, and sunrise/sunset times at their location." },
-            { heading: "Why Sunrise/Sunset?", content: 'HF radio propagation changes dramatically at sunrise and sunset. The "gray line" (the band of twilight circling the Earth) often produces enhanced propagation. Knowing sunrise/sunset at both ends of a path helps you predict when a band will open or close between your station and the DX.' },
+            { heading: "DE (Your Station)", content: "The left panel shows a large live clock for your local time, plus your callsign, grid square, and sunrise/sunset countdowns. Requires your callsign and location to be set in Config." },
+            { heading: "DX (Selected Station)", content: "The right panel shows the approximate local time at the selected DX station's location (calculated from longitude), plus their callsign, frequency, mode, grid square, bearing, distance, and sunrise/sunset. When no spot is selected, the DX side shows UTC." },
+            { heading: "Why Two Clocks?", content: "Knowing the local time at both ends of a path is essential for scheduling contacts and understanding propagation. A station in Japan is unlikely to be on the air at 3 AM their local time, and gray line propagation depends on sunrise/sunset at both locations." },
             { heading: "Bearing & Distance", content: "The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact." }
+          ]
+        },
+        "widget-stopwatch": {
+          title: "Stopwatch / Timer",
+          description: "A dual-mode timer for contest operations and general use. Switch between Stopwatch (count up with laps) and Countdown (preset timers including the 10-minute FCC station ID reminder).",
+          sections: [
+            { heading: "Stopwatch Mode", content: "Click Start to begin counting up. Use Lap to mark split times during a contest (e.g., tracking contacts per minute). Stop pauses the timer; Reset clears everything." },
+            { heading: "Countdown Mode", content: "Click the Countdown tab and select a preset duration. The 10m ID button is a quick shortcut for the FCC 10-minute station identification requirement. The display flashes when the countdown reaches zero." },
+            { heading: "Station ID Timer", content: "FCC Part 97.119 requires US hams to identify every 10 minutes during a contact and at the end. Use the 10m ID preset as a reminder \u2014 when it flashes, give your callsign!" }
           ]
         },
         "widget-live-spots": {
@@ -4513,7 +4568,8 @@
         "widget-contests",
         "widget-dxpeditions",
         "widget-beacons",
-        "widget-dedx"
+        "widget-dedx",
+        "widget-stopwatch"
       ];
       DEFAULT_BAND_COLORS = {
         "160m": "#9c27b0",
@@ -5307,7 +5363,7 @@
     const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
     const rightX = parseInt(solarEl.style.left) || 0;
     const rightW = parseInt(solarEl.style.width) || 0;
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch"];
     const vis = state_default.widgetVisibility || {};
     const visible = rightBottomIds.filter((id) => vis[id] !== false);
     if (visible.length === 0) return;
@@ -5346,7 +5402,7 @@
       "widget-map": { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
       "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
     };
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch"];
     const vis = state_default.widgetVisibility || {};
     const visibleBottom = rightBottomIds.filter((id) => vis[id] !== false);
     const bottomSpace = H - rightHalf - pad * 2;
@@ -5811,12 +5867,12 @@
     const now = /* @__PURE__ */ new Date();
     const T = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
     const slot = Math.floor(T % CYCLE / SLOT);
-    const elapsed = T % SLOT;
+    const elapsed2 = T % SLOT;
     return FREQUENCIES.map((freq, f) => ({
       freq,
       beacon: BEACONS[(slot - f + 18) % 18],
       // each freq is offset by one beacon in the rotation
-      secondsLeft: SLOT - elapsed
+      secondsLeft: SLOT - elapsed2
     }));
   }
   function renderBeacons() {
@@ -8342,6 +8398,7 @@ ${beacon.location}`);
   init_dedx_info();
   init_solar();
   init_lunar();
+  init_dedx_info();
   function updateOperatorDisplay2() {
     const opCall = $("opCall");
     const opLoc = $("opLoc");
@@ -8640,8 +8697,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.43.0";
-    $("aboutVersion").textContent = "0.43.0";
+    $("splashVersion").textContent = "0.44.0";
+    $("aboutVersion").textContent = "0.44.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -8747,6 +8804,12 @@ ${beacon.location}`);
     }
     if (justHidden("widget-beacons")) {
       stopBeaconTimer();
+    }
+    if (justShown("widget-dedx")) {
+      startDedxTimer();
+    }
+    if (justHidden("widget-dedx")) {
+      stopDedxTimer();
     }
     const intervalSelect = $("splashUpdateInterval");
     if (intervalSelect) {
@@ -9637,6 +9700,148 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     });
   }
 
+  // src/stopwatch.js
+  init_state();
+  init_dom();
+  init_widgets();
+  var mode = "stopwatch";
+  var running = false;
+  var startTime = 0;
+  var elapsed = 0;
+  var countdownTotal = 0;
+  var laps = [];
+  var alertFired = false;
+  function initStopwatchListeners() {
+    const tabSw = $("swTabStopwatch");
+    const tabCd = $("swTabCountdown");
+    const startBtn = $("swStart");
+    const stopBtn = $("swStop");
+    const resetBtn = $("swReset");
+    const lapBtn = $("swLap");
+    if (!tabSw) return;
+    tabSw.addEventListener("click", () => switchMode("stopwatch"));
+    tabCd.addEventListener("click", () => switchMode("countdown"));
+    startBtn.addEventListener("click", startTimer);
+    stopBtn.addEventListener("click", stopTimer);
+    resetBtn.addEventListener("click", resetTimer);
+    lapBtn.addEventListener("click", recordLap);
+    const presets = document.querySelectorAll(".sw-preset");
+    presets.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const min = parseInt(btn.dataset.minutes, 10);
+        if (!isNaN(min) && min > 0) {
+          countdownTotal = min * 60 * 1e3;
+          elapsed = countdownTotal;
+          renderDisplay();
+        }
+      });
+    });
+  }
+  function switchMode(newMode) {
+    if (running) stopTimer();
+    mode = newMode;
+    elapsed = 0;
+    countdownTotal = 0;
+    laps = [];
+    alertFired = false;
+    const tabSw = $("swTabStopwatch");
+    const tabCd = $("swTabCountdown");
+    const cdSet = $("swCountdownSet");
+    const lapBtn = $("swLap");
+    tabSw.classList.toggle("active", mode === "stopwatch");
+    tabCd.classList.toggle("active", mode === "countdown");
+    cdSet.classList.toggle("hidden", mode !== "countdown");
+    lapBtn.classList.toggle("hidden", mode !== "stopwatch");
+    renderDisplay();
+    renderLaps();
+  }
+  function startTimer() {
+    if (running) return;
+    if (mode === "countdown" && countdownTotal === 0) return;
+    running = true;
+    alertFired = false;
+    if (mode === "stopwatch") {
+      startTime = Date.now() - elapsed;
+    } else {
+      startTime = Date.now();
+    }
+    state_default.stopwatchTimer = setInterval(tick, 100);
+  }
+  function stopTimer() {
+    running = false;
+    if (state_default.stopwatchTimer) {
+      clearInterval(state_default.stopwatchTimer);
+      state_default.stopwatchTimer = null;
+    }
+  }
+  function resetTimer() {
+    stopTimer();
+    elapsed = mode === "countdown" ? countdownTotal : 0;
+    laps = [];
+    alertFired = false;
+    renderDisplay();
+    renderLaps();
+  }
+  function recordLap() {
+    if (!running || mode !== "stopwatch") return;
+    laps.push(elapsed);
+    renderLaps();
+  }
+  function tick() {
+    if (!isWidgetVisible("widget-stopwatch")) return;
+    if (mode === "stopwatch") {
+      elapsed = Date.now() - startTime;
+    } else {
+      const elapsedSince = Date.now() - startTime;
+      elapsed = Math.max(0, countdownTotal - elapsedSince);
+      if (elapsed === 0 && !alertFired) {
+        alertFired = true;
+        stopTimer();
+        flashDisplay();
+      }
+    }
+    renderDisplay();
+  }
+  function flashDisplay() {
+    const display = $("swDisplay");
+    if (!display) return;
+    display.classList.add("sw-flash");
+    setTimeout(() => display.classList.remove("sw-flash"), 3e3);
+  }
+  function renderDisplay() {
+    const display = $("swDisplay");
+    if (!display) return;
+    const ms = Math.abs(elapsed);
+    const totalSec = Math.floor(ms / 1e3);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor(totalSec % 3600 / 60);
+    const s = totalSec % 60;
+    const tenths = Math.floor(ms % 1e3 / 100);
+    if (h > 0) {
+      display.textContent = `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${tenths}`;
+    } else {
+      display.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${tenths}`;
+    }
+  }
+  function renderLaps() {
+    const container = $("swLaps");
+    if (!container) return;
+    if (laps.length === 0) {
+      container.innerHTML = "";
+      return;
+    }
+    let html = "";
+    for (let i = laps.length - 1; i >= 0; i--) {
+      const lapMs = i === 0 ? laps[0] : laps[i] - laps[i - 1];
+      const lapSec = Math.floor(lapMs / 1e3);
+      const lapM = Math.floor(lapSec / 60);
+      const lapS = lapSec % 60;
+      const lapT = Math.floor(lapMs % 1e3 / 100);
+      html += `<div class="sw-lap-row"><span class="sw-lap-num">${i + 1}</span><span class="sw-lap-time">${String(lapM).padStart(2, "0")}:${String(lapS).padStart(2, "0")}.${lapT}</span></div>`;
+    }
+    container.innerHTML = html;
+  }
+
   // src/main.js
   migrate();
   migrateV2();
@@ -9690,6 +9895,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initContestListeners();
   initDedxListeners();
   initBigClock();
+  initStopwatchListeners();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;
@@ -9706,7 +9912,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (isWidgetVisible("widget-beacons")) startBeaconTimer();
     if (isWidgetVisible("widget-dxpeditions") || state_default.mapOverlays.dxpedMarkers) fetchDxpeditions();
     if (isWidgetVisible("widget-contests")) fetchContests();
-    if (isWidgetVisible("widget-dedx")) renderDedxInfo();
+    if (isWidgetVisible("widget-dedx")) startDedxTimer();
     if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
   }
   setInterval(() => {
@@ -9721,9 +9927,6 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   setInterval(() => {
     if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
   }, 1e4);
-  setInterval(() => {
-    if (isWidgetVisible("widget-dedx")) renderDedxInfo();
-  }, 6e4);
   setInitApp(initApp);
   initWidgets();
   switchSource(state_default.currentSource);

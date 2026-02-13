@@ -76,6 +76,7 @@ export function initConfigListeners() {
       $('mapOvMaidenhead').checked = state.mapOverlays.maidenheadGrid;
       $('mapOvTimezone').checked = state.mapOverlays.timezoneGrid;
       $('mapOvMufImage').checked = state.mapOverlays.mufImageOverlay;
+      $('mapOvDrap').checked = state.mapOverlays.drapOverlay;
       $('mapOvBandPaths').checked = state.mapOverlays.bandPaths;
       $('mapOvDxpedMarkers').checked = state.mapOverlays.dxpedMarkers;
       $('mapOvTropics').checked = state.mapOverlays.tropicsLines;
@@ -91,6 +92,7 @@ export function initConfigListeners() {
       state.mapOverlays.maidenheadGrid = $('mapOvMaidenhead').checked;
       state.mapOverlays.timezoneGrid = $('mapOvTimezone').checked;
       state.mapOverlays.mufImageOverlay = $('mapOvMufImage').checked;
+      state.mapOverlays.drapOverlay = $('mapOvDrap').checked;
       state.mapOverlays.bandPaths = $('mapOvBandPaths').checked;
       state.mapOverlays.dxpedMarkers = $('mapOvDxpedMarkers').checked;
       state.mapOverlays.tropicsLines = $('mapOvTropics').checked;

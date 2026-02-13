@@ -105,8 +105,11 @@ function cycleParam(name) {
   state[stateKey] = next;
   localStorage.setItem(key, next);
 
-  // Refetch from server with new parameters
-  fetchVoacapMatrix();
+  renderVoacapMatrix(); // instant UI feedback — update parameter bar labels
+
+  // Debounce server fetch — batch rapid button clicks into one request (300 ms)
+  clearTimeout(state.voacapParamTimer);
+  state.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
 
   // Re-draw map overlay if one is active
   if (state.hfPropOverlayBand) {

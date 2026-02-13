@@ -1,6 +1,7 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { LUNAR_FIELD_DEFS } from './constants.js';
+import { fmtTime } from './utils.js';
 
 // --- Moon image cache ---
 // NASA SVS provides pre-rendered LROC moon frames with accurate lighting per hour
@@ -43,6 +44,15 @@ export function lunarPlColor(val) {
   return 'var(--red)';
 }
 
+// Moon elevation color — green above 20° (good EME), yellow 0-20°, dim below horizon
+export function lunarElColor(val) {
+  const n = parseFloat(val);
+  if (isNaN(n)) return '';
+  if (n >= 20) return 'var(--green)';
+  if (n >= 0) return 'var(--yellow)';
+  return 'var(--text-dim)';
+}
+
 const LUNAR_VIS_KEY = 'hamtab_lunar_fields';
 
 export function loadLunarFieldVisibility() {
@@ -61,7 +71,12 @@ export function saveLunarFieldVisibility() {
 
 export async function fetchLunar() {
   try {
-    const resp = await fetch('/api/lunar');
+    // Pass observer coordinates for moon az/el and rise/set
+    let url = '/api/lunar';
+    if (state.myLat !== null && state.myLon !== null) {
+      url += `?lat=${state.myLat}&lon=${state.myLon}`;
+    }
+    const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
     state.lastLunarData = data;
@@ -166,6 +181,9 @@ export function renderLunar(data) {
     let displayVal;
     if (rawVal === undefined || rawVal === null || rawVal === '') {
       displayVal = '-';
+    } else if (f.format === 'time') {
+      // Unix timestamp → formatted local time
+      displayVal = fmtTime(new Date(rawVal * 1000));
     } else if (f.key === 'distance') {
       displayVal = Number(rawVal).toLocaleString() + f.unit;
     } else if (f.key === 'pathLoss') {

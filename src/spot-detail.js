@@ -131,6 +131,7 @@ export async function updateSpotDetail(spot) {
     ${band ? `<div class="spot-detail-row"><span class="spot-detail-label">Band:</span> ${esc(band)}</div>` : ''}
     ${refHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Ref:</span> ${refHtml}</div>` : ''}
     ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state.currentSource === 'dxc' ? 'Country:' : 'Name:'}</span> ${esc(spot.name)}</div>` : ''}
+    ${spot.locationDesc ? `<div class="spot-detail-row"><span class="spot-detail-label">Location:</span> ${esc(spot.locationDesc)}</div>` : ''}
     ${dxcRows}
     ${bearingHtml}
     ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ''}

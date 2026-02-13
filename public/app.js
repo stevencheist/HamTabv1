@@ -47,7 +47,19 @@
         // Filter presets per source
         filterPresets: { pota: {}, sota: {}, dxc: {} },
         // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
-        watchLists: JSON.parse(localStorage.getItem("hamtab_watchlists") || '{"pota":[],"sota":[],"dxc":[],"wwff":[],"psk":[]}'),
+        watchLists: (() => {
+          const def = { pota: [], sota: [], dxc: [], wwff: [], psk: [] };
+          try {
+            const s = JSON.parse(localStorage.getItem("hamtab_watchlists"));
+            if (s && typeof s === "object" && !Array.isArray(s)) {
+              for (const k of Object.keys(def)) {
+                if (Array.isArray(s[k])) def[k] = s[k];
+              }
+            }
+          } catch (e) {
+          }
+          return def;
+        })(),
         watchRedSpotIds: /* @__PURE__ */ new Set(),
         // spot IDs matching "red" rules — rebuilt each filter pass
         // Auto-refresh — defaults to on, persisted in localStorage
@@ -56,6 +68,8 @@
         countdownTimer: null,
         // Preferences
         slimHeader: localStorage.getItem("hamtab_slim_header") === "true",
+        grayscale: localStorage.getItem("hamtab_grayscale") === "true",
+        disableWxBackgrounds: localStorage.getItem("hamtab_disable_wx_bg") === "true",
         use24h: localStorage.getItem("hamtab_time24") !== "false",
         privilegeFilterEnabled: localStorage.getItem("hamtab_privilege_filter") === "true",
         licenseClass: localStorage.getItem("hamtab_license_class") || "",
@@ -69,9 +83,18 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, symbolLegend: false },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, symbolLegend: false },
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
+        // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
+        hiddenDxpeditions: (() => {
+          try {
+            const s = JSON.parse(localStorage.getItem("hamtab_dxped_hidden"));
+            if (Array.isArray(s)) return new Set(s.filter((v) => typeof v === "string"));
+          } catch (e) {
+          }
+          return /* @__PURE__ */ new Set();
+        })(),
         // Source
         currentSource: localStorage.getItem("hamtab_spot_source") || "pota",
         sourceData: { pota: [], sota: [], dxc: [], wwff: [] },
@@ -138,6 +161,8 @@
           // currently selected satellite for pass display
         },
         n2yoApiKey: localStorage.getItem("hamtab_n2yo_apikey") || "",
+        maxTleAge: parseInt(localStorage.getItem("hamtab_max_tle_age"), 10) || 7,
+        // days — warn when TLE exceeds this
         // Geodesic
         geodesicLine: null,
         // L.polyline for short path great circle from QTH to selected spot
@@ -213,9 +238,15 @@
         // L.imageOverlay instance
         heatmapRenderTimer: null,
         // debounce timer for pan/zoom re-render
+        voacapParamTimer: null,
+        // debounce timer for power/mode/TOA/path button clicks
         // Beacons / DXpeditions / Contests
         beaconTimer: null,
         // setInterval ID for 1-second beacon updates
+        dedxTimer: null,
+        // setInterval ID for 1-second DE/DX Info clock updates
+        stopwatchTimer: null,
+        // setInterval ID for 100ms stopwatch/countdown updates
         lastDxpeditionData: null,
         // cached /api/dxpeditions response
         lastContestData: null,
@@ -254,7 +285,12 @@
       }
       try {
         const saved = JSON.parse(localStorage.getItem("hamtab_map_overlays"));
-        if (saved) Object.assign(state.mapOverlays, saved);
+        if (saved && typeof saved === "object") {
+          for (const key of Object.keys(saved)) {
+            if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
+            if (key in state.mapOverlays) state.mapOverlays[key] = !!saved[key];
+          }
+        }
       } catch (e) {
       }
       savedLat = localStorage.getItem("hamtab_lat");
@@ -293,8 +329,11 @@
       }
       try {
         const savedPresets = JSON.parse(localStorage.getItem("hamtab_filter_presets"));
-        if (savedPresets) {
-          state.filterPresets = { pota: {}, sota: {}, dxc: {}, wwff: {}, ...savedPresets };
+        if (savedPresets && typeof savedPresets === "object" && !Array.isArray(savedPresets)) {
+          const validSources = ["pota", "sota", "dxc", "wwff", "psk"];
+          for (const k of validSources) {
+            if (savedPresets[k] && typeof savedPresets[k] === "object") state.filterPresets[k] = savedPresets[k];
+          }
         }
       } catch (e) {
       }
@@ -496,6 +535,7 @@
   var map_overlays_exports = {};
   __export(map_overlays_exports, {
     renderAllMapOverlays: () => renderAllMapOverlays,
+    renderDrapOverlay: () => renderDrapOverlay,
     renderLatLonGrid: () => renderLatLonGrid,
     renderMaidenheadGrid: () => renderMaidenheadGrid,
     renderMufImageOverlay: () => renderMufImageOverlay,
@@ -511,6 +551,7 @@
     renderMaidenheadGrid();
     renderTimezoneGrid();
     renderMufImageOverlay();
+    renderDrapOverlay();
     renderTropicsLines();
     renderWeatherRadar();
     renderSymbolLegend();
@@ -695,6 +736,30 @@
       mufImageLayer.setUrl(freshUrl);
     }, 15 * 60 * 1e3);
   }
+  function renderDrapOverlay() {
+    if (drapImageLayer) {
+      state_default.map.removeLayer(drapImageLayer);
+      drapImageLayer = null;
+    }
+    if (drapImageRefreshTimer) {
+      clearInterval(drapImageRefreshTimer);
+      drapImageRefreshTimer = null;
+    }
+    if (!state_default.mapOverlays.drapOverlay) return;
+    const L2 = window.L;
+    const url = `/api/drap/image?_t=${Date.now()}`;
+    const bounds = [[-90, -180], [90, 180]];
+    drapImageLayer = L2.imageOverlay(url, bounds, {
+      opacity: 0.5,
+      pane: "propagation",
+      // same z-index as MUF overlay (300)
+      interactive: false
+    }).addTo(state_default.map);
+    drapImageRefreshTimer = setInterval(() => {
+      if (!state_default.mapOverlays.drapOverlay || !drapImageLayer) return;
+      drapImageLayer.setUrl(`/api/drap/image?_t=${Date.now()}`);
+    }, 15 * 60 * 1e3);
+  }
   function renderTropicsLines() {
     if (tropicsLayer) {
       state_default.map.removeLayer(tropicsLayer);
@@ -803,12 +868,14 @@
   function saveMapOverlays() {
     localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
   }
-  var mufImageLayer, mufImageRefreshTimer, tropicsLayer, weatherRadarLayer, weatherRadarTimer, legendControl;
+  var mufImageLayer, mufImageRefreshTimer, drapImageLayer, drapImageRefreshTimer, tropicsLayer, weatherRadarLayer, weatherRadarTimer, legendControl;
   var init_map_overlays = __esm({
     "src/map-overlays.js"() {
       init_state();
       mufImageLayer = null;
       mufImageRefreshTimer = null;
+      drapImageLayer = null;
+      drapImageRefreshTimer = null;
       tropicsLayer = null;
       weatherRadarLayer = null;
       weatherRadarTimer = null;
@@ -825,90 +892,6 @@
   var init_dom = __esm({
     "src/dom.js"() {
       cache = {};
-    }
-  });
-
-  // src/beacons.js
-  function getActiveBeacons() {
-    const now = /* @__PURE__ */ new Date();
-    const T = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
-    const slot = Math.floor(T % CYCLE / SLOT);
-    const elapsed = T % SLOT;
-    return FREQUENCIES.map((freq, f) => ({
-      freq,
-      beacon: BEACONS[(slot - f + 18) % 18],
-      // each freq is offset by one beacon in the rotation
-      secondsLeft: SLOT - elapsed
-    }));
-  }
-  function renderBeacons() {
-    const tbody = $("beaconTbody");
-    if (!tbody) return;
-    const active = getActiveBeacons();
-    if (tbody.children.length !== active.length) {
-      tbody.textContent = "";
-      for (const entry of active) {
-        const tr = document.createElement("tr");
-        const tdFreq = document.createElement("td");
-        tdFreq.textContent = (entry.freq / 1e3).toFixed(3);
-        tr.appendChild(tdFreq);
-        const tdCall = document.createElement("td");
-        tdCall.className = "beacon-call";
-        tdCall.textContent = entry.beacon.call;
-        tr.appendChild(tdCall);
-        const tdLoc = document.createElement("td");
-        tdLoc.className = "beacon-loc";
-        tdLoc.textContent = entry.beacon.location;
-        tr.appendChild(tdLoc);
-        const tdTime = document.createElement("td");
-        tdTime.className = "beacon-time";
-        tdTime.textContent = entry.secondsLeft + "s";
-        tr.appendChild(tdTime);
-        tbody.appendChild(tr);
-      }
-    } else {
-      for (let i = 0; i < active.length; i++) {
-        const cells = tbody.children[i].children;
-        cells[1].textContent = active[i].beacon.call;
-        cells[2].textContent = active[i].beacon.location;
-        cells[3].textContent = active[i].secondsLeft + "s";
-      }
-    }
-  }
-  function initBeaconListeners() {
-  }
-  function startBeaconTimer() {
-    renderBeacons();
-    state_default.beaconTimer = setInterval(renderBeacons, 1e3);
-  }
-  var BEACONS, FREQUENCIES, CYCLE, SLOT;
-  var init_beacons = __esm({
-    "src/beacons.js"() {
-      init_state();
-      init_dom();
-      BEACONS = [
-        { call: "4U1UN", location: "New York", lat: 40.75, lon: -73.97 },
-        { call: "VE8AT", location: "Inuvik", lat: 68.32, lon: -133.52 },
-        { call: "W6WX", location: "Mt. Umunhum", lat: 37.16, lon: -121.9 },
-        { call: "KH6RS", location: "Maui", lat: 20.75, lon: -156.43 },
-        { call: "ZL6B", location: "Masterton", lat: -41.06, lon: 175.58 },
-        { call: "VK6RBP", location: "Rolystone", lat: -32.11, lon: 116.05 },
-        { call: "JA2IGY", location: "Mt. Asama", lat: 34.46, lon: 136.78 },
-        { call: "RR9O", location: "Novosibirsk", lat: 54.98, lon: 82.9 },
-        { call: "VR2B", location: "Hong Kong", lat: 22.28, lon: 114.17 },
-        { call: "4S7B", location: "Colombo", lat: 6.88, lon: 79.87 },
-        { call: "ZS6DN", location: "Pretoria", lat: -25.73, lon: 28.18 },
-        { call: "5Z4B", location: "Kikuyu", lat: -1.25, lon: 36.67 },
-        { call: "4X6TU", location: "Tel Aviv", lat: 32.08, lon: 34.78 },
-        { call: "OH2B", location: "Lohja", lat: 60.25, lon: 24.03 },
-        { call: "CS3B", location: "Madeira", lat: 32.65, lon: -16.9 },
-        { call: "LU4AA", location: "Buenos Aires", lat: -34.62, lon: -58.44 },
-        { call: "OA4B", location: "Lima", lat: -12.08, lon: -76.98 },
-        { call: "YV5B", location: "Caracas", lat: 10.5, lon: -66.92 }
-      ];
-      FREQUENCIES = [14100, 18110, 21150, 24930, 28200];
-      CYCLE = 180;
-      SLOT = 10;
     }
   });
 
@@ -1292,6 +1275,176 @@
     }
   });
 
+  // src/rel-heatmap.js
+  var rel_heatmap_exports = {};
+  __export(rel_heatmap_exports, {
+    clearHeatmap: () => clearHeatmap,
+    initHeatmapListeners: () => initHeatmapListeners,
+    renderHeatmapCanvas: () => renderHeatmapCanvas
+  });
+  function greatCircleMidpoint(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const lat1r = lat1 * r, lon1r = lon1 * r;
+    const lat2r = lat2 * r, lon2r = lon2 * r;
+    const dLon = lon2r - lon1r;
+    const Bx = Math.cos(lat2r) * Math.cos(dLon);
+    const By = Math.cos(lat2r) * Math.sin(dLon);
+    const midLat = Math.atan2(
+      Math.sin(lat1r) + Math.sin(lat2r),
+      Math.sqrt((Math.cos(lat1r) + Bx) ** 2 + By ** 2)
+    );
+    const midLon = lon1r + Math.atan2(By, Math.cos(lat1r) + Bx);
+    return { lat: midLat / r, lon: midLon / r };
+  }
+  function distanceKm(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const R = 6371;
+    const dLat = (lat2 - lat1) * r;
+    const dLon = (lon2 - lon1) * r;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  function distanceModifier(distKm) {
+    if (distKm < 100) return 0.3;
+    if (distKm < 500) return 0.5;
+    if (distKm < 1e3) return 0.85;
+    if (distKm < 4e3) return 1;
+    if (distKm < 8e3) return 0.85;
+    if (distKm < 15e3) return 0.7;
+    return 0.5;
+  }
+  function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex, aIndex, utcHour, opts) {
+    const mid = greatCircleMidpoint(deLat, deLon, dxLat, dxLon);
+    const df = dayFraction(mid.lat, mid.lon, utcHour);
+    const muf = calculateMUF(sfi, df);
+    const isDay = df >= 0.5;
+    const baseRel = calculateBandReliability(freqMHz, muf, kIndex, aIndex, isDay, opts);
+    const dist = distanceKm(deLat, deLon, dxLat, dxLon);
+    const distMod = distanceModifier(dist);
+    return Math.max(0, Math.min(100, Math.round(baseRel * distMod)));
+  }
+  function hslToRgb(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(h / 60 % 2 - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) {
+      r = c;
+      g = x;
+    } else if (h < 120) {
+      r = x;
+      g = c;
+    } else if (h < 180) {
+      g = c;
+      b = x;
+    } else if (h < 240) {
+      g = x;
+      b = c;
+    } else if (h < 300) {
+      r = x;
+      b = c;
+    } else {
+      r = c;
+      b = x;
+    }
+    return {
+      r: Math.round((r + m) * 255),
+      g: Math.round((g + m) * 255),
+      b: Math.round((b + m) * 255)
+    };
+  }
+  function reliabilityToRGBA(rel) {
+    if (rel < 5) return { r: 0, g: 0, b: 0, a: 30 };
+    const hue = (rel - 5) / 95 * 120;
+    const { r, g, b } = hslToRgb(hue, 0.85, 0.45);
+    const alpha = Math.min(200, 80 + rel / 100 * 120);
+    return { r, g, b, a: Math.round(alpha) };
+  }
+  function cellSizeForZoom(zoom) {
+    if (zoom <= 3) return 4;
+    if (zoom <= 5) return 2;
+    if (zoom <= 7) return 1;
+    return 0.5;
+  }
+  function renderHeatmapCanvas(band) {
+    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
+    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) return;
+    const L2 = window.L;
+    const map = state_default.map;
+    clearHeatmap();
+    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
+    if (!bandDef) return;
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const opts = getVoacapOpts();
+    const bounds = map.getBounds();
+    const south = Math.max(-85, bounds.getSouth());
+    const north = Math.min(85, bounds.getNorth());
+    const west = bounds.getWest();
+    const east = bounds.getEast();
+    const zoom = map.getZoom();
+    const cellSize = cellSizeForZoom(zoom);
+    const cols = Math.ceil((east - west) / cellSize);
+    const rows = Math.ceil((north - south) / cellSize);
+    if (cols <= 0 || rows <= 0) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = cols;
+    canvas.height = rows;
+    const ctx = canvas.getContext("2d");
+    const imageData = ctx.createImageData(cols, rows);
+    const data = imageData.data;
+    for (let row = 0; row < rows; row++) {
+      const dxLat = north - (row + 0.5) * cellSize;
+      for (let col = 0; col < cols; col++) {
+        const dxLon = west + (col + 0.5) * cellSize;
+        const rel = computeCellReliability(
+          state_default.myLat,
+          state_default.myLon,
+          dxLat,
+          dxLon,
+          bandDef.freqMHz,
+          sfi,
+          kIndex,
+          aIndex,
+          utcHour,
+          opts
+        );
+        const px = reliabilityToRGBA(rel);
+        const idx = (row * cols + col) * 4;
+        data[idx] = px.r;
+        data[idx + 1] = px.g;
+        data[idx + 2] = px.b;
+        data[idx + 3] = px.a;
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+    const dataUrl = canvas.toDataURL();
+    const imageBounds = [[south, west], [north, east]];
+    state_default.heatmapLayer = L2.imageOverlay(dataUrl, imageBounds, {
+      opacity: 0.7,
+      pane: "propagation"
+    });
+    state_default.heatmapLayer.addTo(map);
+  }
+  function clearHeatmap() {
+    if (state_default.heatmapLayer && state_default.map) {
+      state_default.map.removeLayer(state_default.heatmapLayer);
+      state_default.heatmapLayer = null;
+    }
+  }
+  function initHeatmapListeners() {
+  }
+  var init_rel_heatmap = __esm({
+    "src/rel-heatmap.js"() {
+      init_state();
+      init_band_conditions();
+      init_voacap();
+    }
+  });
+
   // src/voacap.js
   var voacap_exports = {};
   __export(voacap_exports, {
@@ -1373,7 +1526,9 @@
     const next = options[(idx + 1) % options.length];
     state_default[stateKey] = next;
     localStorage.setItem(key, next);
-    fetchVoacapMatrix();
+    renderVoacapMatrix();
+    clearTimeout(state_default.voacapParamTimer);
+    state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
     if (state_default.hfPropOverlayBand) {
       clearBandOverlay();
       clearHeatmap();
@@ -1652,1447 +1807,6 @@
     }
   });
 
-  // src/rel-heatmap.js
-  var rel_heatmap_exports = {};
-  __export(rel_heatmap_exports, {
-    clearHeatmap: () => clearHeatmap,
-    initHeatmapListeners: () => initHeatmapListeners,
-    renderHeatmapCanvas: () => renderHeatmapCanvas
-  });
-  function greatCircleMidpoint(lat1, lon1, lat2, lon2) {
-    const r = Math.PI / 180;
-    const lat1r = lat1 * r, lon1r = lon1 * r;
-    const lat2r = lat2 * r, lon2r = lon2 * r;
-    const dLon = lon2r - lon1r;
-    const Bx = Math.cos(lat2r) * Math.cos(dLon);
-    const By = Math.cos(lat2r) * Math.sin(dLon);
-    const midLat = Math.atan2(
-      Math.sin(lat1r) + Math.sin(lat2r),
-      Math.sqrt((Math.cos(lat1r) + Bx) ** 2 + By ** 2)
-    );
-    const midLon = lon1r + Math.atan2(By, Math.cos(lat1r) + Bx);
-    return { lat: midLat / r, lon: midLon / r };
-  }
-  function distanceKm(lat1, lon1, lat2, lon2) {
-    const r = Math.PI / 180;
-    const R = 6371;
-    const dLat = (lat2 - lat1) * r;
-    const dLon = (lon2 - lon1) * r;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-  function distanceModifier(distKm) {
-    if (distKm < 100) return 0.3;
-    if (distKm < 500) return 0.5;
-    if (distKm < 1e3) return 0.85;
-    if (distKm < 4e3) return 1;
-    if (distKm < 8e3) return 0.85;
-    if (distKm < 15e3) return 0.7;
-    return 0.5;
-  }
-  function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex, aIndex, utcHour, opts) {
-    const mid = greatCircleMidpoint(deLat, deLon, dxLat, dxLon);
-    const df = dayFraction(mid.lat, mid.lon, utcHour);
-    const muf = calculateMUF(sfi, df);
-    const isDay = df >= 0.5;
-    const baseRel = calculateBandReliability(freqMHz, muf, kIndex, aIndex, isDay, opts);
-    const dist = distanceKm(deLat, deLon, dxLat, dxLon);
-    const distMod = distanceModifier(dist);
-    return Math.max(0, Math.min(100, Math.round(baseRel * distMod)));
-  }
-  function hslToRgb(h, s, l) {
-    const c = (1 - Math.abs(2 * l - 1)) * s;
-    const x = c * (1 - Math.abs(h / 60 % 2 - 1));
-    const m = l - c / 2;
-    let r = 0, g = 0, b = 0;
-    if (h < 60) {
-      r = c;
-      g = x;
-    } else if (h < 120) {
-      r = x;
-      g = c;
-    } else if (h < 180) {
-      g = c;
-      b = x;
-    } else if (h < 240) {
-      g = x;
-      b = c;
-    } else if (h < 300) {
-      r = x;
-      b = c;
-    } else {
-      r = c;
-      b = x;
-    }
-    return {
-      r: Math.round((r + m) * 255),
-      g: Math.round((g + m) * 255),
-      b: Math.round((b + m) * 255)
-    };
-  }
-  function reliabilityToRGBA(rel) {
-    if (rel < 5) return { r: 0, g: 0, b: 0, a: 30 };
-    const hue = (rel - 5) / 95 * 120;
-    const { r, g, b } = hslToRgb(hue, 0.85, 0.45);
-    const alpha = Math.min(200, 80 + rel / 100 * 120);
-    return { r, g, b, a: Math.round(alpha) };
-  }
-  function cellSizeForZoom(zoom) {
-    if (zoom <= 3) return 4;
-    if (zoom <= 5) return 2;
-    if (zoom <= 7) return 1;
-    return 0.5;
-  }
-  function renderHeatmapCanvas(band) {
-    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
-    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) return;
-    const L2 = window.L;
-    const map = state_default.map;
-    clearHeatmap();
-    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
-    if (!bandDef) return;
-    const { indices } = state_default.lastSolarData;
-    const sfi = parseFloat(indices.sfi) || 70;
-    const kIndex = parseInt(indices.kindex) || 2;
-    const aIndex = parseInt(indices.aindex) || 5;
-    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
-    const opts = getVoacapOpts();
-    const bounds = map.getBounds();
-    const south = Math.max(-85, bounds.getSouth());
-    const north = Math.min(85, bounds.getNorth());
-    const west = bounds.getWest();
-    const east = bounds.getEast();
-    const zoom = map.getZoom();
-    const cellSize = cellSizeForZoom(zoom);
-    const cols = Math.ceil((east - west) / cellSize);
-    const rows = Math.ceil((north - south) / cellSize);
-    if (cols <= 0 || rows <= 0) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = cols;
-    canvas.height = rows;
-    const ctx = canvas.getContext("2d");
-    const imageData = ctx.createImageData(cols, rows);
-    const data = imageData.data;
-    for (let row = 0; row < rows; row++) {
-      const dxLat = north - (row + 0.5) * cellSize;
-      for (let col = 0; col < cols; col++) {
-        const dxLon = west + (col + 0.5) * cellSize;
-        const rel = computeCellReliability(
-          state_default.myLat,
-          state_default.myLon,
-          dxLat,
-          dxLon,
-          bandDef.freqMHz,
-          sfi,
-          kIndex,
-          aIndex,
-          utcHour,
-          opts
-        );
-        const px = reliabilityToRGBA(rel);
-        const idx = (row * cols + col) * 4;
-        data[idx] = px.r;
-        data[idx + 1] = px.g;
-        data[idx + 2] = px.b;
-        data[idx + 3] = px.a;
-      }
-    }
-    ctx.putImageData(imageData, 0, 0);
-    const dataUrl = canvas.toDataURL();
-    const imageBounds = [[south, west], [north, east]];
-    state_default.heatmapLayer = L2.imageOverlay(dataUrl, imageBounds, {
-      opacity: 0.7,
-      pane: "propagation"
-    });
-    state_default.heatmapLayer.addTo(map);
-  }
-  function clearHeatmap() {
-    if (state_default.heatmapLayer && state_default.map) {
-      state_default.map.removeLayer(state_default.heatmapLayer);
-      state_default.heatmapLayer = null;
-    }
-  }
-  function initHeatmapListeners() {
-  }
-  var init_rel_heatmap = __esm({
-    "src/rel-heatmap.js"() {
-      init_state();
-      init_band_conditions();
-      init_voacap();
-    }
-  });
-
-  // src/map-init.js
-  var map_init_exports = {};
-  __export(map_init_exports, {
-    centerMapOnUser: () => centerMapOnUser,
-    initMap: () => initMap,
-    swapMapTiles: () => swapMapTiles,
-    updateBeaconMarkers: () => updateBeaconMarkers,
-    updateMoonMarker: () => updateMoonMarker,
-    updateSunMarker: () => updateSunMarker,
-    updateUserMarker: () => updateUserMarker
-  });
-  function initMap() {
-    const hasLeaflet = typeof L !== "undefined" && L.map;
-    if (!hasLeaflet) return;
-    try {
-      state_default.map = L.map("map", {
-        worldCopyJump: true,
-        maxBoundsViscosity: 1,
-        maxBounds: [[-90, -180], [90, 180]],
-        minZoom: 1
-      }).setView([39.8, -98.5], 4);
-      state_default.tileLayer = L.tileLayer(TILE_DARK, {
-        attribution: "&copy; OpenStreetMap &copy; CARTO",
-        maxZoom: 19
-      }).addTo(state_default.map);
-      state_default.clusterGroup = L.markerClusterGroup({
-        maxClusterRadius: 40,
-        // px — merge markers within 40px; keeps clusters tight on a dark basemap
-        spiderfyOnMaxZoom: true,
-        showCoverageOnHover: false,
-        iconCreateFunction: function(cluster) {
-          const childCount = cluster.getChildCount();
-          const sizeClass = childCount < 10 ? "small" : childCount < 100 ? "medium" : "large";
-          let extraClass = "";
-          if (state_default.selectedSpotId && state_default.markers[state_default.selectedSpotId]) {
-            const children = cluster.getAllChildMarkers();
-            if (children.indexOf(state_default.markers[state_default.selectedSpotId]) !== -1) {
-              extraClass = " marker-cluster-selected";
-            }
-          }
-          return L.divIcon({
-            html: "<div><span>" + childCount + "</span></div>",
-            className: "marker-cluster marker-cluster-" + sizeClass + extraClass,
-            iconSize: L.point(40, 40)
-          });
-        }
-      });
-      state_default.map.addLayer(state_default.clusterGroup);
-      state_default.map.createPane("grayline");
-      state_default.map.getPane("grayline").style.zIndex = 250;
-      state_default.map.createPane("propagation");
-      state_default.map.getPane("propagation").style.zIndex = 300;
-      state_default.map.createPane("mapOverlays");
-      state_default.map.getPane("mapOverlays").style.zIndex = 350;
-      state_default.map.getPane("mapOverlays").style.pointerEvents = "none";
-      state_default.map.on("zoomend", () => {
-        if (state_default.mapOverlays.latLonGrid) {
-          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          renderLatLonGrid2();
-        }
-        if (state_default.mapOverlays.maidenheadGrid) {
-          clearTimeout(state_default.maidenheadDebounceTimer);
-          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
-        }
-        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
-        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
-          clearTimeout(state_default.heatmapRenderTimer);
-          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
-          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
-        }
-      });
-      state_default.map.on("moveend", () => {
-        if (state_default.mapOverlays.latLonGrid) {
-          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          renderLatLonGrid2();
-        }
-        if (state_default.mapOverlays.maidenheadGrid) {
-          clearTimeout(state_default.maidenheadDebounceTimer);
-          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
-        }
-        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
-        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
-          clearTimeout(state_default.heatmapRenderTimer);
-          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
-          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
-        }
-      });
-      setTimeout(renderAllMapOverlays, 200);
-    } catch (e) {
-      console.error("Map initialization failed:", e);
-      state_default.map = null;
-      state_default.clusterGroup = null;
-    }
-  }
-  function centerMapOnUser() {
-    if (!state_default.map) return;
-    if (state_default.mapCenterMode === "pm") {
-      state_default.map.setView([0, 0], 2);
-    } else if (state_default.mapCenterMode === "qth") {
-      if (state_default.myLat !== null && state_default.myLon !== null) {
-        state_default.map.setView([state_default.myLat, state_default.myLon], state_default.map.getZoom());
-      }
-    }
-  }
-  function updateUserMarker() {
-    if (!state_default.map || state_default.myLat === null || state_default.myLon === null) return;
-    const call = state_default.myCallsign || "ME";
-    const grid = latLonToGrid(state_default.myLat, state_default.myLon).substring(0, 4).toUpperCase();
-    const popupHtml = `<div class="user-popup"><div class="user-popup-title">${esc(call)}</div><div class="user-popup-row">${state_default.myLat.toFixed(4)}, ${state_default.myLon.toFixed(4)}</div><div class="user-popup-row">Grid: ${esc(grid)}</div><div class="user-popup-row">${state_default.manualLoc ? "Manual override" : "GPS"}</div></div>`;
-    if (state_default.userMarker) {
-      state_default.userMarker.setLatLng([state_default.myLat, state_default.myLon]);
-      state_default.userMarker.setPopupContent(popupHtml);
-      state_default.userMarker.setIcon(L.divIcon({
-        className: "user-icon",
-        html: `<span class="user-icon-diamond">&#9889;</span><span class="user-icon-call">${esc(call)}</span>`,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0]
-      }));
-    } else {
-      const icon = L.divIcon({
-        className: "user-icon",
-        html: `<span class="user-icon-diamond">&#9889;</span><span class="user-icon-call">${esc(call)}</span>`,
-        iconSize: [0, 0],
-        iconAnchor: [0, 0]
-      });
-      state_default.userMarker = L.marker([state_default.myLat, state_default.myLon], { icon, zIndexOffset: 9e3 }).addTo(state_default.map);
-      state_default.userMarker.bindPopup(popupHtml, { maxWidth: 200 });
-    }
-  }
-  function updateSunMarker() {
-    if (!state_default.map || state_default.sunLat === null || state_default.sunLon === null) return;
-    const icon = L.divIcon({
-      className: "sun-marker-icon",
-      html: '<span class="sun-marker-dot"></span>',
-      iconSize: [16, 16],
-      iconAnchor: [8, 8]
-    });
-    const tooltip = `Sub-solar point
-${state_default.sunLat.toFixed(1)}\xB0, ${state_default.sunLon.toFixed(1)}\xB0`;
-    if (state_default.sunMarker) {
-      state_default.sunMarker.setLatLng([state_default.sunLat, state_default.sunLon]);
-    } else {
-      state_default.sunMarker = L.marker([state_default.sunLat, state_default.sunLon], { icon, zIndexOffset: 8e3, interactive: true }).addTo(state_default.map);
-      state_default.sunMarker.bindTooltip(tooltip);
-    }
-    state_default.sunMarker.setTooltipContent(tooltip);
-  }
-  function gmstDegrees(date) {
-    const JD = date.getTime() / 864e5 + 24405875e-1;
-    const T = (JD - 2451545) / 36525;
-    let gmst = 280.46061837 + 360.98564736629 * (JD - 2451545) + 387933e-9 * T * T - T * T * T / 3871e4;
-    return (gmst % 360 + 360) % 360;
-  }
-  function updateMoonMarker() {
-    if (!state_default.map || !state_default.lastLunarData) return;
-    const data = state_default.lastLunarData;
-    const dec = data.declination;
-    const ra = data.rightAscension;
-    if (dec == null || ra == null) return;
-    const now = /* @__PURE__ */ new Date();
-    const gmst = gmstDegrees(now);
-    let moonLon = ra - gmst;
-    moonLon = ((moonLon + 180) % 360 + 360) % 360 - 180;
-    state_default.moonLat = dec;
-    state_default.moonLon = moonLon;
-    const icon = L.divIcon({
-      className: "moon-marker-icon",
-      html: '<span class="moon-marker-dot"></span>',
-      iconSize: [14, 14],
-      iconAnchor: [7, 7]
-    });
-    const tooltip = `Sub-lunar point
-${dec.toFixed(1)}\xB0, ${moonLon.toFixed(1)}\xB0`;
-    if (state_default.moonMarker) {
-      state_default.moonMarker.setLatLng([dec, moonLon]);
-    } else {
-      state_default.moonMarker = L.marker([dec, moonLon], { icon, zIndexOffset: 7500, interactive: true }).addTo(state_default.map);
-      state_default.moonMarker.bindTooltip(tooltip);
-    }
-    state_default.moonMarker.setTooltipContent(tooltip);
-  }
-  function updateBeaconMarkers() {
-    if (!state_default.map) return;
-    const active = getActiveBeacons();
-    for (const key of Object.keys(state_default.beaconMarkers)) {
-      state_default.map.removeLayer(state_default.beaconMarkers[key]);
-      delete state_default.beaconMarkers[key];
-    }
-    for (const entry of active) {
-      const { freq, beacon } = entry;
-      const color = BEACON_COLORS[freq] || "#ffffff";
-      const marker = L.circleMarker([beacon.lat, beacon.lon], {
-        radius: 5,
-        color,
-        fillColor: color,
-        fillOpacity: 0.8,
-        weight: 1,
-        interactive: true
-      }).addTo(state_default.map);
-      marker.bindTooltip(`${beacon.call}
-${(freq / 1e3).toFixed(3)} MHz
-${beacon.location}`);
-      state_default.beaconMarkers[freq] = marker;
-    }
-  }
-  function swapMapTiles(themeId) {
-    if (!state_default.tileLayer) return;
-    const url = themeId === "hamclock" ? TILE_VOYAGER : TILE_DARK;
-    state_default.tileLayer.setUrl(url);
-  }
-  var TILE_DARK, TILE_VOYAGER, BEACON_COLORS;
-  var init_map_init = __esm({
-    "src/map-init.js"() {
-      init_state();
-      init_geo();
-      init_utils();
-      init_map_overlays();
-      init_beacons();
-      TILE_DARK = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
-      TILE_VOYAGER = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
-      BEACON_COLORS = {
-        14100: "#ff4444",
-        // 20m — red
-        18110: "#ff8800",
-        // 17m — orange
-        21150: "#ffff00",
-        // 15m — yellow
-        24930: "#00cc44",
-        // 12m — green
-        28200: "#4488ff"
-        // 10m — blue
-      };
-    }
-  });
-
-  // src/lunar.js
-  function loadMoonImage() {
-    if (moonImage || moonImageLoading) return;
-    moonImageLoading = true;
-    const img = new Image();
-    img.onload = () => {
-      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        moonImage = img;
-        if (state_default.lastLunarData) {
-          renderMoonPhase(state_default.lastLunarData.illumination, state_default.lastLunarData.phase);
-        }
-      } else {
-        moonImageLoading = false;
-      }
-    };
-    img.onerror = () => {
-      moonImageLoading = false;
-    };
-    img.src = "/api/lunar/image";
-  }
-  function lunarDecColor(val) {
-    const n = Math.abs(parseFloat(val));
-    if (isNaN(n)) return "";
-    if (n < 15) return "var(--green)";
-    if (n < 25) return "var(--yellow)";
-    return "var(--red)";
-  }
-  function lunarPlColor(val) {
-    const n = parseFloat(val);
-    if (isNaN(n)) return "";
-    if (n < -0.5) return "var(--green)";
-    if (n < 0.5) return "var(--yellow)";
-    return "var(--red)";
-  }
-  function loadLunarFieldVisibility() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
-    } catch (e) {
-    }
-    const vis = {};
-    LUNAR_FIELD_DEFS.forEach((f) => vis[f.key] = f.defaultVisible);
-    return vis;
-  }
-  function saveLunarFieldVisibility() {
-    localStorage.setItem(LUNAR_VIS_KEY, JSON.stringify(state_default.lunarFieldVisibility));
-  }
-  async function fetchLunar() {
-    try {
-      const resp = await fetch("/api/lunar");
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      state_default.lastLunarData = data;
-      renderLunar(data);
-      const { updateMoonMarker: updateMoonMarker2 } = await Promise.resolve().then(() => (init_map_init(), map_init_exports));
-      updateMoonMarker2();
-    } catch (err) {
-      console.error("Failed to fetch lunar:", err);
-    }
-  }
-  function renderMoonPhase(illumination, phase) {
-    const canvas = $("moonCanvas");
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const size = canvas.width;
-    const r = size / 2 - 2;
-    const cx = size / 2;
-    const cy = size / 2;
-    ctx.clearRect(0, 0, size, size);
-    loadMoonImage();
-    const illum = Math.max(0, Math.min(100, illumination)) / 100;
-    const waning = (phase || "").toLowerCase().includes("waning") || (phase || "").toLowerCase().includes("last");
-    if (moonImage) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.clip();
-      const scale = r * 2 / (moonImage.width * 0.82);
-      const drawSize = moonImage.width * scale;
-      const offset = (drawSize - r * 2) / 2;
-      ctx.drawImage(moonImage, cx - r - offset, cy - r - offset, drawSize, drawSize);
-      ctx.restore();
-    } else {
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = "#1a1a2e";
-      ctx.fill();
-      if (illum >= 0.99) {
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.fillStyle = "#d4d4d4";
-        ctx.fill();
-      } else if (illum > 0.01) {
-        const terminatorX = Math.abs(1 - 2 * illum) * r;
-        const litOnRight = !waning;
-        ctx.beginPath();
-        if (litOnRight) {
-          ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
-          if (illum <= 0.5) {
-            ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
-          } else {
-            ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, true);
-          }
-        } else {
-          ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2, false);
-          if (illum <= 0.5) {
-            ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, false);
-          } else {
-            ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, true);
-          }
-        }
-        ctx.closePath();
-        ctx.fillStyle = "#d4d4d4";
-        ctx.fill();
-      }
-    }
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = "#445";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
-  function renderLunar(data) {
-    const lunarCards = $("lunarCards");
-    lunarCards.innerHTML = "";
-    renderMoonPhase(data.illumination, data.phase);
-    LUNAR_FIELD_DEFS.forEach((f) => {
-      if (state_default.lunarFieldVisibility[f.key] === false) return;
-      const rawVal = data[f.key];
-      let displayVal;
-      if (rawVal === void 0 || rawVal === null || rawVal === "") {
-        displayVal = "-";
-      } else if (f.key === "distance") {
-        displayVal = Number(rawVal).toLocaleString() + f.unit;
-      } else if (f.key === "pathLoss") {
-        displayVal = (rawVal > 0 ? "+" : "") + rawVal + f.unit;
-      } else {
-        displayVal = String(rawVal) + f.unit;
-      }
-      const color = f.colorFn ? f.colorFn(rawVal) : "";
-      const div = document.createElement("div");
-      div.className = "solar-card";
-      const labelDiv = document.createElement("div");
-      labelDiv.className = "label";
-      labelDiv.textContent = f.label;
-      const valueDiv = document.createElement("div");
-      valueDiv.className = "value";
-      if (color) valueDiv.style.color = color;
-      valueDiv.textContent = displayVal;
-      div.appendChild(labelDiv);
-      div.appendChild(valueDiv);
-      lunarCards.appendChild(div);
-    });
-  }
-  var moonImage, moonImageLoading, LUNAR_VIS_KEY;
-  var init_lunar = __esm({
-    "src/lunar.js"() {
-      init_state();
-      init_dom();
-      init_constants();
-      moonImage = null;
-      moonImageLoading = false;
-      LUNAR_VIS_KEY = "hamtab_lunar_fields";
-    }
-  });
-
-  // src/constants.js
-  var constants_exports = {};
-  __export(constants_exports, {
-    BREAKPOINT_MOBILE: () => BREAKPOINT_MOBILE,
-    BREAKPOINT_TABLET: () => BREAKPOINT_TABLET,
-    DEFAULT_BAND_COLORS: () => DEFAULT_BAND_COLORS,
-    DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
-    DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
-    GRID_ASSIGN_KEY: () => GRID_ASSIGN_KEY,
-    GRID_DEFAULT_ASSIGNMENTS: () => GRID_DEFAULT_ASSIGNMENTS,
-    GRID_MODE_KEY: () => GRID_MODE_KEY,
-    GRID_PERMUTATIONS: () => GRID_PERMUTATIONS,
-    GRID_PERM_KEY: () => GRID_PERM_KEY,
-    GRID_SIZES_KEY: () => GRID_SIZES_KEY,
-    HEADER_H: () => HEADER_H,
-    LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
-    REFERENCE_TABS: () => REFERENCE_TABS,
-    REFLOW_WIDGET_ORDER: () => REFLOW_WIDGET_ORDER,
-    SAT_FREQUENCIES: () => SAT_FREQUENCIES,
-    SCALE_MIN_FACTOR: () => SCALE_MIN_FACTOR,
-    SCALE_REFERENCE_WIDTH: () => SCALE_REFERENCE_WIDTH,
-    SCALE_REFLOW_WIDTH: () => SCALE_REFLOW_WIDTH,
-    SNAP_DIST: () => SNAP_DIST,
-    SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
-    SOURCE_DEFS: () => SOURCE_DEFS,
-    USER_LAYOUT_KEY: () => USER_LAYOUT_KEY,
-    US_PRIVILEGES: () => US_PRIVILEGES,
-    WIDGET_DEFS: () => WIDGET_DEFS,
-    WIDGET_HELP: () => WIDGET_HELP,
-    WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY,
-    getBandColor: () => getBandColor,
-    getBandColorOverrides: () => getBandColorOverrides,
-    getLayoutMode: () => getLayoutMode,
-    saveBandColors: () => saveBandColors
-  });
-  function getLayoutMode() {
-    const w = window.innerWidth;
-    if (w < SCALE_REFLOW_WIDTH) return "mobile";
-    return "desktop";
-  }
-  function getBandColor(band) {
-    return bandColorOverrides[band] || DEFAULT_BAND_COLORS[band] || "#888";
-  }
-  function saveBandColors(overrides) {
-    bandColorOverrides = overrides;
-    localStorage.setItem("hamtab_band_colors", JSON.stringify(overrides));
-  }
-  function getBandColorOverrides() {
-    return { ...bandColorOverrides };
-  }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
-  var init_constants = __esm({
-    "src/constants.js"() {
-      init_solar();
-      init_lunar();
-      WIDGET_DEFS = [
-        { id: "widget-filters", name: "Filters" },
-        { id: "widget-activations", name: "On the Air" },
-        { id: "widget-map", name: "HamMap" },
-        { id: "widget-solar", name: "Solar" },
-        { id: "widget-spacewx", name: "Space Wx" },
-        { id: "widget-propagation", name: "Band Conditions" },
-        { id: "widget-voacap", name: "VOACAP DE\u2192DX" },
-        { id: "widget-live-spots", name: "Live Spots" },
-        { id: "widget-lunar", name: "Lunar / EME" },
-        { id: "widget-satellites", name: "Satellites" },
-        { id: "widget-rst", name: "Reference" },
-        { id: "widget-spot-detail", name: "DX Detail" },
-        { id: "widget-contests", name: "Contests" },
-        { id: "widget-dxpeditions", name: "DXpeditions" },
-        { id: "widget-beacons", name: "NCDXF Beacons" },
-        { id: "widget-dedx", name: "DE/DX Info" }
-      ];
-      SAT_FREQUENCIES = {
-        25544: {
-          name: "ISS (ZARYA)",
-          uplinks: [
-            { freq: 145.99, mode: "FM", desc: "V/U Repeater" }
-          ],
-          downlinks: [
-            { freq: 437.8, mode: "FM", desc: "V/U Repeater" },
-            { freq: 145.8, mode: "FM", desc: "Voice/SSTV" },
-            { freq: 145.825, mode: "APRS", desc: "Packet" }
-          ]
-        },
-        43770: {
-          name: "AO-91 (RadFxSat)",
-          uplinks: [
-            { freq: 435.25, mode: "FM", desc: "67 Hz CTCSS" }
-          ],
-          downlinks: [
-            { freq: 145.96, mode: "FM", desc: "FM Voice" }
-          ]
-        },
-        43137: {
-          name: "AO-92 (Fox-1D)",
-          uplinks: [
-            { freq: 435.35, mode: "FM", desc: "67 Hz CTCSS" }
-          ],
-          downlinks: [
-            { freq: 145.88, mode: "FM", desc: "FM Voice" }
-          ]
-        },
-        27607: {
-          name: "SO-50 (SaudiSat-1C)",
-          uplinks: [
-            { freq: 145.85, mode: "FM", desc: "67 Hz arm, 74.4 Hz TX" }
-          ],
-          downlinks: [
-            { freq: 436.795, mode: "FM", desc: "FM Voice" }
-          ]
-        },
-        44909: {
-          name: "CAS-4A (ZHUHAI-1 01)",
-          uplinks: [
-            { freq: 435.21, mode: "SSB/CW", desc: "Linear Transponder" }
-          ],
-          downlinks: [
-            { freq: 145.855, mode: "SSB/CW", desc: "Linear Transponder" }
-          ]
-        },
-        44910: {
-          name: "CAS-4B (ZHUHAI-1 02)",
-          uplinks: [
-            { freq: 435.28, mode: "SSB/CW", desc: "Linear Transponder" }
-          ],
-          downlinks: [
-            { freq: 145.925, mode: "SSB/CW", desc: "Linear Transponder" }
-          ]
-        },
-        47960: {
-          name: "RS-44 (DOSAAF-85)",
-          uplinks: [
-            { freq: 145.935, mode: "SSB/CW", desc: "Linear Transponder" }
-          ],
-          downlinks: [
-            { freq: 435.61, mode: "SSB/CW", desc: "Linear Transponder" }
-          ]
-        },
-        54684: {
-          name: "TEVEL-1",
-          uplinks: [
-            { freq: 145.97, mode: "FM", desc: "FM Transponder" }
-          ],
-          downlinks: [
-            { freq: 436.4, mode: "FM", desc: "FM Transponder" }
-          ]
-        },
-        54685: {
-          name: "TEVEL-2",
-          uplinks: [
-            { freq: 145.97, mode: "FM", desc: "FM Transponder" }
-          ],
-          downlinks: [
-            { freq: 436.4, mode: "FM", desc: "FM Transponder" }
-          ]
-        }
-      };
-      DEFAULT_TRACKED_SATS = [25544];
-      SOURCE_DEFS = {
-        pota: {
-          label: "POTA",
-          endpoint: "/api/spots",
-          columns: [
-            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
-            { key: "frequency", label: "Freq", class: "freq", sortable: true },
-            { key: "mode", label: "Mode", class: "mode", sortable: true },
-            { key: "reference", label: "Park (link)", class: "" },
-            { key: "name", label: "Name", class: "" },
-            { key: "spotTime", label: "Time", class: "", sortable: true },
-            { key: "age", label: "Age", class: "", sortable: true }
-          ],
-          filters: ["band", "mode", "distance", "age", "country", "state", "grid", "privilege"],
-          hasMap: true,
-          spotId: (s) => `${s.activator || s.callsign}-${s.reference}-${s.frequency}`,
-          sortKey: "spotTime"
-        },
-        sota: {
-          label: "SOTA",
-          endpoint: "/api/spots/sota",
-          columns: [
-            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
-            { key: "frequency", label: "Freq", class: "freq", sortable: true },
-            { key: "mode", label: "Mode", class: "mode", sortable: true },
-            { key: "reference", label: "Summit (link)", class: "" },
-            { key: "name", label: "Details", class: "" },
-            { key: "spotTime", label: "Time", class: "", sortable: true },
-            { key: "age", label: "Age", class: "", sortable: true }
-          ],
-          filters: ["band", "mode", "distance", "age", "privilege"],
-          hasMap: true,
-          spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
-          sortKey: "spotTime"
-        },
-        dxc: {
-          label: "DXC",
-          endpoint: "/api/spots/dxc",
-          columns: [
-            { key: "callsign", label: "DX Station", class: "callsign", sortable: true },
-            { key: "frequency", label: "Freq", class: "freq", sortable: true },
-            { key: "mode", label: "Mode", class: "mode", sortable: true },
-            { key: "spotter", label: "Spotter", class: "" },
-            { key: "name", label: "Country", class: "" },
-            { key: "continent", label: "Cont", class: "" },
-            { key: "spotTime", label: "Time", class: "", sortable: true },
-            { key: "age", label: "Age", class: "", sortable: true }
-          ],
-          filters: ["band", "mode", "distance", "age", "continent", "privilege"],
-          hasMap: true,
-          spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
-          sortKey: "spotTime"
-        },
-        wwff: {
-          label: "WWFF",
-          endpoint: "/api/spots/wwff",
-          columns: [
-            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
-            { key: "frequency", label: "Freq", class: "freq", sortable: true },
-            { key: "mode", label: "Mode", class: "mode", sortable: true },
-            { key: "reference", label: "Ref (link)", class: "" },
-            { key: "name", label: "Name", class: "" },
-            { key: "spotTime", label: "Time", class: "", sortable: true },
-            { key: "age", label: "Age", class: "", sortable: true }
-          ],
-          filters: ["band", "mode", "distance", "age", "privilege"],
-          hasMap: true,
-          spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
-          sortKey: "spotTime"
-        },
-        psk: {
-          label: "PSK",
-          endpoint: "/api/spots/psk",
-          columns: [
-            { key: "callsign", label: "TX Call", class: "callsign", sortable: true },
-            { key: "frequency", label: "Freq", class: "freq", sortable: true },
-            { key: "mode", label: "Mode", class: "mode", sortable: true },
-            { key: "reporter", label: "RX Call", class: "" },
-            { key: "snr", label: "SNR", class: "" },
-            { key: "senderLocator", label: "TX Grid", class: "" },
-            { key: "reporterLocator", label: "RX Grid", class: "" },
-            { key: "spotTime", label: "Time", class: "", sortable: true },
-            { key: "age", label: "Age", class: "", sortable: true }
-          ],
-          filters: ["band", "mode", "distance", "age", "privilege"],
-          hasMap: true,
-          spotId: (s) => `${s.callsign}-${s.reporter}-${s.frequency}-${s.spotTime}`,
-          sortKey: "spotTime"
-        }
-      };
-      SOLAR_FIELD_DEFS = [
-        { key: "sfi", label: "Solar Flux", unit: "", colorFn: null, defaultVisible: true },
-        { key: "sunspots", label: "Sunspots", unit: "", colorFn: null, defaultVisible: true },
-        { key: "aindex", label: "A-Index", unit: "", colorFn: aColor, defaultVisible: true },
-        { key: "kindex", label: "K-Index", unit: "", colorFn: kColor, defaultVisible: true },
-        { key: "xray", label: "X-Ray", unit: "", colorFn: null, defaultVisible: true },
-        { key: "signalnoise", label: "Signal Noise", unit: "", colorFn: null, defaultVisible: true },
-        { key: "solarwind", label: "Solar Wind", unit: " km/s", colorFn: solarWindColor, defaultVisible: false },
-        { key: "magneticfield", label: "Bz (IMF)", unit: " nT", colorFn: bzColor, defaultVisible: false },
-        { key: "protonflux", label: "Proton Flux", unit: "", colorFn: null, defaultVisible: false },
-        { key: "electonflux", label: "Electron Flux", unit: "", colorFn: null, defaultVisible: false },
-        { key: "aurora", label: "Aurora", unit: "", colorFn: auroraColor, defaultVisible: false },
-        { key: "latdegree", label: "Aurora Lat", unit: "\xB0", colorFn: null, defaultVisible: false },
-        { key: "heliumline", label: "He 10830\xC5", unit: "", colorFn: null, defaultVisible: false },
-        { key: "geomagfield", label: "Geomag Field", unit: "", colorFn: geomagColor, defaultVisible: false },
-        { key: "kindexnt", label: "K-Index (Night)", unit: "", colorFn: kColor, defaultVisible: false },
-        { key: "muf", label: "MUF", unit: " MHz", colorFn: null, defaultVisible: false },
-        { key: "fof2", label: "foF2", unit: " MHz", colorFn: null, defaultVisible: false },
-        { key: "muffactor", label: "MUF Factor", unit: "", colorFn: null, defaultVisible: false }
-      ];
-      LUNAR_FIELD_DEFS = [
-        { key: "phase", label: "Moon Phase", unit: "", colorFn: null, defaultVisible: true },
-        { key: "illumination", label: "Illumination", unit: "%", colorFn: null, defaultVisible: true },
-        { key: "declination", label: "Declination", unit: "\xB0", colorFn: lunarDecColor, defaultVisible: true },
-        { key: "distance", label: "Distance", unit: " km", colorFn: null, defaultVisible: true },
-        { key: "pathLoss", label: "Path Loss", unit: " dB", colorFn: lunarPlColor, defaultVisible: true },
-        { key: "elongation", label: "Elongation", unit: "\xB0", colorFn: null, defaultVisible: false },
-        { key: "eclipticLon", label: "Ecl. Longitude", unit: "\xB0", colorFn: null, defaultVisible: false },
-        { key: "eclipticLat", label: "Ecl. Latitude", unit: "\xB0", colorFn: null, defaultVisible: false },
-        { key: "rightAscension", label: "Right Ascension", unit: "\xB0", colorFn: null, defaultVisible: false }
-      ];
-      US_PRIVILEGES = {
-        EXTRA: [
-          [1.8, 2, "all"],
-          [3.5, 4, "all"],
-          [5.3, 5.4, "all"],
-          [7, 7.3, "all"],
-          [10.1, 10.15, "all"],
-          [14, 14.35, "all"],
-          [18.068, 18.168, "all"],
-          [21, 21.45, "all"],
-          [24.89, 24.99, "all"],
-          [28, 29.7, "all"],
-          [50, 54, "all"],
-          [144, 148, "all"],
-          [420, 450, "all"]
-        ],
-        GENERAL: [
-          [1.8, 2, "all"],
-          [3.525, 3.6, "cwdig"],
-          [3.8, 4, "phone"],
-          [5.3, 5.4, "all"],
-          [7.025, 7.125, "cwdig"],
-          [7.175, 7.3, "phone"],
-          [10.1, 10.15, "cwdig"],
-          [14.025, 14.15, "cwdig"],
-          [14.225, 14.35, "phone"],
-          [18.068, 18.11, "cwdig"],
-          [18.11, 18.168, "phone"],
-          [21.025, 21.2, "cwdig"],
-          [21.275, 21.45, "phone"],
-          [24.89, 24.93, "cwdig"],
-          [24.93, 24.99, "phone"],
-          [28, 29.7, "all"],
-          [50, 54, "all"],
-          [144, 148, "all"],
-          [420, 450, "all"]
-        ],
-        TECHNICIAN: [
-          [3.525, 3.6, "cw"],
-          [7.025, 7.125, "cw"],
-          [21.025, 21.2, "cw"],
-          [28, 28.3, "cwdig"],
-          [28.3, 28.5, "phone"],
-          [50, 54, "all"],
-          [144, 148, "all"],
-          [420, 450, "all"]
-        ],
-        NOVICE: [
-          [3.525, 3.6, "cw"],
-          [7.025, 7.125, "cw"],
-          [21.025, 21.2, "cw"],
-          [28, 28.3, "cwdig"],
-          [28.3, 28.5, "phone"],
-          [222, 225, "all"],
-          [420, 450, "all"]
-        ]
-      };
-      WIDGET_HELP = {
-        "widget-filters": {
-          title: "Filters",
-          description: "Narrow down the spot list to find exactly what you're looking for. Filters let you focus on specific bands, modes, nearby stations, or recent activity. Watch lists add per-source highlighting and include/exclude rules.",
-          sections: [
-            { heading: "Band & Mode Filters", content: "Click one or more bands (like 20m, 40m) or modes (like FT8, SSB) to show only those spots. Click again to deselect. You can select as many as you want." },
-            { heading: "Distance Filter", content: "Show only spots within a certain distance from your location (QTH). You'll need to set your location in Config first. Great for finding nearby activations you can reach." },
-            { heading: "Age Filter", content: "Show only spots posted within the last N minutes. Older spots may no longer be active, so this helps you find stations that are on the air right now." },
-            { heading: "Propagation Filter", content: `Click the "Prop" button to hide spots on bands with poor predicted propagation. Uses your current solar indices and location to estimate which HF bands are likely open. Spots on bands rated below "Fair" (less than 30% reliability) are filtered out. VHF/UHF spots are never filtered since they don't depend on HF propagation.` },
-            { heading: "Watch Lists", content: 'Click the "Watch Lists" accordion below the presets to add rules for the active source tab. Three modes: Red highlights matching spots with a tinted row, Only shows ONLY matching spots (everything else hidden), Not excludes matching spots. Match by callsign (strips /P, /M suffixes), DXCC entity, grid prefix, or park/summit reference. Rules apply per source tab and persist across sessions.' },
-            { heading: "Presets", content: 'Save your favorite filter combinations and switch between them quickly. For example, save a "Local FT8" preset for nearby digital spots, and a "DX SSB" preset for long-distance voice contacts.' }
-          ]
-        },
-        "widget-activations": {
-          title: "On the Air",
-          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from five sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), and PSKReporter (digital mode reception reports).",
-          sections: [
-            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, SOTA, DXC, WWFF, and PSK sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
-            { heading: "POTA", content: "Shows operators activating parks for the Parks on the Air program. Click the park reference link to see park details on the POTA website." },
-            { heading: "SOTA", content: "Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details." },
-            { heading: "DX Cluster", content: "Worldwide spots from the DX Cluster network. Great for finding rare or distant (DX) stations." },
-            { heading: "WWFF", content: "Shows operators activating nature reserves for the World Wide Flora & Fauna program. Similar to POTA but with a worldwide scope \u2014 especially popular in Europe. Click the reference link for reserve details." },
-            { heading: "PSK Reporter", content: "Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions." }
-          ]
-        },
-        "widget-map": {
-          title: "HamMap",
-          description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
-          sections: [
-            { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
-            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (real-time Maximum Usable Frequency from prop.kc2g.com), DX Paths (band-colored great circle lines from your location to every visible spot), DXpedition Markers (orange circles for active and upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), and Map Legend (color key for all marker types)." },
-            { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
-            { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
-          ]
-        },
-        "widget-solar": {
-          title: "Solar",
-          description: "Real-time space weather data that affects radio propagation. The sun's activity directly determines which bands are open and how far your signal can travel.",
-          sections: [
-            { heading: "What This Shows", content: "Solar Flux (SFI) and Sunspot Number indicate overall solar activity \u2014 higher values generally mean better HF propagation. The A-Index and K-Index measure geomagnetic disturbance \u2014 lower is better for radio." },
-            { heading: "Color Coding", content: "Values are color-coded: green means good conditions for radio, yellow means fair, and red means poor or disturbed. Watch the K-Index especially \u2014 values above 4 can shut down HF bands." },
-            { heading: "Customize Fields", content: "Click the gear icon to show or hide individual fields. By default, the most useful metrics are shown. Advanced users can enable additional fields like solar wind speed, Bz component, and aurora activity." }
-          ],
-          links: [
-            { label: "HamQSL Space Weather", url: "https://www.hamqsl.com/solar.html" }
-          ]
-        },
-        "widget-spacewx": {
-          title: "Space Weather History",
-          description: "Historical graphs of key space weather indices over the past week (or 90 days for Solar Flux). These charts help you spot trends and understand how conditions are changing \u2014 not just a single snapshot, but the bigger picture.",
-          sections: [
-            { heading: "Tabs", content: "Five tabs let you switch between different measurements: Kp index (geomagnetic activity), X-Ray flux (solar flare intensity), SFI (Solar Flux Index \u2014 overall solar activity), Solar Wind speed, and Bz (interplanetary magnetic field direction)." },
-            { heading: "What the graphs show", content: "Kp: Bar chart colored green/yellow/red \u2014 values above 4 mean geomagnetic storms that can disrupt HF. X-Ray: Line chart on a log scale \u2014 C/M/X class flares marked. SFI: 90-day trend \u2014 higher values (100+) mean better HF propagation. Wind: Solar wind speed \u2014 above 400 km/s can disturb conditions. Bz: Southward (negative) Bz opens Earth's magnetosphere to solar wind, worsening conditions." },
-            { heading: "Data source", content: "All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 15 minutes." }
-          ],
-          links: [
-            { label: "NOAA SWPC", url: "https://www.swpc.noaa.gov/" }
-          ]
-        },
-        "widget-propagation": {
-          title: "Band Conditions",
-          description: "HF band conditions and VHF propagation status. Shows per-band reliability predictions for both day and night simultaneously, plus VHF phenomena like Aurora and E-Skip.",
-          sections: [
-            { heading: "HF Bands", content: "Each band shows a reliability percentage and condition (Excellent/Good/Fair/Poor/Closed). Day and night are shown side by side \u2014 day conditions appear in the left column (orange border), night in the right column (blue border). Green means the band is likely open, yellow means marginal, red means closed." },
-            { heading: "VHF Conditions", content: "Below the HF bands, VHF propagation phenomena are shown: Aurora (affects 2m and above in northern latitudes) and E-Skip (sporadic E-layer openings on 6m/4m/2m by region). Data comes directly from HamQSL." },
-            { heading: "How It Works", content: "HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model. Higher SFI means better HF conditions. K-index above 4 can shut down HF bands. The summary bar shows current MUF (Maximum Usable Frequency), SFI, and K-index." }
-          ],
-          links: [
-            { label: "NOAA Space Weather", url: "https://www.swpc.noaa.gov/" },
-            { label: "HamQSL Solar Data", url: "https://www.hamqsl.com/solar.html" }
-          ]
-        },
-        "widget-lunar": {
-          title: "Lunar / EME",
-          description: 'Moon tracking data for Earth-Moon-Earth (EME or "moonbounce") communication. EME is an advanced technique where operators bounce radio signals off the moon to make contacts over very long distances.',
-          sections: [
-            { heading: "Moon Phase & Position", content: "Shows the current moon phase, illumination, and sky position. The moon needs to be above the horizon at both your location and the other station's location for EME to work." },
-            { heading: "EME Path Loss", content: "Shows how much signal is lost on the round trip to the moon and back, calculated at 144 MHz (2m band). Lower path loss means better EME conditions. Loss varies with moon distance \u2014 closer moon (perigee) means less loss." },
-            { heading: "Declination", content: "The moon's angle relative to the equator. Higher declination generally means longer EME windows (more time with the moon above the horizon)." },
-            { heading: "Customize Fields", content: "Click the gear icon to show additional data like elongation, ecliptic coordinates, and right ascension for advanced planning." }
-          ],
-          links: [
-            { label: "ARRL EME Guide", url: "https://www.arrl.org/eme" }
-          ]
-        },
-        "widget-satellites": {
-          title: "Satellites",
-          description: "Track amateur radio satellites in real time and predict when they'll pass over your location. Many satellites carry amateur radio repeaters that anyone with a ham license can use to make contacts.",
-          sections: [
-            { heading: "ISS Tracking", content: "The ISS (International Space Station) is tracked automatically \u2014 no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard." },
-            { heading: "Adding More Satellites", content: "To track additional satellites like AO-91, SO-50, and others, you'll need a free API key from N2YO.com \u2014 enter it in Config. Click the gear icon to search for and add satellites." },
-            { heading: "Live Position", content: "See where each satellite is right now on the map, along with its altitude, speed, and whether it's above your horizon (visible to you)." },
-            { heading: "Pass Predictions", content: "Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work." }
-          ],
-          links: [
-            { label: "N2YO Satellite Tracker", url: "https://www.n2yo.com/" },
-            { label: "AMSAT \u2014 Amateur Satellites", url: "https://www.amsat.org/" }
-          ]
-        },
-        "widget-rst": {
-          title: "Reference",
-          description: "Quick-reference tables for common ham radio information. Use the tabs to switch between RST signal reports, NATO phonetic alphabet, Morse code, Q-codes, and US band privileges.",
-          sections: [
-            { heading: "RST Reports", content: "The RST tab shows readability (R), signal strength (S), and tone (T) values. During a contact, you exchange signal reports so each station knows how well they're being received." },
-            { heading: "Phonetic & Morse", content: "The Phonetic tab has the NATO phonetic alphabet for spelling callsigns clearly. The Morse tab shows dit/dah patterns for each character." },
-            { heading: "Q-Codes", content: "Common three-letter abbreviations starting with Q, originally for CW but now used on voice too. QTH = your location, QSO = a contact, QSL = confirmed." },
-            { heading: "Bands", content: 'US amateur band privileges by license class (Extra, General, Technician, Novice). Check "My privileges only" to show just your class. Requires a US callsign set in Config.' }
-          ],
-          links: [
-            { label: "Ham Radio School \u2014 Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
-          ]
-        },
-        "widget-rst:phonetic": {
-          title: "Phonetic Alphabet",
-          description: `The NATO phonetic alphabet is used by hams to spell out callsigns and words clearly, especially when signals are weak or noisy. Instead of saying the letter "B", you say "Bravo" so it can't be confused with "D", "E", or "P".`,
-          sections: [
-            { heading: "When to Use It", content: `Use the phonetic alphabet whenever you give your callsign on the air. For example, W1AW would be spoken as "Whiskey One Alpha Whiskey". It's also used to spell names, locations, or any word that needs to be communicated clearly.` },
-            { heading: "Tips", content: `You'll quickly memorize the phonetics for your own callsign. Practice saying it aloud before your first contact! Some hams use creative alternatives (like "Kilowatt" for K), but the standard NATO alphabet is always understood.` }
-          ]
-        },
-        "widget-rst:morse": {
-          title: "Morse Code",
-          description: "Morse code (CW) is one of the oldest and most effective modes in ham radio. It uses short signals (dits, shown as dots) and long signals (dahs, shown as dashes) to represent letters and numbers. CW can get through when voice and digital modes can't.",
-          sections: [
-            { heading: "Learning Morse", content: 'The best way to learn Morse code is by sound, not by memorizing the dot-dash patterns visually. Apps like "Morse Trainer" or the Koch method help you learn by listening to characters at full speed.' },
-            { heading: "Prosigns", content: 'Prosigns are special Morse sequences with specific meanings: AR (.-.-.) means "end of message", BT (-...-) means "pause/break", SK (...-.-) means "end of contact", and 73 means "best regards".' },
-            { heading: "On the Air", content: "CW is popular for QRP (low power) operating because it's very efficient. A 5-watt CW signal can often be copied when a 100-watt voice signal cannot. Many hams enjoy CW contesting and DX." }
-          ],
-          links: [
-            { label: "LCWO \u2014 Learn CW Online", url: "https://lcwo.net/" }
-          ]
-        },
-        "widget-rst:qcodes": {
-          title: "Q-Codes",
-          description: `Q-codes are three-letter abbreviations starting with "Q" that were originally created for CW (Morse code) to save time. Many are now commonly used in voice conversations too. As a question, they end with a "?"; as a statement, they're a direct answer.`,
-          sections: [
-            { heading: "Most Common for New Hams", content: 'QTH = your location ("My QTH is Denver"). QSO = a contact/conversation. QSL = confirmation ("QSL" means "I confirm" or "received"). QRZ = "who is calling?" (also the name of a popular callsign lookup website).' },
-            { heading: "Power & Interference", content: "QRP = low power (5W or less) \u2014 a popular challenge mode. QRO = high power. QRM = man-made interference. QRN = natural noise (static). QSB = signal fading in and out." },
-            { heading: "Operating", content: `QSY = change frequency ("Let's QSY to 14.250"). QRT = shutting down for the day ("I'm going QRT"). QRV = ready to receive. QRL = the frequency is in use (always ask "QRL?" before transmitting on a frequency!).` }
-          ]
-        },
-        "widget-rst:bands": {
-          title: "US Band Privileges",
-          description: "A reference chart showing which frequencies and modes are available to each US license class. This is based on FCC Part 97.301\u201397.305.",
-          sections: [
-            { heading: "License Classes", content: "US ham licenses come in four classes: Technician (entry level), General (expanded HF access), Amateur Extra (full privileges), and Novice (legacy, no longer issued). Each class has different frequency allocations." },
-            { heading: "My Privileges Only", content: 'Check "My privileges only" to filter the table to show just your license class. This requires a US callsign to be set in Config \u2014 your license class is looked up automatically.' },
-            { heading: "Mode Groups", content: "All = any mode allowed. CW = Morse code only. CW/Digital = CW and digital modes (FT8, PSK31, etc.). Phone = voice modes (SSB, FM, AM)." }
-          ]
-        },
-        "widget-spot-detail": {
-          title: "DX Detail",
-          description: "Shows detailed information about whichever station you've selected. Click any row in the On the Air table or any marker on the map to see that station's details here.",
-          sections: [
-            { heading: "Station Info", content: "Displays the operator's name, location, license class, and grid square (looked up from their callsign). This helps you know who you're about to contact." },
-            { heading: "Distance & Bearing", content: "Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config." },
-            { heading: "Frequency & Mode", content: "The frequency and mode the station is operating on, so you know exactly where to tune your radio." },
-            { heading: "Weather", content: "Shows current weather conditions at the station's location, if available." }
-          ]
-        },
-        "widget-contests": {
-          title: "Contests",
-          description: "A calendar of upcoming and active amateur radio contests. Contests are time-limited on-air competitions where operators try to make as many contacts as possible. They're a great way to fill your logbook and practice your operating skills.",
-          sections: [
-            { heading: "What Are Contests?", content: "Ham radio contests run for a set period (usually a weekend). Operators exchange brief messages and try to contact as many stations or regions as possible. Contests happen nearly every weekend \u2014 from casual events to major international competitions." },
-            { heading: "Reading the List", content: 'Each card shows the contest name, date/time window, and operating mode. Contests update in real time \u2014 when a contest starts, it moves to the top with a green "NOW" badge. When it ends, it disappears automatically. Click any card to view the full rules and exchange format on the contest website.' },
-            { heading: "Mode Badges", content: "CW = Morse code only. PHONE = voice modes (SSB/FM). DIGITAL = digital modes (RTTY, FT8, etc.). Contests without a badge accept mixed modes." }
-          ],
-          links: [
-            { label: "WA7BNM Contest Calendar", url: "https://www.contestcalendar.com/" }
-          ]
-        },
-        "widget-dxpeditions": {
-          title: "DXpeditions",
-          description: "Track upcoming and active DXpeditions \u2014 organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.",
-          sections: [
-            { heading: "What Is a DXpedition?", content: "A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade." },
-            { heading: "Reading the Cards", content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map (toggle via Map Overlays gear icon) \u2014 bright orange for active, dimmer for upcoming.' },
-            { heading: "Time Filter", content: "Use the dropdown in the widget header to filter DXpeditions by time window: Active Now, Within 1 Week, Within 1 Month, Within 6 Months, or All. Active DXpeditions always appear regardless of the filter. The map markers match whatever the widget shows." },
-            { heading: "QSL Information", content: `QSL means "I confirm" \u2014 it's how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).` }
-          ],
-          links: [
-            { label: "NG3K DXpedition Calendar", url: "https://www.ng3k.com/Misc/adxo.html" }
-          ]
-        },
-        "widget-beacons": {
-          title: "NCDXF Beacons",
-          description: "Real-time display of the NCDXF/IARU International Beacon Project \u2014 a network of 18 synchronized beacons worldwide that transmit on 5 HF frequencies in a repeating 3-minute cycle. Listening for these beacons is the quickest way to check which bands are open to which parts of the world.",
-          sections: [
-            { heading: "How It Works", content: "Every 3 minutes, each of the 18 beacons transmits for 10 seconds on each of 5 frequencies (14.100, 18.110, 21.150, 24.930, and 28.200 MHz). Five beacons transmit simultaneously \u2014 one per frequency. The table shows which beacon is active on each frequency right now, with a countdown to the next rotation." },
-            { heading: "Checking Propagation", content: "Tune your radio to one of the beacon frequencies and listen. If you hear a beacon, the band is open to that beacon's location. Scan all five frequencies to quickly map which bands are open to which parts of the world." },
-            { heading: "Beacon Transmission", content: "Each beacon transmits its callsign in CW (Morse code) at 100 watts, followed by four 1-second dashes at decreasing power levels (100W, 10W, 1W, 0.1W). If you can copy the callsign but not the last dashes, you know the band is open but marginal to that location." }
-          ],
-          links: [
-            { label: "NCDXF Beacon Project", url: "https://www.ncdxf.org/beacon/" }
-          ]
-        },
-        "widget-dedx": {
-          title: "DE/DX Info",
-          description: "A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock layout, this widget gives you the key information you need at a glance when making contacts.",
-          sections: [
-            { heading: "DE (Your Station)", content: "The left panel shows your callsign, Maidenhead grid square, latitude/longitude, and today's sunrise and sunset times at your location (in UTC). This requires your callsign and location to be set in Config." },
-            { heading: "DX (Selected Station)", content: "The right panel shows details for whichever station you've clicked in the On the Air table or on the map. It displays their callsign, frequency, mode, grid square, bearing (compass direction to point your antenna), distance, and sunrise/sunset times at their location." },
-            { heading: "Why Sunrise/Sunset?", content: 'HF radio propagation changes dramatically at sunrise and sunset. The "gray line" (the band of twilight circling the Earth) often produces enhanced propagation. Knowing sunrise/sunset at both ends of a path helps you predict when a band will open or close between your station and the DX.' },
-            { heading: "Bearing & Distance", content: "The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact." }
-          ]
-        },
-        "widget-live-spots": {
-          title: "Live Spots",
-          description: "See where YOUR signal is being received right now! When you transmit on digital modes like FT8 or FT4, stations around the world automatically report hearing you to PSKReporter. This widget shows those reports so you can see how far your signal is reaching.",
-          sections: [
-            { heading: "Getting Started", content: "Enter your callsign in Config, then transmit on a digital mode (FT8, FT4, JS8Call, etc.). Within a few minutes, you should see band cards appear showing who is hearing you." },
-            { heading: "Band Cards", content: "Each card represents a band where you're being heard. It shows either how many stations are receiving you or the distance to your farthest receiver. Click a card to show those stations on the map." },
-            { heading: "Display Mode", content: 'Click the gear icon to switch between "count" (number of stations hearing you) and "distance" (farthest reach per band). Distance mode also shows the callsign of your farthest contact.' },
-            { heading: "Map Lines", content: "When you click a band card, lines are drawn on the map from your location to each receiving station, giving you a visual picture of your signal coverage." }
-          ],
-          links: [
-            { label: "PSKReporter", url: "https://pskreporter.info/" }
-          ]
-        },
-        "widget-voacap": {
-          title: "VOACAP DE\u2192DX",
-          description: "A dense 24-hour propagation grid showing predicted band reliability from your station (DE) to the world (DX). The current hour starts at the left edge so you can instantly see what's open right now.",
-          sections: [
-            { heading: "Reading the Grid", content: `Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Cell colors show predicted reliability as a continuous gradient:
-
-\u2022 Closed (black) \u2014 Below 5% reliability. The band is not usable on this path. Signals cannot propagate because the frequency is above the MUF or ionospheric conditions block it entirely.
-\u2022 Poor (red) \u2014 5\u201330% reliability. The band may open briefly or weakly. You might make a contact with persistence and good timing, but don't count on it.
-\u2022 Fair (yellow/orange) \u2014 30\u201365% reliability. The band is usable but inconsistent. Signals may fade in and out. Good for CW and digital modes; SSB may be marginal.
-\u2022 Good (green) \u2014 Above 65% reliability. The band is solidly open. Expect workable signals for the predicted mode and power level.` },
-            { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows more green because its low SNR threshold means signals are decodable in conditions where SSB would be unusable." },
-            { heading: "Overview vs Spot", content: `Click OVW/SPOT to toggle target mode. "OVW" (overview) shows the average predicted reliability across four worldwide targets (Europe, East Asia, South America, North America). "SPOT" calculates predictions specifically to the station you've selected in the On the Air table, so you can see exactly when a band will open to that DX.` },
-            { heading: "Auto-SPOT", content: "Click the AUTO button to enable automatic SPOT updates. When AUTO is on (highlighted green), clicking any spot in the table or on the map instantly switches VOACAP to SPOT mode and recalculates the grid for the path to that station. This lets you quickly scan propagation to different DX stations by clicking through spots. AUTO is off by default \u2014 enable it when you want live per-spot predictions." },
-            { heading: "Engine Badge", content: 'The green "VOACAP" or gray "SIM" badge shows which prediction engine is active. VOACAP uses the real Voice of America Coverage Analysis Program \u2014 a professional ionospheric ray-tracing model used by broadcasters and militaries worldwide. It computes multi-hop propagation paths through actual ionospheric layers, accounting for D-layer absorption, MUF, takeoff angle, power, and mode. SIM is a lightweight approximation based on solar flux and time of day \u2014 useful as a fallback but significantly less accurate. The engine switches automatically; no user action needed.' },
-            { heading: "Map Overlay", content: "Click any band row to show propagation on the map. Two modes are available \u2014 click the \u25CB/REL toggle in the param bar to switch. Circle mode (\u25CB) draws concentric range rings from your QTH. REL heatmap mode paints the entire map with a color gradient showing predicted reliability to every point: green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels." },
-            { heading: "About the Data", content: "Predictions are monthly median values based on the current smoothed sunspot number (SSN) from NOAA. They represent typical conditions for this month, not real-time ionospheric state. Use them for planning which bands to try at different times of day, rather than as guarantees of what's open right now." }
-          ],
-          links: [
-            { label: "NOAA Space Weather & Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
-          ]
-        }
-      };
-      REFERENCE_TABS = {
-        rst: {
-          label: "RST",
-          content: {
-            description: "Signal reporting system for readability, strength, and tone.",
-            table: {
-              headers: ["", "Readability", "Strength", "Tone (CW)"],
-              rows: [
-                ["1", "Unreadable", "Faint", "Harsh, hum"],
-                ["2", "Barely readable", "Very weak", "Harsh, modulation"],
-                ["3", "Readable with difficulty", "Weak", "Rough, hum"],
-                ["4", "Almost perfectly readable", "Fair", "Rough, modulation"],
-                ["5", "Perfectly readable", "Fairly good", "Wavering, strong hum"],
-                ["6", "\u2014", "Good", "Wavering, strong mod"],
-                ["7", "\u2014", "Moderately strong", "Good, slight hum"],
-                ["8", "\u2014", "Strong", "Good, slight mod"],
-                ["9", "\u2014", "Very strong", "Perfect tone"]
-              ]
-            },
-            note: "Phone: RS only (e.g. 59) \xB7 CW: RST (e.g. 599)",
-            link: { text: "Ham Radio School \u2014 Practical Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
-          }
-        },
-        phonetic: {
-          label: "Phonetic",
-          content: {
-            description: "NATO phonetic alphabet for clear letter pronunciation.",
-            table: {
-              headers: ["Letter", "Phonetic", "Letter", "Phonetic"],
-              rows: [
-                ["A", "Alpha", "N", "November"],
-                ["B", "Bravo", "O", "Oscar"],
-                ["C", "Charlie", "P", "Papa"],
-                ["D", "Delta", "Q", "Quebec"],
-                ["E", "Echo", "R", "Romeo"],
-                ["F", "Foxtrot", "S", "Sierra"],
-                ["G", "Golf", "T", "Tango"],
-                ["H", "Hotel", "U", "Uniform"],
-                ["I", "India", "V", "Victor"],
-                ["J", "Juliet", "W", "Whiskey"],
-                ["K", "Kilo", "X", "X-ray"],
-                ["L", "Lima", "Y", "Yankee"],
-                ["M", "Mike", "Z", "Zulu"]
-              ]
-            }
-          }
-        },
-        morse: {
-          label: "Morse",
-          content: {
-            description: "International Morse code \u2014 dits (.) and dahs (-) for each character.",
-            table: {
-              headers: ["Char", "Morse", "Char", "Morse"],
-              rows: [
-                ["A", ".-", "N", "-."],
-                ["B", "-...", "O", "---"],
-                ["C", "-.-.", "P", ".--."],
-                ["D", "-..", "Q", "--.-"],
-                ["E", ".", "R", ".-."],
-                ["F", "..-.", "S", "..."],
-                ["G", "--.", "T", "-"],
-                ["H", "....", "U", "..-"],
-                ["I", "..", "V", "...-"],
-                ["J", ".---", "W", ".--"],
-                ["K", "-.-", "X", "-..-"],
-                ["L", ".-..", "Y", "-.--"],
-                ["M", "--", "Z", "--.."],
-                ["0", "-----", "5", "....."],
-                ["1", ".----", "6", "-...."],
-                ["2", "..---", "7", "--..."],
-                ["3", "...--", "8", "---.."],
-                ["4", "....-", "9", "----."]
-              ]
-            },
-            note: "Prosigns: AR (end of message) = .-.-.  BT (pause) = -...-  SK (end of contact) = ...-.-"
-          }
-        },
-        qcodes: {
-          label: "Q-Codes",
-          content: {
-            description: "Common Q-codes used in amateur radio. Originally for CW, now widely used on voice too.",
-            table: {
-              headers: ["Code", "Meaning", "Code", "Meaning"],
-              rows: [
-                ["QRG", "Your exact frequency", "QRS", "Send more slowly"],
-                ["QRL", "Frequency is busy", "QRT", "Stop sending / shutting down"],
-                ["QRM", "Man-made interference", "QRV", "I am ready"],
-                ["QRN", "Natural interference", "QRX", "Stand by / wait"],
-                ["QRO", "Increase power", "QRZ", "Who is calling me?"],
-                ["QRP", "Reduce power / low power", "QSB", "Signal is fading"],
-                ["QSL", "I confirm / received", "QSO", "A contact (conversation)"],
-                ["QSY", "Change frequency", "QTH", "My location"]
-              ]
-            },
-            note: "QRP = operating at 5 watts or less \xB7 QRO = running high power \xB7 QSL cards confirm contacts"
-          }
-        },
-        bands: {
-          label: "Bands",
-          custom: true
-          // rendered by bandref logic, not generic table renderer
-        }
-      };
-      DEFAULT_REFERENCE_TAB = "rst";
-      BREAKPOINT_MOBILE = 768;
-      BREAKPOINT_TABLET = 1024;
-      SCALE_REFERENCE_WIDTH = 1200;
-      SCALE_MIN_FACTOR = 0.55;
-      SCALE_REFLOW_WIDTH = 660;
-      REFLOW_WIDGET_ORDER = [
-        "widget-map",
-        "widget-activations",
-        "widget-filters",
-        "widget-solar",
-        "widget-propagation",
-        "widget-voacap",
-        "widget-live-spots",
-        "widget-spacewx",
-        "widget-spot-detail",
-        "widget-lunar",
-        "widget-satellites",
-        "widget-rst",
-        "widget-contests",
-        "widget-dxpeditions",
-        "widget-beacons",
-        "widget-dedx"
-      ];
-      DEFAULT_BAND_COLORS = {
-        "160m": "#9c27b0",
-        "80m": "#673ab7",
-        "60m": "#3f51b5",
-        "40m": "#2196f3",
-        "30m": "#00bcd4",
-        "20m": "#4caf50",
-        "17m": "#8bc34a",
-        "15m": "#cddc39",
-        "12m": "#ffeb3b",
-        "10m": "#ff9800",
-        "6m": "#ff5722",
-        "2m": "#f44336",
-        "70cm": "#e91e63"
-      };
-      bandColorOverrides = {};
-      try {
-        const saved = JSON.parse(localStorage.getItem("hamtab_band_colors"));
-        if (saved && typeof saved === "object") bandColorOverrides = saved;
-      } catch (e) {
-      }
-      WIDGET_STORAGE_KEY = "hamtab_widgets";
-      USER_LAYOUT_KEY = "hamtab_widgets_user";
-      SNAP_DIST = 20;
-      HEADER_H = 30;
-      GRID_MODE_KEY = "hamtab_grid_mode";
-      GRID_PERM_KEY = "hamtab_grid_permutation";
-      GRID_ASSIGN_KEY = "hamtab_grid_assignments";
-      GRID_SIZES_KEY = "hamtab_grid_sizes";
-      GRID_PERMUTATIONS = [
-        {
-          id: "2L-2R",
-          name: "2 Left / 2 Right",
-          slots: 4,
-          // Legacy fields — used by config preview (splash.js:renderGridPreview)
-          areas: '"L1 map R1" "L2 map R2"',
-          columns: "1fr 2fr 1fr",
-          rows: "1fr 1fr",
-          cellNames: ["L1", "L2", "R1", "R2"],
-          // Flex-column hybrid fields — used by grid-layout.js at runtime
-          left: ["L1", "L2"],
-          right: ["R1", "R2"],
-          top: [],
-          bottom: [],
-          outerAreas: '"left map right"',
-          outerColumns: "1fr 2fr 1fr",
-          outerRows: "1fr"
-        },
-        {
-          id: "3L-3R",
-          name: "3 Left / 3 Right",
-          slots: 6,
-          areas: '"L1 map R1" "L2 map R2" "L3 map R3"',
-          columns: "1fr 2fr 1fr",
-          rows: "1fr 1fr 1fr",
-          cellNames: ["L1", "L2", "L3", "R1", "R2", "R3"],
-          left: ["L1", "L2", "L3"],
-          right: ["R1", "R2", "R3"],
-          top: [],
-          bottom: [],
-          outerAreas: '"left map right"',
-          outerColumns: "1fr 2fr 1fr",
-          outerRows: "1fr"
-        },
-        {
-          id: "1T-2L-2R-1B",
-          name: "Top + 2L/2R + Bottom",
-          slots: 6,
-          areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "B1 B1 B1"',
-          columns: "1fr 2fr 1fr",
-          rows: "auto 1fr 1fr auto",
-          cellNames: ["T1", "L1", "L2", "R1", "R2", "B1"],
-          left: ["L1", "L2"],
-          right: ["R1", "R2"],
-          top: ["T1"],
-          bottom: ["B1"],
-          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
-          outerColumns: "1fr 2fr 1fr",
-          outerRows: "auto 1fr auto"
-        },
-        {
-          id: "1T-3L-3R-1B",
-          name: "Top + 3L/3R + Bottom",
-          slots: 8,
-          areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "L3 map R3" "B1 B1 B1"',
-          columns: "1fr 2fr 1fr",
-          rows: "auto 1fr 1fr 1fr auto",
-          cellNames: ["T1", "L1", "L2", "L3", "R1", "R2", "R3", "B1"],
-          left: ["L1", "L2", "L3"],
-          right: ["R1", "R2", "R3"],
-          top: ["T1"],
-          bottom: ["B1"],
-          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
-          outerColumns: "1fr 2fr 1fr",
-          outerRows: "auto 1fr auto"
-        },
-        {
-          id: "2T-3L-3R-2B",
-          name: "2 Top + 3L/3R + 2 Bottom",
-          slots: 10,
-          areas: '"T1 T1 T2 T2" "L1 map map R1" "L2 map map R2" "L3 map map R3" "B1 B1 B2 B2"',
-          columns: "1fr 1fr 1fr 1fr",
-          rows: "auto 1fr 1fr 1fr auto",
-          cellNames: ["T1", "T2", "L1", "L2", "L3", "R1", "R2", "R3", "B1", "B2"],
-          left: ["L1", "L2", "L3"],
-          right: ["R1", "R2", "R3"],
-          top: ["T1", "T2"],
-          bottom: ["B1", "B2"],
-          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
-          outerColumns: "1fr 2fr 1fr",
-          outerRows: "auto 1fr auto"
-        }
-      ];
-      GRID_DEFAULT_ASSIGNMENTS = {
-        "2L-2R": {
-          L1: "widget-filters",
-          L2: "widget-activations",
-          R1: "widget-solar",
-          R2: "widget-propagation"
-        },
-        "3L-3R": {
-          L1: "widget-filters",
-          L2: "widget-activations",
-          L3: "widget-live-spots",
-          R1: "widget-solar",
-          R2: "widget-propagation",
-          R3: "widget-voacap"
-        },
-        "1T-2L-2R-1B": {
-          T1: "widget-solar",
-          L1: "widget-filters",
-          L2: "widget-activations",
-          R1: "widget-propagation",
-          R2: "widget-voacap",
-          B1: "widget-live-spots"
-        },
-        "1T-3L-3R-1B": {
-          T1: "widget-solar",
-          L1: "widget-filters",
-          L2: "widget-activations",
-          L3: "widget-live-spots",
-          R1: "widget-propagation",
-          R2: "widget-voacap",
-          R3: "widget-spot-detail",
-          B1: "widget-lunar"
-        },
-        "2T-3L-3R-2B": {
-          T1: "widget-solar",
-          T2: "widget-propagation",
-          L1: "widget-filters",
-          L2: "widget-activations",
-          L3: "widget-live-spots",
-          R1: "widget-voacap",
-          R2: "widget-spot-detail",
-          R3: "widget-satellites",
-          B1: "widget-lunar",
-          B2: "widget-rst"
-        }
-      };
-    }
-  });
-
   // src/spot-detail.js
   function weatherCacheKey(lat, lon) {
     return `${lat.toFixed(1)},${lon.toFixed(1)}`;
@@ -3156,7 +1870,7 @@ ${beacon.location}`);
     const displayCall = spot.callsign || spot.activator || "";
     const qrzUrl = `https://www.qrz.com/db/${encodeURIComponent(displayCall)}`;
     const freq = spot.frequency || "";
-    const mode = spot.mode || "";
+    const mode2 = spot.mode || "";
     const band = freqToBand(freq) || "";
     const ref = spot.reference || "";
     const spotter = spot.spotter || "";
@@ -3194,10 +1908,11 @@ ${beacon.location}`);
     <div class="spot-detail-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${esc(displayCall)}</a></div>
     <div class="spot-detail-name" id="spotDetailName"></div>
     <div class="spot-detail-row"><span class="spot-detail-label">Freq:</span> ${esc(freq)} MHz</div>
-    <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode)}</div>
+    <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode2)}</div>
     ${band ? `<div class="spot-detail-row"><span class="spot-detail-label">Band:</span> ${esc(band)}</div>` : ""}
     ${refHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Ref:</span> ${refHtml}</div>` : ""}
     ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state_default.currentSource === "dxc" ? "Country:" : "Name:"}</span> ${esc(spot.name)}</div>` : ""}
+    ${spot.locationDesc ? `<div class="spot-detail-row"><span class="spot-detail-label">Location:</span> ${esc(spot.locationDesc)}</div>` : ""}
     ${dxcRows}
     ${bearingHtml}
     ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ""}
@@ -3272,15 +1987,37 @@ ${beacon.location}`);
   }
   function setDedxSpot(spot) {
     selectedSpot = spot;
-    renderDedxDx();
+    renderDedxInfo();
   }
   function clearDedxSpot() {
     selectedSpot = null;
-    renderDedxDx();
+    renderDedxInfo();
   }
-  function renderDedxInfo() {
-    renderDedxDe();
-    renderDedxDx();
+  function startDedxTimer() {
+    renderDedxInfo();
+    if (state_default.dedxTimer) return;
+    state_default.dedxTimer = setInterval(renderDedxInfo, 1e3);
+  }
+  function stopDedxTimer() {
+    if (state_default.dedxTimer) {
+      clearInterval(state_default.dedxTimer);
+      state_default.dedxTimer = null;
+    }
+  }
+  function fmtTime2(date, use24h) {
+    const h = date.getHours();
+    const m = String(date.getMinutes()).padStart(2, "0");
+    const s = String(date.getSeconds()).padStart(2, "0");
+    if (use24h) return `${String(h).padStart(2, "0")}:${m}:${s}`;
+    const h12 = h % 12 || 12;
+    const ampm = h < 12 ? "AM" : "PM";
+    return `${h12}:${m}:${s} ${ampm}`;
+  }
+  function localTimeAtLonDate(lon) {
+    const now = /* @__PURE__ */ new Date();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 6e4;
+    const offsetMs = lon / 15 * 36e5;
+    return new Date(utcMs + offsetMs);
   }
   function fmtSunCountdown(target, now, prefix) {
     if (!target) return null;
@@ -3294,20 +2031,22 @@ ${beacon.location}`);
     }
     return `${prefix} ${h}:${mm} ago`;
   }
+  function renderDedxInfo() {
+    if (!isWidgetVisible("widget-dedx")) return;
+    renderDedxDe();
+    renderDedxDx();
+  }
   function renderDedxDe() {
+    const timeEl = $("dedxDeTime");
     const el = $("dedxDeContent");
     if (!el) return;
+    const now = /* @__PURE__ */ new Date();
+    if (timeEl) timeEl.textContent = fmtTime2(now, state_default.use24h);
     const call = state_default.myCallsign || "\u2014";
     const lat = state_default.myLat;
     const lon = state_default.myLon;
     let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
     if (lat !== null && lon !== null) {
-      const now = /* @__PURE__ */ new Date();
-      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const dayStr = days[now.getDay()];
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mm = String(now.getMinutes()).padStart(2, "0");
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Time</span><span class="dedx-value">${dayStr} ${hh}:${mm}</span></div>`;
       const grid = latLonToGrid(lat, lon).substring(0, 6).toUpperCase();
       rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
       const cardinal = latLonToCardinal(lat, lon);
@@ -3327,27 +2066,43 @@ ${beacon.location}`);
     el.innerHTML = rows;
   }
   function renderDedxDx() {
+    const timeEl = $("dedxDxTime");
     const el = $("dedxDxContent");
     if (!el) return;
     if (!selectedSpot) {
-      el.innerHTML = '<div class="dedx-row dedx-empty">Select a spot</div>';
+      if (timeEl) {
+        const now = /* @__PURE__ */ new Date();
+        const h = String(now.getUTCHours()).padStart(2, "0");
+        const m = String(now.getUTCMinutes()).padStart(2, "0");
+        const s = String(now.getUTCSeconds()).padStart(2, "0");
+        timeEl.textContent = `${h}:${m}:${s}`;
+      }
+      el.innerHTML = '<div class="dedx-utc-label">UTC</div><div class="dedx-row dedx-empty">Select a spot</div>';
       return;
     }
     const spot = selectedSpot;
     const call = spot.callsign || spot.activator || "\u2014";
     const freq = spot.frequency || "";
-    const mode = spot.mode || "";
+    const mode2 = spot.mode || "";
     const band = freqToBand(freq) || "";
     const lat = parseFloat(spot.latitude);
     const lon = parseFloat(spot.longitude);
+    if (timeEl) {
+      if (!isNaN(lat) && !isNaN(lon)) {
+        const dxLocal = localTimeAtLonDate(lon);
+        timeEl.textContent = fmtTime2(dxLocal, state_default.use24h);
+      } else {
+        timeEl.textContent = "--:--:--";
+      }
+    }
     let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
     if (freq) {
       const parts = [freq];
       if (band) parts.push(`(${band})`);
-      if (mode) parts.push(mode);
+      if (mode2) parts.push(mode2);
       rows += `<div class="dedx-row"><span class="dedx-label-sm">Freq</span><span class="dedx-value">${esc(parts.join(" "))}</span></div>`;
-    } else if (mode) {
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode)}</span></div>`;
+    } else if (mode2) {
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode2)}</span></div>`;
     }
     if (!isNaN(lat) && !isNaN(lon)) {
       const grid = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
@@ -3382,6 +2137,7 @@ ${beacon.location}`);
     "src/dedx-info.js"() {
       init_state();
       init_dom();
+      init_widgets();
       init_geo();
       init_utils();
       init_filters();
@@ -3851,9 +2607,9 @@ ${beacon.location}`);
     if (!call) return false;
     return /^[AKNW][A-Z]?\d/.test(call.toUpperCase());
   }
-  function normalizeMode(mode) {
-    if (!mode) return "phone";
-    const m = mode.toUpperCase();
+  function normalizeMode(mode2) {
+    if (!mode2) return "phone";
+    const m = mode2.toUpperCase();
     if (m === "CW") return "cw";
     if (m === "SSB" || m === "FM" || m === "AM" || m === "LSB" || m === "USB") return "phone";
     return "digital";
@@ -4028,12 +2784,12 @@ ${beacon.location}`);
     addBtn.addEventListener("click", () => {
       const val = valueInput.value.trim().toUpperCase();
       if (!val) return;
-      const mode = form.querySelector(`input[name="${radioName}"]:checked`).value;
+      const mode2 = form.querySelector(`input[name="${radioName}"]:checked`).value;
       const type = typeSelect.value;
       const existing = state_default.watchLists[key] || [];
-      if (existing.some((r) => r.mode === mode && r.type === type && r.value === val)) return;
+      if (existing.some((r) => r.mode === mode2 && r.type === type && r.value === val)) return;
       if (!state_default.watchLists[key]) state_default.watchLists[key] = [];
-      state_default.watchLists[key].push({ mode, type, value: val });
+      state_default.watchLists[key].push({ mode: mode2, type, value: val });
       saveWatchLists();
       applyFilter();
       renderSpots();
@@ -4143,15 +2899,15 @@ ${beacon.location}`);
       updateModeFilterButtons();
     });
     modeFilters.appendChild(allBtn);
-    modes.forEach((mode) => {
+    modes.forEach((mode2) => {
       const btn = document.createElement("button");
-      btn.textContent = mode;
-      btn.className = state_default.activeModes.has(mode) ? "active" : "";
+      btn.textContent = mode2;
+      btn.className = state_default.activeModes.has(mode2) ? "active" : "";
       btn.addEventListener("click", () => {
-        if (state_default.activeModes.has(mode)) {
-          state_default.activeModes.delete(mode);
+        if (state_default.activeModes.has(mode2)) {
+          state_default.activeModes.delete(mode2);
         } else {
-          state_default.activeModes.add(mode);
+          state_default.activeModes.add(mode2);
         }
         saveCurrentFilters();
         applyFilter();
@@ -4250,9 +3006,9 @@ ${beacon.location}`);
   function updatePrivFilterVisibility() {
     const label = document.querySelector(".priv-filter-label");
     if (!label) return;
-    const show = isUSCallsign(state_default.myCallsign) && !!state_default.licenseClass;
-    label.classList.toggle("hidden", !show);
-    if (!show) {
+    const show2 = isUSCallsign(state_default.myCallsign) && !!state_default.licenseClass;
+    label.classList.toggle("hidden", !show2);
+    if (!show2) {
       state_default.privilegeFilterEnabled = false;
       const cb = $("privFilter");
       if (cb) cb.checked = false;
@@ -4833,6 +3589,7 @@ ${beacon.location}`);
       renderPropagationWidget2();
       const { renderVoacapMatrix: renderVoacapMatrix2 } = await Promise.resolve().then(() => (init_voacap(), voacap_exports));
       renderVoacapMatrix2();
+      checkAutoStormOverlay(data);
     } catch (err) {
       console.error("Failed to fetch solar:", err);
     }
@@ -4996,7 +3753,20 @@ ${beacon.location}`);
       }
     }
   }
-  var SOLAR_VIS_KEY, solarFrames, solarFrameNames, solarFrameIndex, solarPlaying, solarIntervalId, solarLoadingFrames, solarCurrentType;
+  async function checkAutoStormOverlay(data) {
+    const kp = parseInt(data?.indices?.kindex);
+    if (isNaN(kp)) return;
+    if (kp >= 5 && !state_default.mapOverlays.drapOverlay && !lastStormAutoEnabled) {
+      state_default.mapOverlays.drapOverlay = true;
+      lastStormAutoEnabled = true;
+      const { saveMapOverlays: saveMapOverlays2, renderDrapOverlay: renderDrapOverlay2 } = await Promise.resolve().then(() => (init_map_overlays(), map_overlays_exports));
+      saveMapOverlays2();
+      renderDrapOverlay2();
+    } else if (kp < 5) {
+      lastStormAutoEnabled = false;
+    }
+  }
+  var SOLAR_VIS_KEY, solarFrames, solarFrameNames, solarFrameIndex, solarPlaying, solarIntervalId, solarLoadingFrames, solarCurrentType, lastStormAutoEnabled;
   var init_solar = __esm({
     "src/solar.js"() {
       init_state();
@@ -5010,388 +3780,1079 @@ ${beacon.location}`);
       solarIntervalId = null;
       solarLoadingFrames = false;
       solarCurrentType = "";
+      lastStormAutoEnabled = false;
     }
   });
 
-  // src/migration.js
-  function migrate() {
-    if (localStorage.getItem("hamtab_migrated")) return;
-    const PREFIX_OLD = "pota_";
-    const PREFIX_NEW = "hamtab_";
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key.startsWith(PREFIX_OLD)) {
-        const newKey = PREFIX_NEW + key.slice(PREFIX_OLD.length);
-        if (localStorage.getItem(newKey) === null) {
-          localStorage.setItem(newKey, localStorage.getItem(key));
+  // src/lunar.js
+  function loadMoonImage() {
+    if (moonImage || moonImageLoading) return;
+    moonImageLoading = true;
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        moonImage = img;
+        if (state_default.lastLunarData) {
+          renderMoonPhase(state_default.lastLunarData.illumination, state_default.lastLunarData.phase);
         }
-        localStorage.removeItem(key);
-        i--;
+      } else {
+        moonImageLoading = false;
       }
-    }
-    localStorage.setItem("hamtab_migrated", "1");
+    };
+    img.onerror = () => {
+      moonImageLoading = false;
+    };
+    img.src = "/api/lunar/image";
   }
-  function migrateV2() {
-    if (localStorage.getItem("hamtab_migration_v2")) return;
-    if (localStorage.getItem("hamtab_theme") === "hamclock") {
-      localStorage.setItem("hamtab_theme", "terminal");
-    }
-    localStorage.setItem("hamtab_migration_v2", "1");
+  function lunarDecColor(val) {
+    const n = Math.abs(parseFloat(val));
+    if (isNaN(n)) return "";
+    if (n < 15) return "var(--green)";
+    if (n < 25) return "var(--yellow)";
+    return "var(--red)";
   }
-
-  // src/themes.js
-  var STORAGE_KEY = "hamtab_theme";
-  var THEMES = {
-    default: {
-      id: "default",
-      name: "Default",
-      description: "Modern dark theme",
-      bodyClass: "",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#1a1a2e",
-        "--surface": "#16213e",
-        "--surface2": "#0f3460",
-        "--surface3": "#1a4a7a",
-        "--accent": "#e94560",
-        "--text": "#e0e0e0",
-        "--text-dim": "#8899aa",
-        "--green": "#00c853",
-        "--yellow": "#ffd600",
-        "--red": "#ff1744",
-        "--orange": "#ff9100",
-        "--border": "#2a3a5e",
-        "--bg-secondary": "#1a1a2e",
-        "--bg-tertiary": "#252540",
-        "--de-color": "#4fc3f7",
-        // light blue — DE panel accent
-        "--dx-color": "#81c784"
-        // light green — DX panel accent
-      }
-    },
-    lcars: {
-      id: "lcars",
-      name: "LCARS",
-      description: "Star Trek TNG inspired",
-      bodyClass: "theme-lcars",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#000000",
-        "--surface": "#0a0a14",
-        "--surface2": "#9999CC",
-        // blue-bell (Drexler palette)
-        "--surface3": "#CC99CC",
-        // lilac
-        "--accent": "#FFCC66",
-        // golden-tanoi — signature LCARS gold
-        "--text": "#FF9966",
-        // orange-peel
-        "--text-dim": "#CCBBDD",
-        // light-lavender (brighter for contrast on dark bg)
-        "--green": "#99CCFF",
-        // anakiwa — LCARS uses blue for "go"
-        "--yellow": "#FFFF99",
-        // pale-canary
-        "--red": "#CC6666",
-        // chestnut-rose
-        "--orange": "#FF9933",
-        // neon-carrot
-        "--border": "#9999CC",
-        // blue-bell (matches surface2)
-        "--bg-secondary": "#0a0a14",
-        "--bg-tertiary": "#111122",
-        "--de-color": "#ff9900",
-        // LCARS gold — DE panel accent
-        "--dx-color": "#99ccff"
-        // LCARS blue — DX panel accent
-      }
-    },
-    terminal: {
-      id: "terminal",
-      name: "Terminal",
-      description: "Retro terminal style",
-      bodyClass: "theme-terminal",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#000000",
-        "--surface": "#0a1a0a",
-        "--surface2": "#0d2b0d",
-        "--surface3": "#143014",
-        "--accent": "#00cc66",
-        "--text": "#00ff88",
-        "--text-dim": "#338855",
-        "--green": "#00ff44",
-        "--yellow": "#cccc00",
-        "--red": "#ff3333",
-        "--orange": "#ff8800",
-        "--border": "#1a4a2a",
-        "--bg-secondary": "#0a1a0a",
-        "--bg-tertiary": "#0d200d",
-        "--de-color": "#00ff00",
-        // green — DE panel accent
-        "--dx-color": "#00ff00"
-        // green — DX panel accent
-      }
-    },
-    hamclock: {
-      id: "hamclock",
-      name: "HamClock",
-      description: "Inspired by HamClock by WB0OEW",
-      bodyClass: "theme-hamclock",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#000000",
-        "--surface": "#000000",
-        // pure black — real HamClock has no surface variation
-        "--surface2": "#0a0a0a",
-        "--surface3": "#141414",
-        "--accent": "#00ffff",
-        // cyan — HamClock uses cyan for headings/labels
-        "--text": "#e0e0e0",
-        // white-ish — HamClock main text
-        "--text-dim": "#888899",
-        "--green": "#00ff00",
-        // bright green — active/positive values
-        "--yellow": "#ffff00",
-        // yellow — warnings, highlighted values
-        "--red": "#ff0000",
-        // red — alerts
-        "--orange": "#e8a000",
-        // warm amber — matches real HamClock orange
-        "--border": "#333333",
-        // subtle separator — real HamClock uses very thin borders
-        "--bg-secondary": "#000000",
-        "--bg-tertiary": "#0a0a0a",
-        "--de-color": "#e8a000",
-        // orange — DE panel accent (matches real HamClock)
-        "--dx-color": "#00ff00"
-        // bright green — DX panel accent
-      }
-    },
-    rebel: {
-      id: "rebel",
-      name: "Rebel",
-      description: "Desert outpost warmth",
-      bodyClass: "",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#1a120b",
-        // deep charred brown
-        "--surface": "#2a1a0e",
-        // dark burnt sienna
-        "--surface2": "#3d2614",
-        // warm leather brown
-        "--surface3": "#4a3020",
-        // dusty canyon
-        "--accent": "#ff6f00",
-        // blazing orange — rally signal
-        "--text": "#f0dcc0",
-        // warm parchment
-        "--text-dim": "#9a8060",
-        // faded sand
-        "--green": "#7cb342",
-        // olive rebel green
-        "--yellow": "#ffc107",
-        // gold
-        "--red": "#e53935",
-        // alert red
-        "--orange": "#ff8f00",
-        // deep amber
-        "--border": "#5c3a1e",
-        // worn leather edge
-        "--bg-secondary": "#1a120b",
-        "--bg-tertiary": "#221610",
-        "--de-color": "#ff6f00",
-        // blazing orange — DE panel accent
-        "--dx-color": "#7cb342"
-        // olive green — DX panel accent
-      }
-    },
-    imperial: {
-      id: "imperial",
-      name: "Imperial",
-      description: "Cold steel command deck",
-      bodyClass: "",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#0a0c10",
-        // near-black with cold blue cast
-        "--surface": "#12151c",
-        // dark gunmetal
-        "--surface2": "#1c2030",
-        // brushed steel
-        "--surface3": "#262b3e",
-        // polished durasteel
-        "--accent": "#90caf9",
-        // cold ice blue — command highlight
-        "--text": "#cfd8e0",
-        // cool gray-white
-        "--text-dim": "#607080",
-        // muted steel
-        "--green": "#66bb6a",
-        // tactical green
-        "--yellow": "#ffee58",
-        // caution yellow
-        "--red": "#ef5350",
-        // imperial red
-        "--orange": "#ffa726",
-        // amber alert
-        "--border": "#2a3040",
-        // cold steel border
-        "--bg-secondary": "#0a0c10",
-        "--bg-tertiary": "#0e1018",
-        "--de-color": "#90caf9",
-        // ice blue — DE panel accent
-        "--dx-color": "#ef5350"
-        // imperial red — DX panel accent
-      }
-    },
-    neon: {
-      id: "neon",
-      name: "Neon",
-      description: "Digital grid, neon glow",
-      bodyClass: "theme-neon",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#050510",
-        // void black with blue tint
-        "--surface": "#0a0a1a",
-        // deep digital dark
-        "--surface2": "#0f1028",
-        // dark grid
-        "--surface3": "#141838",
-        // subtle grid highlight
-        "--accent": "#00e5ff",
-        // neon cyan — primary glow
-        "--text": "#e0f0ff",
-        // cool white
-        "--text-dim": "#4a6080",
-        // dim circuit trace
-        "--green": "#00e676",
-        // neon green
-        "--yellow": "#eeff41",
-        // electric yellow
-        "--red": "#ff1744",
-        // neon red
-        "--orange": "#ff6e40",
-        // neon orange
-        "--border": "#0d2040",
-        // dark grid line
-        "--bg-secondary": "#050510",
-        "--bg-tertiary": "#080818",
-        "--de-color": "#00e5ff",
-        // neon cyan — DE panel accent
-        "--dx-color": "#ff1744"
-        // neon red — DX panel accent
-      }
-    },
-    steampunk: {
-      id: "steampunk",
-      name: "Steampunk",
-      description: "Brass, gears & gaslight",
-      bodyClass: "theme-steampunk",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#1a1408",
-        // dark aged wood
-        "--surface": "#241c0e",
-        // oiled mahogany
-        "--surface2": "#3a2e18",
-        // polished walnut
-        "--surface3": "#4a3c22",
-        // brass-touched panel
-        "--accent": "#d4a04a",
-        // polished brass
-        "--text": "#e8d8b8",
-        // aged parchment
-        "--text-dim": "#8a7a5a",
-        // faded ink
-        "--green": "#6b8e23",
-        // oxidized copper green
-        "--yellow": "#daa520",
-        // goldenrod
-        "--red": "#b22222",
-        // firebrick
-        "--orange": "#cd853f",
-        // peru — warm copper
-        "--border": "#5a4a2a",
-        // brass trim
-        "--bg-secondary": "#1a1408",
-        "--bg-tertiary": "#1e180c",
-        "--de-color": "#d4a04a",
-        // polished brass — DE panel accent
-        "--dx-color": "#6b8e23"
-        // oxidized copper — DX panel accent
-      }
-    }
-  };
-  var activeThemeId = localStorage.getItem(STORAGE_KEY) || "default";
-  function getThemeList() {
-    return Object.values(THEMES).map((t) => ({
-      id: t.id,
-      name: t.name,
-      description: t.description
-    }));
+  function lunarPlColor(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return "";
+    if (n < -0.5) return "var(--green)";
+    if (n < 0.5) return "var(--yellow)";
+    return "var(--red)";
   }
-  function getCurrentThemeId() {
-    return activeThemeId;
+  function lunarElColor(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return "";
+    if (n >= 20) return "var(--green)";
+    if (n >= 0) return "var(--yellow)";
+    return "var(--text-dim)";
   }
-  function applyTheme(themeId) {
-    const theme = THEMES[themeId];
-    if (!theme) return;
-    const root = document.documentElement;
-    for (const [prop, value] of Object.entries(theme.vars)) {
-      root.style.setProperty(prop, value);
+  function loadLunarFieldVisibility() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
+      if (saved && typeof saved === "object") return saved;
+    } catch (e) {
     }
-    for (const t of Object.values(THEMES)) {
-      if (t.bodyClass) document.body.classList.remove(t.bodyClass);
+    const vis = {};
+    LUNAR_FIELD_DEFS.forEach((f) => vis[f.key] = f.defaultVisible);
+    return vis;
+  }
+  function saveLunarFieldVisibility() {
+    localStorage.setItem(LUNAR_VIS_KEY, JSON.stringify(state_default.lunarFieldVisibility));
+  }
+  async function fetchLunar() {
+    try {
+      let url = "/api/lunar";
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        url += `?lat=${state_default.myLat}&lon=${state_default.myLon}`;
+      }
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.lastLunarData = data;
+      renderLunar(data);
+      const { updateMoonMarker: updateMoonMarker2 } = await Promise.resolve().then(() => (init_map_init(), map_init_exports));
+      updateMoonMarker2();
+    } catch (err) {
+      console.error("Failed to fetch lunar:", err);
     }
-    if (theme.bodyClass) document.body.classList.add(theme.bodyClass);
-    activeThemeId = themeId;
-    localStorage.setItem(STORAGE_KEY, themeId);
-    Promise.resolve().then(() => (init_map_init(), map_init_exports)).then((m) => m.swapMapTiles(themeId)).catch(() => {
+  }
+  function renderMoonPhase(illumination, phase) {
+    const canvas = $("moonCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const size = canvas.width;
+    const r = size / 2 - 2;
+    const cx = size / 2;
+    const cy = size / 2;
+    ctx.clearRect(0, 0, size, size);
+    loadMoonImage();
+    const illum = Math.max(0, Math.min(100, illumination)) / 100;
+    const waning = (phase || "").toLowerCase().includes("waning") || (phase || "").toLowerCase().includes("last");
+    if (moonImage) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.clip();
+      const scale = r * 2 / (moonImage.width * 0.82);
+      const drawSize = moonImage.width * scale;
+      const offset = (drawSize - r * 2) / 2;
+      ctx.drawImage(moonImage, cx - r - offset, cy - r - offset, drawSize, drawSize);
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#1a1a2e";
+      ctx.fill();
+      if (illum >= 0.99) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = "#d4d4d4";
+        ctx.fill();
+      } else if (illum > 0.01) {
+        const terminatorX = Math.abs(1 - 2 * illum) * r;
+        const litOnRight = !waning;
+        ctx.beginPath();
+        if (litOnRight) {
+          ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
+          if (illum <= 0.5) {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
+          } else {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, true);
+          }
+        } else {
+          ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2, false);
+          if (illum <= 0.5) {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, false);
+          } else {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, true);
+          }
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#d4d4d4";
+        ctx.fill();
+      }
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#445";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  function renderLunar(data) {
+    const lunarCards = $("lunarCards");
+    lunarCards.innerHTML = "";
+    renderMoonPhase(data.illumination, data.phase);
+    LUNAR_FIELD_DEFS.forEach((f) => {
+      if (state_default.lunarFieldVisibility[f.key] === false) return;
+      const rawVal = data[f.key];
+      let displayVal;
+      if (rawVal === void 0 || rawVal === null || rawVal === "") {
+        displayVal = "-";
+      } else if (f.format === "time") {
+        displayVal = fmtTime(new Date(rawVal * 1e3));
+      } else if (f.key === "distance") {
+        displayVal = Number(rawVal).toLocaleString() + f.unit;
+      } else if (f.key === "pathLoss") {
+        displayVal = (rawVal > 0 ? "+" : "") + rawVal + f.unit;
+      } else {
+        displayVal = String(rawVal) + f.unit;
+      }
+      const color = f.colorFn ? f.colorFn(rawVal) : "";
+      const div = document.createElement("div");
+      div.className = "solar-card";
+      const labelDiv = document.createElement("div");
+      labelDiv.className = "label";
+      labelDiv.textContent = f.label;
+      const valueDiv = document.createElement("div");
+      valueDiv.className = "value";
+      if (color) valueDiv.style.color = color;
+      valueDiv.textContent = displayVal;
+      div.appendChild(labelDiv);
+      div.appendChild(valueDiv);
+      lunarCards.appendChild(div);
     });
   }
-  function initTheme() {
-    const savedId = localStorage.getItem(STORAGE_KEY) || "default";
-    const themeId = THEMES[savedId] ? savedId : "default";
-    applyTheme(themeId);
-    if (localStorage.getItem("hamtab_slim_header") === "true") {
-      document.body.classList.add("slim-header");
+  var moonImage, moonImageLoading, LUNAR_VIS_KEY;
+  var init_lunar = __esm({
+    "src/lunar.js"() {
+      init_state();
+      init_dom();
+      init_constants();
+      init_utils();
+      moonImage = null;
+      moonImageLoading = false;
+      LUNAR_VIS_KEY = "hamtab_lunar_fields";
     }
-  }
-  function currentThemeSupportsGrid() {
-    const theme = THEMES[activeThemeId];
-    return theme ? theme.supportsGrid !== false : true;
-  }
-  function getThemeSwatchColors(themeId) {
-    const theme = THEMES[themeId];
-    if (!theme) return [];
-    return [
-      theme.vars["--bg"],
-      theme.vars["--surface2"],
-      theme.vars["--accent"],
-      theme.vars["--text"],
-      theme.vars["--border"]
-    ];
-  }
+  });
 
-  // src/main.js
-  init_state();
-  init_dom();
-  init_solar();
-  init_lunar();
+  // src/constants.js
+  var constants_exports = {};
+  __export(constants_exports, {
+    BREAKPOINT_MOBILE: () => BREAKPOINT_MOBILE,
+    BREAKPOINT_TABLET: () => BREAKPOINT_TABLET,
+    DEFAULT_BAND_COLORS: () => DEFAULT_BAND_COLORS,
+    DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
+    DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
+    GRID_ASSIGN_KEY: () => GRID_ASSIGN_KEY,
+    GRID_DEFAULT_ASSIGNMENTS: () => GRID_DEFAULT_ASSIGNMENTS,
+    GRID_MODE_KEY: () => GRID_MODE_KEY,
+    GRID_PERMUTATIONS: () => GRID_PERMUTATIONS,
+    GRID_PERM_KEY: () => GRID_PERM_KEY,
+    GRID_SIZES_KEY: () => GRID_SIZES_KEY,
+    HEADER_H: () => HEADER_H,
+    LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
+    REFERENCE_TABS: () => REFERENCE_TABS,
+    REFLOW_WIDGET_ORDER: () => REFLOW_WIDGET_ORDER,
+    SAT_FREQUENCIES: () => SAT_FREQUENCIES,
+    SCALE_MIN_FACTOR: () => SCALE_MIN_FACTOR,
+    SCALE_REFERENCE_WIDTH: () => SCALE_REFERENCE_WIDTH,
+    SCALE_REFLOW_WIDTH: () => SCALE_REFLOW_WIDTH,
+    SNAP_DIST: () => SNAP_DIST,
+    SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
+    SOURCE_DEFS: () => SOURCE_DEFS,
+    USER_LAYOUT_KEY: () => USER_LAYOUT_KEY,
+    US_PRIVILEGES: () => US_PRIVILEGES,
+    WIDGET_DEFS: () => WIDGET_DEFS,
+    WIDGET_HELP: () => WIDGET_HELP,
+    WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY,
+    getBandColor: () => getBandColor,
+    getBandColorOverrides: () => getBandColorOverrides,
+    getLayoutMode: () => getLayoutMode,
+    saveBandColors: () => saveBandColors
+  });
+  function getLayoutMode() {
+    const w = window.innerWidth;
+    if (w < SCALE_REFLOW_WIDTH) return "mobile";
+    return "desktop";
+  }
+  function getBandColor(band) {
+    return bandColorOverrides[band] || DEFAULT_BAND_COLORS[band] || "#888";
+  }
+  function saveBandColors(overrides) {
+    bandColorOverrides = overrides;
+    localStorage.setItem("hamtab_band_colors", JSON.stringify(overrides));
+  }
+  function getBandColorOverrides() {
+    return { ...bandColorOverrides };
+  }
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
+  var init_constants = __esm({
+    "src/constants.js"() {
+      init_solar();
+      init_lunar();
+      WIDGET_DEFS = [
+        { id: "widget-filters", name: "Filters" },
+        { id: "widget-activations", name: "On the Air" },
+        { id: "widget-map", name: "HamMap" },
+        { id: "widget-solar", name: "Solar" },
+        { id: "widget-spacewx", name: "Space Wx" },
+        { id: "widget-propagation", name: "Band Conditions" },
+        { id: "widget-voacap", name: "VOACAP DE\u2192DX" },
+        { id: "widget-live-spots", name: "Live Spots" },
+        { id: "widget-lunar", name: "Lunar / EME" },
+        { id: "widget-satellites", name: "Satellites" },
+        { id: "widget-rst", name: "Reference" },
+        { id: "widget-spot-detail", name: "DX Detail" },
+        { id: "widget-contests", name: "Contests" },
+        { id: "widget-dxpeditions", name: "DXpeditions" },
+        { id: "widget-beacons", name: "NCDXF Beacons" },
+        { id: "widget-dedx", name: "DE/DX Info" },
+        { id: "widget-stopwatch", name: "Stopwatch / Timer" }
+      ];
+      SAT_FREQUENCIES = {
+        25544: {
+          name: "ISS (ZARYA)",
+          uplinks: [
+            { freq: 145.99, mode: "FM", desc: "V/U Repeater" }
+          ],
+          downlinks: [
+            { freq: 437.8, mode: "FM", desc: "V/U Repeater" },
+            { freq: 145.8, mode: "FM", desc: "Voice/SSTV" },
+            { freq: 145.825, mode: "APRS", desc: "Packet" }
+          ]
+        },
+        43770: {
+          name: "AO-91 (RadFxSat)",
+          uplinks: [
+            { freq: 435.25, mode: "FM", desc: "67 Hz CTCSS" }
+          ],
+          downlinks: [
+            { freq: 145.96, mode: "FM", desc: "FM Voice" }
+          ]
+        },
+        43137: {
+          name: "AO-92 (Fox-1D)",
+          uplinks: [
+            { freq: 435.35, mode: "FM", desc: "67 Hz CTCSS" }
+          ],
+          downlinks: [
+            { freq: 145.88, mode: "FM", desc: "FM Voice" }
+          ]
+        },
+        27607: {
+          name: "SO-50 (SaudiSat-1C)",
+          uplinks: [
+            { freq: 145.85, mode: "FM", desc: "67 Hz arm, 74.4 Hz TX" }
+          ],
+          downlinks: [
+            { freq: 436.795, mode: "FM", desc: "FM Voice" }
+          ]
+        },
+        44909: {
+          name: "CAS-4A (ZHUHAI-1 01)",
+          uplinks: [
+            { freq: 435.21, mode: "SSB/CW", desc: "Linear Transponder" }
+          ],
+          downlinks: [
+            { freq: 145.855, mode: "SSB/CW", desc: "Linear Transponder" }
+          ]
+        },
+        44910: {
+          name: "CAS-4B (ZHUHAI-1 02)",
+          uplinks: [
+            { freq: 435.28, mode: "SSB/CW", desc: "Linear Transponder" }
+          ],
+          downlinks: [
+            { freq: 145.925, mode: "SSB/CW", desc: "Linear Transponder" }
+          ]
+        },
+        47960: {
+          name: "RS-44 (DOSAAF-85)",
+          uplinks: [
+            { freq: 145.935, mode: "SSB/CW", desc: "Linear Transponder" }
+          ],
+          downlinks: [
+            { freq: 435.61, mode: "SSB/CW", desc: "Linear Transponder" }
+          ]
+        },
+        54684: {
+          name: "TEVEL-1",
+          uplinks: [
+            { freq: 145.97, mode: "FM", desc: "FM Transponder" }
+          ],
+          downlinks: [
+            { freq: 436.4, mode: "FM", desc: "FM Transponder" }
+          ]
+        },
+        54685: {
+          name: "TEVEL-2",
+          uplinks: [
+            { freq: 145.97, mode: "FM", desc: "FM Transponder" }
+          ],
+          downlinks: [
+            { freq: 436.4, mode: "FM", desc: "FM Transponder" }
+          ]
+        }
+      };
+      DEFAULT_TRACKED_SATS = [25544];
+      SOURCE_DEFS = {
+        pota: {
+          label: "POTA",
+          endpoint: "/api/spots",
+          columns: [
+            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "reference", label: "Park (link)", class: "" },
+            { key: "name", label: "Name", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age", "country", "state", "grid", "privilege"],
+          hasMap: true,
+          spotId: (s) => `${s.activator || s.callsign}-${s.reference}-${s.frequency}`,
+          sortKey: "spotTime"
+        },
+        sota: {
+          label: "SOTA",
+          endpoint: "/api/spots/sota",
+          columns: [
+            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "reference", label: "Summit (link)", class: "" },
+            { key: "name", label: "Details", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age", "privilege"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
+          sortKey: "spotTime"
+        },
+        dxc: {
+          label: "DXC",
+          endpoint: "/api/spots/dxc",
+          columns: [
+            { key: "callsign", label: "DX Station", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "spotter", label: "Spotter", class: "" },
+            { key: "name", label: "Country", class: "" },
+            { key: "continent", label: "Cont", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age", "continent", "privilege"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
+          sortKey: "spotTime"
+        },
+        wwff: {
+          label: "WWFF",
+          endpoint: "/api/spots/wwff",
+          columns: [
+            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "reference", label: "Ref (link)", class: "" },
+            { key: "name", label: "Name", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age", "privilege"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
+          sortKey: "spotTime"
+        },
+        psk: {
+          label: "PSK",
+          endpoint: "/api/spots/psk",
+          columns: [
+            { key: "callsign", label: "TX Call", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "reporter", label: "RX Call", class: "" },
+            { key: "snr", label: "SNR", class: "" },
+            { key: "senderLocator", label: "TX Grid", class: "" },
+            { key: "reporterLocator", label: "RX Grid", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age", "privilege"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.reporter}-${s.frequency}-${s.spotTime}`,
+          sortKey: "spotTime"
+        }
+      };
+      SOLAR_FIELD_DEFS = [
+        { key: "sfi", label: "Solar Flux", unit: "", colorFn: null, defaultVisible: true },
+        { key: "sunspots", label: "Sunspots", unit: "", colorFn: null, defaultVisible: true },
+        { key: "aindex", label: "A-Index", unit: "", colorFn: aColor, defaultVisible: true },
+        { key: "kindex", label: "K-Index", unit: "", colorFn: kColor, defaultVisible: true },
+        { key: "xray", label: "X-Ray", unit: "", colorFn: null, defaultVisible: true },
+        { key: "signalnoise", label: "Signal Noise", unit: "", colorFn: null, defaultVisible: true },
+        { key: "solarwind", label: "Solar Wind", unit: " km/s", colorFn: solarWindColor, defaultVisible: false },
+        { key: "magneticfield", label: "Bz (IMF)", unit: " nT", colorFn: bzColor, defaultVisible: false },
+        { key: "protonflux", label: "Proton Flux", unit: "", colorFn: null, defaultVisible: false },
+        { key: "electonflux", label: "Electron Flux", unit: "", colorFn: null, defaultVisible: false },
+        { key: "aurora", label: "Aurora", unit: "", colorFn: auroraColor, defaultVisible: false },
+        { key: "latdegree", label: "Aurora Lat", unit: "\xB0", colorFn: null, defaultVisible: false },
+        { key: "heliumline", label: "He 10830\xC5", unit: "", colorFn: null, defaultVisible: false },
+        { key: "geomagfield", label: "Geomag Field", unit: "", colorFn: geomagColor, defaultVisible: false },
+        { key: "kindexnt", label: "K-Index (Night)", unit: "", colorFn: kColor, defaultVisible: false },
+        { key: "muf", label: "MUF", unit: " MHz", colorFn: null, defaultVisible: false },
+        { key: "fof2", label: "foF2", unit: " MHz", colorFn: null, defaultVisible: false },
+        { key: "muffactor", label: "MUF Factor", unit: "", colorFn: null, defaultVisible: false }
+      ];
+      LUNAR_FIELD_DEFS = [
+        { key: "phase", label: "Moon Phase", unit: "", colorFn: null, defaultVisible: true },
+        { key: "illumination", label: "Illumination", unit: "%", colorFn: null, defaultVisible: true },
+        { key: "elevation", label: "Elevation", unit: "\xB0", colorFn: lunarElColor, defaultVisible: true },
+        { key: "azimuth", label: "Azimuth", unit: "\xB0", colorFn: null, defaultVisible: true },
+        { key: "moonrise", label: "Moonrise", unit: "", colorFn: null, defaultVisible: true, format: "time" },
+        { key: "moonset", label: "Moonset", unit: "", colorFn: null, defaultVisible: true, format: "time" },
+        { key: "declination", label: "Declination", unit: "\xB0", colorFn: lunarDecColor, defaultVisible: true },
+        { key: "distance", label: "Distance", unit: " km", colorFn: null, defaultVisible: true },
+        { key: "pathLoss", label: "Path Loss", unit: " dB", colorFn: lunarPlColor, defaultVisible: true },
+        { key: "elongation", label: "Elongation", unit: "\xB0", colorFn: null, defaultVisible: false },
+        { key: "eclipticLon", label: "Ecl. Longitude", unit: "\xB0", colorFn: null, defaultVisible: false },
+        { key: "eclipticLat", label: "Ecl. Latitude", unit: "\xB0", colorFn: null, defaultVisible: false },
+        { key: "rightAscension", label: "Right Ascension", unit: "\xB0", colorFn: null, defaultVisible: false }
+      ];
+      US_PRIVILEGES = {
+        EXTRA: [
+          [1.8, 2, "all"],
+          [3.5, 4, "all"],
+          [5.3, 5.4, "all"],
+          [7, 7.3, "all"],
+          [10.1, 10.15, "all"],
+          [14, 14.35, "all"],
+          [18.068, 18.168, "all"],
+          [21, 21.45, "all"],
+          [24.89, 24.99, "all"],
+          [28, 29.7, "all"],
+          [50, 54, "all"],
+          [144, 148, "all"],
+          [420, 450, "all"]
+        ],
+        GENERAL: [
+          [1.8, 2, "all"],
+          [3.525, 3.6, "cwdig"],
+          [3.8, 4, "phone"],
+          [5.3, 5.4, "all"],
+          [7.025, 7.125, "cwdig"],
+          [7.175, 7.3, "phone"],
+          [10.1, 10.15, "cwdig"],
+          [14.025, 14.15, "cwdig"],
+          [14.225, 14.35, "phone"],
+          [18.068, 18.11, "cwdig"],
+          [18.11, 18.168, "phone"],
+          [21.025, 21.2, "cwdig"],
+          [21.275, 21.45, "phone"],
+          [24.89, 24.93, "cwdig"],
+          [24.93, 24.99, "phone"],
+          [28, 29.7, "all"],
+          [50, 54, "all"],
+          [144, 148, "all"],
+          [420, 450, "all"]
+        ],
+        TECHNICIAN: [
+          [3.525, 3.6, "cw"],
+          [7.025, 7.125, "cw"],
+          [21.025, 21.2, "cw"],
+          [28, 28.3, "cwdig"],
+          [28.3, 28.5, "phone"],
+          [50, 54, "all"],
+          [144, 148, "all"],
+          [420, 450, "all"]
+        ],
+        NOVICE: [
+          [3.525, 3.6, "cw"],
+          [7.025, 7.125, "cw"],
+          [21.025, 21.2, "cw"],
+          [28, 28.3, "cwdig"],
+          [28.3, 28.5, "phone"],
+          [222, 225, "all"],
+          [420, 450, "all"]
+        ]
+      };
+      WIDGET_HELP = {
+        "widget-filters": {
+          title: "Filters",
+          description: "Narrow down the spot list to find exactly what you're looking for. Filters let you focus on specific bands, modes, nearby stations, or recent activity. Watch lists add per-source highlighting and include/exclude rules.",
+          sections: [
+            { heading: "Band & Mode Filters", content: "Click one or more bands (like 20m, 40m) or modes (like FT8, SSB) to show only those spots. Click again to deselect. You can select as many as you want." },
+            { heading: "Distance Filter", content: "Show only spots within a certain distance from your location (QTH). You'll need to set your location in Config first. Great for finding nearby activations you can reach." },
+            { heading: "Age Filter", content: "Show only spots posted within the last N minutes. Older spots may no longer be active, so this helps you find stations that are on the air right now." },
+            { heading: "Propagation Filter", content: `Click the "Prop" button to hide spots on bands with poor predicted propagation. Uses your current solar indices and location to estimate which HF bands are likely open. Spots on bands rated below "Fair" (less than 30% reliability) are filtered out. VHF/UHF spots are never filtered since they don't depend on HF propagation.` },
+            { heading: "Watch Lists", content: 'Click the "Watch Lists" accordion below the presets to add rules for the active source tab. Three modes: Red highlights matching spots with a tinted row, Only shows ONLY matching spots (everything else hidden), Not excludes matching spots. Match by callsign (strips /P, /M suffixes), DXCC entity, grid prefix, or park/summit reference. Rules apply per source tab and persist across sessions.' },
+            { heading: "Presets", content: 'Save your favorite filter combinations and switch between them quickly. For example, save a "Local FT8" preset for nearby digital spots, and a "DX SSB" preset for long-distance voice contacts.' }
+          ]
+        },
+        "widget-activations": {
+          title: "On the Air",
+          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from five sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), and PSKReporter (digital mode reception reports).",
+          sections: [
+            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, SOTA, DXC, WWFF, and PSK sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
+            { heading: "POTA", content: "Shows operators activating parks for the Parks on the Air program. Click the park reference link to see park details on the POTA website." },
+            { heading: "SOTA", content: "Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details." },
+            { heading: "DX Cluster", content: "Worldwide spots from the DX Cluster network. Great for finding rare or distant (DX) stations." },
+            { heading: "WWFF", content: "Shows operators activating nature reserves for the World Wide Flora & Fauna program. Similar to POTA but with a worldwide scope \u2014 especially popular in Europe. Click the reference link for reserve details." },
+            { heading: "PSK Reporter", content: "Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions." }
+          ]
+        },
+        "widget-map": {
+          title: "HamMap",
+          description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
+          sections: [
+            { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
+            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (\u22655)." },
+            { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
+            { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
+          ]
+        },
+        "widget-solar": {
+          title: "Solar",
+          description: "Real-time space weather data that affects radio propagation. The sun's activity directly determines which bands are open and how far your signal can travel.",
+          sections: [
+            { heading: "What This Shows", content: "Solar Flux (SFI) and Sunspot Number indicate overall solar activity \u2014 higher values generally mean better HF propagation. The A-Index and K-Index measure geomagnetic disturbance \u2014 lower is better for radio." },
+            { heading: "Color Coding", content: "Values are color-coded: green means good conditions for radio, yellow means fair, and red means poor or disturbed. Watch the K-Index especially \u2014 values above 4 can shut down HF bands." },
+            { heading: "Customize Fields", content: "Click the gear icon to show or hide individual fields. By default, the most useful metrics are shown. Advanced users can enable additional fields like solar wind speed, Bz component, and aurora activity." }
+          ],
+          links: [
+            { label: "HamQSL Space Weather", url: "https://www.hamqsl.com/solar.html" }
+          ]
+        },
+        "widget-spacewx": {
+          title: "Space Weather History",
+          description: "Historical graphs of key space weather indices over the past week (or 90 days for Solar Flux). These charts help you spot trends and understand how conditions are changing \u2014 not just a single snapshot, but the bigger picture.",
+          sections: [
+            { heading: "Tabs", content: "Five tabs let you switch between different measurements: Kp index (geomagnetic activity), X-Ray flux (solar flare intensity), SFI (Solar Flux Index \u2014 overall solar activity), Solar Wind speed, and Bz (interplanetary magnetic field direction)." },
+            { heading: "What the graphs show", content: "Kp: Bar chart colored green/yellow/red \u2014 values above 4 mean geomagnetic storms that can disrupt HF. X-Ray: Line chart on a log scale \u2014 C/M/X class flares marked. SFI: 90-day trend \u2014 higher values (100+) mean better HF propagation. Wind: Solar wind speed \u2014 above 400 km/s can disturb conditions. Bz: Southward (negative) Bz opens Earth's magnetosphere to solar wind, worsening conditions." },
+            { heading: "Data source", content: "All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 15 minutes." }
+          ],
+          links: [
+            { label: "NOAA SWPC", url: "https://www.swpc.noaa.gov/" }
+          ]
+        },
+        "widget-propagation": {
+          title: "Band Conditions",
+          description: "HF band conditions and VHF propagation status. Shows per-band reliability predictions for both day and night simultaneously, plus VHF phenomena like Aurora and E-Skip.",
+          sections: [
+            { heading: "HF Bands", content: "Each band shows a reliability percentage and condition (Excellent/Good/Fair/Poor/Closed). Day and night are shown side by side \u2014 day conditions appear in the left column (orange border), night in the right column (blue border). Green means the band is likely open, yellow means marginal, red means closed." },
+            { heading: "VHF Conditions", content: "Below the HF bands, VHF propagation phenomena are shown: Aurora (affects 2m and above in northern latitudes) and E-Skip (sporadic E-layer openings on 6m/4m/2m by region). Data comes directly from HamQSL." },
+            { heading: "How It Works", content: "HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model. Higher SFI means better HF conditions. K-index above 4 can shut down HF bands. The summary bar shows current MUF (Maximum Usable Frequency), SFI, and K-index." }
+          ],
+          links: [
+            { label: "NOAA Space Weather", url: "https://www.swpc.noaa.gov/" },
+            { label: "HamQSL Solar Data", url: "https://www.hamqsl.com/solar.html" }
+          ]
+        },
+        "widget-lunar": {
+          title: "Lunar / EME",
+          description: 'Moon tracking data for Earth-Moon-Earth (EME or "moonbounce") communication. EME is an advanced technique where operators bounce radio signals off the moon to make contacts over very long distances.',
+          sections: [
+            { heading: "Moon Phase & Position", content: "Shows the current moon phase, illumination, and sky position. The moon needs to be above the horizon at both your location and the other station's location for EME to work." },
+            { heading: "Azimuth & Elevation", content: "Shows where the moon is in your sky right now. Elevation is the angle above your horizon \u2014 green (20\xB0+) is ideal for EME, yellow (0-20\xB0) is marginal, dim means below the horizon. Azimuth is the compass bearing (0\xB0 = North, 90\xB0 = East, etc.)." },
+            { heading: "Moonrise & Moonset", content: "Shows the next moonrise and moonset times for your location. These help you plan EME operating windows. Requires your location to be set in Configuration." },
+            { heading: "EME Path Loss", content: "Shows how much signal is lost on the round trip to the moon and back, calculated at 144 MHz (2m band). Lower path loss means better EME conditions. Loss varies with moon distance \u2014 closer moon (perigee) means less loss." },
+            { heading: "Declination", content: "The moon's angle relative to the equator. Higher declination generally means longer EME windows (more time with the moon above the horizon)." },
+            { heading: "Customize Fields", content: "Click the gear icon to show additional data like elongation, ecliptic coordinates, and right ascension for advanced planning." }
+          ],
+          links: [
+            { label: "ARRL EME Guide", url: "https://www.arrl.org/eme" },
+            { label: "NASA Moon Visualization", url: "https://svs.gsfc.nasa.gov/5187" }
+          ]
+        },
+        "widget-satellites": {
+          title: "Satellites",
+          description: "Track amateur radio satellites in real time and predict when they'll pass over your location. Many satellites carry amateur radio repeaters that anyone with a ham license can use to make contacts.",
+          sections: [
+            { heading: "ISS Tracking", content: "The ISS (International Space Station) is tracked automatically \u2014 no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard." },
+            { heading: "Adding More Satellites", content: "To track additional satellites like AO-91, SO-50, and others, you'll need a free API key from N2YO.com \u2014 enter it in Config. Click the gear icon to search for and add satellites." },
+            { heading: "Live Position", content: "See where each satellite is right now on the map, along with its altitude, speed, and whether it's above your horizon (visible to you)." },
+            { heading: "TLE Age", content: 'Each satellite row shows the age of its TLE (orbital element) data in days. Color thresholds are based on the configurable "Max TLE Age" setting (default: 7 days) \u2014 green = fresh, yellow = aging, red + \u26A0 = exceeds max age. Stale TLEs reduce position accuracy. The ISS TLE is refreshed from CelesTrak every 6 hours. Set the max age in the satellite config (gear icon).' },
+            { heading: "Pass Predictions", content: "Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work." }
+          ],
+          links: [
+            { label: "N2YO Satellite Tracker", url: "https://www.n2yo.com/" },
+            { label: "AMSAT \u2014 Amateur Satellites", url: "https://www.amsat.org/" }
+          ]
+        },
+        "widget-rst": {
+          title: "Reference",
+          description: "Quick-reference tables for common ham radio information. Use the tabs to switch between RST signal reports, NATO phonetic alphabet, Morse code, Q-codes, and US band privileges.",
+          sections: [
+            { heading: "RST Reports", content: "The RST tab shows readability (R), signal strength (S), and tone (T) values. During a contact, you exchange signal reports so each station knows how well they're being received." },
+            { heading: "Phonetic & Morse", content: "The Phonetic tab has the NATO phonetic alphabet for spelling callsigns clearly. The Morse tab shows dit/dah patterns for each character." },
+            { heading: "Q-Codes", content: "Common three-letter abbreviations starting with Q, originally for CW but now used on voice too. QTH = your location, QSO = a contact, QSL = confirmed." },
+            { heading: "Bands", content: 'US amateur band privileges by license class (Extra, General, Technician, Novice). Check "My privileges only" to show just your class. Requires a US callsign set in Config.' }
+          ],
+          links: [
+            { label: "Ham Radio School \u2014 Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
+          ]
+        },
+        "widget-rst:phonetic": {
+          title: "Phonetic Alphabet",
+          description: `The NATO phonetic alphabet is used by hams to spell out callsigns and words clearly, especially when signals are weak or noisy. Instead of saying the letter "B", you say "Bravo" so it can't be confused with "D", "E", or "P".`,
+          sections: [
+            { heading: "When to Use It", content: `Use the phonetic alphabet whenever you give your callsign on the air. For example, W1AW would be spoken as "Whiskey One Alpha Whiskey". It's also used to spell names, locations, or any word that needs to be communicated clearly.` },
+            { heading: "Tips", content: `You'll quickly memorize the phonetics for your own callsign. Practice saying it aloud before your first contact! Some hams use creative alternatives (like "Kilowatt" for K), but the standard NATO alphabet is always understood.` }
+          ]
+        },
+        "widget-rst:morse": {
+          title: "Morse Code",
+          description: "Morse code (CW) is one of the oldest and most effective modes in ham radio. It uses short signals (dits, shown as dots) and long signals (dahs, shown as dashes) to represent letters and numbers. CW can get through when voice and digital modes can't.",
+          sections: [
+            { heading: "Learning Morse", content: 'The best way to learn Morse code is by sound, not by memorizing the dot-dash patterns visually. Apps like "Morse Trainer" or the Koch method help you learn by listening to characters at full speed.' },
+            { heading: "Prosigns", content: 'Prosigns are special Morse sequences with specific meanings: AR (.-.-.) means "end of message", BT (-...-) means "pause/break", SK (...-.-) means "end of contact", and 73 means "best regards".' },
+            { heading: "On the Air", content: "CW is popular for QRP (low power) operating because it's very efficient. A 5-watt CW signal can often be copied when a 100-watt voice signal cannot. Many hams enjoy CW contesting and DX." }
+          ],
+          links: [
+            { label: "LCWO \u2014 Learn CW Online", url: "https://lcwo.net/" }
+          ]
+        },
+        "widget-rst:qcodes": {
+          title: "Q-Codes",
+          description: `Q-codes are three-letter abbreviations starting with "Q" that were originally created for CW (Morse code) to save time. Many are now commonly used in voice conversations too. As a question, they end with a "?"; as a statement, they're a direct answer.`,
+          sections: [
+            { heading: "Most Common for New Hams", content: 'QTH = your location ("My QTH is Denver"). QSO = a contact/conversation. QSL = confirmation ("QSL" means "I confirm" or "received"). QRZ = "who is calling?" (also the name of a popular callsign lookup website).' },
+            { heading: "Power & Interference", content: "QRP = low power (5W or less) \u2014 a popular challenge mode. QRO = high power. QRM = man-made interference. QRN = natural noise (static). QSB = signal fading in and out." },
+            { heading: "Operating", content: `QSY = change frequency ("Let's QSY to 14.250"). QRT = shutting down for the day ("I'm going QRT"). QRV = ready to receive. QRL = the frequency is in use (always ask "QRL?" before transmitting on a frequency!).` }
+          ]
+        },
+        "widget-rst:bands": {
+          title: "US Band Privileges",
+          description: "A reference chart showing which frequencies and modes are available to each US license class. This is based on FCC Part 97.301\u201397.305.",
+          sections: [
+            { heading: "License Classes", content: "US ham licenses come in four classes: Technician (entry level), General (expanded HF access), Amateur Extra (full privileges), and Novice (legacy, no longer issued). Each class has different frequency allocations." },
+            { heading: "My Privileges Only", content: 'Check "My privileges only" to filter the table to show just your license class. This requires a US callsign to be set in Config \u2014 your license class is looked up automatically.' },
+            { heading: "Mode Groups", content: "All = any mode allowed. CW = Morse code only. CW/Digital = CW and digital modes (FT8, PSK31, etc.). Phone = voice modes (SSB, FM, AM)." }
+          ]
+        },
+        "widget-spot-detail": {
+          title: "DX Detail",
+          description: "Shows detailed information about whichever station you've selected. Click any row in the On the Air table or any marker on the map to see that station's details here.",
+          sections: [
+            { heading: "Station Info", content: "Displays the operator's name, location, license class, and grid square (looked up from their callsign). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown. This helps you know who you're about to contact." },
+            { heading: "Distance & Bearing", content: "Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config." },
+            { heading: "Frequency & Mode", content: "The frequency and mode the station is operating on, so you know exactly where to tune your radio." },
+            { heading: "Weather", content: "Shows current weather conditions at the station's location, if available." }
+          ]
+        },
+        "widget-contests": {
+          title: "Contests",
+          description: "A calendar of upcoming and active amateur radio contests. Contests are time-limited on-air competitions where operators try to make as many contacts as possible. They're a great way to fill your logbook and practice your operating skills.",
+          sections: [
+            { heading: "What Are Contests?", content: "Ham radio contests run for a set period (usually a weekend). Operators exchange brief messages and try to contact as many stations or regions as possible. Contests happen nearly every weekend \u2014 from casual events to major international competitions." },
+            { heading: "Reading the List", content: 'Each card shows the contest name, date/time window, and operating mode. Contests update in real time \u2014 when a contest starts, it moves to the top with a green "NOW" badge. When it ends, it disappears automatically. Click any card to view the full rules and exchange format on the contest website.' },
+            { heading: "Mode Badges", content: "CW = Morse code only. PHONE = voice modes (SSB/FM). DIGITAL = digital modes (RTTY, FT8, etc.). Contests without a badge accept mixed modes." }
+          ],
+          links: [
+            { label: "WA7BNM Contest Calendar", url: "https://www.contestcalendar.com/" }
+          ]
+        },
+        "widget-dxpeditions": {
+          title: "DXpeditions",
+          description: "Track upcoming and active DXpeditions \u2014 organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.",
+          sections: [
+            { heading: "What Is a DXpedition?", content: "A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade." },
+            { heading: "Reading the Cards", content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map (toggle via Map Overlays gear icon) \u2014 bright orange for active, dimmer for upcoming.' },
+            { heading: "Time Filter", content: "Use the dropdown in the widget header to filter DXpeditions by time window: Active Now, Within 1 Week, Within 1 Month, Within 6 Months, or All. Active DXpeditions always appear regardless of the filter. The map markers match whatever the widget shows." },
+            { heading: "Hiding DXpeditions", content: 'Hover over any card and click the \xD7 button to hide it. Hidden DXpeditions are also removed from the map. A "Show N hidden" button appears at the bottom to restore all hidden items at once.' },
+            { heading: "QSL Information", content: `QSL means "I confirm" \u2014 it's how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).` }
+          ],
+          links: [
+            { label: "NG3K DXpedition Calendar", url: "https://www.ng3k.com/Misc/adxo.html" }
+          ]
+        },
+        "widget-beacons": {
+          title: "NCDXF Beacons",
+          description: "Real-time display of the NCDXF/IARU International Beacon Project \u2014 a network of 18 synchronized beacons worldwide that transmit on 5 HF frequencies in a repeating 3-minute cycle. Listening for these beacons is the quickest way to check which bands are open to which parts of the world.",
+          sections: [
+            { heading: "How It Works", content: "Every 3 minutes, each of the 18 beacons transmits for 10 seconds on each of 5 frequencies (14.100, 18.110, 21.150, 24.930, and 28.200 MHz). Five beacons transmit simultaneously \u2014 one per frequency. The table shows which beacon is active on each frequency right now, with a countdown to the next rotation." },
+            { heading: "Checking Propagation", content: "Tune your radio to one of the beacon frequencies and listen. If you hear a beacon, the band is open to that beacon's location. Scan all five frequencies to quickly map which bands are open to which parts of the world." },
+            { heading: "Beacon Transmission", content: "Each beacon transmits its callsign in CW (Morse code) at 100 watts, followed by four 1-second dashes at decreasing power levels (100W, 10W, 1W, 0.1W). If you can copy the callsign but not the last dashes, you know the band is open but marginal to that location." }
+          ],
+          links: [
+            { label: "NCDXF Beacon Project", url: "https://www.ncdxf.org/beacon/" }
+          ]
+        },
+        "widget-dedx": {
+          title: "DE/DX Info",
+          description: "A side-by-side display of your station (DE) and the currently selected distant station (DX) with live clocks. Inspired by the classic HamClock dual-pane layout, this widget shows large local time displays at each location plus key contact information at a glance.",
+          sections: [
+            { heading: "DE (Your Station)", content: "The left panel shows a large live clock for your local time, plus your callsign, grid square, and sunrise/sunset countdowns. Requires your callsign and location to be set in Config." },
+            { heading: "DX (Selected Station)", content: "The right panel shows the approximate local time at the selected DX station's location (calculated from longitude), plus their callsign, frequency, mode, grid square, bearing, distance, and sunrise/sunset. When no spot is selected, the DX side shows UTC." },
+            { heading: "Why Two Clocks?", content: "Knowing the local time at both ends of a path is essential for scheduling contacts and understanding propagation. A station in Japan is unlikely to be on the air at 3 AM their local time, and gray line propagation depends on sunrise/sunset at both locations." },
+            { heading: "Bearing & Distance", content: "The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact." }
+          ]
+        },
+        "widget-stopwatch": {
+          title: "Stopwatch / Timer",
+          description: "A dual-mode timer for contest operations and general use. Switch between Stopwatch (count up with laps) and Countdown (preset timers including the 10-minute FCC station ID reminder).",
+          sections: [
+            { heading: "Stopwatch Mode", content: "Click Start to begin counting up. Use Lap to mark split times during a contest (e.g., tracking contacts per minute). Stop pauses the timer; Reset clears everything." },
+            { heading: "Countdown Mode", content: "Click the Countdown tab and select a preset duration. The 10m ID button is a quick shortcut for the FCC 10-minute station identification requirement. The display flashes when the countdown reaches zero." },
+            { heading: "Station ID Timer", content: "FCC Part 97.119 requires US hams to identify every 10 minutes during a contact and at the end. Use the 10m ID preset as a reminder \u2014 when it flashes, give your callsign!" }
+          ]
+        },
+        "widget-live-spots": {
+          title: "Live Spots",
+          description: "See where YOUR signal is being received right now! When you transmit on digital modes like FT8 or FT4, stations around the world automatically report hearing you to PSKReporter. This widget shows those reports so you can see how far your signal is reaching.",
+          sections: [
+            { heading: "Getting Started", content: "Enter your callsign in Config, then transmit on a digital mode (FT8, FT4, JS8Call, etc.). Within a few minutes, you should see band cards appear showing who is hearing you." },
+            { heading: "Band Cards", content: "Each card represents a band where you're being heard. It shows either how many stations are receiving you or the distance to your farthest receiver. Click a card to show those stations on the map." },
+            { heading: "Display Mode", content: 'Click the gear icon to switch between "count" (number of stations hearing you) and "distance" (farthest reach per band). Distance mode also shows the callsign of your farthest contact.' },
+            { heading: "Map Lines", content: "When you click a band card, lines are drawn on the map from your location to each receiving station, giving you a visual picture of your signal coverage." }
+          ],
+          links: [
+            { label: "PSKReporter", url: "https://pskreporter.info/" }
+          ]
+        },
+        "widget-voacap": {
+          title: "VOACAP DE\u2192DX",
+          description: "A dense 24-hour propagation grid showing predicted band reliability from your station (DE) to the world (DX). The current hour starts at the left edge so you can instantly see what's open right now.",
+          sections: [
+            { heading: "Reading the Grid", content: `Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Cell colors show predicted reliability as a continuous gradient:
 
-  // src/widgets.js
-  init_state();
-  init_constants();
+\u2022 Closed (black) \u2014 Below 5% reliability. The band is not usable on this path. Signals cannot propagate because the frequency is above the MUF or ionospheric conditions block it entirely.
+\u2022 Poor (red) \u2014 5\u201330% reliability. The band may open briefly or weakly. You might make a contact with persistence and good timing, but don't count on it.
+\u2022 Fair (yellow/orange) \u2014 30\u201365% reliability. The band is usable but inconsistent. Signals may fade in and out. Good for CW and digital modes; SSB may be marginal.
+\u2022 Good (green) \u2014 Above 65% reliability. The band is solidly open. Expect workable signals for the predicted mode and power level.` },
+            { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows more green because its low SNR threshold means signals are decodable in conditions where SSB would be unusable." },
+            { heading: "Overview vs Spot", content: `Click OVW/SPOT to toggle target mode. "OVW" (overview) shows the average predicted reliability across four worldwide targets (Europe, East Asia, South America, North America). "SPOT" calculates predictions specifically to the station you've selected in the On the Air table, so you can see exactly when a band will open to that DX.` },
+            { heading: "Auto-SPOT", content: "Click the AUTO button to enable automatic SPOT updates. When AUTO is on (highlighted green), clicking any spot in the table or on the map instantly switches VOACAP to SPOT mode and recalculates the grid for the path to that station. This lets you quickly scan propagation to different DX stations by clicking through spots. AUTO is off by default \u2014 enable it when you want live per-spot predictions." },
+            { heading: "Engine Badge", content: 'The green "VOACAP" or gray "SIM" badge shows which prediction engine is active. VOACAP uses the real Voice of America Coverage Analysis Program \u2014 a professional ionospheric ray-tracing model used by broadcasters and militaries worldwide. It computes multi-hop propagation paths through actual ionospheric layers, accounting for D-layer absorption, MUF, takeoff angle, power, and mode. SIM is a lightweight approximation based on solar flux and time of day \u2014 useful as a fallback but significantly less accurate. The engine switches automatically; no user action needed.' },
+            { heading: "Map Overlay", content: "Click any band row to show propagation on the map. Two modes are available \u2014 click the \u25CB/REL toggle in the param bar to switch. Circle mode (\u25CB) draws concentric range rings from your QTH. REL heatmap mode paints the entire map with a color gradient showing predicted reliability to every point: green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels." },
+            { heading: "About the Data", content: "Predictions are monthly median values based on the current smoothed sunspot number (SSN) from NOAA. They represent typical conditions for this month, not real-time ionospheric state. Use them for planning which bands to try at different times of day, rather than as guarantees of what's open right now." }
+          ],
+          links: [
+            { label: "NOAA Space Weather & Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
+          ]
+        }
+      };
+      REFERENCE_TABS = {
+        rst: {
+          label: "RST",
+          content: {
+            description: "Signal reporting system for readability, strength, and tone.",
+            table: {
+              headers: ["", "Readability", "Strength", "Tone (CW)"],
+              rows: [
+                ["1", "Unreadable", "Faint", "Harsh, hum"],
+                ["2", "Barely readable", "Very weak", "Harsh, modulation"],
+                ["3", "Readable with difficulty", "Weak", "Rough, hum"],
+                ["4", "Almost perfectly readable", "Fair", "Rough, modulation"],
+                ["5", "Perfectly readable", "Fairly good", "Wavering, strong hum"],
+                ["6", "\u2014", "Good", "Wavering, strong mod"],
+                ["7", "\u2014", "Moderately strong", "Good, slight hum"],
+                ["8", "\u2014", "Strong", "Good, slight mod"],
+                ["9", "\u2014", "Very strong", "Perfect tone"]
+              ]
+            },
+            note: "Phone: RS only (e.g. 59) \xB7 CW: RST (e.g. 599)",
+            link: { text: "Ham Radio School \u2014 Practical Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
+          }
+        },
+        phonetic: {
+          label: "Phonetic",
+          content: {
+            description: "NATO phonetic alphabet for clear letter pronunciation.",
+            table: {
+              headers: ["Letter", "Phonetic", "Letter", "Phonetic"],
+              rows: [
+                ["A", "Alpha", "N", "November"],
+                ["B", "Bravo", "O", "Oscar"],
+                ["C", "Charlie", "P", "Papa"],
+                ["D", "Delta", "Q", "Quebec"],
+                ["E", "Echo", "R", "Romeo"],
+                ["F", "Foxtrot", "S", "Sierra"],
+                ["G", "Golf", "T", "Tango"],
+                ["H", "Hotel", "U", "Uniform"],
+                ["I", "India", "V", "Victor"],
+                ["J", "Juliet", "W", "Whiskey"],
+                ["K", "Kilo", "X", "X-ray"],
+                ["L", "Lima", "Y", "Yankee"],
+                ["M", "Mike", "Z", "Zulu"]
+              ]
+            }
+          }
+        },
+        morse: {
+          label: "Morse",
+          content: {
+            description: "International Morse code \u2014 dits (.) and dahs (-) for each character.",
+            table: {
+              headers: ["Char", "Morse", "Char", "Morse"],
+              rows: [
+                ["A", ".-", "N", "-."],
+                ["B", "-...", "O", "---"],
+                ["C", "-.-.", "P", ".--."],
+                ["D", "-..", "Q", "--.-"],
+                ["E", ".", "R", ".-."],
+                ["F", "..-.", "S", "..."],
+                ["G", "--.", "T", "-"],
+                ["H", "....", "U", "..-"],
+                ["I", "..", "V", "...-"],
+                ["J", ".---", "W", ".--"],
+                ["K", "-.-", "X", "-..-"],
+                ["L", ".-..", "Y", "-.--"],
+                ["M", "--", "Z", "--.."],
+                ["0", "-----", "5", "....."],
+                ["1", ".----", "6", "-...."],
+                ["2", "..---", "7", "--..."],
+                ["3", "...--", "8", "---.."],
+                ["4", "....-", "9", "----."]
+              ]
+            },
+            note: "Prosigns: AR (end of message) = .-.-.  BT (pause) = -...-  SK (end of contact) = ...-.-"
+          }
+        },
+        qcodes: {
+          label: "Q-Codes",
+          content: {
+            description: "Common Q-codes used in amateur radio. Originally for CW, now widely used on voice too.",
+            table: {
+              headers: ["Code", "Meaning", "Code", "Meaning"],
+              rows: [
+                ["QRG", "Your exact frequency", "QRS", "Send more slowly"],
+                ["QRL", "Frequency is busy", "QRT", "Stop sending / shutting down"],
+                ["QRM", "Man-made interference", "QRV", "I am ready"],
+                ["QRN", "Natural interference", "QRX", "Stand by / wait"],
+                ["QRO", "Increase power", "QRZ", "Who is calling me?"],
+                ["QRP", "Reduce power / low power", "QSB", "Signal is fading"],
+                ["QSL", "I confirm / received", "QSO", "A contact (conversation)"],
+                ["QSY", "Change frequency", "QTH", "My location"]
+              ]
+            },
+            note: "QRP = operating at 5 watts or less \xB7 QRO = running high power \xB7 QSL cards confirm contacts"
+          }
+        },
+        bands: {
+          label: "Bands",
+          custom: true
+          // rendered by bandref logic, not generic table renderer
+        }
+      };
+      DEFAULT_REFERENCE_TAB = "rst";
+      BREAKPOINT_MOBILE = 768;
+      BREAKPOINT_TABLET = 1024;
+      SCALE_REFERENCE_WIDTH = 1200;
+      SCALE_MIN_FACTOR = 0.55;
+      SCALE_REFLOW_WIDTH = 660;
+      REFLOW_WIDGET_ORDER = [
+        "widget-map",
+        "widget-activations",
+        "widget-filters",
+        "widget-solar",
+        "widget-propagation",
+        "widget-voacap",
+        "widget-live-spots",
+        "widget-spacewx",
+        "widget-spot-detail",
+        "widget-lunar",
+        "widget-satellites",
+        "widget-rst",
+        "widget-contests",
+        "widget-dxpeditions",
+        "widget-beacons",
+        "widget-dedx",
+        "widget-stopwatch"
+      ];
+      DEFAULT_BAND_COLORS = {
+        "160m": "#9c27b0",
+        "80m": "#673ab7",
+        "60m": "#3f51b5",
+        "40m": "#2196f3",
+        "30m": "#00bcd4",
+        "20m": "#4caf50",
+        "17m": "#8bc34a",
+        "15m": "#cddc39",
+        "12m": "#ffeb3b",
+        "10m": "#ff9800",
+        "6m": "#ff5722",
+        "2m": "#f44336",
+        "70cm": "#e91e63"
+      };
+      bandColorOverrides = {};
+      try {
+        const saved = JSON.parse(localStorage.getItem("hamtab_band_colors"));
+        if (saved && typeof saved === "object") bandColorOverrides = saved;
+      } catch (e) {
+      }
+      WIDGET_STORAGE_KEY = "hamtab_widgets";
+      USER_LAYOUT_KEY = "hamtab_widgets_user";
+      SNAP_DIST = 20;
+      HEADER_H = 30;
+      GRID_MODE_KEY = "hamtab_grid_mode";
+      GRID_PERM_KEY = "hamtab_grid_permutation";
+      GRID_ASSIGN_KEY = "hamtab_grid_assignments";
+      GRID_SIZES_KEY = "hamtab_grid_sizes";
+      GRID_PERMUTATIONS = [
+        {
+          id: "2L-2R",
+          name: "2 Left / 2 Right",
+          slots: 4,
+          // Legacy fields — used by config preview (splash.js:renderGridPreview)
+          areas: '"L1 map R1" "L2 map R2"',
+          columns: "1fr 2fr 1fr",
+          rows: "1fr 1fr",
+          cellNames: ["L1", "L2", "R1", "R2"],
+          // Flex-column hybrid fields — used by grid-layout.js at runtime
+          left: ["L1", "L2"],
+          right: ["R1", "R2"],
+          top: [],
+          bottom: [],
+          outerAreas: '"left map right"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "1fr"
+        },
+        {
+          id: "3L-3R",
+          name: "3 Left / 3 Right",
+          slots: 6,
+          areas: '"L1 map R1" "L2 map R2" "L3 map R3"',
+          columns: "1fr 2fr 1fr",
+          rows: "1fr 1fr 1fr",
+          cellNames: ["L1", "L2", "L3", "R1", "R2", "R3"],
+          left: ["L1", "L2", "L3"],
+          right: ["R1", "R2", "R3"],
+          top: [],
+          bottom: [],
+          outerAreas: '"left map right"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "1fr"
+        },
+        {
+          id: "1T-2L-2R-1B",
+          name: "Top + 2L/2R + Bottom",
+          slots: 6,
+          areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "B1 B1 B1"',
+          columns: "1fr 2fr 1fr",
+          rows: "auto 1fr 1fr auto",
+          cellNames: ["T1", "L1", "L2", "R1", "R2", "B1"],
+          left: ["L1", "L2"],
+          right: ["R1", "R2"],
+          top: ["T1"],
+          bottom: ["B1"],
+          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "auto 1fr auto"
+        },
+        {
+          id: "1T-3L-3R-1B",
+          name: "Top + 3L/3R + Bottom",
+          slots: 8,
+          areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "L3 map R3" "B1 B1 B1"',
+          columns: "1fr 2fr 1fr",
+          rows: "auto 1fr 1fr 1fr auto",
+          cellNames: ["T1", "L1", "L2", "L3", "R1", "R2", "R3", "B1"],
+          left: ["L1", "L2", "L3"],
+          right: ["R1", "R2", "R3"],
+          top: ["T1"],
+          bottom: ["B1"],
+          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "auto 1fr auto"
+        },
+        {
+          id: "2T-3L-3R-2B",
+          name: "2 Top + 3L/3R + 2 Bottom",
+          slots: 10,
+          areas: '"T1 T1 T2 T2" "L1 map map R1" "L2 map map R2" "L3 map map R3" "B1 B1 B2 B2"',
+          columns: "1fr 1fr 1fr 1fr",
+          rows: "auto 1fr 1fr 1fr auto",
+          cellNames: ["T1", "T2", "L1", "L2", "L3", "R1", "R2", "R3", "B1", "B2"],
+          left: ["L1", "L2", "L3"],
+          right: ["R1", "R2", "R3"],
+          top: ["T1", "T2"],
+          bottom: ["B1", "B2"],
+          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "auto 1fr auto"
+        }
+      ];
+      GRID_DEFAULT_ASSIGNMENTS = {
+        "2L-2R": {
+          L1: "widget-filters",
+          L2: "widget-activations",
+          R1: "widget-solar",
+          R2: "widget-propagation"
+        },
+        "3L-3R": {
+          L1: "widget-filters",
+          L2: "widget-activations",
+          L3: "widget-live-spots",
+          R1: "widget-solar",
+          R2: "widget-propagation",
+          R3: "widget-voacap"
+        },
+        "1T-2L-2R-1B": {
+          T1: "widget-solar",
+          L1: "widget-filters",
+          L2: "widget-activations",
+          R1: "widget-propagation",
+          R2: "widget-voacap",
+          B1: "widget-live-spots"
+        },
+        "1T-3L-3R-1B": {
+          T1: "widget-solar",
+          L1: "widget-filters",
+          L2: "widget-activations",
+          L3: "widget-live-spots",
+          R1: "widget-propagation",
+          R2: "widget-voacap",
+          R3: "widget-spot-detail",
+          B1: "widget-lunar"
+        },
+        "2T-3L-3R-2B": {
+          T1: "widget-solar",
+          T2: "widget-propagation",
+          L1: "widget-filters",
+          L2: "widget-activations",
+          L3: "widget-live-spots",
+          R1: "widget-voacap",
+          R2: "widget-spot-detail",
+          R3: "widget-satellites",
+          B1: "widget-lunar",
+          B2: "widget-rst"
+        }
+      };
+    }
+  });
 
   // src/grid-layout.js
-  init_state();
-  init_constants();
-  var trackHandles = [];
-  var MIN_FR = 0.3;
-  var MIN_FLEX = 0.15;
   function loadCustomTrackSizes(permId) {
     try {
       const all = JSON.parse(localStorage.getItem(GRID_SIZES_KEY));
@@ -5967,9 +5428,18 @@ ${beacon.location}`);
     saveGridAssignments();
     applyGridAssignments();
   }
+  var trackHandles, MIN_FR, MIN_FLEX;
+  var init_grid_layout = __esm({
+    "src/grid-layout.js"() {
+      init_state();
+      init_constants();
+      trackHandles = [];
+      MIN_FR = 0.3;
+      MIN_FLEX = 0.15;
+    }
+  });
 
   // src/widgets.js
-  var WIDGET_VIS_KEY = "hamtab_widget_vis";
   function loadWidgetVisibility() {
     try {
       const saved = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
@@ -5982,6 +5452,9 @@ ${beacon.location}`);
   }
   function saveWidgetVisibility() {
     localStorage.setItem(WIDGET_VIS_KEY, JSON.stringify(state_default.widgetVisibility));
+  }
+  function isWidgetVisible(id) {
+    return state_default.widgetVisibility[id] !== false;
   }
   function applyWidgetVisibility() {
     if (isGridMode()) {
@@ -6009,7 +5482,7 @@ ${beacon.location}`);
     const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
     const rightX = parseInt(solarEl.style.left) || 0;
     const rightW = parseInt(solarEl.style.width) || 0;
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch"];
     const vis = state_default.widgetVisibility || {};
     const visible = rightBottomIds.filter((id) => vis[id] !== false);
     if (visible.length === 0) return;
@@ -6048,7 +5521,7 @@ ${beacon.location}`);
       "widget-map": { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
       "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
     };
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch"];
     const vis = state_default.widgetVisibility || {};
     const visibleBottom = rightBottomIds.filter((id) => vis[id] !== false);
     const bottomSpace = H - rightHalf - pad * 2;
@@ -6312,8 +5785,6 @@ ${beacon.location}`);
     });
     if (state_default.map) state_default.map.invalidateSize();
   }
-  var prevAreaW = 0;
-  var prevAreaH = 0;
   function reflowWidgets() {
     if (isGridMode()) {
       repositionGridHandles();
@@ -6498,10 +5969,727 @@ ${beacon.location}`);
     }
     applyProgressiveScale();
   }
+  var WIDGET_VIS_KEY, prevAreaW, prevAreaH;
+  var init_widgets = __esm({
+    "src/widgets.js"() {
+      init_state();
+      init_constants();
+      init_grid_layout();
+      WIDGET_VIS_KEY = "hamtab_widget_vis";
+      prevAreaW = 0;
+      prevAreaH = 0;
+    }
+  });
+
+  // src/beacons.js
+  function getActiveBeacons() {
+    const now = /* @__PURE__ */ new Date();
+    const T = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
+    const slot = Math.floor(T % CYCLE / SLOT);
+    const elapsed2 = T % SLOT;
+    return FREQUENCIES.map((freq, f) => ({
+      freq,
+      beacon: BEACONS[(slot - f + 18) % 18],
+      // each freq is offset by one beacon in the rotation
+      secondsLeft: SLOT - elapsed2
+    }));
+  }
+  function renderBeacons() {
+    if (!isWidgetVisible("widget-beacons")) return;
+    const tbody = $("beaconTbody");
+    if (!tbody) return;
+    const active2 = getActiveBeacons();
+    if (tbody.children.length !== active2.length) {
+      tbody.textContent = "";
+      for (const entry of active2) {
+        const tr = document.createElement("tr");
+        const tdFreq = document.createElement("td");
+        tdFreq.textContent = (entry.freq / 1e3).toFixed(3);
+        tr.appendChild(tdFreq);
+        const tdCall = document.createElement("td");
+        tdCall.className = "beacon-call";
+        tdCall.textContent = entry.beacon.call;
+        tr.appendChild(tdCall);
+        const tdLoc = document.createElement("td");
+        tdLoc.className = "beacon-loc";
+        tdLoc.textContent = entry.beacon.location;
+        tr.appendChild(tdLoc);
+        const tdTime = document.createElement("td");
+        tdTime.className = "beacon-time";
+        tdTime.textContent = entry.secondsLeft + "s";
+        tr.appendChild(tdTime);
+        tbody.appendChild(tr);
+      }
+    } else {
+      for (let i = 0; i < active2.length; i++) {
+        const cells = tbody.children[i].children;
+        cells[1].textContent = active2[i].beacon.call;
+        cells[2].textContent = active2[i].beacon.location;
+        cells[3].textContent = active2[i].secondsLeft + "s";
+      }
+    }
+  }
+  function initBeaconListeners() {
+  }
+  function startBeaconTimer() {
+    renderBeacons();
+    state_default.beaconTimer = setInterval(renderBeacons, 1e3);
+  }
+  function stopBeaconTimer() {
+    if (state_default.beaconTimer) {
+      clearInterval(state_default.beaconTimer);
+      state_default.beaconTimer = null;
+    }
+  }
+  var BEACONS, FREQUENCIES, CYCLE, SLOT;
+  var init_beacons = __esm({
+    "src/beacons.js"() {
+      init_state();
+      init_dom();
+      init_widgets();
+      BEACONS = [
+        { call: "4U1UN", location: "New York", lat: 40.75, lon: -73.97 },
+        { call: "VE8AT", location: "Inuvik", lat: 68.32, lon: -133.52 },
+        { call: "W6WX", location: "Mt. Umunhum", lat: 37.16, lon: -121.9 },
+        { call: "KH6RS", location: "Maui", lat: 20.75, lon: -156.43 },
+        { call: "ZL6B", location: "Masterton", lat: -41.06, lon: 175.58 },
+        { call: "VK6RBP", location: "Rolystone", lat: -32.11, lon: 116.05 },
+        { call: "JA2IGY", location: "Mt. Asama", lat: 34.46, lon: 136.78 },
+        { call: "RR9O", location: "Novosibirsk", lat: 54.98, lon: 82.9 },
+        { call: "VR2B", location: "Hong Kong", lat: 22.28, lon: 114.17 },
+        { call: "4S7B", location: "Colombo", lat: 6.88, lon: 79.87 },
+        { call: "ZS6DN", location: "Pretoria", lat: -25.73, lon: 28.18 },
+        { call: "5Z4B", location: "Kikuyu", lat: -1.25, lon: 36.67 },
+        { call: "4X6TU", location: "Tel Aviv", lat: 32.08, lon: 34.78 },
+        { call: "OH2B", location: "Lohja", lat: 60.25, lon: 24.03 },
+        { call: "CS3B", location: "Madeira", lat: 32.65, lon: -16.9 },
+        { call: "LU4AA", location: "Buenos Aires", lat: -34.62, lon: -58.44 },
+        { call: "OA4B", location: "Lima", lat: -12.08, lon: -76.98 },
+        { call: "YV5B", location: "Caracas", lat: 10.5, lon: -66.92 }
+      ];
+      FREQUENCIES = [14100, 18110, 21150, 24930, 28200];
+      CYCLE = 180;
+      SLOT = 10;
+    }
+  });
+
+  // src/map-init.js
+  var map_init_exports = {};
+  __export(map_init_exports, {
+    centerMapOnUser: () => centerMapOnUser,
+    initMap: () => initMap,
+    swapMapTiles: () => swapMapTiles,
+    updateBeaconMarkers: () => updateBeaconMarkers,
+    updateMoonMarker: () => updateMoonMarker,
+    updateSunMarker: () => updateSunMarker,
+    updateUserMarker: () => updateUserMarker
+  });
+  function initMap() {
+    const hasLeaflet = typeof L !== "undefined" && L.map;
+    if (!hasLeaflet) return;
+    try {
+      state_default.map = L.map("map", {
+        worldCopyJump: true,
+        maxBoundsViscosity: 1,
+        maxBounds: [[-90, -180], [90, 180]],
+        minZoom: 1
+      }).setView([39.8, -98.5], 4);
+      state_default.tileLayer = L.tileLayer(TILE_DARK, {
+        attribution: "&copy; OpenStreetMap &copy; CARTO",
+        maxZoom: 19
+      }).addTo(state_default.map);
+      state_default.clusterGroup = L.markerClusterGroup({
+        maxClusterRadius: 40,
+        // px — merge markers within 40px; keeps clusters tight on a dark basemap
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        iconCreateFunction: function(cluster) {
+          const childCount = cluster.getChildCount();
+          const sizeClass = childCount < 10 ? "small" : childCount < 100 ? "medium" : "large";
+          let extraClass = "";
+          if (state_default.selectedSpotId && state_default.markers[state_default.selectedSpotId]) {
+            const children = cluster.getAllChildMarkers();
+            if (children.indexOf(state_default.markers[state_default.selectedSpotId]) !== -1) {
+              extraClass = " marker-cluster-selected";
+            }
+          }
+          return L.divIcon({
+            html: "<div><span>" + childCount + "</span></div>",
+            className: "marker-cluster marker-cluster-" + sizeClass + extraClass,
+            iconSize: L.point(40, 40)
+          });
+        }
+      });
+      state_default.map.addLayer(state_default.clusterGroup);
+      state_default.map.createPane("grayline");
+      state_default.map.getPane("grayline").style.zIndex = 250;
+      state_default.map.createPane("propagation");
+      state_default.map.getPane("propagation").style.zIndex = 300;
+      state_default.map.createPane("mapOverlays");
+      state_default.map.getPane("mapOverlays").style.zIndex = 350;
+      state_default.map.getPane("mapOverlays").style.pointerEvents = "none";
+      state_default.map.on("zoomend", () => {
+        if (state_default.mapOverlays.latLonGrid) {
+          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
+          renderLatLonGrid2();
+        }
+        if (state_default.mapOverlays.maidenheadGrid) {
+          clearTimeout(state_default.maidenheadDebounceTimer);
+          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
+          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
+        }
+        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
+        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
+          clearTimeout(state_default.heatmapRenderTimer);
+          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
+          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
+        }
+      });
+      state_default.map.on("moveend", () => {
+        if (state_default.mapOverlays.latLonGrid) {
+          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
+          renderLatLonGrid2();
+        }
+        if (state_default.mapOverlays.maidenheadGrid) {
+          clearTimeout(state_default.maidenheadDebounceTimer);
+          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
+          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
+        }
+        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
+        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
+          clearTimeout(state_default.heatmapRenderTimer);
+          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
+          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
+        }
+      });
+      window.addEventListener("orientationchange", () => {
+        setTimeout(() => {
+          if (state_default.map) state_default.map.invalidateSize();
+        }, 200);
+      });
+      setTimeout(renderAllMapOverlays, 200);
+    } catch (e) {
+      console.error("Map initialization failed:", e);
+      state_default.map = null;
+      state_default.clusterGroup = null;
+    }
+  }
+  function centerMapOnUser() {
+    if (!state_default.map) return;
+    if (state_default.mapCenterMode === "pm") {
+      state_default.map.setView([0, 0], 2);
+    } else if (state_default.mapCenterMode === "qth") {
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        state_default.map.setView([state_default.myLat, state_default.myLon], state_default.map.getZoom());
+      }
+    }
+  }
+  function updateUserMarker() {
+    if (!state_default.map || state_default.myLat === null || state_default.myLon === null) return;
+    const call = state_default.myCallsign || "ME";
+    const grid = latLonToGrid(state_default.myLat, state_default.myLon).substring(0, 4).toUpperCase();
+    const popupHtml = `<div class="user-popup"><div class="user-popup-title">${esc(call)}</div><div class="user-popup-row">${state_default.myLat.toFixed(4)}, ${state_default.myLon.toFixed(4)}</div><div class="user-popup-row">Grid: ${esc(grid)}</div><div class="user-popup-row">${state_default.manualLoc ? "Manual override" : "GPS"}</div></div>`;
+    if (state_default.userMarker) {
+      state_default.userMarker.setLatLng([state_default.myLat, state_default.myLon]);
+      state_default.userMarker.setPopupContent(popupHtml);
+      state_default.userMarker.setIcon(L.divIcon({
+        className: "user-icon",
+        html: `<span class="user-icon-diamond">&#9889;</span><span class="user-icon-call">${esc(call)}</span>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+      }));
+    } else {
+      const icon = L.divIcon({
+        className: "user-icon",
+        html: `<span class="user-icon-diamond">&#9889;</span><span class="user-icon-call">${esc(call)}</span>`,
+        iconSize: [0, 0],
+        iconAnchor: [0, 0]
+      });
+      state_default.userMarker = L.marker([state_default.myLat, state_default.myLon], { icon, zIndexOffset: 9e3 }).addTo(state_default.map);
+      state_default.userMarker.bindPopup(popupHtml, { maxWidth: 200 });
+    }
+  }
+  function updateSunMarker() {
+    if (!state_default.map || state_default.sunLat === null || state_default.sunLon === null) return;
+    const icon = L.divIcon({
+      className: "sun-marker-icon",
+      html: '<span class="sun-marker-dot"></span>',
+      iconSize: [16, 16],
+      iconAnchor: [8, 8]
+    });
+    const tooltip = `Sub-solar point
+${state_default.sunLat.toFixed(1)}\xB0, ${state_default.sunLon.toFixed(1)}\xB0`;
+    if (state_default.sunMarker) {
+      state_default.sunMarker.setLatLng([state_default.sunLat, state_default.sunLon]);
+    } else {
+      state_default.sunMarker = L.marker([state_default.sunLat, state_default.sunLon], { icon, zIndexOffset: 8e3, interactive: true }).addTo(state_default.map);
+      state_default.sunMarker.bindTooltip(tooltip);
+    }
+    state_default.sunMarker.setTooltipContent(tooltip);
+  }
+  function gmstDegrees(date) {
+    const JD = date.getTime() / 864e5 + 24405875e-1;
+    const T = (JD - 2451545) / 36525;
+    let gmst = 280.46061837 + 360.98564736629 * (JD - 2451545) + 387933e-9 * T * T - T * T * T / 3871e4;
+    return (gmst % 360 + 360) % 360;
+  }
+  function updateMoonMarker() {
+    if (!state_default.map || !state_default.lastLunarData) return;
+    const data = state_default.lastLunarData;
+    const dec = data.declination;
+    const ra = data.rightAscension;
+    if (dec == null || ra == null) return;
+    const now = /* @__PURE__ */ new Date();
+    const gmst = gmstDegrees(now);
+    let moonLon = ra - gmst;
+    moonLon = ((moonLon + 180) % 360 + 360) % 360 - 180;
+    state_default.moonLat = dec;
+    state_default.moonLon = moonLon;
+    const icon = L.divIcon({
+      className: "moon-marker-icon",
+      html: '<span class="moon-marker-dot"></span>',
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
+    });
+    const tooltip = `Sub-lunar point
+${dec.toFixed(1)}\xB0, ${moonLon.toFixed(1)}\xB0`;
+    if (state_default.moonMarker) {
+      state_default.moonMarker.setLatLng([dec, moonLon]);
+    } else {
+      state_default.moonMarker = L.marker([dec, moonLon], { icon, zIndexOffset: 7500, interactive: true }).addTo(state_default.map);
+      state_default.moonMarker.bindTooltip(tooltip);
+    }
+    state_default.moonMarker.setTooltipContent(tooltip);
+  }
+  function updateBeaconMarkers() {
+    if (!state_default.map) return;
+    const active2 = getActiveBeacons();
+    for (const key of Object.keys(state_default.beaconMarkers)) {
+      state_default.map.removeLayer(state_default.beaconMarkers[key]);
+      delete state_default.beaconMarkers[key];
+    }
+    for (const entry of active2) {
+      const { freq, beacon } = entry;
+      const color = BEACON_COLORS[freq] || "#ffffff";
+      const marker = L.circleMarker([beacon.lat, beacon.lon], {
+        radius: 5,
+        color,
+        fillColor: color,
+        fillOpacity: 0.8,
+        weight: 1,
+        interactive: true
+      }).addTo(state_default.map);
+      marker.bindTooltip(`${beacon.call}
+${(freq / 1e3).toFixed(3)} MHz
+${beacon.location}`);
+      state_default.beaconMarkers[freq] = marker;
+    }
+  }
+  function swapMapTiles(themeId) {
+    if (!state_default.tileLayer) return;
+    const url = themeId === "hamclock" ? TILE_VOYAGER : TILE_DARK;
+    state_default.tileLayer.setUrl(url);
+  }
+  var TILE_DARK, TILE_VOYAGER, BEACON_COLORS;
+  var init_map_init = __esm({
+    "src/map-init.js"() {
+      init_state();
+      init_geo();
+      init_utils();
+      init_map_overlays();
+      init_beacons();
+      TILE_DARK = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
+      TILE_VOYAGER = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+      BEACON_COLORS = {
+        14100: "#ff4444",
+        // 20m — red
+        18110: "#ff8800",
+        // 17m — orange
+        21150: "#ffff00",
+        // 15m — yellow
+        24930: "#00cc44",
+        // 12m — green
+        28200: "#4488ff"
+        // 10m — blue
+      };
+    }
+  });
+
+  // src/migration.js
+  function migrate() {
+    if (localStorage.getItem("hamtab_migrated")) return;
+    const PREFIX_OLD = "pota_";
+    const PREFIX_NEW = "hamtab_";
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith(PREFIX_OLD)) {
+        const newKey = PREFIX_NEW + key.slice(PREFIX_OLD.length);
+        if (localStorage.getItem(newKey) === null) {
+          localStorage.setItem(newKey, localStorage.getItem(key));
+        }
+        localStorage.removeItem(key);
+        i--;
+      }
+    }
+    localStorage.setItem("hamtab_migrated", "1");
+  }
+  function migrateV2() {
+    if (localStorage.getItem("hamtab_migration_v2")) return;
+    if (localStorage.getItem("hamtab_theme") === "hamclock") {
+      localStorage.setItem("hamtab_theme", "terminal");
+    }
+    localStorage.setItem("hamtab_migration_v2", "1");
+  }
+
+  // src/themes.js
+  var STORAGE_KEY = "hamtab_theme";
+  var THEMES = {
+    default: {
+      id: "default",
+      name: "Default",
+      description: "Modern dark theme",
+      bodyClass: "",
+      supportsGrid: true,
+      vars: {
+        "--bg": "#1a1a2e",
+        "--surface": "#16213e",
+        "--surface2": "#0f3460",
+        "--surface3": "#1a4a7a",
+        "--accent": "#e94560",
+        "--text": "#e0e0e0",
+        "--text-dim": "#8899aa",
+        "--green": "#00c853",
+        "--yellow": "#ffd600",
+        "--red": "#ff1744",
+        "--orange": "#ff9100",
+        "--border": "#2a3a5e",
+        "--bg-secondary": "#1a1a2e",
+        "--bg-tertiary": "#252540",
+        "--de-color": "#4fc3f7",
+        // light blue — DE panel accent
+        "--dx-color": "#81c784"
+        // light green — DX panel accent
+      }
+    },
+    lcars: {
+      id: "lcars",
+      name: "LCARS",
+      description: "Star Trek TNG inspired",
+      bodyClass: "theme-lcars",
+      supportsGrid: true,
+      vars: {
+        "--bg": "#000000",
+        "--surface": "#0a0a14",
+        "--surface2": "#9999CC",
+        // blue-bell (Drexler palette)
+        "--surface3": "#CC99CC",
+        // lilac
+        "--accent": "#FFCC66",
+        // golden-tanoi — signature LCARS gold
+        "--text": "#FF9966",
+        // orange-peel
+        "--text-dim": "#CCBBDD",
+        // light-lavender (brighter for contrast on dark bg)
+        "--green": "#99CCFF",
+        // anakiwa — LCARS uses blue for "go"
+        "--yellow": "#FFFF99",
+        // pale-canary
+        "--red": "#CC6666",
+        // chestnut-rose
+        "--orange": "#FF9933",
+        // neon-carrot
+        "--border": "#9999CC",
+        // blue-bell (matches surface2)
+        "--bg-secondary": "#0a0a14",
+        "--bg-tertiary": "#111122",
+        "--de-color": "#ff9900",
+        // LCARS gold — DE panel accent
+        "--dx-color": "#99ccff"
+        // LCARS blue — DX panel accent
+      }
+    },
+    terminal: {
+      id: "terminal",
+      name: "Terminal",
+      description: "Retro terminal style",
+      bodyClass: "theme-terminal",
+      supportsGrid: true,
+      vars: {
+        "--bg": "#000000",
+        "--surface": "#0a1a0a",
+        "--surface2": "#0d2b0d",
+        "--surface3": "#143014",
+        "--accent": "#00cc66",
+        "--text": "#00ff88",
+        "--text-dim": "#338855",
+        "--green": "#00ff44",
+        "--yellow": "#cccc00",
+        "--red": "#ff3333",
+        "--orange": "#ff8800",
+        "--border": "#1a4a2a",
+        "--bg-secondary": "#0a1a0a",
+        "--bg-tertiary": "#0d200d",
+        "--de-color": "#00ff00",
+        // green — DE panel accent
+        "--dx-color": "#00ff00"
+        // green — DX panel accent
+      }
+    },
+    hamclock: {
+      id: "hamclock",
+      name: "HamClock",
+      description: "Inspired by HamClock by WB0OEW",
+      bodyClass: "theme-hamclock",
+      supportsGrid: true,
+      vars: {
+        "--bg": "#000000",
+        "--surface": "#000000",
+        // pure black — real HamClock has no surface variation
+        "--surface2": "#0a0a0a",
+        "--surface3": "#141414",
+        "--accent": "#00ffff",
+        // cyan — HamClock uses cyan for headings/labels
+        "--text": "#e0e0e0",
+        // white-ish — HamClock main text
+        "--text-dim": "#888899",
+        "--green": "#00ff00",
+        // bright green — active/positive values
+        "--yellow": "#ffff00",
+        // yellow — warnings, highlighted values
+        "--red": "#ff0000",
+        // red — alerts
+        "--orange": "#e8a000",
+        // warm amber — matches real HamClock orange
+        "--border": "#333333",
+        // subtle separator — real HamClock uses very thin borders
+        "--bg-secondary": "#000000",
+        "--bg-tertiary": "#0a0a0a",
+        "--de-color": "#e8a000",
+        // orange — DE panel accent (matches real HamClock)
+        "--dx-color": "#00ff00"
+        // bright green — DX panel accent
+      }
+    },
+    rebel: {
+      id: "rebel",
+      name: "Rebel",
+      description: "Desert outpost warmth",
+      bodyClass: "",
+      supportsGrid: true,
+      vars: {
+        "--bg": "#1a120b",
+        // deep charred brown
+        "--surface": "#2a1a0e",
+        // dark burnt sienna
+        "--surface2": "#3d2614",
+        // warm leather brown
+        "--surface3": "#4a3020",
+        // dusty canyon
+        "--accent": "#ff6f00",
+        // blazing orange — rally signal
+        "--text": "#f0dcc0",
+        // warm parchment
+        "--text-dim": "#9a8060",
+        // faded sand
+        "--green": "#7cb342",
+        // olive rebel green
+        "--yellow": "#ffc107",
+        // gold
+        "--red": "#e53935",
+        // alert red
+        "--orange": "#ff8f00",
+        // deep amber
+        "--border": "#5c3a1e",
+        // worn leather edge
+        "--bg-secondary": "#1a120b",
+        "--bg-tertiary": "#221610",
+        "--de-color": "#ff6f00",
+        // blazing orange — DE panel accent
+        "--dx-color": "#7cb342"
+        // olive green — DX panel accent
+      }
+    },
+    imperial: {
+      id: "imperial",
+      name: "Imperial",
+      description: "Cold steel command deck",
+      bodyClass: "",
+      supportsGrid: true,
+      vars: {
+        "--bg": "#0a0c10",
+        // near-black with cold blue cast
+        "--surface": "#12151c",
+        // dark gunmetal
+        "--surface2": "#1c2030",
+        // brushed steel
+        "--surface3": "#262b3e",
+        // polished durasteel
+        "--accent": "#90caf9",
+        // cold ice blue — command highlight
+        "--text": "#cfd8e0",
+        // cool gray-white
+        "--text-dim": "#607080",
+        // muted steel
+        "--green": "#66bb6a",
+        // tactical green
+        "--yellow": "#ffee58",
+        // caution yellow
+        "--red": "#ef5350",
+        // imperial red
+        "--orange": "#ffa726",
+        // amber alert
+        "--border": "#2a3040",
+        // cold steel border
+        "--bg-secondary": "#0a0c10",
+        "--bg-tertiary": "#0e1018",
+        "--de-color": "#90caf9",
+        // ice blue — DE panel accent
+        "--dx-color": "#ef5350"
+        // imperial red — DX panel accent
+      }
+    },
+    neon: {
+      id: "neon",
+      name: "Neon",
+      description: "Digital grid, neon glow",
+      bodyClass: "theme-neon",
+      supportsGrid: true,
+      vars: {
+        "--bg": "#050510",
+        // void black with blue tint
+        "--surface": "#0a0a1a",
+        // deep digital dark
+        "--surface2": "#0f1028",
+        // dark grid
+        "--surface3": "#141838",
+        // subtle grid highlight
+        "--accent": "#00e5ff",
+        // neon cyan — primary glow
+        "--text": "#e0f0ff",
+        // cool white
+        "--text-dim": "#4a6080",
+        // dim circuit trace
+        "--green": "#00e676",
+        // neon green
+        "--yellow": "#eeff41",
+        // electric yellow
+        "--red": "#ff1744",
+        // neon red
+        "--orange": "#ff6e40",
+        // neon orange
+        "--border": "#0d2040",
+        // dark grid line
+        "--bg-secondary": "#050510",
+        "--bg-tertiary": "#080818",
+        "--de-color": "#00e5ff",
+        // neon cyan — DE panel accent
+        "--dx-color": "#ff1744"
+        // neon red — DX panel accent
+      }
+    },
+    steampunk: {
+      id: "steampunk",
+      name: "Steampunk",
+      description: "Brass, gears & gaslight",
+      bodyClass: "theme-steampunk",
+      supportsGrid: true,
+      vars: {
+        "--bg": "#1a1408",
+        // dark aged wood
+        "--surface": "#241c0e",
+        // oiled mahogany
+        "--surface2": "#3a2e18",
+        // polished walnut
+        "--surface3": "#4a3c22",
+        // brass-touched panel
+        "--accent": "#d4a04a",
+        // polished brass
+        "--text": "#e8d8b8",
+        // aged parchment
+        "--text-dim": "#8a7a5a",
+        // faded ink
+        "--green": "#6b8e23",
+        // oxidized copper green
+        "--yellow": "#daa520",
+        // goldenrod
+        "--red": "#b22222",
+        // firebrick
+        "--orange": "#cd853f",
+        // peru — warm copper
+        "--border": "#5a4a2a",
+        // brass trim
+        "--bg-secondary": "#1a1408",
+        "--bg-tertiary": "#1e180c",
+        "--de-color": "#d4a04a",
+        // polished brass — DE panel accent
+        "--dx-color": "#6b8e23"
+        // oxidized copper — DX panel accent
+      }
+    }
+  };
+  var activeThemeId = localStorage.getItem(STORAGE_KEY) || "default";
+  function getThemeList() {
+    return Object.values(THEMES).map((t) => ({
+      id: t.id,
+      name: t.name,
+      description: t.description
+    }));
+  }
+  function getCurrentThemeId() {
+    return activeThemeId;
+  }
+  function applyTheme(themeId) {
+    const theme = THEMES[themeId];
+    if (!theme) return;
+    const root = document.documentElement;
+    for (const [prop, value] of Object.entries(theme.vars)) {
+      root.style.setProperty(prop, value);
+    }
+    for (const t of Object.values(THEMES)) {
+      if (t.bodyClass) document.body.classList.remove(t.bodyClass);
+    }
+    if (theme.bodyClass) document.body.classList.add(theme.bodyClass);
+    activeThemeId = themeId;
+    localStorage.setItem(STORAGE_KEY, themeId);
+    Promise.resolve().then(() => (init_map_init(), map_init_exports)).then((m) => m.swapMapTiles(themeId)).catch(() => {
+    });
+  }
+  function initTheme() {
+    const savedId = localStorage.getItem(STORAGE_KEY) || "default";
+    const themeId = THEMES[savedId] ? savedId : "default";
+    applyTheme(themeId);
+    if (localStorage.getItem("hamtab_slim_header") === "true") {
+      document.body.classList.add("slim-header");
+    }
+    if (localStorage.getItem("hamtab_grayscale") === "true") {
+      document.body.classList.add("grayscale");
+    }
+  }
+  function currentThemeSupportsGrid() {
+    const theme = THEMES[activeThemeId];
+    return theme ? theme.supportsGrid !== false : true;
+  }
+  function getThemeSwatchColors(themeId) {
+    const theme = THEMES[themeId];
+    if (!theme) return [];
+    return [
+      theme.vars["--bg"],
+      theme.vars["--surface2"],
+      theme.vars["--accent"],
+      theme.vars["--text"],
+      theme.vars["--border"]
+    ];
+  }
 
   // src/main.js
+  init_state();
+  init_dom();
+  init_solar();
+  init_lunar();
+  init_widgets();
   init_spots();
   init_map_init();
+  init_widgets();
 
   // src/source.js
   init_state();
@@ -6819,7 +7007,7 @@ ${beacon.location}`);
       else cls = "wx-cloudy";
     } else if (/sunny|clear/.test(fc)) cls = isDaytime2 ? "wx-clear-day" : "wx-clear-night";
     if (cls) {
-      headerClock.classList.add(cls);
+      if (!state_default.disableWxBackgrounds) headerClock.classList.add(cls);
       if (wxIcon) wxIcon.textContent = wxIcons[cls] || "";
     }
   }
@@ -6875,7 +7063,9 @@ ${beacon.location}`);
 
   // src/splash.js
   init_filters();
+  init_widgets();
   init_constants();
+  init_grid_layout();
 
   // src/refresh.js
   init_state();
@@ -7291,10 +7481,25 @@ ${beacon.location}`);
       return false;
     });
   }
+  function saveHiddenDxpeditions() {
+    localStorage.setItem("hamtab_dxped_hidden", JSON.stringify([...state_default.hiddenDxpeditions]));
+  }
+  function hideDxpedition(callsign) {
+    state_default.hiddenDxpeditions.add(callsign);
+    saveHiddenDxpeditions();
+    renderDxpeditions();
+  }
+  function unhideAllDxpeditions() {
+    state_default.hiddenDxpeditions.clear();
+    saveHiddenDxpeditions();
+    renderDxpeditions();
+  }
   function initDxpeditionListeners() {
     const list = $("dxpedList");
     if (!list) return;
     list.addEventListener("click", (e) => {
+      if (e.target.closest(".dxped-hide-btn")) return;
+      if (e.target.closest(".dxped-unhide-btn")) return;
       const card = e.target.closest(".dxped-card");
       if (!card) return;
       const url = card.dataset.link;
@@ -7338,10 +7543,12 @@ ${beacon.location}`);
       updateDxpeditionMarkers([]);
       return;
     }
-    const filtered = filterByTime(data);
+    const timeFiltered = filterByTime(data);
+    const hiddenCount = timeFiltered.filter((d) => state_default.hiddenDxpeditions.has(d.callsign)).length;
+    const filtered = timeFiltered.filter((d) => !state_default.hiddenDxpeditions.has(d.callsign));
     if (countEl) countEl.textContent = filtered.length;
     list.textContent = "";
-    if (filtered.length === 0) {
+    if (filtered.length === 0 && hiddenCount === 0) {
       const empty = document.createElement("div");
       empty.className = "dxped-empty";
       empty.textContent = "No DXpeditions match the selected time filter";
@@ -7370,6 +7577,15 @@ ${beacon.location}`);
         badge.textContent = "ACTIVE";
         header.appendChild(badge);
       }
+      const hideBtn = document.createElement("button");
+      hideBtn.className = "dxped-hide-btn";
+      hideBtn.title = "Hide this DXpedition";
+      hideBtn.textContent = "\xD7";
+      hideBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        hideDxpedition(dx.callsign);
+      });
+      header.appendChild(hideBtn);
       card.appendChild(header);
       const detail = document.createElement("div");
       detail.className = "dxped-detail";
@@ -7379,6 +7595,19 @@ ${beacon.location}`);
       detail.textContent = parts.join("  \xB7  ");
       card.appendChild(detail);
       list.appendChild(card);
+    }
+    if (hiddenCount > 0) {
+      const unhideRow = document.createElement("div");
+      unhideRow.className = "dxped-unhide-row";
+      const btn = document.createElement("button");
+      btn.className = "dxped-unhide-btn";
+      btn.textContent = `Show ${hiddenCount} hidden`;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        unhideAllDxpeditions();
+      });
+      unhideRow.appendChild(btn);
+      list.appendChild(unhideRow);
     }
     updateDxpeditionMarkers(filtered);
   }
@@ -7433,6 +7662,22 @@ ${beacon.location}`);
     } catch (err) {
       if (state_default.debug) console.error("Failed to fetch contests:", err);
     }
+  }
+  var SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function fmtContestRange(startISO, endISO) {
+    const s = new Date(startISO);
+    const e = new Date(endISO);
+    if (isNaN(s) || isNaN(e)) return "";
+    const fmt = (d) => {
+      const day = SHORT_DAYS[d.getUTCDay()];
+      const mon = SHORT_MONTHS[d.getUTCMonth()];
+      const date = d.getUTCDate();
+      const hh = String(d.getUTCHours()).padStart(2, "0");
+      const mm = String(d.getUTCMinutes()).padStart(2, "0");
+      return `${day} ${mon} ${date}, ${hh}:${mm}z`;
+    };
+    return `${fmt(s)} \u2013 ${fmt(e)}`;
   }
   function renderContests() {
     const list = $("contestList");
@@ -7500,13 +7745,18 @@ ${beacon.location}`);
       card.appendChild(header);
       const detail = document.createElement("div");
       detail.className = "contest-detail";
-      detail.textContent = c.dateStr || "";
+      if (c.startDate && c.endDate) {
+        detail.textContent = fmtContestRange(c.startDate, c.endDate);
+      } else {
+        detail.textContent = c.dateStr || "";
+      }
       card.appendChild(detail);
       list.appendChild(card);
     }
   }
 
   // src/refresh.js
+  init_widgets();
   async function fetchSourceData(source) {
     const def = SOURCE_DEFS[source];
     if (!def) return;
@@ -7544,13 +7794,13 @@ ${beacon.location}`);
     fetchSourceData("dxc");
     fetchSourceData("wwff");
     fetchSourceData("psk");
-    fetchSolar();
-    fetchLunar();
+    if (isWidgetVisible("widget-solar") || isWidgetVisible("widget-propagation") || isWidgetVisible("widget-voacap")) fetchSolar();
+    if (isWidgetVisible("widget-lunar")) fetchLunar();
     fetchPropagation();
-    fetchVoacapMatrixThrottled();
-    fetchSpaceWxData();
-    fetchDxpeditions();
-    fetchContests();
+    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) fetchVoacapMatrixThrottled();
+    if (isWidgetVisible("widget-spacewx")) fetchSpaceWxData();
+    if (isWidgetVisible("widget-dxpeditions") || state_default.mapOverlays.dxpedMarkers) fetchDxpeditions();
+    if (isWidgetVisible("widget-contests")) fetchContests();
     resetCountdown();
   }
   function resetCountdown() {
@@ -7595,7 +7845,715 @@ ${beacon.location}`);
     });
   }
 
+  // src/satellites.js
+  init_state();
+  init_dom();
+  init_constants();
+  init_utils();
+  var EARTH_RADIUS_KM = 6371;
+  var SPEED_OF_LIGHT_KM_S = 299792.458;
+  var DEFAULT_SAT_ALT_KM = 400;
+  function initSatellites() {
+    initSatelliteListeners();
+    fetchIssPosition();
+    if (state_default.n2yoApiKey) {
+      fetchSatellitePositions();
+    }
+  }
+  function initSatelliteListeners() {
+    const cfgBtn = $("satCfgBtn");
+    if (cfgBtn) {
+      cfgBtn.addEventListener("click", showSatelliteConfig);
+    }
+    const cfgOk = $("satCfgOk");
+    if (cfgOk) {
+      cfgOk.addEventListener("click", dismissSatelliteConfig);
+    }
+    const splash = $("satCfgSplash");
+    if (splash) {
+      splash.addEventListener("click", (e) => {
+        if (e.target === splash) dismissSatelliteConfig();
+      });
+    }
+  }
+  async function fetchIssPosition() {
+    try {
+      const lat = state_default.myLat ?? 0;
+      const lon = state_default.myLon ?? 0;
+      const resp = await fetch(`/api/iss/position?lat=${lat}&lon=${lon}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.satellites.positions["25544"] = {
+        satId: 25544,
+        name: data.name,
+        lat: data.lat,
+        lon: data.lon,
+        alt: data.alt,
+        azimuth: data.azimuth,
+        elevation: data.elevation,
+        timestamp: data.timestamp,
+        tleEpoch: data.tleEpoch || null
+      };
+      state_default.satellites.issOrbitPath = data.orbitPath || [];
+      updateSatelliteMarkers();
+      updateIssOrbitLine();
+      renderSatelliteWidget();
+    } catch (err) {
+      if (state_default.debug) console.error("Failed to fetch ISS position:", err);
+    }
+  }
+  function splitAtDateline(points) {
+    const segments = [[]];
+    for (let i = 0; i < points.length; i++) {
+      segments[segments.length - 1].push([points[i].lat, points[i].lon]);
+      if (i < points.length - 1) {
+        if (Math.abs(points[i + 1].lon - points[i].lon) > 180) {
+          segments.push([]);
+        }
+      }
+    }
+    return segments;
+  }
+  function updateIssOrbitLine() {
+    if (!state_default.map) return;
+    if (state_default.satellites.orbitLines["25544"]) {
+      state_default.map.removeLayer(state_default.satellites.orbitLines["25544"]);
+      delete state_default.satellites.orbitLines["25544"];
+    }
+    const path = state_default.satellites.issOrbitPath;
+    if (!path || path.length < 2) return;
+    const segments = splitAtDateline(path);
+    state_default.satellites.orbitLines["25544"] = L.polyline(segments, {
+      color: "#00bcd4",
+      weight: 1.5,
+      opacity: 0.5,
+      dashArray: "6 4",
+      interactive: false
+    }).addTo(state_default.map);
+  }
+  async function fetchSatelliteList() {
+    if (!state_default.n2yoApiKey) return;
+    try {
+      const url = `/api/satellites/list?apikey=${encodeURIComponent(state_default.n2yoApiKey)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.satellites.available = data;
+      renderSatelliteSelectList();
+    } catch (err) {
+      console.error("Failed to fetch satellite list:", err);
+    }
+  }
+  async function fetchSatellitePositions() {
+    if (!state_default.n2yoApiKey || state_default.satellites.tracked.length === 0) return;
+    const n2yoIds = state_default.satellites.tracked.filter((id) => id !== 25544);
+    if (n2yoIds.length === 0) return;
+    try {
+      const ids = n2yoIds.join(",");
+      const lat = state_default.myLat ?? 0;
+      const lon = state_default.myLon ?? 0;
+      const url = `/api/satellites/positions?apikey=${encodeURIComponent(state_default.n2yoApiKey)}&ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const issPos = state_default.satellites.positions["25544"];
+      state_default.satellites.positions = data;
+      if (issPos) state_default.satellites.positions["25544"] = issPos;
+      updateSatelliteMarkers();
+      renderSatelliteWidget();
+    } catch (err) {
+      console.error("Failed to fetch satellite positions:", err);
+    }
+  }
+  async function fetchSatellitePasses(satId) {
+    if (!state_default.n2yoApiKey || state_default.myLat === null || state_default.myLon === null) return;
+    try {
+      const url = `/api/satellites/passes?apikey=${encodeURIComponent(state_default.n2yoApiKey)}&id=${satId}&lat=${state_default.myLat}&lon=${state_default.myLon}&days=2&minEl=10`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.satellites.passes[satId] = {
+        ...data,
+        expires: Date.now() + 5 * 60 * 1e3
+        // 5 min cache
+      };
+      renderSatellitePasses(satId);
+    } catch (err) {
+      console.error("Failed to fetch satellite passes:", err);
+    }
+  }
+  function updateSatelliteMarkers() {
+    if (!state_default.map) return;
+    const positions = state_default.satellites.positions;
+    for (const satId of Object.keys(state_default.satellites.markers)) {
+      if (!positions[satId]) {
+        state_default.map.removeLayer(state_default.satellites.markers[satId]);
+        delete state_default.satellites.markers[satId];
+      }
+    }
+    for (const satId of Object.keys(state_default.satellites.circles)) {
+      if (!positions[satId]) {
+        state_default.map.removeLayer(state_default.satellites.circles[satId]);
+        delete state_default.satellites.circles[satId];
+      }
+    }
+    for (const satId of Object.keys(state_default.satellites.orbitLines)) {
+      if (!positions[satId]) {
+        state_default.map.removeLayer(state_default.satellites.orbitLines[satId]);
+        delete state_default.satellites.orbitLines[satId];
+      }
+    }
+    for (const [satId, pos] of Object.entries(positions)) {
+      const satInfo = SAT_FREQUENCIES[satId] || { name: pos.name || `SAT ${satId}` };
+      const name = satInfo.name || pos.name || `SAT ${satId}`;
+      const isAboveHorizon = pos.elevation > 0;
+      const altKm = pos.alt || DEFAULT_SAT_ALT_KM;
+      const footprintRadiusKm = calculateFootprintRadius(altKm);
+      const radiusMeters = footprintRadiusKm * 1e3;
+      const isISS = satId === "25544" || satId === 25544;
+      if (state_default.satellites.markers[satId]) {
+        const prev = state_default.satellites.markers[satId].getLatLng();
+        if (Math.abs(prev.lat - pos.lat) > 0.01 || Math.abs(prev.lng - pos.lon) > 0.01) {
+          state_default.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
+        }
+      } else {
+        let iconClass;
+        if (isISS) {
+          iconClass = "iss-icon";
+        } else {
+          iconClass = isAboveHorizon ? "sat-icon" : "sat-icon below-horizon";
+        }
+        const shortName = isISS ? "ISS" : esc(name.split(" ")[0].split("(")[0].trim());
+        const icon = L.divIcon({
+          className: iconClass,
+          html: shortName,
+          iconSize: isISS ? [40, 20] : [50, 20],
+          iconAnchor: isISS ? [20, 10] : [25, 10]
+        });
+        state_default.satellites.markers[satId] = L.marker([pos.lat, pos.lon], {
+          icon,
+          zIndexOffset: isISS ? 1e4 : isAboveHorizon ? 9e3 : 8e3
+        }).addTo(state_default.map);
+        state_default.satellites.markers[satId].bindPopup("", { maxWidth: 300 });
+      }
+      state_default.satellites.markers[satId].setPopupContent(buildSatellitePopup(satId, pos, satInfo));
+      const markerEl = state_default.satellites.markers[satId].getElement();
+      if (markerEl) {
+        const iconEl = markerEl.querySelector(".sat-icon");
+        if (iconEl) {
+          iconEl.classList.toggle("below-horizon", !isAboveHorizon);
+        }
+      }
+      if (state_default.satellites.circles[satId]) {
+        const prevC = state_default.satellites.circles[satId].getLatLng();
+        if (Math.abs(prevC.lat - pos.lat) > 0.01 || Math.abs(prevC.lng - pos.lon) > 0.01) {
+          state_default.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
+          state_default.satellites.circles[satId].setRadius(radiusMeters);
+        }
+      } else {
+        const color = satId === "25544" ? "#00bcd4" : "#4caf50";
+        state_default.satellites.circles[satId] = L.circle([pos.lat, pos.lon], {
+          radius: radiusMeters,
+          color,
+          fillColor: color,
+          fillOpacity: 0.06,
+          weight: 1,
+          interactive: false
+        }).addTo(state_default.map);
+      }
+    }
+  }
+  function buildSatellitePopup(satId, pos, satInfo) {
+    const name = satInfo.name || pos.name || `SAT ${satId}`;
+    const isAbove = pos.elevation > 0;
+    const statusText = isAbove ? "Above Horizon" : "Below Horizon";
+    const statusColor = isAbove ? "var(--green)" : "var(--text-dim)";
+    const isISS = satId === "25544" || satId === 25544;
+    const popupClass = isISS ? "iss-popup" : "sat-popup";
+    const titleClass = isISS ? "iss-popup-title" : "sat-popup-title";
+    const rowClass = isISS ? "iss-popup-row" : "sat-popup-row";
+    const headerClass = isISS ? "iss-radio-header" : "sat-radio-header";
+    const tableClass = isISS ? "iss-freq-table" : "sat-freq-table";
+    let html = `<div class="${popupClass}">`;
+    html += `<div class="${titleClass}">${esc(name)}</div>`;
+    html += `<div class="${rowClass}">Lat: ${pos.lat.toFixed(2)}, Lon: ${pos.lon.toFixed(2)}</div>`;
+    html += `<div class="${rowClass}">Alt: ${Math.round(pos.alt)} km</div>`;
+    html += `<div class="${rowClass}">Az: ${pos.azimuth.toFixed(1)}&deg; &bull; El: ${pos.elevation.toFixed(1)}&deg;</div>`;
+    html += `<div class="${rowClass}" style="color:${statusColor}">${statusText}</div>`;
+    if (pos.tleEpoch) {
+      const ageDays = Math.floor((Date.now() / 1e3 - pos.tleEpoch) / 86400);
+      const maxAge = state_default.maxTleAge || 7;
+      const ageColor = ageDays <= Math.floor(maxAge * 0.4) ? "var(--green)" : ageDays <= maxAge ? "var(--yellow)" : "var(--red)";
+      const epochDate = new Date(pos.tleEpoch * 1e3).toLocaleDateString(void 0, { month: "short", day: "numeric" });
+      const warn = ageDays > maxAge ? " \u26A0" : "";
+      html += `<div class="${rowClass}">TLE: <span style="color:${ageColor}">${ageDays}d old${warn}</span> (${epochDate})</div>`;
+    }
+    if (satInfo.uplinks || satInfo.downlinks) {
+      html += `<div class="${headerClass}">${isISS ? "Amateur Radio (ARISS)" : "Amateur Radio Frequencies"}</div>`;
+      html += `<table class="${tableClass}">`;
+      if (satInfo.uplinks) {
+        for (const ul of satInfo.uplinks) {
+          const doppler = calculateDopplerShift(ul.freq, pos);
+          const dopplerStr = doppler !== null ? ` (${doppler > 0 ? "+" : ""}${doppler.toFixed(1)} kHz)` : "";
+          html += `<tr><td>&#8593; ${esc(ul.desc || ul.mode)}</td><td>${ul.freq.toFixed(3)} MHz${dopplerStr}</td></tr>`;
+        }
+      }
+      if (satInfo.downlinks) {
+        for (const dl of satInfo.downlinks) {
+          const doppler = calculateDopplerShift(dl.freq, pos);
+          const dopplerStr = doppler !== null ? ` (${doppler > 0 ? "+" : ""}${doppler.toFixed(1)} kHz)` : "";
+          html += `<tr><td>&#8595; ${esc(dl.desc || dl.mode)}</td><td>${dl.freq.toFixed(3)} MHz${dopplerStr}</td></tr>`;
+        }
+      }
+      html += `</table>`;
+      if (isISS) {
+        html += `<div class="iss-radio-note">Repeater &amp; APRS typically active. SSTV during special events. Doppler shown above.</div>`;
+      }
+    }
+    html += `</div>`;
+    return html;
+  }
+  function calculateFootprintRadius(altitudeKm) {
+    const ratio = EARTH_RADIUS_KM / (EARTH_RADIUS_KM + altitudeKm);
+    const angleRad = Math.acos(ratio);
+    return EARTH_RADIUS_KM * angleRad;
+  }
+  function calculateDopplerShift(freqMHz, pos) {
+    if (pos.elevation === void 0 || pos.elevation === null) return null;
+    const orbitalVelocityKmS = 7.8;
+    const elevRad = pos.elevation * Math.PI / 180;
+    const radialVelocity = orbitalVelocityKmS * Math.cos(elevRad);
+    const dopplerMHz = freqMHz * (radialVelocity / SPEED_OF_LIGHT_KM_S);
+    return dopplerMHz * 1e3;
+  }
+  function renderSatelliteWidget() {
+    const satList = $("satList");
+    if (!satList) return;
+    const positions = state_default.satellites.positions;
+    const tracked = state_default.satellites.tracked;
+    if (Object.keys(positions).length === 0) {
+      if (!state_default.n2yoApiKey) {
+        satList.innerHTML = '<div class="sat-no-data">Loading ISS...</div>';
+      } else {
+        satList.innerHTML = '<div class="sat-no-data">No satellite data</div>';
+      }
+      return;
+    }
+    let html = "";
+    for (const satId of tracked) {
+      const pos = positions[satId];
+      if (!pos) continue;
+      const satInfo = SAT_FREQUENCIES[satId] || {};
+      const name = satInfo.name || pos.name || `SAT ${satId}`;
+      const shortName = name.split(" ")[0].split("(")[0].trim();
+      const isAbove = pos.elevation > 0;
+      const isSelected = state_default.satellites.selectedSatId === parseInt(satId, 10);
+      let dopplerStr = "";
+      if (satInfo.downlinks && satInfo.downlinks.length > 0) {
+        const doppler = calculateDopplerShift(satInfo.downlinks[0].freq, pos);
+        if (doppler !== null) {
+          dopplerStr = `${doppler > 0 ? "+" : ""}${doppler.toFixed(1)}`;
+        }
+      }
+      let tleAgeHtml = "";
+      if (pos.tleEpoch) {
+        const ageDays = Math.floor((Date.now() / 1e3 - pos.tleEpoch) / 86400);
+        const maxAge = state_default.maxTleAge || 7;
+        const cls = ageDays <= Math.floor(maxAge * 0.4) ? "tle-fresh" : ageDays <= maxAge ? "tle-aging" : "tle-stale";
+        const warn = ageDays > maxAge ? " \u26A0" : "";
+        tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d (max: ${maxAge}d)">${ageDays}d${warn}</span>`;
+      }
+      const rowClass = `sat-row${isSelected ? " selected" : ""}${isAbove ? "" : " below-horizon"}`;
+      html += `<div class="${rowClass}" data-sat-id="${satId}">`;
+      html += `<span class="sat-name">${esc(shortName)}${tleAgeHtml}</span>`;
+      html += `<span class="sat-azel">Az ${pos.azimuth.toFixed(0)}&deg; El ${pos.elevation.toFixed(0)}&deg;</span>`;
+      if (dopplerStr) {
+        html += `<span class="sat-doppler">${dopplerStr} kHz</span>`;
+      }
+      html += `</div>`;
+    }
+    if (!state_default.n2yoApiKey && tracked.some((id) => id !== 25544)) {
+      html += '<div class="sat-no-key" style="font-size:0.85em;margin-top:4px">N2YO key needed for other satellites</div>';
+    }
+    satList.innerHTML = html;
+    satList.querySelectorAll(".sat-row").forEach((row) => {
+      row.addEventListener("click", () => {
+        const satId = parseInt(row.dataset.satId, 10);
+        selectSatellite(satId);
+      });
+    });
+  }
+  function selectSatellite(satId) {
+    state_default.satellites.selectedSatId = satId;
+    const satList = $("satList");
+    if (satList) {
+      satList.querySelectorAll(".sat-row").forEach((row) => {
+        row.classList.toggle("selected", parseInt(row.dataset.satId, 10) === satId);
+      });
+    }
+    const pos = state_default.satellites.positions[satId];
+    if (pos && state_default.map) {
+      state_default.map.panTo([pos.lat, pos.lon]);
+      if (state_default.satellites.markers[satId]) {
+        state_default.satellites.markers[satId].openPopup();
+      }
+    }
+    const cached = state_default.satellites.passes[satId];
+    if (!cached || Date.now() > cached.expires) {
+      fetchSatellitePasses(satId);
+    } else {
+      renderSatellitePasses(satId);
+    }
+  }
+  function renderSatellitePasses(satId) {
+    const passesDiv = $("satPasses");
+    if (!passesDiv) return;
+    const cached = state_default.satellites.passes[satId];
+    if (!cached || !cached.passes || cached.passes.length === 0) {
+      passesDiv.innerHTML = '<div class="sat-no-passes">No upcoming passes</div>';
+      return;
+    }
+    let html = `<div class="sat-passes-title">Upcoming Passes</div>`;
+    for (const pass of cached.passes.slice(0, 5)) {
+      const startDate = new Date(pass.startUTC * 1e3);
+      const maxDate = new Date(pass.maxUTC * 1e3);
+      const timeStr = formatPassTime(startDate);
+      const durationMin = Math.round((pass.endUTC - pass.startUTC) / 60);
+      html += `<div class="pass-item">`;
+      html += `<div class="pass-time">${timeStr}</div>`;
+      html += `<div class="pass-details">Max El: ${pass.maxEl}&deg; &bull; ${durationMin} min</div>`;
+      html += `<div class="pass-azimuth">${pass.startAzCompass} &rarr; ${pass.maxAzCompass} &rarr; ${pass.endAzCompass}</div>`;
+      html += `</div>`;
+    }
+    passesDiv.innerHTML = html;
+  }
+  function formatPassTime(date) {
+    const now = /* @__PURE__ */ new Date();
+    const diffMs = date - now;
+    const diffMin = Math.round(diffMs / 6e4);
+    if (diffMin < 60) {
+      return `In ${diffMin} min`;
+    } else if (diffMin < 1440) {
+      const hours = Math.floor(diffMin / 60);
+      const mins = diffMin % 60;
+      return `In ${hours}h ${mins}m`;
+    } else {
+      return date.toLocaleString(void 0, {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+      });
+    }
+  }
+  function showSatelliteConfig() {
+    const splash = $("satCfgSplash");
+    if (!splash) return;
+    const apiKeyInput = $("satApiKey");
+    if (apiKeyInput) {
+      apiKeyInput.value = state_default.n2yoApiKey;
+    }
+    const tleAgeInput = $("satMaxTleAge");
+    if (tleAgeInput) {
+      tleAgeInput.value = state_default.maxTleAge;
+    }
+    if (state_default.n2yoApiKey && state_default.satellites.available.length === 0) {
+      fetchSatelliteList();
+    }
+    renderSatelliteSelectList();
+    splash.classList.remove("hidden");
+  }
+  function dismissSatelliteConfig() {
+    const splash = $("satCfgSplash");
+    if (!splash) return;
+    const apiKeyInput = $("satApiKey");
+    if (apiKeyInput) {
+      state_default.n2yoApiKey = apiKeyInput.value.trim();
+      localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
+      if (state_default.n2yoApiKey) {
+        fetch("/api/config/env", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ N2YO_API_KEY: state_default.n2yoApiKey })
+        }).catch(() => {
+        });
+      }
+    }
+    const tleAgeInput = $("satMaxTleAge");
+    if (tleAgeInput) {
+      const age = parseInt(tleAgeInput.value, 10);
+      if (!isNaN(age) && age >= 1 && age <= 30) {
+        state_default.maxTleAge = age;
+        localStorage.setItem("hamtab_max_tle_age", String(age));
+      }
+    }
+    const selectList = $("satSelectList");
+    if (selectList) {
+      const tracked = [];
+      selectList.querySelectorAll('input[type="checkbox"]:checked').forEach((cb) => {
+        const id = parseInt(cb.dataset.satId, 10);
+        if (!isNaN(id)) tracked.push(id);
+      });
+      state_default.satellites.tracked = tracked.length > 0 ? tracked : [25544];
+      localStorage.setItem("hamtab_sat_tracked", JSON.stringify(state_default.satellites.tracked));
+    }
+    splash.classList.add("hidden");
+    fetchIssPosition();
+    if (state_default.n2yoApiKey) {
+      fetchSatellitePositions();
+    }
+  }
+  function renderSatelliteSelectList() {
+    const selectList = $("satSelectList");
+    if (!selectList) return;
+    const allSats = /* @__PURE__ */ new Map();
+    for (const [id, info] of Object.entries(SAT_FREQUENCIES)) {
+      allSats.set(parseInt(id, 10), info.name);
+    }
+    for (const sat of state_default.satellites.available) {
+      if (!allSats.has(sat.satId)) {
+        allSats.set(sat.satId, sat.name);
+      }
+    }
+    let html = "";
+    for (const [satId, name] of allSats) {
+      const isTracked = state_default.satellites.tracked.includes(satId);
+      html += `<label class="sat-select-item">`;
+      html += `<input type="checkbox" data-sat-id="${satId}" ${isTracked ? "checked" : ""} />`;
+      html += `${esc(name)} (${satId})`;
+      html += `</label>`;
+    }
+    selectList.innerHTML = html;
+  }
+
   // src/splash.js
+  init_beacons();
+  init_map_init();
+  init_voacap();
+
+  // src/live-spots.js
+  init_state();
+  init_dom();
+  init_geo();
+  init_utils();
+  init_constants();
+  function initLiveSpotsListeners() {
+    const cfgBtn = $("liveSpotsCfgBtn");
+    if (cfgBtn) {
+      cfgBtn.addEventListener("click", showLiveSpotsConfig);
+    }
+    const cfgOk = $("liveSpotsCfgOk");
+    if (cfgOk) {
+      cfgOk.addEventListener("click", dismissLiveSpotsConfig);
+    }
+    const splash = $("liveSpotsCfgSplash");
+    if (splash) {
+      splash.addEventListener("click", (e) => {
+        if (e.target === splash) dismissLiveSpotsConfig();
+      });
+    }
+    const modeSelect = $("liveSpotsModeSelect");
+    if (modeSelect) {
+      modeSelect.value = state_default.liveSpots.displayMode;
+      modeSelect.addEventListener("change", () => {
+        state_default.liveSpots.displayMode = modeSelect.value;
+        localStorage.setItem("hamtab_livespots_mode", modeSelect.value);
+        renderLiveSpots();
+      });
+    }
+  }
+  function showLiveSpotsConfig() {
+    const splash = $("liveSpotsCfgSplash");
+    if (splash) splash.classList.remove("hidden");
+    const modeSelect = $("liveSpotsModeSelect");
+    if (modeSelect) modeSelect.value = state_default.liveSpots.displayMode;
+  }
+  function dismissLiveSpotsConfig() {
+    const splash = $("liveSpotsCfgSplash");
+    if (splash) splash.classList.add("hidden");
+  }
+  async function fetchLiveSpots() {
+    if (!state_default.myCallsign) {
+      renderLiveSpots();
+      return;
+    }
+    try {
+      const url = `/api/spots/psk/heard?callsign=${encodeURIComponent(state_default.myCallsign)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.liveSpots.data = data.spots || [];
+      state_default.liveSpots.summary = data.summary || {};
+      state_default.liveSpots.lastFetch = Date.now();
+      renderLiveSpots();
+    } catch (err) {
+      if (state_default.debug) console.error("Failed to fetch Live Spots:", err);
+      renderLiveSpots();
+    }
+  }
+  function renderLiveSpots() {
+    const status = $("liveSpotsStatus");
+    const summary = $("liveSpotsSummary");
+    const count = $("liveSpotsCount");
+    if (!summary) return;
+    if (!state_default.myCallsign) {
+      if (status) {
+        status.textContent = "Set your callsign in Config";
+        status.classList.add("visible");
+      }
+      summary.innerHTML = "";
+      if (count) count.textContent = "";
+      return;
+    }
+    if (status) {
+      if (state_default.liveSpots.data.length === 0 && state_default.liveSpots.lastFetch) {
+        status.textContent = "No spots in last hour";
+        status.classList.add("visible");
+      } else if (!state_default.liveSpots.lastFetch) {
+        status.textContent = "Loading...";
+        status.classList.add("visible");
+      } else {
+        status.textContent = "";
+        status.classList.remove("visible");
+      }
+    }
+    if (count) {
+      const total = state_default.liveSpots.data.length;
+      count.textContent = total > 0 ? `(${total})` : "";
+    }
+    const bands = Object.keys(state_default.liveSpots.summary).sort((a, b) => {
+      const order = ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm"];
+      return order.indexOf(a) - order.indexOf(b);
+    });
+    if (bands.length === 0) {
+      summary.innerHTML = "";
+      return;
+    }
+    let html = "";
+    for (const band of bands) {
+      const info = state_default.liveSpots.summary[band];
+      const isActive = state_default.liveSpots.visibleBands.has(band);
+      const activeClass = isActive ? "active" : "";
+      const color = getBandColor(band);
+      let valueHtml;
+      if (state_default.liveSpots.displayMode === "distance") {
+        const km = info.farthestKm || 0;
+        const mi = Math.round(km * 0.621371);
+        valueHtml = `<span class="live-spots-value">${state_default.distanceUnit === "km" ? km : mi} ${state_default.distanceUnit}</span>`;
+      } else {
+        valueHtml = `<span class="live-spots-value">${info.count}</span>`;
+      }
+      html += `
+      <div class="live-spots-band-card ${activeClass}" data-band="${esc(band)}" style="border-color: ${color}">
+        <span class="live-spots-band-name">${esc(band)}</span>
+        ${valueHtml}
+        ${state_default.liveSpots.displayMode === "distance" && info.farthestCall ? `<span class="live-spots-farthest">${esc(info.farthestCall)}</span>` : ""}
+      </div>
+    `;
+    }
+    summary.innerHTML = html;
+    const cards = summary.querySelectorAll(".live-spots-band-card");
+    cards.forEach((card) => {
+      card.addEventListener("click", () => {
+        const band = card.dataset.band;
+        toggleBandOnMap(band);
+        card.classList.toggle("active");
+      });
+    });
+  }
+  function toggleBandOnMap(band) {
+    if (state_default.liveSpots.visibleBands.has(band)) {
+      state_default.liveSpots.visibleBands.delete(band);
+    } else {
+      state_default.liveSpots.visibleBands.add(band);
+    }
+    renderLiveSpotsOnMap();
+  }
+  function renderLiveSpotsOnMap() {
+    if (!state_default.map) return;
+    clearLiveSpotsFromMap();
+    if (state_default.myLat == null || state_default.myLon == null) return;
+    if (state_default.liveSpots.visibleBands.size === 0) return;
+    const L2 = window.L;
+    const spotsByBand = {};
+    for (const spot of state_default.liveSpots.data) {
+      if (!spot.band || !state_default.liveSpots.visibleBands.has(spot.band)) continue;
+      if (spot.receiverLat == null || spot.receiverLon == null) continue;
+      if (!spotsByBand[spot.band]) spotsByBand[spot.band] = [];
+      spotsByBand[spot.band].push(spot);
+    }
+    for (const band of Object.keys(spotsByBand)) {
+      const color = getBandColor(band);
+      const spots = spotsByBand[band];
+      for (const spot of spots) {
+        const pts = geodesicPoints(state_default.myLat, state_default.myLon, spot.receiverLat, spot.receiverLon, 50);
+        const segments = [[]];
+        let lastLon = pts[0][1];
+        for (const pt of pts) {
+          if (Math.abs(pt[1] - lastLon) > 180) {
+            segments.push([]);
+          }
+          segments[segments.length - 1].push([pt[0], pt[1]]);
+          lastLon = pt[1];
+        }
+        const line = L2.polyline(segments, {
+          color,
+          weight: 2,
+          opacity: 0.6,
+          dashArray: "4 3"
+        });
+        line.addTo(state_default.map);
+        const lineKey = `${spot.receiver}-${spot.spotTime}`;
+        if (!state_default.liveSpotsLines) state_default.liveSpotsLines = {};
+        state_default.liveSpotsLines[lineKey] = line;
+        const marker = L2.marker([spot.receiverLat, spot.receiverLon], {
+          icon: L2.divIcon({
+            className: "live-spots-rx-marker",
+            html: `<div class="live-spots-rx-icon" style="background: ${color}">&#9632;</div>`,
+            iconSize: [16, 16],
+            iconAnchor: [8, 8]
+          })
+        });
+        const popupHtml = `
+        <div class="live-spots-popup">
+          <div class="live-spots-popup-call">${esc(spot.receiver)}</div>
+          <div class="live-spots-popup-grid">${esc(spot.receiverLocator || "")}</div>
+          <div class="live-spots-popup-details">
+            ${spot.distanceKm ? `${spot.distanceKm} km` : ""}
+            ${spot.snr ? ` / SNR: ${esc(spot.snr)} dB` : ""}
+          </div>
+          <div class="live-spots-popup-mode">${esc(spot.mode)} on ${esc(band)}</div>
+        </div>
+      `;
+        marker.bindPopup(popupHtml);
+        marker.addTo(state_default.map);
+        const markerKey = `${spot.receiver}-${spot.spotTime}`;
+        state_default.liveSpotsMarkers[markerKey] = marker;
+      }
+    }
+  }
+  function clearLiveSpotsFromMap() {
+    for (const key of Object.keys(state_default.liveSpotsMarkers)) {
+      if (state_default.map && state_default.liveSpotsMarkers[key]) {
+        state_default.map.removeLayer(state_default.liveSpotsMarkers[key]);
+      }
+    }
+    state_default.liveSpotsMarkers = {};
+    if (state_default.liveSpotsLines) {
+      for (const key of Object.keys(state_default.liveSpotsLines)) {
+        if (state_default.map && state_default.liveSpotsLines[key]) {
+          state_default.map.removeLayer(state_default.liveSpotsLines[key]);
+        }
+      }
+      state_default.liveSpotsLines = null;
+    }
+  }
+
+  // src/splash.js
+  init_dedx_info();
+  init_solar();
+  init_lunar();
+  init_dedx_info();
   function updateOperatorDisplay2() {
     const opCall = $("opCall");
     const opLoc = $("opLoc");
@@ -7893,9 +8851,13 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
+    const cfgGrayscale = $("cfgGrayscale");
+    if (cfgGrayscale) cfgGrayscale.checked = state_default.grayscale;
+    const cfgDisableWxBg = $("cfgDisableWxBg");
+    if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.40.0";
-    $("aboutVersion").textContent = "0.40.0";
+    $("splashVersion").textContent = "0.45.0";
+    $("aboutVersion").textContent = "0.45.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -7957,6 +8919,7 @@ ${beacon.location}`);
       });
     }
     fetchWeather();
+    const oldVis = { ...state_default.widgetVisibility };
     const widgetList = document.getElementById("splashWidgetList");
     widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
       state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
@@ -7983,6 +8946,30 @@ ${beacon.location}`);
       }
     }
     applyWidgetVisibility();
+    const justShown = (id) => oldVis[id] === false && state_default.widgetVisibility[id] !== false;
+    const justHidden = (id) => oldVis[id] !== false && state_default.widgetVisibility[id] === false;
+    if (justShown("widget-satellites")) fetchSatellitePositions();
+    if (justShown("widget-voacap")) fetchVoacapMatrixThrottled();
+    if (justShown("widget-live-spots")) fetchLiveSpots();
+    if (justShown("widget-dedx")) renderDedxInfo();
+    if (justShown("widget-solar")) fetchSolar();
+    if (justShown("widget-lunar")) fetchLunar();
+    if (justShown("widget-spacewx")) fetchSpaceWxData();
+    if (justShown("widget-dxpeditions")) fetchDxpeditions();
+    if (justShown("widget-contests")) fetchContests();
+    if (justShown("widget-beacons")) {
+      startBeaconTimer();
+      updateBeaconMarkers();
+    }
+    if (justHidden("widget-beacons")) {
+      stopBeaconTimer();
+    }
+    if (justShown("widget-dedx")) {
+      startDedxTimer();
+    }
+    if (justHidden("widget-dedx")) {
+      stopDedxTimer();
+    }
     const intervalSelect = $("splashUpdateInterval");
     if (intervalSelect) {
       const intervalVal = intervalSelect.value;
@@ -8186,6 +9173,28 @@ ${beacon.location}`);
         document.body.classList.toggle("slim-header", state_default.slimHeader);
       });
     }
+    const cfgGrayscaleCb = $("cfgGrayscale");
+    if (cfgGrayscaleCb) {
+      cfgGrayscaleCb.addEventListener("change", () => {
+        state_default.grayscale = cfgGrayscaleCb.checked;
+        localStorage.setItem("hamtab_grayscale", String(state_default.grayscale));
+        document.body.classList.toggle("grayscale", state_default.grayscale);
+      });
+    }
+    const cfgDisableWxBgCb = $("cfgDisableWxBg");
+    if (cfgDisableWxBgCb) {
+      cfgDisableWxBgCb.addEventListener("change", () => {
+        state_default.disableWxBackgrounds = cfgDisableWxBgCb.checked;
+        localStorage.setItem("hamtab_disable_wx_bg", String(state_default.disableWxBackgrounds));
+        const hcl = document.getElementById("headerClockLocal");
+        if (hcl) {
+          const wxClasses = ["wx-clear-day", "wx-clear-night", "wx-partly-cloudy-day", "wx-partly-cloudy-night", "wx-cloudy", "wx-rain", "wx-thunderstorm", "wx-snow", "wx-fog"];
+          if (state_default.disableWxBackgrounds) {
+            wxClasses.forEach((c) => hcl.classList.remove(c));
+          }
+        }
+      });
+    }
     const bandColorResetBtn = document.getElementById("bandColorResetBtn");
     if (bandColorResetBtn) {
       bandColorResetBtn.addEventListener("click", () => {
@@ -8318,6 +9327,7 @@ ${beacon.location}`);
         $("mapOvMaidenhead").checked = state_default.mapOverlays.maidenheadGrid;
         $("mapOvTimezone").checked = state_default.mapOverlays.timezoneGrid;
         $("mapOvMufImage").checked = state_default.mapOverlays.mufImageOverlay;
+        $("mapOvDrap").checked = state_default.mapOverlays.drapOverlay;
         $("mapOvBandPaths").checked = state_default.mapOverlays.bandPaths;
         $("mapOvDxpedMarkers").checked = state_default.mapOverlays.dxpedMarkers;
         $("mapOvTropics").checked = state_default.mapOverlays.tropicsLines;
@@ -8332,6 +9342,7 @@ ${beacon.location}`);
         state_default.mapOverlays.maidenheadGrid = $("mapOvMaidenhead").checked;
         state_default.mapOverlays.timezoneGrid = $("mapOvTimezone").checked;
         state_default.mapOverlays.mufImageOverlay = $("mapOvMufImage").checked;
+        state_default.mapOverlays.drapOverlay = $("mapOvDrap").checked;
         state_default.mapOverlays.bandPaths = $("mapOvBandPaths").checked;
         state_default.mapOverlays.dxpedMarkers = $("mapOvDxpedMarkers").checked;
         state_default.mapOverlays.tropicsLines = $("mapOvTropics").checked;
@@ -8470,454 +9481,6 @@ ${beacon.location}`);
   // src/main.js
   init_solar();
   init_spots();
-
-  // src/satellites.js
-  init_state();
-  init_dom();
-  init_constants();
-  init_utils();
-  var EARTH_RADIUS_KM = 6371;
-  var SPEED_OF_LIGHT_KM_S = 299792.458;
-  var DEFAULT_SAT_ALT_KM = 400;
-  function initSatellites() {
-    initSatelliteListeners();
-    fetchIssPosition();
-    if (state_default.n2yoApiKey) {
-      fetchSatellitePositions();
-    }
-  }
-  function initSatelliteListeners() {
-    const cfgBtn = $("satCfgBtn");
-    if (cfgBtn) {
-      cfgBtn.addEventListener("click", showSatelliteConfig);
-    }
-    const cfgOk = $("satCfgOk");
-    if (cfgOk) {
-      cfgOk.addEventListener("click", dismissSatelliteConfig);
-    }
-    const splash = $("satCfgSplash");
-    if (splash) {
-      splash.addEventListener("click", (e) => {
-        if (e.target === splash) dismissSatelliteConfig();
-      });
-    }
-  }
-  async function fetchIssPosition() {
-    try {
-      const lat = state_default.myLat ?? 0;
-      const lon = state_default.myLon ?? 0;
-      const resp = await fetch(`/api/iss/position?lat=${lat}&lon=${lon}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      state_default.satellites.positions["25544"] = {
-        satId: 25544,
-        name: data.name,
-        lat: data.lat,
-        lon: data.lon,
-        alt: data.alt,
-        azimuth: data.azimuth,
-        elevation: data.elevation,
-        timestamp: data.timestamp
-      };
-      state_default.satellites.issOrbitPath = data.orbitPath || [];
-      updateSatelliteMarkers();
-      updateIssOrbitLine();
-      renderSatelliteWidget();
-    } catch (err) {
-      if (state_default.debug) console.error("Failed to fetch ISS position:", err);
-    }
-  }
-  function splitAtDateline(points) {
-    const segments = [[]];
-    for (let i = 0; i < points.length; i++) {
-      segments[segments.length - 1].push([points[i].lat, points[i].lon]);
-      if (i < points.length - 1) {
-        if (Math.abs(points[i + 1].lon - points[i].lon) > 180) {
-          segments.push([]);
-        }
-      }
-    }
-    return segments;
-  }
-  function updateIssOrbitLine() {
-    if (!state_default.map) return;
-    if (state_default.satellites.orbitLines["25544"]) {
-      state_default.map.removeLayer(state_default.satellites.orbitLines["25544"]);
-      delete state_default.satellites.orbitLines["25544"];
-    }
-    const path = state_default.satellites.issOrbitPath;
-    if (!path || path.length < 2) return;
-    const segments = splitAtDateline(path);
-    state_default.satellites.orbitLines["25544"] = L.polyline(segments, {
-      color: "#00bcd4",
-      weight: 1.5,
-      opacity: 0.5,
-      dashArray: "6 4",
-      interactive: false
-    }).addTo(state_default.map);
-  }
-  async function fetchSatelliteList() {
-    if (!state_default.n2yoApiKey) return;
-    try {
-      const url = `/api/satellites/list?apikey=${encodeURIComponent(state_default.n2yoApiKey)}`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      state_default.satellites.available = data;
-      renderSatelliteSelectList();
-    } catch (err) {
-      console.error("Failed to fetch satellite list:", err);
-    }
-  }
-  async function fetchSatellitePositions() {
-    if (!state_default.n2yoApiKey || state_default.satellites.tracked.length === 0) return;
-    const n2yoIds = state_default.satellites.tracked.filter((id) => id !== 25544);
-    if (n2yoIds.length === 0) return;
-    try {
-      const ids = n2yoIds.join(",");
-      const lat = state_default.myLat ?? 0;
-      const lon = state_default.myLon ?? 0;
-      const url = `/api/satellites/positions?apikey=${encodeURIComponent(state_default.n2yoApiKey)}&ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      const issPos = state_default.satellites.positions["25544"];
-      state_default.satellites.positions = data;
-      if (issPos) state_default.satellites.positions["25544"] = issPos;
-      updateSatelliteMarkers();
-      renderSatelliteWidget();
-    } catch (err) {
-      console.error("Failed to fetch satellite positions:", err);
-    }
-  }
-  async function fetchSatellitePasses(satId) {
-    if (!state_default.n2yoApiKey || state_default.myLat === null || state_default.myLon === null) return;
-    try {
-      const url = `/api/satellites/passes?apikey=${encodeURIComponent(state_default.n2yoApiKey)}&id=${satId}&lat=${state_default.myLat}&lon=${state_default.myLon}&days=2&minEl=10`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      state_default.satellites.passes[satId] = {
-        ...data,
-        expires: Date.now() + 5 * 60 * 1e3
-        // 5 min cache
-      };
-      renderSatellitePasses(satId);
-    } catch (err) {
-      console.error("Failed to fetch satellite passes:", err);
-    }
-  }
-  function updateSatelliteMarkers() {
-    if (!state_default.map) return;
-    const positions = state_default.satellites.positions;
-    for (const satId of Object.keys(state_default.satellites.markers)) {
-      if (!positions[satId]) {
-        state_default.map.removeLayer(state_default.satellites.markers[satId]);
-        delete state_default.satellites.markers[satId];
-      }
-    }
-    for (const satId of Object.keys(state_default.satellites.circles)) {
-      if (!positions[satId]) {
-        state_default.map.removeLayer(state_default.satellites.circles[satId]);
-        delete state_default.satellites.circles[satId];
-      }
-    }
-    for (const satId of Object.keys(state_default.satellites.orbitLines)) {
-      if (!positions[satId]) {
-        state_default.map.removeLayer(state_default.satellites.orbitLines[satId]);
-        delete state_default.satellites.orbitLines[satId];
-      }
-    }
-    for (const [satId, pos] of Object.entries(positions)) {
-      const satInfo = SAT_FREQUENCIES[satId] || { name: pos.name || `SAT ${satId}` };
-      const name = satInfo.name || pos.name || `SAT ${satId}`;
-      const isAboveHorizon = pos.elevation > 0;
-      const altKm = pos.alt || DEFAULT_SAT_ALT_KM;
-      const footprintRadiusKm = calculateFootprintRadius(altKm);
-      const radiusMeters = footprintRadiusKm * 1e3;
-      const isISS = satId === "25544" || satId === 25544;
-      if (state_default.satellites.markers[satId]) {
-        state_default.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
-      } else {
-        let iconClass;
-        if (isISS) {
-          iconClass = "iss-icon";
-        } else {
-          iconClass = isAboveHorizon ? "sat-icon" : "sat-icon below-horizon";
-        }
-        const shortName = isISS ? "ISS" : esc(name.split(" ")[0].split("(")[0].trim());
-        const icon = L.divIcon({
-          className: iconClass,
-          html: shortName,
-          iconSize: isISS ? [40, 20] : [50, 20],
-          iconAnchor: isISS ? [20, 10] : [25, 10]
-        });
-        state_default.satellites.markers[satId] = L.marker([pos.lat, pos.lon], {
-          icon,
-          zIndexOffset: isISS ? 1e4 : isAboveHorizon ? 9e3 : 8e3
-        }).addTo(state_default.map);
-        state_default.satellites.markers[satId].bindPopup("", { maxWidth: 300 });
-      }
-      state_default.satellites.markers[satId].setPopupContent(buildSatellitePopup(satId, pos, satInfo));
-      const markerEl = state_default.satellites.markers[satId].getElement();
-      if (markerEl) {
-        const iconEl = markerEl.querySelector(".sat-icon");
-        if (iconEl) {
-          iconEl.classList.toggle("below-horizon", !isAboveHorizon);
-        }
-      }
-      if (state_default.satellites.circles[satId]) {
-        state_default.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
-        state_default.satellites.circles[satId].setRadius(radiusMeters);
-      } else {
-        const color = satId === "25544" ? "#00bcd4" : "#4caf50";
-        state_default.satellites.circles[satId] = L.circle([pos.lat, pos.lon], {
-          radius: radiusMeters,
-          color,
-          fillColor: color,
-          fillOpacity: 0.06,
-          weight: 1,
-          interactive: false
-        }).addTo(state_default.map);
-      }
-    }
-  }
-  function buildSatellitePopup(satId, pos, satInfo) {
-    const name = satInfo.name || pos.name || `SAT ${satId}`;
-    const isAbove = pos.elevation > 0;
-    const statusText = isAbove ? "Above Horizon" : "Below Horizon";
-    const statusColor = isAbove ? "var(--green)" : "var(--text-dim)";
-    const isISS = satId === "25544" || satId === 25544;
-    const popupClass = isISS ? "iss-popup" : "sat-popup";
-    const titleClass = isISS ? "iss-popup-title" : "sat-popup-title";
-    const rowClass = isISS ? "iss-popup-row" : "sat-popup-row";
-    const headerClass = isISS ? "iss-radio-header" : "sat-radio-header";
-    const tableClass = isISS ? "iss-freq-table" : "sat-freq-table";
-    let html = `<div class="${popupClass}">`;
-    html += `<div class="${titleClass}">${esc(name)}</div>`;
-    html += `<div class="${rowClass}">Lat: ${pos.lat.toFixed(2)}, Lon: ${pos.lon.toFixed(2)}</div>`;
-    html += `<div class="${rowClass}">Alt: ${Math.round(pos.alt)} km</div>`;
-    html += `<div class="${rowClass}">Az: ${pos.azimuth.toFixed(1)}&deg; &bull; El: ${pos.elevation.toFixed(1)}&deg;</div>`;
-    html += `<div class="${rowClass}" style="color:${statusColor}">${statusText}</div>`;
-    if (satInfo.uplinks || satInfo.downlinks) {
-      html += `<div class="${headerClass}">${isISS ? "Amateur Radio (ARISS)" : "Amateur Radio Frequencies"}</div>`;
-      html += `<table class="${tableClass}">`;
-      if (satInfo.uplinks) {
-        for (const ul of satInfo.uplinks) {
-          const doppler = calculateDopplerShift(ul.freq, pos);
-          const dopplerStr = doppler !== null ? ` (${doppler > 0 ? "+" : ""}${doppler.toFixed(1)} kHz)` : "";
-          html += `<tr><td>&#8593; ${esc(ul.desc || ul.mode)}</td><td>${ul.freq.toFixed(3)} MHz${dopplerStr}</td></tr>`;
-        }
-      }
-      if (satInfo.downlinks) {
-        for (const dl of satInfo.downlinks) {
-          const doppler = calculateDopplerShift(dl.freq, pos);
-          const dopplerStr = doppler !== null ? ` (${doppler > 0 ? "+" : ""}${doppler.toFixed(1)} kHz)` : "";
-          html += `<tr><td>&#8595; ${esc(dl.desc || dl.mode)}</td><td>${dl.freq.toFixed(3)} MHz${dopplerStr}</td></tr>`;
-        }
-      }
-      html += `</table>`;
-      if (isISS) {
-        html += `<div class="iss-radio-note">Repeater &amp; APRS typically active. SSTV during special events. Doppler shown above.</div>`;
-      }
-    }
-    html += `</div>`;
-    return html;
-  }
-  function calculateFootprintRadius(altitudeKm) {
-    const ratio = EARTH_RADIUS_KM / (EARTH_RADIUS_KM + altitudeKm);
-    const angleRad = Math.acos(ratio);
-    return EARTH_RADIUS_KM * angleRad;
-  }
-  function calculateDopplerShift(freqMHz, pos) {
-    if (pos.elevation === void 0 || pos.elevation === null) return null;
-    const orbitalVelocityKmS = 7.8;
-    const elevRad = pos.elevation * Math.PI / 180;
-    const radialVelocity = orbitalVelocityKmS * Math.cos(elevRad);
-    const dopplerMHz = freqMHz * (radialVelocity / SPEED_OF_LIGHT_KM_S);
-    return dopplerMHz * 1e3;
-  }
-  function renderSatelliteWidget() {
-    const satList = $("satList");
-    if (!satList) return;
-    const positions = state_default.satellites.positions;
-    const tracked = state_default.satellites.tracked;
-    if (Object.keys(positions).length === 0) {
-      if (!state_default.n2yoApiKey) {
-        satList.innerHTML = '<div class="sat-no-data">Loading ISS...</div>';
-      } else {
-        satList.innerHTML = '<div class="sat-no-data">No satellite data</div>';
-      }
-      return;
-    }
-    let html = "";
-    for (const satId of tracked) {
-      const pos = positions[satId];
-      if (!pos) continue;
-      const satInfo = SAT_FREQUENCIES[satId] || {};
-      const name = satInfo.name || pos.name || `SAT ${satId}`;
-      const shortName = name.split(" ")[0].split("(")[0].trim();
-      const isAbove = pos.elevation > 0;
-      const isSelected = state_default.satellites.selectedSatId === parseInt(satId, 10);
-      let dopplerStr = "";
-      if (satInfo.downlinks && satInfo.downlinks.length > 0) {
-        const doppler = calculateDopplerShift(satInfo.downlinks[0].freq, pos);
-        if (doppler !== null) {
-          dopplerStr = `${doppler > 0 ? "+" : ""}${doppler.toFixed(1)}`;
-        }
-      }
-      const rowClass = `sat-row${isSelected ? " selected" : ""}${isAbove ? "" : " below-horizon"}`;
-      html += `<div class="${rowClass}" data-sat-id="${satId}">`;
-      html += `<span class="sat-name">${esc(shortName)}</span>`;
-      html += `<span class="sat-azel">Az ${pos.azimuth.toFixed(0)}&deg; El ${pos.elevation.toFixed(0)}&deg;</span>`;
-      if (dopplerStr) {
-        html += `<span class="sat-doppler">${dopplerStr} kHz</span>`;
-      }
-      html += `</div>`;
-    }
-    if (!state_default.n2yoApiKey && tracked.some((id) => id !== 25544)) {
-      html += '<div class="sat-no-key" style="font-size:0.85em;margin-top:4px">N2YO key needed for other satellites</div>';
-    }
-    satList.innerHTML = html;
-    satList.querySelectorAll(".sat-row").forEach((row) => {
-      row.addEventListener("click", () => {
-        const satId = parseInt(row.dataset.satId, 10);
-        selectSatellite(satId);
-      });
-    });
-  }
-  function selectSatellite(satId) {
-    state_default.satellites.selectedSatId = satId;
-    const satList = $("satList");
-    if (satList) {
-      satList.querySelectorAll(".sat-row").forEach((row) => {
-        row.classList.toggle("selected", parseInt(row.dataset.satId, 10) === satId);
-      });
-    }
-    const pos = state_default.satellites.positions[satId];
-    if (pos && state_default.map) {
-      state_default.map.panTo([pos.lat, pos.lon]);
-      if (state_default.satellites.markers[satId]) {
-        state_default.satellites.markers[satId].openPopup();
-      }
-    }
-    const cached = state_default.satellites.passes[satId];
-    if (!cached || Date.now() > cached.expires) {
-      fetchSatellitePasses(satId);
-    } else {
-      renderSatellitePasses(satId);
-    }
-  }
-  function renderSatellitePasses(satId) {
-    const passesDiv = $("satPasses");
-    if (!passesDiv) return;
-    const cached = state_default.satellites.passes[satId];
-    if (!cached || !cached.passes || cached.passes.length === 0) {
-      passesDiv.innerHTML = '<div class="sat-no-passes">No upcoming passes</div>';
-      return;
-    }
-    let html = `<div class="sat-passes-title">Upcoming Passes</div>`;
-    for (const pass of cached.passes.slice(0, 5)) {
-      const startDate = new Date(pass.startUTC * 1e3);
-      const maxDate = new Date(pass.maxUTC * 1e3);
-      const timeStr = formatPassTime(startDate);
-      const durationMin = Math.round((pass.endUTC - pass.startUTC) / 60);
-      html += `<div class="pass-item">`;
-      html += `<div class="pass-time">${timeStr}</div>`;
-      html += `<div class="pass-details">Max El: ${pass.maxEl}&deg; &bull; ${durationMin} min</div>`;
-      html += `<div class="pass-azimuth">${pass.startAzCompass} &rarr; ${pass.maxAzCompass} &rarr; ${pass.endAzCompass}</div>`;
-      html += `</div>`;
-    }
-    passesDiv.innerHTML = html;
-  }
-  function formatPassTime(date) {
-    const now = /* @__PURE__ */ new Date();
-    const diffMs = date - now;
-    const diffMin = Math.round(diffMs / 6e4);
-    if (diffMin < 60) {
-      return `In ${diffMin} min`;
-    } else if (diffMin < 1440) {
-      const hours = Math.floor(diffMin / 60);
-      const mins = diffMin % 60;
-      return `In ${hours}h ${mins}m`;
-    } else {
-      return date.toLocaleString(void 0, {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit"
-      });
-    }
-  }
-  function showSatelliteConfig() {
-    const splash = $("satCfgSplash");
-    if (!splash) return;
-    const apiKeyInput = $("satApiKey");
-    if (apiKeyInput) {
-      apiKeyInput.value = state_default.n2yoApiKey;
-    }
-    if (state_default.n2yoApiKey && state_default.satellites.available.length === 0) {
-      fetchSatelliteList();
-    }
-    renderSatelliteSelectList();
-    splash.classList.remove("hidden");
-  }
-  function dismissSatelliteConfig() {
-    const splash = $("satCfgSplash");
-    if (!splash) return;
-    const apiKeyInput = $("satApiKey");
-    if (apiKeyInput) {
-      state_default.n2yoApiKey = apiKeyInput.value.trim();
-      localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
-      if (state_default.n2yoApiKey) {
-        fetch("/api/config/env", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ N2YO_API_KEY: state_default.n2yoApiKey })
-        }).catch(() => {
-        });
-      }
-    }
-    const selectList = $("satSelectList");
-    if (selectList) {
-      const tracked = [];
-      selectList.querySelectorAll('input[type="checkbox"]:checked').forEach((cb) => {
-        const id = parseInt(cb.dataset.satId, 10);
-        if (!isNaN(id)) tracked.push(id);
-      });
-      state_default.satellites.tracked = tracked.length > 0 ? tracked : [25544];
-      localStorage.setItem("hamtab_sat_tracked", JSON.stringify(state_default.satellites.tracked));
-    }
-    splash.classList.add("hidden");
-    fetchIssPosition();
-    if (state_default.n2yoApiKey) {
-      fetchSatellitePositions();
-    }
-  }
-  function renderSatelliteSelectList() {
-    const selectList = $("satSelectList");
-    if (!selectList) return;
-    const allSats = /* @__PURE__ */ new Map();
-    for (const [id, info] of Object.entries(SAT_FREQUENCIES)) {
-      allSats.set(parseInt(id, 10), info.name);
-    }
-    for (const sat of state_default.satellites.available) {
-      if (!allSats.has(sat.satId)) {
-        allSats.set(sat.satId, sat.name);
-      }
-    }
-    let html = "";
-    for (const [satId, name] of allSats) {
-      const isTracked = state_default.satellites.tracked.includes(satId);
-      html += `<label class="sat-select-item">`;
-      html += `<input type="checkbox" data-sat-id="${satId}" ${isTracked ? "checked" : ""} />`;
-      html += `${esc(name)} (${satId})`;
-      html += `</label>`;
-    }
-    selectList.innerHTML = html;
-  }
-
-  // src/main.js
   init_spot_detail();
   init_band_conditions();
 
@@ -9240,229 +9803,213 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     feedbackForm.addEventListener("submit", submitFeedback);
   }
 
-  // src/live-spots.js
-  init_state();
-  init_dom();
-  init_geo();
-  init_utils();
-  init_constants();
-  function initLiveSpotsListeners() {
-    const cfgBtn = $("liveSpotsCfgBtn");
-    if (cfgBtn) {
-      cfgBtn.addEventListener("click", showLiveSpotsConfig);
-    }
-    const cfgOk = $("liveSpotsCfgOk");
-    if (cfgOk) {
-      cfgOk.addEventListener("click", dismissLiveSpotsConfig);
-    }
-    const splash = $("liveSpotsCfgSplash");
-    if (splash) {
-      splash.addEventListener("click", (e) => {
-        if (e.target === splash) dismissLiveSpotsConfig();
-      });
-    }
-    const modeSelect = $("liveSpotsModeSelect");
-    if (modeSelect) {
-      modeSelect.value = state_default.liveSpots.displayMode;
-      modeSelect.addEventListener("change", () => {
-        state_default.liveSpots.displayMode = modeSelect.value;
-        localStorage.setItem("hamtab_livespots_mode", modeSelect.value);
-        renderLiveSpots();
-      });
-    }
-  }
-  function showLiveSpotsConfig() {
-    const splash = $("liveSpotsCfgSplash");
-    if (splash) splash.classList.remove("hidden");
-    const modeSelect = $("liveSpotsModeSelect");
-    if (modeSelect) modeSelect.value = state_default.liveSpots.displayMode;
-  }
-  function dismissLiveSpotsConfig() {
-    const splash = $("liveSpotsCfgSplash");
-    if (splash) splash.classList.add("hidden");
-  }
-  async function fetchLiveSpots() {
-    if (!state_default.myCallsign) {
-      renderLiveSpots();
-      return;
-    }
-    try {
-      const url = `/api/spots/psk/heard?callsign=${encodeURIComponent(state_default.myCallsign)}`;
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      state_default.liveSpots.data = data.spots || [];
-      state_default.liveSpots.summary = data.summary || {};
-      state_default.liveSpots.lastFetch = Date.now();
-      renderLiveSpots();
-    } catch (err) {
-      if (state_default.debug) console.error("Failed to fetch Live Spots:", err);
-      renderLiveSpots();
-    }
-  }
-  function renderLiveSpots() {
-    const status = $("liveSpotsStatus");
-    const summary = $("liveSpotsSummary");
-    const count = $("liveSpotsCount");
-    if (!summary) return;
-    if (!state_default.myCallsign) {
-      if (status) {
-        status.textContent = "Set your callsign in Config";
-        status.classList.add("visible");
-      }
-      summary.innerHTML = "";
-      if (count) count.textContent = "";
-      return;
-    }
-    if (status) {
-      if (state_default.liveSpots.data.length === 0 && state_default.liveSpots.lastFetch) {
-        status.textContent = "No spots in last hour";
-        status.classList.add("visible");
-      } else if (!state_default.liveSpots.lastFetch) {
-        status.textContent = "Loading...";
-        status.classList.add("visible");
-      } else {
-        status.textContent = "";
-        status.classList.remove("visible");
-      }
-    }
-    if (count) {
-      const total = state_default.liveSpots.data.length;
-      count.textContent = total > 0 ? `(${total})` : "";
-    }
-    const bands = Object.keys(state_default.liveSpots.summary).sort((a, b) => {
-      const order = ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm"];
-      return order.indexOf(a) - order.indexOf(b);
-    });
-    if (bands.length === 0) {
-      summary.innerHTML = "";
-      return;
-    }
-    let html = "";
-    for (const band of bands) {
-      const info = state_default.liveSpots.summary[band];
-      const isActive = state_default.liveSpots.visibleBands.has(band);
-      const activeClass = isActive ? "active" : "";
-      const color = getBandColor(band);
-      let valueHtml;
-      if (state_default.liveSpots.displayMode === "distance") {
-        const km = info.farthestKm || 0;
-        const mi = Math.round(km * 0.621371);
-        valueHtml = `<span class="live-spots-value">${state_default.distanceUnit === "km" ? km : mi} ${state_default.distanceUnit}</span>`;
-      } else {
-        valueHtml = `<span class="live-spots-value">${info.count}</span>`;
-      }
-      html += `
-      <div class="live-spots-band-card ${activeClass}" data-band="${esc(band)}" style="border-color: ${color}">
-        <span class="live-spots-band-name">${esc(band)}</span>
-        ${valueHtml}
-        ${state_default.liveSpots.displayMode === "distance" && info.farthestCall ? `<span class="live-spots-farthest">${esc(info.farthestCall)}</span>` : ""}
-      </div>
-    `;
-    }
-    summary.innerHTML = html;
-    const cards = summary.querySelectorAll(".live-spots-band-card");
-    cards.forEach((card) => {
-      card.addEventListener("click", () => {
-        const band = card.dataset.band;
-        toggleBandOnMap(band);
-        card.classList.toggle("active");
-      });
-    });
-  }
-  function toggleBandOnMap(band) {
-    if (state_default.liveSpots.visibleBands.has(band)) {
-      state_default.liveSpots.visibleBands.delete(band);
-    } else {
-      state_default.liveSpots.visibleBands.add(band);
-    }
-    renderLiveSpotsOnMap();
-  }
-  function renderLiveSpotsOnMap() {
-    if (!state_default.map) return;
-    clearLiveSpotsFromMap();
-    if (state_default.myLat == null || state_default.myLon == null) return;
-    if (state_default.liveSpots.visibleBands.size === 0) return;
-    const L2 = window.L;
-    const spotsByBand = {};
-    for (const spot of state_default.liveSpots.data) {
-      if (!spot.band || !state_default.liveSpots.visibleBands.has(spot.band)) continue;
-      if (spot.receiverLat == null || spot.receiverLon == null) continue;
-      if (!spotsByBand[spot.band]) spotsByBand[spot.band] = [];
-      spotsByBand[spot.band].push(spot);
-    }
-    for (const band of Object.keys(spotsByBand)) {
-      const color = getBandColor(band);
-      const spots = spotsByBand[band];
-      for (const spot of spots) {
-        const pts = geodesicPoints(state_default.myLat, state_default.myLon, spot.receiverLat, spot.receiverLon, 50);
-        const segments = [[]];
-        let lastLon = pts[0][1];
-        for (const pt of pts) {
-          if (Math.abs(pt[1] - lastLon) > 180) {
-            segments.push([]);
-          }
-          segments[segments.length - 1].push([pt[0], pt[1]]);
-          lastLon = pt[1];
-        }
-        const line = L2.polyline(segments, {
-          color,
-          weight: 2,
-          opacity: 0.6,
-          dashArray: "4 3"
-        });
-        line.addTo(state_default.map);
-        const lineKey = `${spot.receiver}-${spot.spotTime}`;
-        if (!state_default.liveSpotsLines) state_default.liveSpotsLines = {};
-        state_default.liveSpotsLines[lineKey] = line;
-        const marker = L2.marker([spot.receiverLat, spot.receiverLon], {
-          icon: L2.divIcon({
-            className: "live-spots-rx-marker",
-            html: `<div class="live-spots-rx-icon" style="background: ${color}">&#9632;</div>`,
-            iconSize: [16, 16],
-            iconAnchor: [8, 8]
-          })
-        });
-        const popupHtml = `
-        <div class="live-spots-popup">
-          <div class="live-spots-popup-call">${esc(spot.receiver)}</div>
-          <div class="live-spots-popup-grid">${esc(spot.receiverLocator || "")}</div>
-          <div class="live-spots-popup-details">
-            ${spot.distanceKm ? `${spot.distanceKm} km` : ""}
-            ${spot.snr ? ` / SNR: ${esc(spot.snr)} dB` : ""}
-          </div>
-          <div class="live-spots-popup-mode">${esc(spot.mode)} on ${esc(band)}</div>
-        </div>
-      `;
-        marker.bindPopup(popupHtml);
-        marker.addTo(state_default.map);
-        const markerKey = `${spot.receiver}-${spot.spotTime}`;
-        state_default.liveSpotsMarkers[markerKey] = marker;
-      }
-    }
-  }
-  function clearLiveSpotsFromMap() {
-    for (const key of Object.keys(state_default.liveSpotsMarkers)) {
-      if (state_default.map && state_default.liveSpotsMarkers[key]) {
-        state_default.map.removeLayer(state_default.liveSpotsMarkers[key]);
-      }
-    }
-    state_default.liveSpotsMarkers = {};
-    if (state_default.liveSpotsLines) {
-      for (const key of Object.keys(state_default.liveSpotsLines)) {
-        if (state_default.map && state_default.liveSpotsLines[key]) {
-          state_default.map.removeLayer(state_default.liveSpotsLines[key]);
-        }
-      }
-      state_default.liveSpotsLines = null;
-    }
-  }
-
   // src/main.js
   init_voacap();
   init_rel_heatmap();
   init_beacons();
   init_dedx_info();
+
+  // src/big-clock.js
+  init_state();
+  init_dom();
+  init_utils();
+  var active = false;
+  function fmtDate(date, options) {
+    return date.toLocaleDateString(void 0, Object.assign({
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric"
+    }, options || {}));
+  }
+  function updateBigClock() {
+    if (!active) return;
+    const now = /* @__PURE__ */ new Date();
+    const localEl = $("bigClockLocal");
+    const utcEl = $("bigClockUtc");
+    const dateEl = $("bigClockDate");
+    const utcDateEl = $("bigClockUtcDate");
+    if (localEl) localEl.textContent = fmtTime(now);
+    if (utcEl) utcEl.textContent = fmtTime(now, { timeZone: "UTC" });
+    if (dateEl) dateEl.textContent = fmtDate(now);
+    if (utcDateEl) utcDateEl.textContent = fmtDate(now, { timeZone: "UTC" });
+  }
+  function show() {
+    const overlay = $("bigClockOverlay");
+    if (!overlay) return;
+    active = true;
+    overlay.classList.remove("hidden");
+    updateBigClock();
+  }
+  function hide() {
+    const overlay = $("bigClockOverlay");
+    if (!overlay) return;
+    active = false;
+    overlay.classList.add("hidden");
+  }
+  function toggleBigClock() {
+    if (active) hide();
+    else show();
+  }
+  function initBigClock() {
+    const clockGroup = $("headerClockLocal");
+    const clockUtc = $("headerClockUtc");
+    if (clockGroup) clockGroup.addEventListener("click", toggleBigClock);
+    if (clockUtc) clockUtc.addEventListener("click", toggleBigClock);
+    const overlay = $("bigClockOverlay");
+    if (overlay) {
+      overlay.addEventListener("click", hide);
+      const inner = overlay.querySelector(".big-clock-inner");
+      if (inner) inner.addEventListener("click", (e) => e.stopPropagation());
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && active) hide();
+    });
+  }
+
+  // src/stopwatch.js
+  init_state();
+  init_dom();
+  init_widgets();
+  var mode = "stopwatch";
+  var running = false;
+  var startTime = 0;
+  var elapsed = 0;
+  var countdownTotal = 0;
+  var laps = [];
+  var alertFired = false;
+  function initStopwatchListeners() {
+    const tabSw = $("swTabStopwatch");
+    const tabCd = $("swTabCountdown");
+    const startBtn = $("swStart");
+    const stopBtn = $("swStop");
+    const resetBtn = $("swReset");
+    const lapBtn = $("swLap");
+    if (!tabSw) return;
+    tabSw.addEventListener("click", () => switchMode("stopwatch"));
+    tabCd.addEventListener("click", () => switchMode("countdown"));
+    startBtn.addEventListener("click", startTimer);
+    stopBtn.addEventListener("click", stopTimer);
+    resetBtn.addEventListener("click", resetTimer);
+    lapBtn.addEventListener("click", recordLap);
+    const presets = document.querySelectorAll(".sw-preset");
+    presets.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const min = parseInt(btn.dataset.minutes, 10);
+        if (!isNaN(min) && min > 0) {
+          countdownTotal = min * 60 * 1e3;
+          elapsed = countdownTotal;
+          renderDisplay();
+        }
+      });
+    });
+  }
+  function switchMode(newMode) {
+    if (running) stopTimer();
+    mode = newMode;
+    elapsed = 0;
+    countdownTotal = 0;
+    laps = [];
+    alertFired = false;
+    const tabSw = $("swTabStopwatch");
+    const tabCd = $("swTabCountdown");
+    const cdSet = $("swCountdownSet");
+    const lapBtn = $("swLap");
+    tabSw.classList.toggle("active", mode === "stopwatch");
+    tabCd.classList.toggle("active", mode === "countdown");
+    cdSet.classList.toggle("hidden", mode !== "countdown");
+    lapBtn.classList.toggle("hidden", mode !== "stopwatch");
+    renderDisplay();
+    renderLaps();
+  }
+  function startTimer() {
+    if (running) return;
+    if (mode === "countdown" && countdownTotal === 0) return;
+    running = true;
+    alertFired = false;
+    if (mode === "stopwatch") {
+      startTime = Date.now() - elapsed;
+    } else {
+      startTime = Date.now();
+    }
+    state_default.stopwatchTimer = setInterval(tick, 100);
+  }
+  function stopTimer() {
+    running = false;
+    if (state_default.stopwatchTimer) {
+      clearInterval(state_default.stopwatchTimer);
+      state_default.stopwatchTimer = null;
+    }
+  }
+  function resetTimer() {
+    stopTimer();
+    elapsed = mode === "countdown" ? countdownTotal : 0;
+    laps = [];
+    alertFired = false;
+    renderDisplay();
+    renderLaps();
+  }
+  function recordLap() {
+    if (!running || mode !== "stopwatch") return;
+    laps.push(elapsed);
+    renderLaps();
+  }
+  function tick() {
+    if (!isWidgetVisible("widget-stopwatch")) return;
+    if (mode === "stopwatch") {
+      elapsed = Date.now() - startTime;
+    } else {
+      const elapsedSince = Date.now() - startTime;
+      elapsed = Math.max(0, countdownTotal - elapsedSince);
+      if (elapsed === 0 && !alertFired) {
+        alertFired = true;
+        stopTimer();
+        flashDisplay();
+      }
+    }
+    renderDisplay();
+  }
+  function flashDisplay() {
+    const display = $("swDisplay");
+    if (!display) return;
+    display.classList.add("sw-flash");
+    setTimeout(() => display.classList.remove("sw-flash"), 3e3);
+  }
+  function renderDisplay() {
+    const display = $("swDisplay");
+    if (!display) return;
+    const ms = Math.abs(elapsed);
+    const totalSec = Math.floor(ms / 1e3);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor(totalSec % 3600 / 60);
+    const s = totalSec % 60;
+    const tenths = Math.floor(ms % 1e3 / 100);
+    if (h > 0) {
+      display.textContent = `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${tenths}`;
+    } else {
+      display.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${tenths}`;
+    }
+  }
+  function renderLaps() {
+    const container = $("swLaps");
+    if (!container) return;
+    if (laps.length === 0) {
+      container.innerHTML = "";
+      return;
+    }
+    let html = "";
+    for (let i = laps.length - 1; i >= 0; i--) {
+      const lapMs = i === 0 ? laps[0] : laps[i] - laps[i - 1];
+      const lapSec = Math.floor(lapMs / 1e3);
+      const lapM = Math.floor(lapSec / 60);
+      const lapS = lapSec % 60;
+      const lapT = Math.floor(lapMs % 1e3 / 100);
+      html += `<div class="sw-lap-row"><span class="sw-lap-num">${i + 1}</span><span class="sw-lap-time">${String(lapM).padStart(2, "0")}:${String(lapS).padStart(2, "0")}.${lapT}</span></div>`;
+    }
+    container.innerHTML = html;
+  }
+
+  // src/main.js
   migrate();
   migrateV2();
   initTheme();
@@ -9478,10 +10025,17 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     updateSunMarker();
   }, 6e4);
   initSatellites();
-  setInterval(fetchIssPosition, 1e4);
-  setInterval(fetchSatellitePositions, 1e4);
+  setInterval(() => {
+    if (isWidgetVisible("widget-satellites")) fetchIssPosition();
+  }, 1e4);
+  setInterval(() => {
+    if (isWidgetVisible("widget-satellites")) fetchSatellitePositions();
+  }, 1e4);
   updateClocks();
-  setInterval(updateClocks, 1e3);
+  setInterval(() => {
+    updateClocks();
+    updateBigClock();
+  }, 1e3);
   setInterval(renderSpots, 3e4);
   initSourceListeners();
   initFilterListeners();
@@ -9507,6 +10061,8 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initDxpeditionListeners();
   initContestListeners();
   initDedxListeners();
+  initBigClock();
+  initStopwatchListeners();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;
@@ -9517,20 +10073,27 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     sendUpdateInterval();
     fetchWeather();
     startNwsPolling();
-    fetchLiveSpots();
-    fetchVoacapMatrix();
-    fetchSpaceWxData();
-    startBeaconTimer();
-    fetchDxpeditions();
-    fetchContests();
-    renderDedxInfo();
-    updateBeaconMarkers();
+    if (isWidgetVisible("widget-live-spots")) fetchLiveSpots();
+    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) fetchVoacapMatrix();
+    if (isWidgetVisible("widget-spacewx")) fetchSpaceWxData();
+    if (isWidgetVisible("widget-beacons")) startBeaconTimer();
+    if (isWidgetVisible("widget-dxpeditions") || state_default.mapOverlays.dxpedMarkers) fetchDxpeditions();
+    if (isWidgetVisible("widget-contests")) fetchContests();
+    if (isWidgetVisible("widget-dedx")) startDedxTimer();
+    if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
   }
-  setInterval(fetchLiveSpots, 5 * 60 * 1e3);
-  setInterval(renderVoacapMatrix, 60 * 1e3);
-  setInterval(fetchVoacapMatrixThrottled, 60 * 1e3);
-  setInterval(updateBeaconMarkers, 1e4);
-  setInterval(renderDedxInfo, 6e4);
+  setInterval(() => {
+    if (isWidgetVisible("widget-live-spots")) fetchLiveSpots();
+  }, 5 * 60 * 1e3);
+  setInterval(() => {
+    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) renderVoacapMatrix();
+  }, 60 * 1e3);
+  setInterval(() => {
+    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) fetchVoacapMatrixThrottled();
+  }, 60 * 1e3);
+  setInterval(() => {
+    if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
+  }, 1e4);
   setInitApp(initApp);
   initWidgets();
   switchSource(state_default.currentSource);

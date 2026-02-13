@@ -259,6 +259,69 @@ powershell -ExecutionPolicy Bypass -File uninstall.ps1
 
 If running inside WSL2, follow the Linux instructions above to install inside your WSL distribution. See [WSL2 Setup](#wsl2-setup) below for network access from Windows and LAN devices.
 
+### Docker
+
+HamTab is available as a Docker image with full VOACAP propagation support. Works on x86-64 and ARM64 (Raspberry Pi 4/5, Synology, TrueNAS, Unraid).
+
+**Quick start:**
+
+```bash
+docker run -d -p 3000:3000 -p 3443:3443 stevencheist/hamtab
+```
+
+Open **http://localhost:3000** in your browser.
+
+**Docker Compose:**
+
+```yaml
+services:
+  hamtab:
+    image: stevencheist/hamtab:latest
+    ports:
+      - "3000:3000"
+      - "3443:3443"
+    volumes:
+      - hamtab-certs:/app/certs
+    environment:
+      - PORT=3000
+      - HTTPS_PORT=3443
+      # - WU_API_KEY=your_key_here
+      # - N2YO_API_KEY=your_key_here
+    restart: unless-stopped
+
+volumes:
+  hamtab-certs:
+```
+
+Save as `docker-compose.yml` and run:
+
+```bash
+docker compose up -d
+```
+
+**Volumes:**
+
+| Volume | Purpose |
+|--------|---------|
+| `/app/certs` | Self-signed TLS certificates — persists across container restarts so HTTPS clients don't see a new cert on every restart |
+
+**Environment variables:**
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `3000` | HTTP port |
+| `HTTPS_PORT` | `3443` | HTTPS port (self-signed TLS) |
+| `WU_API_KEY` | — | Weather Underground API key (optional) |
+| `N2YO_API_KEY` | — | N2YO satellite tracking API key (optional) |
+
+**Updating:** Pull the latest image and recreate:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+> **Note:** The in-app update checker is disabled in Docker — use `docker pull` to update.
+
 ### After Installation
 
 On first startup the server auto-generates a self-signed TLS certificate (saved to `certs/`). Two servers start:

@@ -9,11 +9,23 @@ import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
-import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
+import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, isWidgetVisible, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
 import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
 import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, DEFAULT_BAND_COLORS, getBandColor, getBandColorOverrides, saveBandColors } from './constants.js';
 import { activateGridMode, deactivateGridMode, saveGridAssignments, getGridPermutation } from './grid-layout.js';
 import { startAutoRefresh, stopAutoRefresh } from './refresh.js';
+import { fetchSatellitePositions } from './satellites.js';
+import { startBeaconTimer, stopBeaconTimer } from './beacons.js';
+import { updateBeaconMarkers } from './map-init.js';
+import { fetchVoacapMatrixThrottled } from './voacap.js';
+import { fetchLiveSpots } from './live-spots.js';
+import { renderDedxInfo } from './dedx-info.js';
+import { fetchSolar } from './solar.js';
+import { fetchLunar } from './lunar.js';
+import { fetchSpaceWxData } from './spacewx-graphs.js';
+import { fetchDxpeditions } from './dxpeditions.js';
+import { fetchContests } from './contests.js';
+import { startDedxTimer, stopDedxTimer } from './dedx-info.js';
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -370,6 +382,14 @@ export function showSplash() {
   const cfgSlimHeader = $('cfgSlimHeader');
   if (cfgSlimHeader) cfgSlimHeader.checked = state.slimHeader;
 
+  // Grayscale toggle
+  const cfgGrayscale = $('cfgGrayscale');
+  if (cfgGrayscale) cfgGrayscale.checked = state.grayscale;
+
+  // Disable weather backgrounds toggle
+  const cfgDisableWxBg = $('cfgDisableWxBg');
+  if (cfgDisableWxBg) cfgDisableWxBg.checked = state.disableWxBackgrounds;
+
   // Band color pickers
   populateBandColorPickers();
 
@@ -460,6 +480,9 @@ function dismissSplash() {
 
   fetchWeather();
 
+  // Capture old visibility before applying changes (for refresh-on-show hook)
+  const oldVis = { ...state.widgetVisibility };
+
   const widgetList = document.getElementById('splashWidgetList');
   widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
     state.widgetVisibility[cb.dataset.widgetId] = cb.checked;
@@ -493,6 +516,28 @@ function dismissSplash() {
   }
 
   applyWidgetVisibility();
+
+  // --- Refresh data for widgets that just became visible ---
+  const justShown = (id) => oldVis[id] === false && state.widgetVisibility[id] !== false;
+  const justHidden = (id) => oldVis[id] !== false && state.widgetVisibility[id] === false;
+
+  if (justShown('widget-satellites'))   fetchSatellitePositions();
+  if (justShown('widget-voacap'))       fetchVoacapMatrixThrottled();
+  if (justShown('widget-live-spots'))   fetchLiveSpots();
+  if (justShown('widget-dedx'))         renderDedxInfo();
+  if (justShown('widget-solar'))        fetchSolar();
+  if (justShown('widget-lunar'))        fetchLunar();
+  if (justShown('widget-spacewx'))      fetchSpaceWxData();
+  if (justShown('widget-dxpeditions'))  fetchDxpeditions();
+  if (justShown('widget-contests'))     fetchContests();
+
+  // Beacon timer start/stop — avoid 1 Hz timer running for a hidden widget
+  if (justShown('widget-beacons'))  { startBeaconTimer(); updateBeaconMarkers(); }
+  if (justHidden('widget-beacons')) { stopBeaconTimer(); }
+
+  // DE/DX Info timer start/stop — avoid 1 Hz timer running for a hidden widget
+  if (justShown('widget-dedx'))  { startDedxTimer(); }
+  if (justHidden('widget-dedx')) { stopDedxTimer(); }
 
   // Update interval — lanmode only (element absent in hostedmode)
   const intervalSelect = $('splashUpdateInterval');
@@ -720,6 +765,34 @@ export function initSplashListeners() {
       state.slimHeader = cfgSlimHeaderCb.checked;
       localStorage.setItem('hamtab_slim_header', String(state.slimHeader));
       document.body.classList.toggle('slim-header', state.slimHeader);
+    });
+  }
+
+  // Grayscale toggle in Appearance tab
+  const cfgGrayscaleCb = $('cfgGrayscale');
+  if (cfgGrayscaleCb) {
+    cfgGrayscaleCb.addEventListener('change', () => {
+      state.grayscale = cfgGrayscaleCb.checked;
+      localStorage.setItem('hamtab_grayscale', String(state.grayscale));
+      document.body.classList.toggle('grayscale', state.grayscale);
+    });
+  }
+
+  // Disable weather backgrounds toggle in Appearance tab
+  const cfgDisableWxBgCb = $('cfgDisableWxBg');
+  if (cfgDisableWxBgCb) {
+    cfgDisableWxBgCb.addEventListener('change', () => {
+      state.disableWxBackgrounds = cfgDisableWxBgCb.checked;
+      localStorage.setItem('hamtab_disable_wx_bg', String(state.disableWxBackgrounds));
+      // Immediately strip or re-apply weather background classes
+      const hcl = document.getElementById('headerClockLocal');
+      if (hcl) {
+        const wxClasses = ['wx-clear-day','wx-clear-night','wx-partly-cloudy-day','wx-partly-cloudy-night','wx-cloudy','wx-rain','wx-thunderstorm','wx-snow','wx-fog'];
+        if (state.disableWxBackgrounds) {
+          wxClasses.forEach(c => hcl.classList.remove(c));
+        }
+        // If re-enabling, next weather fetch will re-apply the class
+      }
     });
   }
 

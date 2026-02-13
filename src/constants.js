@@ -1,5 +1,5 @@
 import { aColor, kColor, solarWindColor, bzColor, auroraColor, geomagColor } from './solar.js';
-import { lunarDecColor, lunarPlColor } from './lunar.js';
+import { lunarDecColor, lunarPlColor, lunarElColor } from './lunar.js';
 
 export const WIDGET_DEFS = [
   { id: 'widget-filters',     name: 'Filters' },
@@ -18,6 +18,7 @@ export const WIDGET_DEFS = [
   { id: 'widget-dxpeditions',  name: 'DXpeditions' },
   { id: 'widget-beacons',      name: 'NCDXF Beacons' },
   { id: 'widget-dedx',         name: 'DE/DX Info' },
+  { id: 'widget-stopwatch',    name: 'Stopwatch / Timer' },
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)
@@ -226,6 +227,10 @@ export const SOLAR_FIELD_DEFS = [
 export const LUNAR_FIELD_DEFS = [
   { key: 'phase',          label: 'Moon Phase',      unit: '',      colorFn: null,          defaultVisible: true  },
   { key: 'illumination',   label: 'Illumination',    unit: '%',     colorFn: null,          defaultVisible: true  },
+  { key: 'elevation',      label: 'Elevation',       unit: '\u00B0',colorFn: lunarElColor,  defaultVisible: true  },
+  { key: 'azimuth',        label: 'Azimuth',         unit: '\u00B0',colorFn: null,          defaultVisible: true  },
+  { key: 'moonrise',       label: 'Moonrise',        unit: '',      colorFn: null,          defaultVisible: true,  format: 'time' },
+  { key: 'moonset',        label: 'Moonset',         unit: '',      colorFn: null,          defaultVisible: true,  format: 'time' },
   { key: 'declination',    label: 'Declination',     unit: '\u00B0',colorFn: lunarDecColor, defaultVisible: true  },
   { key: 'distance',       label: 'Distance',        unit: ' km',   colorFn: null,          defaultVisible: true  },
   { key: 'pathLoss',       label: 'Path Loss',       unit: ' dB',   colorFn: lunarPlColor,  defaultVisible: true  },
@@ -301,7 +306,7 @@ export const WIDGET_HELP = {
     description: 'An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who\'s on the air and where.',
     sections: [
       { heading: 'Spot Markers', content: 'Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station.' },
-      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (real-time Maximum Usable Frequency from prop.kc2g.com), DX Paths (band-colored great circle lines from your location to every visible spot), DXpedition Markers (orange circles for active and upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), and Map Legend (color key for all marker types).' },
+      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC — shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (≥5).' },
       { heading: 'Geodesic Paths', content: 'The curved line between you and a selected station is called a geodesic (great-circle) path — this is the shortest route over the Earth\'s surface and the direction to point your antenna.' },
       { heading: 'Center Mode', content: 'In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot.' },
     ],
@@ -348,12 +353,15 @@ export const WIDGET_HELP = {
     description: 'Moon tracking data for Earth-Moon-Earth (EME or "moonbounce") communication. EME is an advanced technique where operators bounce radio signals off the moon to make contacts over very long distances.',
     sections: [
       { heading: 'Moon Phase & Position', content: 'Shows the current moon phase, illumination, and sky position. The moon needs to be above the horizon at both your location and the other station\'s location for EME to work.' },
+      { heading: 'Azimuth & Elevation', content: 'Shows where the moon is in your sky right now. Elevation is the angle above your horizon — green (20°+) is ideal for EME, yellow (0-20°) is marginal, dim means below the horizon. Azimuth is the compass bearing (0° = North, 90° = East, etc.).' },
+      { heading: 'Moonrise & Moonset', content: 'Shows the next moonrise and moonset times for your location. These help you plan EME operating windows. Requires your location to be set in Configuration.' },
       { heading: 'EME Path Loss', content: 'Shows how much signal is lost on the round trip to the moon and back, calculated at 144 MHz (2m band). Lower path loss means better EME conditions. Loss varies with moon distance — closer moon (perigee) means less loss.' },
       { heading: 'Declination', content: 'The moon\'s angle relative to the equator. Higher declination generally means longer EME windows (more time with the moon above the horizon).' },
       { heading: 'Customize Fields', content: 'Click the gear icon to show additional data like elongation, ecliptic coordinates, and right ascension for advanced planning.' },
     ],
     links: [
       { label: 'ARRL EME Guide', url: 'https://www.arrl.org/eme' },
+      { label: 'NASA Moon Visualization', url: 'https://svs.gsfc.nasa.gov/5187' },
     ],
   },
   'widget-satellites': {
@@ -363,6 +371,7 @@ export const WIDGET_HELP = {
       { heading: 'ISS Tracking', content: 'The ISS (International Space Station) is tracked automatically — no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard.' },
       { heading: 'Adding More Satellites', content: 'To track additional satellites like AO-91, SO-50, and others, you\'ll need a free API key from N2YO.com — enter it in Config. Click the gear icon to search for and add satellites.' },
       { heading: 'Live Position', content: 'See where each satellite is right now on the map, along with its altitude, speed, and whether it\'s above your horizon (visible to you).' },
+      { heading: 'TLE Age', content: 'Each satellite row shows the age of its TLE (orbital element) data in days. Color thresholds are based on the configurable "Max TLE Age" setting (default: 7 days) — green = fresh, yellow = aging, red + \u26A0 = exceeds max age. Stale TLEs reduce position accuracy. The ISS TLE is refreshed from CelesTrak every 6 hours. Set the max age in the satellite config (gear icon).' },
       { heading: 'Pass Predictions', content: 'Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work.' },
     ],
     links: [
@@ -425,7 +434,7 @@ export const WIDGET_HELP = {
     title: 'DX Detail',
     description: 'Shows detailed information about whichever station you\'ve selected. Click any row in the On the Air table or any marker on the map to see that station\'s details here.',
     sections: [
-      { heading: 'Station Info', content: 'Displays the operator\'s name, location, license class, and grid square (looked up from their callsign). This helps you know who you\'re about to contact.' },
+      { heading: 'Station Info', content: 'Displays the operator\'s name, location, license class, and grid square (looked up from their callsign). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown. This helps you know who you\'re about to contact.' },
       { heading: 'Distance & Bearing', content: 'Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config.' },
       { heading: 'Frequency & Mode', content: 'The frequency and mode the station is operating on, so you know exactly where to tune your radio.' },
       { heading: 'Weather', content: 'Shows current weather conditions at the station\'s location, if available.' },
@@ -450,6 +459,7 @@ export const WIDGET_HELP = {
       { heading: 'What Is a DXpedition?', content: 'A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade.' },
       { heading: 'Reading the Cards', content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map (toggle via Map Overlays gear icon) — bright orange for active, dimmer for upcoming.' },
       { heading: 'Time Filter', content: 'Use the dropdown in the widget header to filter DXpeditions by time window: Active Now, Within 1 Week, Within 1 Month, Within 6 Months, or All. Active DXpeditions always appear regardless of the filter. The map markers match whatever the widget shows.' },
+      { heading: 'Hiding DXpeditions', content: 'Hover over any card and click the \u00D7 button to hide it. Hidden DXpeditions are also removed from the map. A "Show N hidden" button appears at the bottom to restore all hidden items at once.' },
       { heading: 'QSL Information', content: 'QSL means "I confirm" — it\'s how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).' },
     ],
     links: [
@@ -470,12 +480,21 @@ export const WIDGET_HELP = {
   },
   'widget-dedx': {
     title: 'DE/DX Info',
-    description: 'A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock layout, this widget gives you the key information you need at a glance when making contacts.',
+    description: 'A side-by-side display of your station (DE) and the currently selected distant station (DX) with live clocks. Inspired by the classic HamClock dual-pane layout, this widget shows large local time displays at each location plus key contact information at a glance.',
     sections: [
-      { heading: 'DE (Your Station)', content: 'The left panel shows your callsign, Maidenhead grid square, latitude/longitude, and today\'s sunrise and sunset times at your location (in UTC). This requires your callsign and location to be set in Config.' },
-      { heading: 'DX (Selected Station)', content: 'The right panel shows details for whichever station you\'ve clicked in the On the Air table or on the map. It displays their callsign, frequency, mode, grid square, bearing (compass direction to point your antenna), distance, and sunrise/sunset times at their location.' },
-      { heading: 'Why Sunrise/Sunset?', content: 'HF radio propagation changes dramatically at sunrise and sunset. The "gray line" (the band of twilight circling the Earth) often produces enhanced propagation. Knowing sunrise/sunset at both ends of a path helps you predict when a band will open or close between your station and the DX.' },
+      { heading: 'DE (Your Station)', content: 'The left panel shows a large live clock for your local time, plus your callsign, grid square, and sunrise/sunset countdowns. Requires your callsign and location to be set in Config.' },
+      { heading: 'DX (Selected Station)', content: 'The right panel shows the approximate local time at the selected DX station\'s location (calculated from longitude), plus their callsign, frequency, mode, grid square, bearing, distance, and sunrise/sunset. When no spot is selected, the DX side shows UTC.' },
+      { heading: 'Why Two Clocks?', content: 'Knowing the local time at both ends of a path is essential for scheduling contacts and understanding propagation. A station in Japan is unlikely to be on the air at 3 AM their local time, and gray line propagation depends on sunrise/sunset at both locations.' },
       { heading: 'Bearing & Distance', content: 'The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact.' },
+    ],
+  },
+  'widget-stopwatch': {
+    title: 'Stopwatch / Timer',
+    description: 'A dual-mode timer for contest operations and general use. Switch between Stopwatch (count up with laps) and Countdown (preset timers including the 10-minute FCC station ID reminder).',
+    sections: [
+      { heading: 'Stopwatch Mode', content: 'Click Start to begin counting up. Use Lap to mark split times during a contest (e.g., tracking contacts per minute). Stop pauses the timer; Reset clears everything.' },
+      { heading: 'Countdown Mode', content: 'Click the Countdown tab and select a preset duration. The 10m ID button is a quick shortcut for the FCC 10-minute station identification requirement. The display flashes when the countdown reaches zero.' },
+      { heading: 'Station ID Timer', content: 'FCC Part 97.119 requires US hams to identify every 10 minutes during a contact and at the end. Use the 10m ID preset as a reminder — when it flashes, give your callsign!' },
     ],
   },
   'widget-live-spots': {
@@ -642,6 +661,7 @@ export const REFLOW_WIDGET_ORDER = [
   'widget-dxpeditions',
   'widget-beacons',
   'widget-dedx',
+  'widget-stopwatch',
 ];
 
 export function getLayoutMode() {

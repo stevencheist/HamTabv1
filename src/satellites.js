@@ -70,6 +70,7 @@ export async function fetchIssPosition() {
       azimuth: data.azimuth,
       elevation: data.elevation,
       timestamp: data.timestamp,
+      tleEpoch: data.tleEpoch || null,
     };
 
     // Store orbit path
@@ -227,7 +228,11 @@ export function updateSatelliteMarkers() {
     // Marker — ISS gets special styling
     const isISS = satId === '25544' || satId === 25544;
     if (state.satellites.markers[satId]) {
-      state.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
+      // Skip update if position delta is tiny (< 0.01° ≈ 1.1 km) — reduces DOM thrash
+      const prev = state.satellites.markers[satId].getLatLng();
+      if (Math.abs(prev.lat - pos.lat) > 0.01 || Math.abs(prev.lng - pos.lon) > 0.01) {
+        state.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
+      }
     } else {
       let iconClass;
       if (isISS) {
@@ -261,10 +266,13 @@ export function updateSatelliteMarkers() {
       }
     }
 
-    // Footprint circle
+    // Footprint circle — skip if position unchanged (same delta threshold as marker)
     if (state.satellites.circles[satId]) {
-      state.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
-      state.satellites.circles[satId].setRadius(radiusMeters);
+      const prevC = state.satellites.circles[satId].getLatLng();
+      if (Math.abs(prevC.lat - pos.lat) > 0.01 || Math.abs(prevC.lng - pos.lon) > 0.01) {
+        state.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
+        state.satellites.circles[satId].setRadius(radiusMeters);
+      }
     } else {
       const color = satId === '25544' ? '#00bcd4' : '#4caf50'; // ISS gets cyan, others green
       state.satellites.circles[satId] = L.circle([pos.lat, pos.lon], {
@@ -299,6 +307,17 @@ function buildSatellitePopup(satId, pos, satInfo) {
   html += `<div class="${rowClass}">Alt: ${Math.round(pos.alt)} km</div>`;
   html += `<div class="${rowClass}">Az: ${pos.azimuth.toFixed(1)}&deg; &bull; El: ${pos.elevation.toFixed(1)}&deg;</div>`;
   html += `<div class="${rowClass}" style="color:${statusColor}">${statusText}</div>`;
+
+  // TLE epoch age — color uses configurable maxTleAge threshold
+  if (pos.tleEpoch) {
+    const ageDays = Math.floor((Date.now() / 1000 - pos.tleEpoch) / 86400);
+    const maxAge = state.maxTleAge || 7;
+    const ageColor = ageDays <= Math.floor(maxAge * 0.4) ? 'var(--green)'
+      : ageDays <= maxAge ? 'var(--yellow)' : 'var(--red)';
+    const epochDate = new Date(pos.tleEpoch * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const warn = ageDays > maxAge ? ' \u26A0' : '';
+    html += `<div class="${rowClass}">TLE: <span style="color:${ageColor}">${ageDays}d old${warn}</span> (${epochDate})</div>`;
+  }
 
   // Radio frequencies if known
   if (satInfo.uplinks || satInfo.downlinks) {
@@ -404,9 +423,20 @@ export function renderSatelliteWidget() {
       }
     }
 
+    // TLE age badge — days since TLE epoch, color uses configurable threshold
+    let tleAgeHtml = '';
+    if (pos.tleEpoch) {
+      const ageDays = Math.floor((Date.now() / 1000 - pos.tleEpoch) / 86400);
+      const maxAge = state.maxTleAge || 7;
+      const cls = ageDays <= Math.floor(maxAge * 0.4) ? 'tle-fresh'
+        : ageDays <= maxAge ? 'tle-aging' : 'tle-stale';
+      const warn = ageDays > maxAge ? ' \u26A0' : ''; // ⚠ warning when exceeded
+      tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d (max: ${maxAge}d)">${ageDays}d${warn}</span>`;
+    }
+
     const rowClass = `sat-row${isSelected ? ' selected' : ''}${isAbove ? '' : ' below-horizon'}`;
     html += `<div class="${rowClass}" data-sat-id="${satId}">`;
-    html += `<span class="sat-name">${esc(shortName)}</span>`;
+    html += `<span class="sat-name">${esc(shortName)}${tleAgeHtml}</span>`;
     html += `<span class="sat-azel">Az ${pos.azimuth.toFixed(0)}&deg; El ${pos.elevation.toFixed(0)}&deg;</span>`;
     if (dopplerStr) {
       html += `<span class="sat-doppler">${dopplerStr} kHz</span>`;
@@ -520,6 +550,12 @@ function showSatelliteConfig() {
     apiKeyInput.value = state.n2yoApiKey;
   }
 
+  // Populate max TLE age
+  const tleAgeInput = $('satMaxTleAge');
+  if (tleAgeInput) {
+    tleAgeInput.value = state.maxTleAge;
+  }
+
   // Fetch satellite list if we have a key
   if (state.n2yoApiKey && state.satellites.available.length === 0) {
     fetchSatelliteList();
@@ -546,6 +582,16 @@ function dismissSatelliteConfig() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ N2YO_API_KEY: state.n2yoApiKey }),
       }).catch(() => {});
+    }
+  }
+
+  // Save max TLE age
+  const tleAgeInput = $('satMaxTleAge');
+  if (tleAgeInput) {
+    const age = parseInt(tleAgeInput.value, 10);
+    if (!isNaN(age) && age >= 1 && age <= 30) {
+      state.maxTleAge = age;
+      localStorage.setItem('hamtab_max_tle_age', String(age));
     }
   }
 

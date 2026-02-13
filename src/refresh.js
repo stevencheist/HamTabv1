@@ -10,6 +10,7 @@ import { fetchVoacapMatrixThrottled } from './voacap.js';
 import { fetchSpaceWxData } from './spacewx-graphs.js';
 import { fetchDxpeditions } from './dxpeditions.js';
 import { fetchContests } from './contests.js';
+import { isWidgetVisible } from './widgets.js';
 
 export async function fetchSourceData(source) {
   const def = SOURCE_DEFS[source];
@@ -51,13 +52,13 @@ export function refreshAll() {
   fetchSourceData('dxc');
   fetchSourceData('wwff');
   fetchSourceData('psk');
-  fetchSolar();
-  fetchLunar();
-  fetchPropagation();
-  fetchVoacapMatrixThrottled();
-  fetchSpaceWxData();
-  fetchDxpeditions();
-  fetchContests();
+  if (isWidgetVisible('widget-solar') || isWidgetVisible('widget-propagation') || isWidgetVisible('widget-voacap')) fetchSolar();
+  if (isWidgetVisible('widget-lunar')) fetchLunar();
+  fetchPropagation(); // map overlay, always useful
+  if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) fetchVoacapMatrixThrottled();
+  if (isWidgetVisible('widget-spacewx')) fetchSpaceWxData();
+  if (isWidgetVisible('widget-dxpeditions') || state.mapOverlays.dxpedMarkers) fetchDxpeditions();
+  if (isWidgetVisible('widget-contests')) fetchContests();
   resetCountdown();
 }
 

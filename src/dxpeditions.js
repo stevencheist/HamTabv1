@@ -34,11 +34,29 @@ function filterByTime(data) {
   });
 }
 
+function saveHiddenDxpeditions() {
+  localStorage.setItem('hamtab_dxped_hidden', JSON.stringify([...state.hiddenDxpeditions]));
+}
+
+function hideDxpedition(callsign) {
+  state.hiddenDxpeditions.add(callsign);
+  saveHiddenDxpeditions();
+  renderDxpeditions();
+}
+
+function unhideAllDxpeditions() {
+  state.hiddenDxpeditions.clear();
+  saveHiddenDxpeditions();
+  renderDxpeditions();
+}
+
 export function initDxpeditionListeners() {
   const list = $('dxpedList');
   if (!list) return;
-  // Delegate click on cards to open link in new tab
+  // Delegate click on cards to open link in new tab (but not on hide button)
   list.addEventListener('click', (e) => {
+    if (e.target.closest('.dxped-hide-btn')) return;
+    if (e.target.closest('.dxped-unhide-btn')) return;
     const card = e.target.closest('.dxped-card');
     if (!card) return;
     const url = card.dataset.link;
@@ -87,11 +105,15 @@ export function renderDxpeditions() {
     return;
   }
 
-  const filtered = filterByTime(data);
+  const timeFiltered = filterByTime(data);
+  // Filter out hidden DXpeditions
+  const hiddenCount = timeFiltered.filter(d => state.hiddenDxpeditions.has(d.callsign)).length;
+  const filtered = timeFiltered.filter(d => !state.hiddenDxpeditions.has(d.callsign));
+
   if (countEl) countEl.textContent = filtered.length;
 
   list.textContent = '';
-  if (filtered.length === 0) {
+  if (filtered.length === 0 && hiddenCount === 0) {
     const empty = document.createElement('div');
     empty.className = 'dxped-empty';
     empty.textContent = 'No DXpeditions match the selected time filter';
@@ -126,6 +148,17 @@ export function renderDxpeditions() {
       header.appendChild(badge);
     }
 
+    // Hide button
+    const hideBtn = document.createElement('button');
+    hideBtn.className = 'dxped-hide-btn';
+    hideBtn.title = 'Hide this DXpedition';
+    hideBtn.textContent = '\u00D7'; // × character
+    hideBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      hideDxpedition(dx.callsign);
+    });
+    header.appendChild(hideBtn);
+
     card.appendChild(header);
 
     const detail = document.createElement('div');
@@ -139,7 +172,22 @@ export function renderDxpeditions() {
     list.appendChild(card);
   }
 
-  // Map markers show same filtered set
+  // Show "N hidden" link to restore if any are hidden
+  if (hiddenCount > 0) {
+    const unhideRow = document.createElement('div');
+    unhideRow.className = 'dxped-unhide-row';
+    const btn = document.createElement('button');
+    btn.className = 'dxped-unhide-btn';
+    btn.textContent = `Show ${hiddenCount} hidden`;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      unhideAllDxpeditions();
+    });
+    unhideRow.appendChild(btn);
+    list.appendChild(unhideRow);
+  }
+
+  // Map markers show same filtered set (excluding hidden)
   updateDxpeditionMarkers(filtered);
 }
 

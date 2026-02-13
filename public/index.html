@@ -729,6 +729,7 @@
         <label><input type="checkbox" id="mapOvMaidenhead" /> Grid Squares (Maidenhead)</label>
         <label><input type="checkbox" id="mapOvTimezone" /> Timezone Lines</label>
         <label><input type="checkbox" id="mapOvMufImage" /> MUF Map (prop.kc2g.com)</label>
+        <label><input type="checkbox" id="mapOvDrap" /> D-RAP Absorption (NOAA SWPC)</label>
         <label><input type="checkbox" id="mapOvBandPaths" /> DX Paths (band-colored)</label>
         <label><input type="checkbox" id="mapOvDxpedMarkers" /> DXpedition Markers</label>
       </div>
@@ -817,6 +818,23 @@
           <button type="submit" id="feedbackSubmit">Send Feedback</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Big Clock overlay -->
+  <div class="big-clock-overlay hidden" id="bigClockOverlay">
+    <div class="big-clock-inner">
+      <div class="big-clock-section">
+        <div class="big-clock-label">Local</div>
+        <div class="big-clock-time" id="bigClockLocal"></div>
+        <div class="big-clock-date" id="bigClockDate"></div>
+      </div>
+      <div class="big-clock-section">
+        <div class="big-clock-label">UTC</div>
+        <div class="big-clock-time" id="bigClockUtc"></div>
+        <div class="big-clock-date" id="bigClockUtcDate"></div>
+      </div>
+      <div class="big-clock-hint">Click anywhere to close</div>
     </div>
   </div>
 

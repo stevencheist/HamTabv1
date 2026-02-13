@@ -1045,6 +1045,12 @@ app.get('/api/iss/position', async (req, res) => {
     // Orbit path (100 points over ~1 orbit)
     const orbitPath = computeIssOrbitPath(satrec);
 
+    // TLE epoch — satellite.js stores epochyr (2-digit year) and epochdays (fractional day of year)
+    const epochYear = satrec.epochyr < 57 ? 2000 + satrec.epochyr : 1900 + satrec.epochyr;
+    const epochDate = new Date(Date.UTC(epochYear, 0, 1));
+    epochDate.setUTCDate(epochDate.getUTCDate() + Math.floor(satrec.epochdays) - 1);
+    const tleEpoch = Math.floor(epochDate.getTime() / 1000); // Unix timestamp (seconds)
+
     const result = {
       satId: 25544,
       name: 'ISS (ZARYA)',
@@ -1055,6 +1061,7 @@ app.get('/api/iss/position', async (req, res) => {
       elevation: parseFloat(elevation.toFixed(1)),
       velocity: parseFloat(velocity.toFixed(2)),
       timestamp: Math.floor(now.getTime() / 1000),
+      tleEpoch,
       orbitPath,
     };
 
@@ -2213,6 +2220,23 @@ app.get('/api/propagation/image', async (req, res) => {
   } catch (err) {
     console.error('Error fetching propagation image:', err.message);
     res.status(502).json({ error: 'Failed to fetch propagation image' });
+  }
+});
+
+// D-RAP (D Region Absorption Prediction) image overlay — NOAA SWPC
+// Shows HF radio absorption caused by solar X-ray and proton events
+app.get('/api/drap/image', async (req, res) => {
+  try {
+    const url = 'https://services.swpc.noaa.gov/images/animations/d-rap/global/d-rap/latest.png';
+    const response = await secureFetch(url, { timeout: 15000 });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    res.set('Content-Type', 'image/png');
+    res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
+    const buffer = Buffer.from(await response.arrayBuffer());
+    res.send(buffer);
+  } catch (err) {
+    console.error('Error fetching D-RAP image:', err.message);
+    res.status(502).json({ error: 'Failed to fetch D-RAP image' });
   }
 });
 

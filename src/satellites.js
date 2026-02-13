@@ -228,7 +228,11 @@ export function updateSatelliteMarkers() {
     // Marker — ISS gets special styling
     const isISS = satId === '25544' || satId === 25544;
     if (state.satellites.markers[satId]) {
-      state.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
+      // Skip update if position delta is tiny (< 0.01° ≈ 1.1 km) — reduces DOM thrash
+      const prev = state.satellites.markers[satId].getLatLng();
+      if (Math.abs(prev.lat - pos.lat) > 0.01 || Math.abs(prev.lng - pos.lon) > 0.01) {
+        state.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
+      }
     } else {
       let iconClass;
       if (isISS) {
@@ -262,10 +266,13 @@ export function updateSatelliteMarkers() {
       }
     }
 
-    // Footprint circle
+    // Footprint circle — skip if position unchanged (same delta threshold as marker)
     if (state.satellites.circles[satId]) {
-      state.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
-      state.satellites.circles[satId].setRadius(radiusMeters);
+      const prevC = state.satellites.circles[satId].getLatLng();
+      if (Math.abs(prevC.lat - pos.lat) > 0.01 || Math.abs(prevC.lng - pos.lon) > 0.01) {
+        state.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
+        state.satellites.circles[satId].setRadius(radiusMeters);
+      }
     } else {
       const color = satId === '25544' ? '#00bcd4' : '#4caf50'; // ISS gets cyan, others green
       state.satellites.circles[satId] = L.circle([pos.lat, pos.lon], {

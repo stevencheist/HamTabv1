@@ -69,6 +69,7 @@
         // Preferences
         slimHeader: localStorage.getItem("hamtab_slim_header") === "true",
         grayscale: localStorage.getItem("hamtab_grayscale") === "true",
+        disableWxBackgrounds: localStorage.getItem("hamtab_disable_wx_bg") === "true",
         use24h: localStorage.getItem("hamtab_time24") !== "false",
         privilegeFilterEnabled: localStorage.getItem("hamtab_privilege_filter") === "true",
         licenseClass: localStorage.getItem("hamtab_license_class") || "",
@@ -6891,7 +6892,7 @@ ${beacon.location}`);
       else cls = "wx-cloudy";
     } else if (/sunny|clear/.test(fc)) cls = isDaytime2 ? "wx-clear-day" : "wx-clear-night";
     if (cls) {
-      headerClock.classList.add(cls);
+      if (!state_default.disableWxBackgrounds) headerClock.classList.add(cls);
       if (wxIcon) wxIcon.textContent = wxIcons[cls] || "";
     }
   }
@@ -8737,9 +8738,11 @@ ${beacon.location}`);
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     const cfgGrayscale = $("cfgGrayscale");
     if (cfgGrayscale) cfgGrayscale.checked = state_default.grayscale;
+    const cfgDisableWxBg = $("cfgDisableWxBg");
+    if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.44.2";
-    $("aboutVersion").textContent = "0.44.2";
+    $("splashVersion").textContent = "0.44.3";
+    $("aboutVersion").textContent = "0.44.3";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -9061,6 +9064,20 @@ ${beacon.location}`);
         state_default.grayscale = cfgGrayscaleCb.checked;
         localStorage.setItem("hamtab_grayscale", String(state_default.grayscale));
         document.body.classList.toggle("grayscale", state_default.grayscale);
+      });
+    }
+    const cfgDisableWxBgCb = $("cfgDisableWxBg");
+    if (cfgDisableWxBgCb) {
+      cfgDisableWxBgCb.addEventListener("change", () => {
+        state_default.disableWxBackgrounds = cfgDisableWxBgCb.checked;
+        localStorage.setItem("hamtab_disable_wx_bg", String(state_default.disableWxBackgrounds));
+        const hcl = document.getElementById("headerClockLocal");
+        if (hcl) {
+          const wxClasses = ["wx-clear-day", "wx-clear-night", "wx-partly-cloudy-day", "wx-partly-cloudy-night", "wx-cloudy", "wx-rain", "wx-thunderstorm", "wx-snow", "wx-fog"];
+          if (state_default.disableWxBackgrounds) {
+            wxClasses.forEach((c) => hcl.classList.remove(c));
+          }
+        }
       });
     }
     const bandColorResetBtn = document.getElementById("bandColorResetBtn");

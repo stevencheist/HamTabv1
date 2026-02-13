@@ -1,5 +1,5 @@
 import { aColor, kColor, solarWindColor, bzColor, auroraColor, geomagColor } from './solar.js';
-import { lunarDecColor, lunarPlColor } from './lunar.js';
+import { lunarDecColor, lunarPlColor, lunarElColor } from './lunar.js';
 
 export const WIDGET_DEFS = [
   { id: 'widget-filters',     name: 'Filters' },
@@ -226,6 +226,10 @@ export const SOLAR_FIELD_DEFS = [
 export const LUNAR_FIELD_DEFS = [
   { key: 'phase',          label: 'Moon Phase',      unit: '',      colorFn: null,          defaultVisible: true  },
   { key: 'illumination',   label: 'Illumination',    unit: '%',     colorFn: null,          defaultVisible: true  },
+  { key: 'elevation',      label: 'Elevation',       unit: '\u00B0',colorFn: lunarElColor,  defaultVisible: true  },
+  { key: 'azimuth',        label: 'Azimuth',         unit: '\u00B0',colorFn: null,          defaultVisible: true  },
+  { key: 'moonrise',       label: 'Moonrise',        unit: '',      colorFn: null,          defaultVisible: true,  format: 'time' },
+  { key: 'moonset',        label: 'Moonset',         unit: '',      colorFn: null,          defaultVisible: true,  format: 'time' },
   { key: 'declination',    label: 'Declination',     unit: '\u00B0',colorFn: lunarDecColor, defaultVisible: true  },
   { key: 'distance',       label: 'Distance',        unit: ' km',   colorFn: null,          defaultVisible: true  },
   { key: 'pathLoss',       label: 'Path Loss',       unit: ' dB',   colorFn: lunarPlColor,  defaultVisible: true  },
@@ -348,12 +352,15 @@ export const WIDGET_HELP = {
     description: 'Moon tracking data for Earth-Moon-Earth (EME or "moonbounce") communication. EME is an advanced technique where operators bounce radio signals off the moon to make contacts over very long distances.',
     sections: [
       { heading: 'Moon Phase & Position', content: 'Shows the current moon phase, illumination, and sky position. The moon needs to be above the horizon at both your location and the other station\'s location for EME to work.' },
+      { heading: 'Azimuth & Elevation', content: 'Shows where the moon is in your sky right now. Elevation is the angle above your horizon — green (20°+) is ideal for EME, yellow (0-20°) is marginal, dim means below the horizon. Azimuth is the compass bearing (0° = North, 90° = East, etc.).' },
+      { heading: 'Moonrise & Moonset', content: 'Shows the next moonrise and moonset times for your location. These help you plan EME operating windows. Requires your location to be set in Configuration.' },
       { heading: 'EME Path Loss', content: 'Shows how much signal is lost on the round trip to the moon and back, calculated at 144 MHz (2m band). Lower path loss means better EME conditions. Loss varies with moon distance — closer moon (perigee) means less loss.' },
       { heading: 'Declination', content: 'The moon\'s angle relative to the equator. Higher declination generally means longer EME windows (more time with the moon above the horizon).' },
       { heading: 'Customize Fields', content: 'Click the gear icon to show additional data like elongation, ecliptic coordinates, and right ascension for advanced planning.' },
     ],
     links: [
       { label: 'ARRL EME Guide', url: 'https://www.arrl.org/eme' },
+      { label: 'NASA Moon Visualization', url: 'https://svs.gsfc.nasa.gov/5187' },
     ],
   },
   'widget-satellites': {
@@ -363,7 +370,7 @@ export const WIDGET_HELP = {
       { heading: 'ISS Tracking', content: 'The ISS (International Space Station) is tracked automatically — no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard.' },
       { heading: 'Adding More Satellites', content: 'To track additional satellites like AO-91, SO-50, and others, you\'ll need a free API key from N2YO.com — enter it in Config. Click the gear icon to search for and add satellites.' },
       { heading: 'Live Position', content: 'See where each satellite is right now on the map, along with its altitude, speed, and whether it\'s above your horizon (visible to you).' },
-      { heading: 'TLE Age', content: 'Each satellite row shows the age of its TLE (orbital element) data in days. Green (0-3d) = fresh, yellow (4-7d) = aging, red (8d+) = stale. Stale TLEs reduce position accuracy. The ISS TLE is refreshed from CelesTrak every 6 hours.' },
+      { heading: 'TLE Age', content: 'Each satellite row shows the age of its TLE (orbital element) data in days. Color thresholds are based on the configurable "Max TLE Age" setting (default: 7 days) — green = fresh, yellow = aging, red + \u26A0 = exceeds max age. Stale TLEs reduce position accuracy. The ISS TLE is refreshed from CelesTrak every 6 hours. Set the max age in the satellite config (gear icon).' },
       { heading: 'Pass Predictions', content: 'Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work.' },
     ],
     links: [

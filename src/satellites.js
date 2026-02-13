@@ -301,12 +301,15 @@ function buildSatellitePopup(satId, pos, satInfo) {
   html += `<div class="${rowClass}">Az: ${pos.azimuth.toFixed(1)}&deg; &bull; El: ${pos.elevation.toFixed(1)}&deg;</div>`;
   html += `<div class="${rowClass}" style="color:${statusColor}">${statusText}</div>`;
 
-  // TLE epoch age
+  // TLE epoch age — color uses configurable maxTleAge threshold
   if (pos.tleEpoch) {
     const ageDays = Math.floor((Date.now() / 1000 - pos.tleEpoch) / 86400);
-    const ageColor = ageDays <= 3 ? 'var(--green)' : ageDays <= 7 ? 'var(--yellow)' : 'var(--red)';
+    const maxAge = state.maxTleAge || 7;
+    const ageColor = ageDays <= Math.floor(maxAge * 0.4) ? 'var(--green)'
+      : ageDays <= maxAge ? 'var(--yellow)' : 'var(--red)';
     const epochDate = new Date(pos.tleEpoch * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    html += `<div class="${rowClass}">TLE: <span style="color:${ageColor}">${ageDays}d old</span> (${epochDate})</div>`;
+    const warn = ageDays > maxAge ? ' \u26A0' : '';
+    html += `<div class="${rowClass}">TLE: <span style="color:${ageColor}">${ageDays}d old${warn}</span> (${epochDate})</div>`;
   }
 
   // Radio frequencies if known
@@ -413,12 +416,15 @@ export function renderSatelliteWidget() {
       }
     }
 
-    // TLE age badge — days since TLE epoch
+    // TLE age badge — days since TLE epoch, color uses configurable threshold
     let tleAgeHtml = '';
     if (pos.tleEpoch) {
       const ageDays = Math.floor((Date.now() / 1000 - pos.tleEpoch) / 86400);
-      const cls = ageDays <= 3 ? 'tle-fresh' : ageDays <= 7 ? 'tle-aging' : 'tle-stale';
-      tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d">${ageDays}d</span>`;
+      const maxAge = state.maxTleAge || 7;
+      const cls = ageDays <= Math.floor(maxAge * 0.4) ? 'tle-fresh'
+        : ageDays <= maxAge ? 'tle-aging' : 'tle-stale';
+      const warn = ageDays > maxAge ? ' \u26A0' : ''; // ⚠ warning when exceeded
+      tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d (max: ${maxAge}d)">${ageDays}d${warn}</span>`;
     }
 
     const rowClass = `sat-row${isSelected ? ' selected' : ''}${isAbove ? '' : ' below-horizon'}`;
@@ -537,6 +543,12 @@ function showSatelliteConfig() {
     apiKeyInput.value = state.n2yoApiKey;
   }
 
+  // Populate max TLE age
+  const tleAgeInput = $('satMaxTleAge');
+  if (tleAgeInput) {
+    tleAgeInput.value = state.maxTleAge;
+  }
+
   // Fetch satellite list if we have a key
   if (state.n2yoApiKey && state.satellites.available.length === 0) {
     fetchSatelliteList();
@@ -563,6 +575,16 @@ function dismissSatelliteConfig() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ N2YO_API_KEY: state.n2yoApiKey }),
       }).catch(() => {});
+    }
+  }
+
+  // Save max TLE age
+  const tleAgeInput = $('satMaxTleAge');
+  if (tleAgeInput) {
+    const age = parseInt(tleAgeInput.value, 10);
+    if (!isNaN(age) && age >= 1 && age <= 30) {
+      state.maxTleAge = age;
+      localStorage.setItem('hamtab_max_tle_age', String(age));
     }
   }
 

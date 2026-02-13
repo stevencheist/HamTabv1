@@ -122,6 +122,7 @@ const state = {
     selectedSatId: null, // currently selected satellite for pass display
   },
   n2yoApiKey: localStorage.getItem('hamtab_n2yo_apikey') || '',
+  maxTleAge: parseInt(localStorage.getItem('hamtab_max_tle_age'), 10) || 7, // days — warn when TLE exceeds this
 
   // Geodesic
   geodesicLine: null, // L.polyline for short path great circle from QTH to selected spot

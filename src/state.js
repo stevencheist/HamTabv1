@@ -20,7 +20,16 @@ const state = {
   filterPresets: { pota: {}, sota: {}, dxc: {} },
 
   // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
-  watchLists: JSON.parse(localStorage.getItem('hamtab_watchlists') || '{"pota":[],"sota":[],"dxc":[],"wwff":[],"psk":[]}'),
+  watchLists: (() => {
+    const def = { pota: [], sota: [], dxc: [], wwff: [], psk: [] };
+    try {
+      const s = JSON.parse(localStorage.getItem('hamtab_watchlists'));
+      if (s && typeof s === 'object' && !Array.isArray(s)) {
+        for (const k of Object.keys(def)) { if (Array.isArray(s[k])) def[k] = s[k]; }
+      }
+    } catch (e) {}
+    return def;
+  })(),
   watchRedSpotIds: new Set(), // spot IDs matching "red" rules — rebuilt each filter pass
 
   // Auto-refresh — defaults to on, persisted in localStorage
@@ -51,7 +60,13 @@ const state = {
   dxpedTimeFilter: localStorage.getItem('hamtab_dxped_time_filter') || 'all',
 
   // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
-  hiddenDxpeditions: new Set(JSON.parse(localStorage.getItem('hamtab_dxped_hidden') || '[]')),
+  hiddenDxpeditions: (() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('hamtab_dxped_hidden'));
+      if (Array.isArray(s)) return new Set(s.filter(v => typeof v === 'string'));
+    } catch (e) {}
+    return new Set();
+  })(),
 
   // Source
   currentSource: localStorage.getItem('hamtab_spot_source') || 'pota',
@@ -207,10 +222,15 @@ if (state.propMetric === 'mof_sp' || state.propMetric === 'lof_sp') {
   localStorage.setItem('hamtab_prop_metric', state.propMetric);
 }
 
-// Load saved map overlays
+// Load saved map overlays (filter prototype pollution keys)
 try {
   const saved = JSON.parse(localStorage.getItem('hamtab_map_overlays'));
-  if (saved) Object.assign(state.mapOverlays, saved);
+  if (saved && typeof saved === 'object') {
+    for (const key of Object.keys(saved)) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') continue;
+      if (key in state.mapOverlays) state.mapOverlays[key] = !!saved[key];
+    }
+  }
 } catch (e) {}
 
 // Load saved manual location
@@ -253,11 +273,14 @@ try {
   state.satellites.tracked = [25544];
 }
 
-// Load saved filter presets
+// Load saved filter presets (validate shape — only known source keys)
 try {
   const savedPresets = JSON.parse(localStorage.getItem('hamtab_filter_presets'));
-  if (savedPresets) {
-    state.filterPresets = { pota: {}, sota: {}, dxc: {}, wwff: {}, ...savedPresets };
+  if (savedPresets && typeof savedPresets === 'object' && !Array.isArray(savedPresets)) {
+    const validSources = ['pota', 'sota', 'dxc', 'wwff', 'psk'];
+    for (const k of validSources) {
+      if (savedPresets[k] && typeof savedPresets[k] === 'object') state.filterPresets[k] = savedPresets[k];
+    }
   }
 } catch (e) {}
 

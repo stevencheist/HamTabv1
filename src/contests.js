@@ -29,6 +29,24 @@ export async function fetchContests() {
   }
 }
 
+// Format contest date range: "Sat Feb 8, 00:00z – Sun Feb 9, 23:59z"
+const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const SHORT_DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function fmtContestRange(startISO, endISO) {
+  const s = new Date(startISO);
+  const e = new Date(endISO);
+  if (isNaN(s) || isNaN(e)) return '';
+  const fmt = (d) => {
+    const day = SHORT_DAYS[d.getUTCDay()];
+    const mon = SHORT_MONTHS[d.getUTCMonth()];
+    const date = d.getUTCDate();
+    const hh = String(d.getUTCHours()).padStart(2, '0');
+    const mm = String(d.getUTCMinutes()).padStart(2, '0');
+    return `${day} ${mon} ${date}, ${hh}:${mm}z`;
+  };
+  return `${fmt(s)} \u2013 ${fmt(e)}`;
+}
+
 export function renderContests() {
   const list = $('contestList');
   const countEl = $('contestCount');
@@ -107,9 +125,14 @@ export function renderContests() {
 
     card.appendChild(header);
 
+    // Formatted date line — show start/end in compact readable format
     const detail = document.createElement('div');
     detail.className = 'contest-detail';
-    detail.textContent = c.dateStr || '';
+    if (c.startDate && c.endDate) {
+      detail.textContent = fmtContestRange(c.startDate, c.endDate);
+    } else {
+      detail.textContent = c.dateStr || '';
+    }
     card.appendChild(detail);
 
     list.appendChild(card);

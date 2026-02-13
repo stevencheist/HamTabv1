@@ -47,7 +47,19 @@
         // Filter presets per source
         filterPresets: { pota: {}, sota: {}, dxc: {} },
         // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
-        watchLists: JSON.parse(localStorage.getItem("hamtab_watchlists") || '{"pota":[],"sota":[],"dxc":[],"wwff":[],"psk":[]}'),
+        watchLists: (() => {
+          const def = { pota: [], sota: [], dxc: [], wwff: [], psk: [] };
+          try {
+            const s = JSON.parse(localStorage.getItem("hamtab_watchlists"));
+            if (s && typeof s === "object" && !Array.isArray(s)) {
+              for (const k of Object.keys(def)) {
+                if (Array.isArray(s[k])) def[k] = s[k];
+              }
+            }
+          } catch (e) {
+          }
+          return def;
+        })(),
         watchRedSpotIds: /* @__PURE__ */ new Set(),
         // spot IDs matching "red" rules — rebuilt each filter pass
         // Auto-refresh — defaults to on, persisted in localStorage
@@ -73,7 +85,14 @@
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
         // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
-        hiddenDxpeditions: new Set(JSON.parse(localStorage.getItem("hamtab_dxped_hidden") || "[]")),
+        hiddenDxpeditions: (() => {
+          try {
+            const s = JSON.parse(localStorage.getItem("hamtab_dxped_hidden"));
+            if (Array.isArray(s)) return new Set(s.filter((v) => typeof v === "string"));
+          } catch (e) {
+          }
+          return /* @__PURE__ */ new Set();
+        })(),
         // Source
         currentSource: localStorage.getItem("hamtab_spot_source") || "pota",
         sourceData: { pota: [], sota: [], dxc: [], wwff: [] },
@@ -253,7 +272,12 @@
       }
       try {
         const saved = JSON.parse(localStorage.getItem("hamtab_map_overlays"));
-        if (saved) Object.assign(state.mapOverlays, saved);
+        if (saved && typeof saved === "object") {
+          for (const key of Object.keys(saved)) {
+            if (key === "__proto__" || key === "constructor" || key === "prototype") continue;
+            if (key in state.mapOverlays) state.mapOverlays[key] = !!saved[key];
+          }
+        }
       } catch (e) {
       }
       savedLat = localStorage.getItem("hamtab_lat");
@@ -292,8 +316,11 @@
       }
       try {
         const savedPresets = JSON.parse(localStorage.getItem("hamtab_filter_presets"));
-        if (savedPresets) {
-          state.filterPresets = { pota: {}, sota: {}, dxc: {}, wwff: {}, ...savedPresets };
+        if (savedPresets && typeof savedPresets === "object" && !Array.isArray(savedPresets)) {
+          const validSources = ["pota", "sota", "dxc", "wwff", "psk"];
+          for (const k of validSources) {
+            if (savedPresets[k] && typeof savedPresets[k] === "object") state.filterPresets[k] = savedPresets[k];
+          }
         }
       } catch (e) {
       }
@@ -8511,8 +8538,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.40.0";
-    $("aboutVersion").textContent = "0.40.0";
+    $("splashVersion").textContent = "0.40.1";
+    $("aboutVersion").textContent = "0.40.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

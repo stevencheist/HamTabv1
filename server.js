@@ -82,7 +82,7 @@ const feedbackLimiter = rateLimit({
   message: { error: 'Too many feedback submissions. Please try again tomorrow.' },
 });
 
-app.use(express.json());
+app.use(express.json({ limit: '100kb' }));
 
 // --- Cache-Control headers ---
 // Browser + CDN cache hints for globally-shared API data.
@@ -771,8 +771,39 @@ app.get('/api/satellites/list', async (req, res) => {
   }
 });
 
-// Proxy ISS position API
-app.get('/api/iss', async (req, res) => {
+// Fetch positions for multiple satellites (batched)
+app.get('/api/satellites/positions', async (req, res) => {
+  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'No N2YO API key configured' });
+  }
+
+  const { ids, lat, lon, seconds } = req.query;
+  if (!ids) {
+    return res.status(400).json({ error: 'Provide satellite IDs' });
+  }
+
+  const obsLat = parseFloat(lat) || 0;
+  const obsLon = parseFloat(lon) || 0;
+  if (obsLat < -90 || obsLat > 90 || obsLon < -180 || obsLon > 180) {
+    return res.status(400).json({ error: 'lat must be -90..90, lon must be -180..180' });
+  }
+  const secs = parseInt(seconds, 10) || 1;
+  const satIds = ids.split(',').map(id => id.trim()).filter(Boolean).slice(0, 10); // max 10 satellites
+
+  if (satIds.length === 0) {
+    return res.status(400).json({ error: 'Provide at least one satellite ID' });
+  }
+  if (!satIds.every(id => /^\d+$/.test(id))) {
+    return res.status(400).json({ error: 'Satellite IDs must be numeric' });
+  }
+
+  // Cache key based on IDs
+  const cacheKey = satIds.sort().join(',');
+  if (satPosCache.key === cacheKey && satPosCache.data && Date.now() < satPosCache.expires) {
+    return res.json(satPosCache.data);
+  }
+
   try {
     const data = await fetchJSON('https://api.wheretheiss.at/v1/satellites/25544');
     res.json(data);
@@ -806,6 +837,102 @@ app.get('/api/iss/orbit', async (req, res) => {
   } catch (err) {
     console.error('Error fetching ISS orbit:', err.message);
     res.status(502).json({ error: 'Failed to fetch ISS orbit' });
+  }
+});
+
+// Fetch pass predictions for a single satellite
+app.get('/api/satellites/passes', async (req, res) => {
+  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'No N2YO API key configured' });
+  }
+
+  const { id, lat, lon, days, minEl } = req.query;
+  if (!id || !/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Provide a valid numeric satellite ID' });
+  }
+
+  const obsLat = parseFloat(lat);
+  const obsLon = parseFloat(lon);
+  if (isNaN(obsLat) || isNaN(obsLon) || obsLat < -90 || obsLat > 90 || obsLon < -180 || obsLon > 180) {
+    return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+  }
+
+  const numDays = Math.min(parseInt(days, 10) || 2, 10); // max 10 days
+  const minElevation = Math.min(parseInt(minEl, 10) || 10, 90);
+
+  // Check cache
+  const cacheKey = `${id}:${obsLat.toFixed(2)}:${obsLon.toFixed(2)}`;
+  const cached = satPassCache[cacheKey];
+  if (cached && Date.now() < cached.expires) {
+    return res.json(cached.data);
+  }
+
+  try {
+    const url = `https://api.n2yo.com/rest/v1/satellite/radiopasses/${encodeURIComponent(id)}/${obsLat}/${obsLon}/0/${numDays}/${minElevation}/&apiKey=${apiKey}`;
+    const data = await fetchJSON(url);
+
+    const passes = (data.passes || []).map(p => ({
+      startUTC: p.startUTC,
+      startAz: p.startAz,
+      startAzCompass: p.startAzCompass,
+      maxUTC: p.maxUTC,
+      maxAz: p.maxAz,
+      maxAzCompass: p.maxAzCompass,
+      maxEl: p.maxEl,
+      endUTC: p.endUTC,
+      endAz: p.endAz,
+      endAzCompass: p.endAzCompass,
+    }));
+
+    const result = {
+      satId: data.info?.satid,
+      name: data.info?.satname,
+      passesCount: data.info?.passescount || passes.length,
+      passes,
+    };
+
+    satPassCache[cacheKey] = { data: result, expires: Date.now() + SAT_PASS_TTL };
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching satellite passes:', err.message);
+    res.status(502).json({ error: 'Failed to fetch satellite passes' });
+  }
+});
+
+// Fetch TLE data for a satellite (used for Doppler calculations)
+app.get('/api/satellites/tle', async (req, res) => {
+  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'No N2YO API key configured' });
+  }
+
+  const { id } = req.query;
+  if (!id || !/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Provide a valid numeric satellite ID' });
+  }
+
+  // Check cache
+  const cached = satTleCache[id];
+  if (cached && Date.now() < cached.expires) {
+    return res.json(cached.data);
+  }
+
+  try {
+    const url = `https://api.n2yo.com/rest/v1/satellite/tle/${encodeURIComponent(id)}/&apiKey=${apiKey}`;
+    const data = await fetchJSON(url);
+
+    const result = {
+      satId: data.info?.satid,
+      name: data.info?.satname,
+      tle: data.tle,
+    };
+
+    satTleCache[id] = { data: result, expires: Date.now() + SAT_TLE_TTL };
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching satellite TLE:', err.message);
+    res.status(502).json({ error: 'Failed to fetch satellite TLE' });
   }
 });
 
@@ -870,6 +997,9 @@ function computeIssOrbitPath(satrec) {
 app.get('/api/iss/position', async (req, res) => {
   const obsLat = parseFloat(req.query.lat) || 0;
   const obsLon = parseFloat(req.query.lon) || 0;
+  if (obsLat < -90 || obsLat > 90 || obsLon < -180 || obsLon > 180) {
+    return res.status(400).json({ error: 'lat must be -90..90, lon must be -180..180' });
+  }
   const obsKey = `${obsLat.toFixed(2)}:${obsLon.toFixed(2)}`;
 
   // Return cached data if fresh and same observer
@@ -1008,8 +1138,8 @@ app.get('/api/weather/conditions', async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
-    if (isNaN(lat) || isNaN(lon)) {
-      return res.status(400).json({ error: 'Provide lat and lon' });
+    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
     }
     const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
     let grid = nwsGridCache[key];
@@ -1047,8 +1177,8 @@ app.get('/api/weather/alerts', async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
-    if (isNaN(lat) || isNaN(lon)) {
-      return res.status(400).json({ error: 'Provide lat and lon' });
+    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
     }
     const raw = await nwsFetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`);
     const data = JSON.parse(raw);
@@ -1152,7 +1282,11 @@ async function nwsFetch(url, retries = 2) {
 // Proxy callook.info license lookup
 app.get('/api/callsign/:call', async (req, res) => {
   try {
-    const call = encodeURIComponent(req.params.call.toUpperCase());
+    const rawCall = req.params.call;
+    if (!/^[A-Z0-9]{1,10}$/i.test(rawCall)) {
+      return res.status(400).json({ error: 'Invalid callsign format' });
+    }
+    const call = encodeURIComponent(rawCall.toUpperCase());
     const data = await fetchJSON(`https://callook.info/${call}/json`);
     const addr = data.address || {};
     const loc = data.location || {};

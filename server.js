@@ -798,8 +798,8 @@ app.get('/api/satellites/positions', async (req, res) => {
     return res.status(400).json({ error: 'Satellite IDs must be numeric' });
   }
 
-  // Cache key based on IDs
-  const cacheKey = satIds.sort().join(',');
+  // Cache key includes IDs + rounded observer coords (~1.1 km granularity)
+  const cacheKey = `${satIds.sort().join(',')}:${obsLat.toFixed(2)}:${obsLon.toFixed(2)}`;
   if (satPosCache.key === cacheKey && satPosCache.data && Date.now() < satPosCache.expires) {
     return res.json(satPosCache.data);
   }

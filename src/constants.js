@@ -18,6 +18,7 @@ export const WIDGET_DEFS = [
   { id: 'widget-dxpeditions',  name: 'DXpeditions' },
   { id: 'widget-beacons',      name: 'NCDXF Beacons' },
   { id: 'widget-dedx',         name: 'DE/DX Info' },
+  { id: 'widget-stopwatch',    name: 'Stopwatch / Timer' },
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)
@@ -479,12 +480,21 @@ export const WIDGET_HELP = {
   },
   'widget-dedx': {
     title: 'DE/DX Info',
-    description: 'A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock layout, this widget gives you the key information you need at a glance when making contacts.',
+    description: 'A side-by-side display of your station (DE) and the currently selected distant station (DX) with live clocks. Inspired by the classic HamClock dual-pane layout, this widget shows large local time displays at each location plus key contact information at a glance.',
     sections: [
-      { heading: 'DE (Your Station)', content: 'The left panel shows your callsign, Maidenhead grid square, latitude/longitude, and today\'s sunrise and sunset times at your location (in UTC). This requires your callsign and location to be set in Config.' },
-      { heading: 'DX (Selected Station)', content: 'The right panel shows details for whichever station you\'ve clicked in the On the Air table or on the map. It displays their callsign, frequency, mode, grid square, bearing (compass direction to point your antenna), distance, and sunrise/sunset times at their location.' },
-      { heading: 'Why Sunrise/Sunset?', content: 'HF radio propagation changes dramatically at sunrise and sunset. The "gray line" (the band of twilight circling the Earth) often produces enhanced propagation. Knowing sunrise/sunset at both ends of a path helps you predict when a band will open or close between your station and the DX.' },
+      { heading: 'DE (Your Station)', content: 'The left panel shows a large live clock for your local time, plus your callsign, grid square, and sunrise/sunset countdowns. Requires your callsign and location to be set in Config.' },
+      { heading: 'DX (Selected Station)', content: 'The right panel shows the approximate local time at the selected DX station\'s location (calculated from longitude), plus their callsign, frequency, mode, grid square, bearing, distance, and sunrise/sunset. When no spot is selected, the DX side shows UTC.' },
+      { heading: 'Why Two Clocks?', content: 'Knowing the local time at both ends of a path is essential for scheduling contacts and understanding propagation. A station in Japan is unlikely to be on the air at 3 AM their local time, and gray line propagation depends on sunrise/sunset at both locations.' },
       { heading: 'Bearing & Distance', content: 'The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact.' },
+    ],
+  },
+  'widget-stopwatch': {
+    title: 'Stopwatch / Timer',
+    description: 'A dual-mode timer for contest operations and general use. Switch between Stopwatch (count up with laps) and Countdown (preset timers including the 10-minute FCC station ID reminder).',
+    sections: [
+      { heading: 'Stopwatch Mode', content: 'Click Start to begin counting up. Use Lap to mark split times during a contest (e.g., tracking contacts per minute). Stop pauses the timer; Reset clears everything.' },
+      { heading: 'Countdown Mode', content: 'Click the Countdown tab and select a preset duration. The 10m ID button is a quick shortcut for the FCC 10-minute station identification requirement. The display flashes when the countdown reaches zero.' },
+      { heading: 'Station ID Timer', content: 'FCC Part 97.119 requires US hams to identify every 10 minutes during a contact and at the end. Use the 10m ID preset as a reminder — when it flashes, give your callsign!' },
     ],
   },
   'widget-live-spots': {
@@ -651,6 +661,7 @@ export const REFLOW_WIDGET_ORDER = [
   'widget-dxpeditions',
   'widget-beacons',
   'widget-dedx',
+  'widget-stopwatch',
 ];
 
 export function getLayoutMode() {

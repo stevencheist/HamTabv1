@@ -1,0 +1,70 @@
+name: Bug Report
+description: Report something that isn't working correctly
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this! Please fill out the details below so we can reproduce and fix the issue.
+
+  - type: input
+    id: version
+    attributes:
+      label: HamTab Version
+      description: "Shown in the bottom-left corner of the app (e.g. v0.44.2)"
+      placeholder: "v0.44.2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: deployment
+    attributes:
+      label: Deployment Mode
+      options:
+        - Hosted (hamtab.net)
+        - Self-hosted (lanmode)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly. What did you expect to happen vs. what actually happened?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: List the steps to reproduce the issue
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. See error
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser & OS
+      description: "e.g. Chrome 120 on Windows 11, Safari 17 on macOS"
+      placeholder: "Chrome 120 on Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, paste screenshots to help explain the problem.
+
+  - type: textarea
+    id: console
+    attributes:
+      label: Console Errors
+      description: Open browser DevTools (F12) > Console tab. Paste any red error messages here.
+      render: shell

@@ -1909,7 +1909,7 @@ header {
   box-shadow: 0 0 15px rgba(156, 163, 175, 0.3);
 }
 
-/* Weather text colors for contrast */
+/* Weather text colors for contrast — stronger shadows for low-contrast displays */
 #headerClockLocal.wx-clear-day .header-clock-time,
 #headerClockLocal.wx-partly-cloudy-day .header-clock-time,
 #headerClockLocal.wx-rain .header-clock-time,
@@ -1917,38 +1917,42 @@ header {
 #headerClockLocal.wx-clear-night .header-clock-time,
 #headerClockLocal.wx-partly-cloudy-night .header-clock-time {
   color: #fff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 #headerClockLocal.wx-cloudy .header-clock-time {
   color: #1f2937;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5), 0 0 4px rgba(255, 255, 255, 0.3);
 }
 
 #headerClockLocal.wx-snow .header-clock-time,
 #headerClockLocal.wx-fog .header-clock-time {
   color: #1f2937;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6), 0 0 4px rgba(255, 255, 255, 0.3);
 }
 
 #headerClockLocal[class*="wx-"] .header-clock-label {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 #headerClockLocal.wx-cloudy .header-clock-label,
 #headerClockLocal.wx-snow .header-clock-label,
 #headerClockLocal.wx-fog .header-clock-label {
-  color: rgba(31, 41, 55, 0.8);
+  color: rgba(31, 41, 55, 0.9);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
 }
 
 #headerClockLocal[class*="wx-"] .header-clock-weather {
-  color: rgba(255, 255, 255, 0.9);
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 6px rgba(0, 0, 0, 0.4);
 }
 
 #headerClockLocal.wx-cloudy .header-clock-weather,
 #headerClockLocal.wx-snow .header-clock-weather,
 #headerClockLocal.wx-fog .header-clock-weather {
-  color: rgba(31, 41, 55, 0.9);
+  color: rgba(31, 41, 55, 0.95);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 
 .wx-source-logo {
@@ -3028,6 +3032,17 @@ header {
   font-family: monospace;
 }
 
+.sat-tle-age {
+  font-size: 0.6rem;
+  margin-left: 4px;
+  padding: 0 3px;
+  border-radius: 2px;
+  font-family: monospace;
+}
+.sat-tle-age.tle-fresh { color: var(--green); }
+.sat-tle-age.tle-aging { color: var(--yellow); }
+.sat-tle-age.tle-stale { color: var(--red); }
+
 .sat-no-key,
 .sat-no-data {
   padding: 16px;
@@ -3598,12 +3613,41 @@ header {
 .dedx-sunset { color: var(--orange); }
 .dedx-compact { letter-spacing: -0.3px; }
 .dedx-utc-badge { font-size: 0.65rem; color: var(--text-dim); background: rgba(255,255,255,0.06); padding: 0 4px; border-radius: 3px; }
+.dedx-clock { font-size: 1.5rem; font-weight: 700; font-family: 'Consolas', 'Courier New', monospace; letter-spacing: 1px; line-height: 1.2; text-align: center; margin-bottom: 2px; }
+.dedx-de .dedx-clock { color: var(--de-color, var(--text)); }
+.dedx-dx .dedx-clock { color: var(--dx-color, var(--text)); }
+.dedx-utc-label { font-size: 0.65rem; color: var(--text-dim); text-align: center; font-weight: 600; margin-bottom: 3px; }
 .dedx-empty { color: var(--text-dim); font-style: italic; font-size: 0.7rem; text-align: center; padding: 8px 0; }
 
 @media (max-width: 767px) {
   .dedx-container { flex-direction: column; }
   .dedx-de { border-right: none; border-bottom: 1px solid var(--border); }
 }
+
+/* ---- Stopwatch / Timer Widget ---- */
+.sw-container { display: flex; flex-direction: column; align-items: center; padding: 4px 8px; height: 100%; overflow-y: auto; }
+.sw-mode-tabs { display: flex; gap: 2px; margin-bottom: 6px; }
+.sw-tab { background: var(--surface2, #1e1e1e); color: var(--text-dim); border: 1px solid var(--border); padding: 2px 10px; font-size: 0.7rem; cursor: pointer; border-radius: 3px; }
+.sw-tab.active { background: var(--accent); color: var(--bg, #000); font-weight: 700; }
+.sw-display { font-size: 2rem; font-weight: 700; font-family: 'Consolas', 'Courier New', monospace; letter-spacing: 2px; color: var(--text); padding: 4px 0; line-height: 1.2; }
+.sw-display.sw-flash { animation: sw-blink 0.5s ease-in-out 6; }
+@keyframes sw-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.2; color: var(--red, #f44336); } }
+.sw-controls { display: flex; gap: 4px; margin: 4px 0; }
+.sw-btn { padding: 3px 10px; font-size: 0.7rem; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; background: var(--surface2, #1e1e1e); color: var(--text); }
+.sw-btn:hover { background: var(--accent); color: var(--bg, #000); }
+.sw-btn-start { border-color: var(--green, #4caf50); color: var(--green, #4caf50); }
+.sw-btn-stop { border-color: var(--red, #f44336); color: var(--red, #f44336); }
+.sw-btn-reset { border-color: var(--yellow, #ffc107); color: var(--yellow, #ffc107); }
+.sw-btn-lap { border-color: var(--accent); color: var(--accent); }
+.sw-btn-lap.hidden { display: none; }
+.sw-countdown-set { display: flex; gap: 4px; margin: 4px 0; flex-wrap: wrap; justify-content: center; }
+.sw-countdown-set.hidden { display: none; }
+.sw-preset { padding: 3px 8px; font-size: 0.65rem; border: 1px solid var(--border); border-radius: 3px; cursor: pointer; background: var(--surface2, #1e1e1e); color: var(--text-dim); }
+.sw-preset:hover { background: var(--accent); color: var(--bg, #000); }
+.sw-laps { width: 100%; max-height: 80px; overflow-y: auto; font-size: 0.65rem; }
+.sw-lap-row { display: flex; justify-content: space-between; padding: 1px 4px; border-bottom: 1px solid var(--border); }
+.sw-lap-num { color: var(--text-dim); min-width: 20px; }
+.sw-lap-time { color: var(--text); font-family: 'Consolas', 'Courier New', monospace; }
 
 /* ---- Sun / Moon Map Markers ---- */
 .sun-marker-icon { background: transparent; border: none; }
@@ -3660,6 +3704,43 @@ header {
 }
 
 .dxped-detail { font-size: 0.7rem; color: var(--text-dim); margin-top: 2px; }
+
+.dxped-hide-btn {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+.dxped-card:hover .dxped-hide-btn { opacity: 1; }
+.dxped-hide-btn:hover { color: var(--red, #f44336); }
+
+/* When badge is present, badge takes margin-left:auto and hide btn sits after it */
+.dxped-badge + .dxped-hide-btn { margin-left: 0; }
+
+.dxped-unhide-row {
+  text-align: center;
+  padding: 4px 0;
+}
+.dxped-unhide-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 0.7rem;
+  padding: 2px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.dxped-unhide-btn:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
 
 /* ---- Contests Widget ---- */
 
@@ -4685,6 +4766,13 @@ header {
 /* UTC badge in HamClock theme */
 .theme-hamclock .dedx-utc-badge { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
+/* DE/DX Info clocks in HamClock theme */
+.theme-hamclock .dedx-de .dedx-clock { color: var(--de-color); }
+.theme-hamclock .dedx-dx .dedx-clock { color: var(--dx-color); }
+
+/* Stopwatch in HamClock theme */
+.theme-hamclock .sw-display { color: var(--accent); }
+
 /* ---- Theme: Neon (digital grid glow) ---- */
 /* Glow effects on widgets and interactive elements */
 
@@ -5460,6 +5548,18 @@ header {
     height: 280px;
   }
 
+  /* --- Mobile map controls: larger touch targets --- */
+  .leaflet-control-zoom a {
+    width: 36px !important;
+    height: 36px !important;
+    line-height: 36px !important;
+    font-size: 20px !important;
+  }
+
+  .leaflet-control-zoom {
+    border-radius: 6px !important;
+  }
+
   #widget-activations {
     min-height: 250px;
   }
@@ -5582,6 +5682,13 @@ header {
   #widget-beacons .widget-body,
   #widget-contests .widget-body,
   #widget-dxpeditions .widget-body { max-height: 250px; }
+}
+
+/* ---- Grayscale Mode ---- */
+/* Toggled via body.grayscale — desaturates entire UI for e-ink displays or reduced distraction. */
+
+body.grayscale {
+  filter: grayscale(1);
 }
 
 /* ---- Compact Header Mode ---- */
@@ -5780,4 +5887,56 @@ header {
                        background: var(--surface); color: var(--text); border: 1px solid var(--border);
                        border-radius: 3px; cursor: pointer; }
 .wl-add-form button:hover { border-color: var(--accent); }
+
+/* ---- Big Clock Overlay ---- */
+.big-clock-overlay {
+  position: fixed; inset: 0;
+  z-index: 10001;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+}
+.big-clock-overlay.hidden { display: none; }
+.big-clock-inner {
+  text-align: center;
+  cursor: default;
+}
+.big-clock-section { margin-bottom: 2rem; }
+.big-clock-label {
+  font-size: 1.2rem;
+  color: var(--text-dim, #888);
+  text-transform: uppercase;
+  letter-spacing: 4px;
+  margin-bottom: 0.25rem;
+}
+.big-clock-time {
+  font-size: 10rem;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+  color: var(--text, #e0e0e0);
+  letter-spacing: 6px;
+  line-height: 1.1;
+}
+.big-clock-date {
+  font-size: 1.4rem;
+  color: var(--text-dim, #888);
+  margin-top: 0.25rem;
+}
+.big-clock-hint {
+  font-size: 0.8rem;
+  color: var(--text-dim, #555);
+  margin-top: 2rem;
+}
+/* Header clocks get pointer cursor to indicate clickability */
+.header-clock { cursor: pointer; }
+
+/* Responsive — shrink Big Clock on smaller screens */
+@media (max-width: 900px) {
+  .big-clock-time { font-size: 5rem; letter-spacing: 3px; }
+  .big-clock-date { font-size: 1rem; }
+}
+@media (max-width: 500px) {
+  .big-clock-time { font-size: 3rem; letter-spacing: 2px; }
+  .big-clock-label { font-size: 0.9rem; }
+}
 

@@ -93,6 +93,11 @@ export function initMap() {
       }
     });
 
+    // Recalculate map size after device orientation change (mobile/tablet rotate)
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => { if (state.map) state.map.invalidateSize(); }, 200); // 200 ms — wait for layout to settle after rotation
+    });
+
     setTimeout(renderAllMapOverlays, 200);
   } catch (e) {
     console.error('Map initialization failed:', e);

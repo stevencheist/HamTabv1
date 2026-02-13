@@ -608,6 +608,7 @@
       <div class="widget-header">Lunar / EME <button class="widget-help-btn" data-widget="widget-lunar" title="Help">?</button><button class="widget-cfg-btn" id="lunarCfgBtn" title="Configure fields">&#9881;</button></div>
       <div class="widget-body">
         <canvas id="moonCanvas" width="160" height="160"></canvas>
+        <div style="text-align:center;margin:-4px 0 4px;"><a href="https://svs.gsfc.nasa.gov/5187" target="_blank" rel="noopener" style="font-size:0.65rem;color:var(--text-dim);">NASA Moon Visualization</a></div>
         <div class="lunar-cards" id="lunarCards"></div>
       </div>
       <div class="widget-resize"></div>
@@ -761,6 +762,11 @@
       <input type="text" id="satApiKey" placeholder="Get free key at n2yo.com/api" autocomplete="off" spellcheck="false" style="text-transform:none;" />
       <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:12px;text-align:left;">
         <a href="https://www.n2yo.com/api/" target="_blank" style="color:var(--accent);">Get a free API key (1000 req/hr)</a>
+      </div>
+      <label for="satMaxTleAge" style="margin-top:8px;">Max TLE Age (days)</label>
+      <input type="number" id="satMaxTleAge" min="1" max="30" value="7" style="width:60px;text-align:center;" />
+      <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:12px;text-align:left;">
+        Warn when orbital elements exceed this age
       </div>
       <div class="splash-loc-title" style="margin-bottom:8px;">Satellites to Track</div>
       <div class="sat-select-list" id="satSelectList"></div>

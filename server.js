@@ -1076,7 +1076,12 @@ app.get('/api/iss/position', async (req, res) => {
 // Lunar / EME conditions
 app.get('/api/lunar', (req, res) => {
   try {
-    const lunar = computeLunar();
+    // Optional observer coordinates for az/el and rise/set
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    const hasObserver = !isNaN(lat) && !isNaN(lon)
+      && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180;
+    const lunar = hasObserver ? computeLunar(lat, lon) : computeLunar();
     res.json(lunar);
   } catch (err) {
     console.error('Error computing lunar data:', err.message);
@@ -2620,25 +2625,28 @@ app.get('/api/voacap', async (req, res) => {
 // Lunar position via Jean Meeus, "Astronomical Algorithms" 2nd ed.
 // Chapters 47 (position) & 48 (illumination). Coefficients are the
 // principal terms from Table 47.A; lower-order terms omitted for speed.
-function computeLunar() {
-  const now = new Date();
-  const JD = julianDate(now);
-  const T = (JD - 2451545.0) / 36525.0; // centuries since J2000
 
-  // Moon's mean longitude (L')
-  const Lp = mod360(218.3165 + 481267.8813 * T);
-  // Moon's mean anomaly (M')
-  const Mp = mod360(134.9634 + 477198.8676 * T);
-  // Moon's mean elongation (D)
-  const D = mod360(297.8502 + 445267.1115 * T);
-  // Sun's mean anomaly (M)
-  const M = mod360(357.5291 + 35999.0503 * T);
-  // Moon's argument of latitude (F)
-  const F = mod360(93.2720 + 483202.0175 * T);
+// Greenwich Mean Sidereal Time in degrees from Julian Date
+// Meeus, Chapter 12
+function gmst(JD) {
+  const T = (JD - 2451545.0) / 36525.0;
+  return mod360(280.46061837 + 360.98564736629 * (JD - 2451545.0)
+    + 0.000387933 * T * T - T * T * T / 38710000);
+}
 
+// Compute moon equatorial coordinates (RA, Dec) and horizontal parallax
+// at an arbitrary Date. Extracted from computeLunar for reuse in rise/set.
+function moonEquatorial(date) {
+  const JD = julianDate(date);
+  const T = (JD - 2451545.0) / 36525.0;
   const rad = Math.PI / 180;
 
-  // Ecliptic longitude
+  const Lp = mod360(218.3165 + 481267.8813 * T);
+  const Mp = mod360(134.9634 + 477198.8676 * T);
+  const D = mod360(297.8502 + 445267.1115 * T);
+  const M = mod360(357.5291 + 35999.0503 * T);
+  const F = mod360(93.2720 + 483202.0175 * T);
+
   let lambda = Lp
     + 6.289 * Math.sin(Mp * rad)
     - 1.274 * Math.sin((2 * D - Mp) * rad)
@@ -2648,23 +2656,18 @@ function computeLunar() {
     - 0.114 * Math.sin(2 * F * rad);
   lambda = mod360(lambda);
 
-  // Ecliptic latitude
   const beta = 5.128 * Math.sin(F * rad)
     + 0.281 * Math.sin((Mp + F) * rad)
     - 0.277 * Math.sin((Mp - F) * rad)
     - 0.173 * Math.sin((2 * D - F) * rad);
 
-  // Horizontal parallax (distance), in degrees
   const horizParallax = 0.9508
     + 0.0518 * Math.cos(Mp * rad)
     + 0.0095 * Math.cos((2 * D - Mp) * rad)
     + 0.0078 * Math.cos(2 * D * rad)
     + 0.0028 * Math.cos(2 * Mp * rad);
 
-  const distance = 6378.14 / Math.sin(horizParallax * rad); // km
-
-  // Ecliptic to equatorial conversion
-  const epsilon = 23.4393 - 0.0130 * T; // obliquity of ecliptic
+  const epsilon = 23.4393 - 0.0130 * T;
   const lambdaRad = lambda * rad;
   const betaRad = beta * rad;
   const epsilonRad = epsilon * rad;
@@ -2673,37 +2676,122 @@ function computeLunar() {
     + Math.cos(betaRad) * Math.sin(epsilonRad) * Math.sin(lambdaRad);
   const declination = Math.asin(sinDec) / rad;
 
-  // Phase calculation
-  // Sun's ecliptic longitude (approximate)
-  const sunLongitude = mod360(280.4665 + 36000.7698 * T);
-  let elongation = lambda - sunLongitude;
-  elongation = mod360(elongation + 180) - 180;
-
-  const illumination = (1 - Math.cos(elongation * rad)) / 2 * 100;
-
-  const phase = moonPhaseName(elongation);
-
-  // Path loss relative to average distance (384,400 km)
-  const avgDistance = 384400;
-  const pathLoss = 20 * Math.log10(distance / avgDistance);
-
-  // Right ascension
   const sinRA = Math.cos(betaRad) * Math.sin(lambdaRad) * Math.cos(epsilonRad)
     - Math.sin(betaRad) * Math.sin(epsilonRad);
   const cosRA = Math.cos(betaRad) * Math.cos(lambdaRad);
-  const rightAscension = Math.atan2(sinRA, cosRA) / rad;
+  const rightAscension = mod360(Math.atan2(sinRA, cosRA) / rad);
 
-  return {
+  // Sun's ecliptic longitude (approximate) — needed for phase/illumination
+  const sunLongitude = mod360(280.4665 + 36000.7698 * T);
+
+  return { rightAscension, declination, horizParallax, lambda, beta, JD, T,
+    sunLongitude, Mp, D, M, F, Lp };
+}
+
+// Compute moon horizontal coordinates (azimuth, elevation) from observer
+// Meeus, Chapter 13 — sidereal time + coordinate transformation
+function moonHorizontal(date, lat, lon) {
+  const eq = moonEquatorial(date);
+  const rad = Math.PI / 180;
+
+  const lst = mod360(gmst(eq.JD) + lon); // local sidereal time (degrees)
+  const ha = mod360(lst - eq.rightAscension); // hour angle (degrees)
+
+  const haRad = ha * rad;
+  const decRad = eq.declination * rad;
+  const latRad = lat * rad;
+
+  const sinAlt = Math.sin(latRad) * Math.sin(decRad)
+    + Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad);
+  const altitude = Math.asin(sinAlt) / rad;
+
+  // Azimuth measured from North, clockwise
+  const cosAlt = Math.cos(altitude * rad);
+  let azimuth = 0;
+  if (Math.abs(cosAlt) > 1e-10) {
+    const sinAz = -Math.cos(decRad) * Math.sin(haRad) / cosAlt;
+    const cosAz = (Math.sin(decRad) - Math.sin(latRad) * sinAlt) / (Math.cos(latRad) * cosAlt);
+    azimuth = mod360(Math.atan2(sinAz, cosAz) / rad);
+  }
+
+  return { azimuth, elevation: altitude, horizParallax: eq.horizParallax };
+}
+
+// Compute next moonrise and moonset from current time
+// Searches forward 48 hours in 5-minute steps, then linear-interpolates
+// Standard altitude: h0 = 0.7275 * parallax - 34/60 (refraction + semidiameter)
+function computeMoonRiseSet(lat, lon) {
+  const now = new Date();
+  const STEP_MS = 5 * 60000; // 5 minutes
+  const STEPS = 576; // 48 hours / 5 min = 576 steps
+
+  let prevCorr = null;
+  let rise = null, set = null;
+
+  for (let i = 0; i <= STEPS && (!rise || !set); i++) {
+    const t = new Date(now.getTime() + i * STEP_MS);
+    const horiz = moonHorizontal(t, lat, lon);
+    const h0 = 0.7275 * horiz.horizParallax - 34 / 60; // degrees
+    const corr = horiz.elevation - h0;
+
+    if (prevCorr !== null) {
+      if (prevCorr < 0 && corr >= 0 && !rise) {
+        // Moon rising — interpolate
+        const frac = -prevCorr / (corr - prevCorr);
+        rise = Math.floor((now.getTime() + ((i - 1) + frac) * STEP_MS) / 1000);
+      }
+      if (prevCorr >= 0 && corr < 0 && !set) {
+        // Moon setting — interpolate
+        const frac = prevCorr / (prevCorr - corr);
+        set = Math.floor((now.getTime() + ((i - 1) + frac) * STEP_MS) / 1000);
+      }
+    }
+    prevCorr = corr;
+  }
+
+  return { moonrise: rise, moonset: set };
+}
+
+function computeLunar(lat, lon) {
+  const now = new Date();
+  const eq = moonEquatorial(now);
+  const rad = Math.PI / 180;
+
+  const distance = 6378.14 / Math.sin(eq.horizParallax * rad); // km
+
+  let elongation = eq.lambda - eq.sunLongitude;
+  elongation = mod360(elongation + 180) - 180;
+
+  const illumination = (1 - Math.cos(elongation * rad)) / 2 * 100;
+  const phase = moonPhaseName(elongation);
+
+  const avgDistance = 384400; // km — mean Earth-Moon distance
+  const pathLoss = 20 * Math.log10(distance / avgDistance);
+
+  const result = {
     phase,
     illumination: Math.round(illumination * 10) / 10,
-    declination: Math.round(declination * 10) / 10,
+    declination: Math.round(eq.declination * 10) / 10,
     distance: Math.round(distance),
     pathLoss: Math.round(pathLoss * 100) / 100,
     elongation: Math.round(elongation * 10) / 10,
-    eclipticLon: Math.round(lambda * 10) / 10,
-    eclipticLat: Math.round(beta * 100) / 100,
-    rightAscension: Math.round(mod360(rightAscension) * 10) / 10,
+    eclipticLon: Math.round(eq.lambda * 10) / 10,
+    eclipticLat: Math.round(eq.beta * 100) / 100,
+    rightAscension: Math.round(eq.rightAscension * 10) / 10,
   };
+
+  // Observer-dependent fields — only computed when lat/lon provided
+  if (lat !== undefined && lon !== undefined) {
+    const horiz = moonHorizontal(now, lat, lon);
+    result.azimuth = Math.round(horiz.azimuth * 10) / 10;
+    result.elevation = Math.round(horiz.elevation * 10) / 10;
+
+    const riseSet = computeMoonRiseSet(lat, lon);
+    result.moonrise = riseSet.moonrise; // Unix timestamp or null
+    result.moonset = riseSet.moonset;   // Unix timestamp or null
+  }
+
+  return result;
 }
 
 function julianDate(date) {

@@ -72,6 +72,8 @@
         mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, bandPaths: false, dxpedMarkers: true },
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
+        // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
+        hiddenDxpeditions: new Set(JSON.parse(localStorage.getItem("hamtab_dxped_hidden") || "[]")),
         // Source
         currentSource: localStorage.getItem("hamtab_spot_source") || "pota",
         sourceData: { pota: [], sota: [], dxc: [], wwff: [] },
@@ -1728,6 +1730,7 @@
     ${band ? `<div class="spot-detail-row"><span class="spot-detail-label">Band:</span> ${esc(band)}</div>` : ""}
     ${refHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Ref:</span> ${refHtml}</div>` : ""}
     ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state_default.currentSource === "dxc" ? "Country:" : "Name:"}</span> ${esc(spot.name)}</div>` : ""}
+    ${spot.locationDesc ? `<div class="spot-detail-row"><span class="spot-detail-label">Location:</span> ${esc(spot.locationDesc)}</div>` : ""}
     ${dxcRows}
     ${bearingHtml}
     ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ""}
@@ -4200,7 +4203,7 @@
           title: "DX Detail",
           description: "Shows detailed information about whichever station you've selected. Click any row in the On the Air table or any marker on the map to see that station's details here.",
           sections: [
-            { heading: "Station Info", content: "Displays the operator's name, location, license class, and grid square (looked up from their callsign). This helps you know who you're about to contact." },
+            { heading: "Station Info", content: "Displays the operator's name, location, license class, and grid square (looked up from their callsign). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown. This helps you know who you're about to contact." },
             { heading: "Distance & Bearing", content: "Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config." },
             { heading: "Frequency & Mode", content: "The frequency and mode the station is operating on, so you know exactly where to tune your radio." },
             { heading: "Weather", content: "Shows current weather conditions at the station's location, if available." }
@@ -4225,6 +4228,7 @@
             { heading: "What Is a DXpedition?", content: "A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade." },
             { heading: "Reading the Cards", content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map (toggle via Map Overlays gear icon) \u2014 bright orange for active, dimmer for upcoming.' },
             { heading: "Time Filter", content: "Use the dropdown in the widget header to filter DXpeditions by time window: Active Now, Within 1 Week, Within 1 Month, Within 6 Months, or All. Active DXpeditions always appear regardless of the filter. The map markers match whatever the widget shows." },
+            { heading: "Hiding DXpeditions", content: 'Hover over any card and click the \xD7 button to hide it. Hidden DXpeditions are also removed from the map. A "Show N hidden" button appears at the bottom to restore all hidden items at once.' },
             { heading: "QSL Information", content: `QSL means "I confirm" \u2014 it's how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).` }
           ],
           links: [
@@ -7196,10 +7200,25 @@ ${beacon.location}`);
       return false;
     });
   }
+  function saveHiddenDxpeditions() {
+    localStorage.setItem("hamtab_dxped_hidden", JSON.stringify([...state_default.hiddenDxpeditions]));
+  }
+  function hideDxpedition(callsign) {
+    state_default.hiddenDxpeditions.add(callsign);
+    saveHiddenDxpeditions();
+    renderDxpeditions();
+  }
+  function unhideAllDxpeditions() {
+    state_default.hiddenDxpeditions.clear();
+    saveHiddenDxpeditions();
+    renderDxpeditions();
+  }
   function initDxpeditionListeners() {
     const list = $("dxpedList");
     if (!list) return;
     list.addEventListener("click", (e) => {
+      if (e.target.closest(".dxped-hide-btn")) return;
+      if (e.target.closest(".dxped-unhide-btn")) return;
       const card = e.target.closest(".dxped-card");
       if (!card) return;
       const url = card.dataset.link;
@@ -7243,10 +7262,12 @@ ${beacon.location}`);
       updateDxpeditionMarkers([]);
       return;
     }
-    const filtered = filterByTime(data);
+    const timeFiltered = filterByTime(data);
+    const hiddenCount = timeFiltered.filter((d) => state_default.hiddenDxpeditions.has(d.callsign)).length;
+    const filtered = timeFiltered.filter((d) => !state_default.hiddenDxpeditions.has(d.callsign));
     if (countEl) countEl.textContent = filtered.length;
     list.textContent = "";
-    if (filtered.length === 0) {
+    if (filtered.length === 0 && hiddenCount === 0) {
       const empty = document.createElement("div");
       empty.className = "dxped-empty";
       empty.textContent = "No DXpeditions match the selected time filter";
@@ -7275,6 +7296,15 @@ ${beacon.location}`);
         badge.textContent = "ACTIVE";
         header.appendChild(badge);
       }
+      const hideBtn = document.createElement("button");
+      hideBtn.className = "dxped-hide-btn";
+      hideBtn.title = "Hide this DXpedition";
+      hideBtn.textContent = "\xD7";
+      hideBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        hideDxpedition(dx.callsign);
+      });
+      header.appendChild(hideBtn);
       card.appendChild(header);
       const detail = document.createElement("div");
       detail.className = "dxped-detail";
@@ -7284,6 +7314,19 @@ ${beacon.location}`);
       detail.textContent = parts.join("  \xB7  ");
       card.appendChild(detail);
       list.appendChild(card);
+    }
+    if (hiddenCount > 0) {
+      const unhideRow = document.createElement("div");
+      unhideRow.className = "dxped-unhide-row";
+      const btn = document.createElement("button");
+      btn.className = "dxped-unhide-btn";
+      btn.textContent = `Show ${hiddenCount} hidden`;
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        unhideAllDxpeditions();
+      });
+      unhideRow.appendChild(btn);
+      list.appendChild(unhideRow);
     }
     updateDxpeditionMarkers(filtered);
   }
@@ -8472,8 +8515,8 @@ ${beacon.location}`);
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.39.1";
-    $("aboutVersion").textContent = "0.39.1";
+    $("splashVersion").textContent = "0.40.0";
+    $("aboutVersion").textContent = "0.40.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

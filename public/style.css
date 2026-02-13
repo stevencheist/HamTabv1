@@ -5598,6 +5598,13 @@ header {
   #widget-dxpeditions .widget-body { max-height: 250px; }
 }
 
+/* ---- Grayscale Mode ---- */
+/* Toggled via body.grayscale — desaturates entire UI for e-ink displays or reduced distraction. */
+
+body.grayscale {
+  filter: grayscale(1);
+}
+
 /* ---- Compact Header Mode ---- */
 /* Toggled via body.slim-header — shrinks header to ~28-30px,
    hides weather/name, switches clocks to single-line row layout. */

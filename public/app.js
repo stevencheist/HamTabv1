@@ -68,6 +68,7 @@
         countdownTimer: null,
         // Preferences
         slimHeader: localStorage.getItem("hamtab_slim_header") === "true",
+        grayscale: localStorage.getItem("hamtab_grayscale") === "true",
         use24h: localStorage.getItem("hamtab_time24") !== "false",
         privilegeFilterEnabled: localStorage.getItem("hamtab_privilege_filter") === "true",
         licenseClass: localStorage.getItem("hamtab_license_class") || "",
@@ -238,6 +239,8 @@
         // L.imageOverlay instance
         heatmapRenderTimer: null,
         // debounce timer for pan/zoom re-render
+        voacapParamTimer: null,
+        // debounce timer for power/mode/TOA/path button clicks
         // Beacons / DXpeditions / Contests
         beaconTimer: null,
         // setInterval ID for 1-second beacon updates
@@ -1409,7 +1412,9 @@
     const next = options[(idx + 1) % options.length];
     state_default[stateKey] = next;
     localStorage.setItem(key, next);
-    fetchVoacapMatrix();
+    renderVoacapMatrix();
+    clearTimeout(state_default.voacapParamTimer);
+    state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
     if (state_default.hfPropOverlayBand) {
       clearBandOverlay();
       clearHeatmap();
@@ -6540,6 +6545,9 @@ ${beacon.location}`);
     if (localStorage.getItem("hamtab_slim_header") === "true") {
       document.body.classList.add("slim-header");
     }
+    if (localStorage.getItem("hamtab_grayscale") === "true") {
+      document.body.classList.add("grayscale");
+    }
   }
   function currentThemeSupportsGrid() {
     const theme = THEMES[activeThemeId];
@@ -7888,7 +7896,10 @@ ${beacon.location}`);
       const radiusMeters = footprintRadiusKm * 1e3;
       const isISS = satId === "25544" || satId === 25544;
       if (state_default.satellites.markers[satId]) {
-        state_default.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
+        const prev = state_default.satellites.markers[satId].getLatLng();
+        if (Math.abs(prev.lat - pos.lat) > 0.01 || Math.abs(prev.lng - pos.lon) > 0.01) {
+          state_default.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
+        }
       } else {
         let iconClass;
         if (isISS) {
@@ -7918,8 +7929,11 @@ ${beacon.location}`);
         }
       }
       if (state_default.satellites.circles[satId]) {
-        state_default.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
-        state_default.satellites.circles[satId].setRadius(radiusMeters);
+        const prevC = state_default.satellites.circles[satId].getLatLng();
+        if (Math.abs(prevC.lat - pos.lat) > 0.01 || Math.abs(prevC.lng - pos.lon) > 0.01) {
+          state_default.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
+          state_default.satellites.circles[satId].setRadius(radiusMeters);
+        }
       } else {
         const color = satId === "25544" ? "#00bcd4" : "#4caf50";
         state_default.satellites.circles[satId] = L.circle([pos.lat, pos.lon], {
@@ -8721,9 +8735,11 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
+    const cfgGrayscale = $("cfgGrayscale");
+    if (cfgGrayscale) cfgGrayscale.checked = state_default.grayscale;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.44.1";
-    $("aboutVersion").textContent = "0.44.1";
+    $("splashVersion").textContent = "0.44.2";
+    $("aboutVersion").textContent = "0.44.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -9037,6 +9053,14 @@ ${beacon.location}`);
         state_default.slimHeader = cfgSlimHeaderCb.checked;
         localStorage.setItem("hamtab_slim_header", String(state_default.slimHeader));
         document.body.classList.toggle("slim-header", state_default.slimHeader);
+      });
+    }
+    const cfgGrayscaleCb = $("cfgGrayscale");
+    if (cfgGrayscaleCb) {
+      cfgGrayscaleCb.addEventListener("change", () => {
+        state_default.grayscale = cfgGrayscaleCb.checked;
+        localStorage.setItem("hamtab_grayscale", String(state_default.grayscale));
+        document.body.classList.toggle("grayscale", state_default.grayscale);
       });
     }
     const bandColorResetBtn = document.getElementById("bandColorResetBtn");

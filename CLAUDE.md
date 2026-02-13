@@ -72,6 +72,9 @@ main ──────────────────────── SH
 | `public/index.html` | Semantic HTML structure |
 | `public/style.css` | Dark theme, CSS custom properties |
 | `esbuild.mjs` | Build config (ES modules → IIFE bundle) |
+| `Dockerfile` | Docker image for self-hosted deployment — **uses explicit COPY list** |
+| `docker-compose.yml` | Docker Compose config for self-hosted deployment |
+| `.github/workflows/docker-publish.yml` | CI/CD — builds Docker image on GitHub Release publish |
 
 **Lanmode only:**
 
@@ -87,7 +90,7 @@ main ──────────────────────── SH
 |---|---|
 | `worker.js` | Cloudflare Worker — routes `/api/settings` to KV, proxies to container |
 | `wrangler.jsonc` | Cloudflare deployment config — container, KV namespace, routes |
-| `Dockerfile` | Container image for Cloudflare Containers |
+| `Dockerfile` | Container image for Cloudflare Containers (overrides main's Dockerfile) |
 | `src/settings-sync.js` | Client-side settings sync via Workers KV |
 | `.github/workflows/deploy.yml` | CI/CD — auto-deploy on push to hostedmode |
 | `public/sitemap.xml` | Search engine sitemap (SEO) |
@@ -203,7 +206,9 @@ main ──────────────────────── SH
 
 - **After merging main into hostedmode — verify dependencies and Dockerfile:**
   - `@cloudflare/containers` is a hostedmode-only dependency that `main` doesn't have. When `main` modifies the `dependencies` block in `package.json` (adding/removing packages), git's merge can silently drop `@cloudflare/containers`. **Always check** `package.json` on hostedmode after merge. If missing, re-add it (`npm install @cloudflare/containers`), commit, then push.
-  - **Dockerfile COPY directives** — If new server-side `.js` files are added on main (e.g. `server-config.js`), they must be added to the Dockerfile's COPY list. The Dockerfile uses explicit file copies, not wildcards. Missing files cause `MODULE_NOT_FOUND` crashes in the container.
+  - **Dockerfile COPY directives** — If new server-side `.js` files are added on main (e.g. `server-config.js`), they must be added to **both** Dockerfiles: the one on `main` (self-hosted Docker) AND the one on `hostedmode` (Cloudflare Containers). Both use explicit file copies, not wildcards. Missing files cause `MODULE_NOT_FOUND` crashes in the container.
+
+- **Docker image (main branch):** The `docker-publish.yml` workflow builds and pushes a Docker image to Docker Hub when a GitHub Release is published. It does NOT trigger on every push. The Dockerfile uses a multi-stage build: stage 1 runs `npm ci` + `npm run build` + `npm prune --omit=dev`, stage 2 copies only runtime files via explicit COPY directives. When adding new server-side `.js` files, add them to the COPY list in the Dockerfile.
 
 - **Merge conflict resolution** — See BRANCH_STRATEGY.md for full conflict resolution protocol.
 

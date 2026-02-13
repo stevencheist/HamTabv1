@@ -111,7 +111,7 @@ function applyWeatherBackground(forecast, isDaytime) {
   }
   else if (/sunny|clear/.test(fc)) cls = isDaytime ? 'wx-clear-day' : 'wx-clear-night';
   if (cls) {
-    headerClock.classList.add(cls);
+    if (!state.disableWxBackgrounds) headerClock.classList.add(cls);
     if (wxIcon) wxIcon.textContent = wxIcons[cls] || '';
   }
 }

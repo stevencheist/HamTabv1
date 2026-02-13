@@ -217,7 +217,16 @@ main ──────────────────────── SH
   1. **Syntax check:** `node -c server.js` — catches SyntaxErrors (duplicate declarations, missing brackets)
   2. **Duplicate detection:** `grep -c 'let \|const \|function ' server.js` — compare count against main. Large increase = likely duplicated sections
   3. **Section header scan:** `grep -n '^// ---' server.js` — look for duplicate section headers (e.g. two `// --- N2YO Satellite Tracking API ---`)
-  4. **If any check fails:** Fix the issue on the deployment branch before pushing. Do NOT push broken code — CI/CD will deploy it immediately to production
+  4. **Dockerfile COPY check:** Compare server-side `.js` files against the Dockerfile COPY list. Run: `diff <(grep 'COPY.*\.js' Dockerfile | sed 's/.*\///' | sort) <(ls *.js *.mjs 2>/dev/null | sort)` — any files in the directory but missing from Dockerfile need to be added (except `esbuild.mjs` which is build-only and runs in stage 1). On hostedmode, also check the hostedmode Dockerfile.
+  5. **If any check fails:** Fix the issue on the deployment branch before pushing. Do NOT push broken code — CI/CD will deploy it immediately to production
+
+### New Server-Side File Checklist
+
+**MANDATORY: When adding a new `.js` file to the project root (server-side code):**
+
+1. Add a `COPY` directive to the `main` branch Dockerfile (stage 2 runtime section)
+2. After merging to `hostedmode`, add the same `COPY` directive to the hostedmode Dockerfile
+3. If the file is only needed at build time (like `esbuild.mjs`), it does NOT need a runtime COPY — stage 1 already copies everything via `COPY . .`
 
 ### Documentation Edits
 

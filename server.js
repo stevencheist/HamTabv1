@@ -2403,9 +2403,7 @@ app.get('/api/weather/radar', async (req, res) => {
     if (radarCache.data && Date.now() < radarCache.expires) {
       return res.json(radarCache.data);
     }
-    const response = await secureFetch('https://api.rainviewer.com/public/weather-maps.json', { timeout: 10000 });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const json = await response.json();
+    const json = await fetchJSON('https://api.rainviewer.com/public/weather-maps.json');
     // Extract latest radar frame
     const radar = json.radar;
     if (!radar || !radar.past || !radar.past.length) {

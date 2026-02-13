@@ -1909,7 +1909,7 @@ header {
   box-shadow: 0 0 15px rgba(156, 163, 175, 0.3);
 }
 
-/* Weather text colors for contrast */
+/* Weather text colors for contrast — stronger shadows for low-contrast displays */
 #headerClockLocal.wx-clear-day .header-clock-time,
 #headerClockLocal.wx-partly-cloudy-day .header-clock-time,
 #headerClockLocal.wx-rain .header-clock-time,
@@ -1917,38 +1917,42 @@ header {
 #headerClockLocal.wx-clear-night .header-clock-time,
 #headerClockLocal.wx-partly-cloudy-night .header-clock-time {
   color: #fff;
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 
 #headerClockLocal.wx-cloudy .header-clock-time {
   color: #1f2937;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.3);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5), 0 0 4px rgba(255, 255, 255, 0.3);
 }
 
 #headerClockLocal.wx-snow .header-clock-time,
 #headerClockLocal.wx-fog .header-clock-time {
   color: #1f2937;
-  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.6), 0 0 4px rgba(255, 255, 255, 0.3);
 }
 
 #headerClockLocal[class*="wx-"] .header-clock-label {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
 }
 
 #headerClockLocal.wx-cloudy .header-clock-label,
 #headerClockLocal.wx-snow .header-clock-label,
 #headerClockLocal.wx-fog .header-clock-label {
-  color: rgba(31, 41, 55, 0.8);
+  color: rgba(31, 41, 55, 0.9);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.4);
 }
 
 #headerClockLocal[class*="wx-"] .header-clock-weather {
-  color: rgba(255, 255, 255, 0.9);
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.7), 0 0 6px rgba(0, 0, 0, 0.4);
 }
 
 #headerClockLocal.wx-cloudy .header-clock-weather,
 #headerClockLocal.wx-snow .header-clock-weather,
 #headerClockLocal.wx-fog .header-clock-weather {
-  color: rgba(31, 41, 55, 0.9);
+  color: rgba(31, 41, 55, 0.95);
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.5);
 }
 
 .wx-source-logo {

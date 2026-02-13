@@ -24,6 +24,7 @@ import { fetchLunar } from './lunar.js';
 import { fetchSpaceWxData } from './spacewx-graphs.js';
 import { fetchDxpeditions } from './dxpeditions.js';
 import { fetchContests } from './contests.js';
+import { startDedxTimer, stopDedxTimer } from './dedx-info.js';
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -555,6 +556,52 @@ function dismissSplash() {
       deactivateGridMode();
     }
   }
+
+  applyWidgetVisibility();
+
+  // --- Refresh data for widgets that just became visible ---
+  const justShown = (id) => oldVis[id] === false && state.widgetVisibility[id] !== false;
+  const justHidden = (id) => oldVis[id] !== false && state.widgetVisibility[id] === false;
+
+  if (justShown('widget-satellites'))   fetchSatellitePositions();
+  if (justShown('widget-voacap'))       fetchVoacapMatrixThrottled();
+  if (justShown('widget-live-spots'))   fetchLiveSpots();
+  if (justShown('widget-dedx'))         renderDedxInfo();
+  if (justShown('widget-solar'))        fetchSolar();
+  if (justShown('widget-lunar'))        fetchLunar();
+  if (justShown('widget-spacewx'))      fetchSpaceWxData();
+  if (justShown('widget-dxpeditions'))  fetchDxpeditions();
+  if (justShown('widget-contests'))     fetchContests();
+
+  // Beacon timer start/stop — avoid 1 Hz timer running for a hidden widget
+  if (justShown('widget-beacons'))  { startBeaconTimer(); updateBeaconMarkers(); }
+  if (justHidden('widget-beacons')) { stopBeaconTimer(); }
+
+  // DE/DX Info timer start/stop — avoid 1 Hz timer running for a hidden widget
+  if (justShown('widget-dedx'))  { startDedxTimer(); }
+  if (justHidden('widget-dedx')) { stopDedxTimer(); }
+
+  // Update interval — lanmode only (element absent in hostedmode)
+  const intervalSelect = $('splashUpdateInterval');
+  if (intervalSelect) {
+    const intervalVal = intervalSelect.value;
+    localStorage.setItem('hamtab_update_interval', intervalVal);
+    fetch('/api/update/interval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
+    }).catch(() => {});
+  }
+
+  $('splashGridDropdown').classList.remove('open');
+  $('splash').classList.add('hidden');
+  updateOperatorDisplay();
+  centerMapOnUser();
+  updateUserMarker();
+  updateClocks();
+  renderSpots();
+  if (_initApp) _initApp();
+  fetchLicenseClass(state.myCallsign);
 }
 
 export function initSplashListeners() {

@@ -708,12 +708,45 @@
         <div class="dedx-container" id="dedxContainer">
           <div class="dedx-panel dedx-de">
             <div class="dedx-title">DE</div>
+            <div class="dedx-clock" id="dedxDeTime">--:--:--</div>
             <div class="dedx-content" id="dedxDeContent"></div>
           </div>
           <div class="dedx-panel dedx-dx">
             <div class="dedx-title">DX</div>
+            <div class="dedx-clock" id="dedxDxTime">--:--:--</div>
             <div class="dedx-content" id="dedxDxContent"></div>
           </div>
+        </div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+  </div>
+
+    <!-- Stopwatch / Timer -->
+    <div class="widget" id="widget-stopwatch">
+      <div class="widget-header">Stopwatch / Timer
+        <button class="widget-help-btn" data-widget="widget-stopwatch" title="Help">?</button>
+      </div>
+      <div class="widget-body">
+        <div class="sw-container" id="swContainer">
+          <div class="sw-mode-tabs">
+            <button class="sw-tab active" id="swTabStopwatch">Stopwatch</button>
+            <button class="sw-tab" id="swTabCountdown">Countdown</button>
+          </div>
+          <div class="sw-display" id="swDisplay">00:00.0</div>
+          <div class="sw-controls">
+            <button class="sw-btn sw-btn-start" id="swStart">Start</button>
+            <button class="sw-btn sw-btn-stop" id="swStop">Stop</button>
+            <button class="sw-btn sw-btn-reset" id="swReset">Reset</button>
+            <button class="sw-btn sw-btn-lap" id="swLap">Lap</button>
+          </div>
+          <div class="sw-countdown-set hidden" id="swCountdownSet">
+            <button class="sw-preset" data-minutes="10">10m ID</button>
+            <button class="sw-preset" data-minutes="15">15m</button>
+            <button class="sw-preset" data-minutes="30">30m</button>
+            <button class="sw-preset" data-minutes="60">60m</button>
+          </div>
+          <div class="sw-laps" id="swLaps"></div>
         </div>
       </div>
       <div class="widget-resize"></div>

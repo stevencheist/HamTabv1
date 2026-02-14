@@ -196,11 +196,13 @@ function updateWidgetSlotEnforcement() {
     return;
   }
 
-  // Grid mode — enforce slot limit
+  // Grid mode — enforce slot limit (reduced by active spans)
   const permSelect = document.getElementById('gridPermSelect');
   const permId = permSelect ? permSelect.value : state.gridPermutation;
   const perm = getGridPermutation(permId);
-  const maxSlots = perm.slots;
+  const spans = state.gridSpans || {};
+  const absorbedCount = Object.values(spans).reduce((sum, s) => sum + (s - 1), 0); // each span absorbs (span - 1) cells
+  const maxSlots = perm.slots - absorbedCount;
 
   const checkboxes = widgetList.querySelectorAll('input[type="checkbox"]');
   let checkedNonMap = 0;
@@ -235,7 +237,8 @@ function updateWidgetSlotEnforcement() {
     counter.textContent = `${checkedNonMap} / ${maxSlots} slots \u2014 excess hidden in grid`;
     counter.classList.add('over-limit');
   } else {
-    counter.textContent = `${checkedNonMap} / ${maxSlots} slots`;
+    const spanNote = absorbedCount > 0 ? ` (${absorbedCount} spanned)` : '';
+    counter.textContent = `${checkedNonMap} / ${maxSlots} slots${spanNote}`;
     counter.classList.remove('over-limit');
   }
 }

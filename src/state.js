@@ -152,6 +152,7 @@ const state = {
   gridMode: localStorage.getItem('hamtab_grid_mode') || 'grid', // 'float' or 'grid'
   gridPermutation: localStorage.getItem('hamtab_grid_permutation') || '3L-3R', // active permutation ID
   gridAssignments: null, // loaded at grid activation — maps cell names to widget IDs
+  gridSpans: null, // loaded at grid activation — per-permutation spans { cellName: spanCount }
 
   // Reference widget
   currentReferenceTab: 'rst', // active reference tab (rst, phonetic, etc.)

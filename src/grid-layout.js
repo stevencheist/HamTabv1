@@ -11,6 +11,7 @@ import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_MODE_KEY, GRID_PERM_K
 let trackHandles = []; // currently active outer grid handle elements
 const MIN_FR = 0.3;    // minimum fr value to prevent outer grid track collapse
 const MIN_FLEX = 0.15; // minimum flex-grow to prevent widget collapse inside wrappers
+const SNAP_PX = 40;    // px — when dragged cell shrinks below this, snap-to-span triggers
 
 // --- Track Size Persistence ---
 
@@ -430,12 +431,28 @@ function onFlexHandleMouseDown(e) {
 
   const startPos = isColumn ? e.clientY : e.clientX;
 
+  const spanCtx = handle._spanCtx; // { cellNames, flexKey } from populateWrapper
+
   function onMove(ev) {
     const delta = (isColumn ? ev.clientY : ev.clientX) - startPos;
     const deltaFlex = delta / pxPerFlex;
 
     let newBefore = beforeFlex + deltaFlex;
     let newAfter = afterFlex - deltaFlex;
+
+    // Drag-to-snap: if the squeezed cell would shrink below SNAP_PX, trigger span
+    if (spanCtx) {
+      const estAfterPx = afterPx - delta;
+      if (estAfterPx < SNAP_PX && delta > 0) {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        // Reset flex to pre-drag values before toggleSpan rebuilds layout
+        beforeEl.style.flexGrow = beforeFlex;
+        afterEl.style.flexGrow = afterFlex;
+        toggleSpan(handle, wrapper, spanCtx.cellNames, isColumn, spanCtx.flexKey);
+        return;
+      }
+    }
 
     // Clamp
     if (newBefore < MIN_FLEX) {
@@ -567,6 +584,7 @@ function populateWrapper(wrapperId, cellNames, flexKey, isColumn, customSizes) {
       handle.className = isColumn
         ? 'grid-flex-handle grid-flex-handle--col'
         : 'grid-flex-handle grid-flex-handle--row';
+      handle._spanCtx = { cellNames, flexKey }; // context for drag-to-snap
       handle.addEventListener('mousedown', onFlexHandleMouseDown);
       handle.addEventListener('dblclick', (e) => {
         e.preventDefault();

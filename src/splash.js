@@ -12,7 +12,7 @@ import { applyFilter, fetchLicenseClass } from './filters.js';
 import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, isWidgetVisible, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
 import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
 import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, DEFAULT_BAND_COLORS, getBandColor, getBandColorOverrides, saveBandColors } from './constants.js';
-import { activateGridMode, deactivateGridMode, saveGridAssignments, getGridPermutation } from './grid-layout.js';
+import { activateGridMode, deactivateGridMode, saveGridAssignments, resetGridAssignments, getGridPermutation } from './grid-layout.js';
 import { startAutoRefresh, stopAutoRefresh } from './refresh.js';
 import { fetchSatellitePositions } from './satellites.js';
 import { startBeaconTimer, stopBeaconTimer } from './beacons.js';
@@ -836,6 +836,16 @@ export function initSplashListeners() {
     });
   }
 
+  // Reset Grid button — clears assignments, spans, and track sizes
+  const resetGridBtn = document.getElementById('resetGridBtn');
+  if (resetGridBtn) {
+    resetGridBtn.addEventListener('click', () => {
+      resetGridAssignments();
+      renderGridPreview(state.gridPermutation);
+      updateWidgetSlotEnforcement();
+    });
+  }
+
   $('editCallBtn').addEventListener('click', () => {
     showSplash();
   });
@@ -942,7 +952,26 @@ function renderGridPreview(permId) {
   if (!container) return;
   const perm = getGridPermutation(permId);
   container.innerHTML = '';
-  container.style.gridTemplateAreas = perm.areas;
+
+  // Build areas string with spans applied — replace absorbed cell names
+  // with the spanning cell's name so CSS grid merges them visually
+  const spans = (permId === state.gridPermutation) ? (state.gridSpans || {}) : {};
+  let areas = perm.areas;
+  const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
+  const absorbed = new Set();
+  for (const wrapperCells of allWrappers) {
+    for (let i = 0; i < wrapperCells.length; i++) {
+      const span = spans[wrapperCells[i]] || 1;
+      for (let s = 1; s < span && i + s < wrapperCells.length; s++) {
+        const absCell = wrapperCells[i + s];
+        // Replace absorbed cell name with spanning cell name in areas
+        areas = areas.replace(new RegExp('\\b' + absCell + '\\b', 'g'), wrapperCells[i]);
+        absorbed.add(absCell);
+      }
+    }
+  }
+
+  container.style.gridTemplateAreas = areas;
   container.style.gridTemplateColumns = perm.columns;
   container.style.gridTemplateRows = perm.rows;
 
@@ -953,12 +982,14 @@ function renderGridPreview(permId) {
   mapCell.textContent = 'MAP';
   container.appendChild(mapCell);
 
-  // Widget cells
+  // Widget cells — skip absorbed cells
   perm.cellNames.forEach(name => {
+    if (absorbed.has(name)) return;
     const cell = document.createElement('div');
-    cell.className = 'grid-preview-cell';
+    const span = spans[name] || 1;
+    cell.className = 'grid-preview-cell' + (span > 1 ? ' grid-preview-spanned' : '');
     cell.style.gridArea = name;
-    cell.textContent = name;
+    cell.textContent = span > 1 ? `${name} (+${span - 1})` : name;
     container.appendChild(cell);
   });
 }

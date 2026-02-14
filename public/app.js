@@ -195,9 +195,6 @@
         // Reference widget
         currentReferenceTab: "rst",
         // active reference tab (rst, phonetic, etc.)
-        // Update
-        updateStatusPolling: null,
-        updateReleaseUrl: null,
         // Live Spots (PSKReporter "heard" data)
         liveSpots: {
           data: [],
@@ -4035,24 +4032,24 @@
       init_solar();
       init_lunar();
       WIDGET_DEFS = [
-        { id: "widget-filters", name: "Filters" },
-        { id: "widget-activations", name: "On the Air" },
-        { id: "widget-map", name: "HamMap" },
-        { id: "widget-solar", name: "Solar" },
-        { id: "widget-spacewx", name: "Space Wx" },
-        { id: "widget-propagation", name: "Band Conditions" },
-        { id: "widget-voacap", name: "VOACAP DE\u2192DX" },
-        { id: "widget-live-spots", name: "Live Spots" },
-        { id: "widget-lunar", name: "Lunar / EME" },
-        { id: "widget-satellites", name: "Satellites" },
-        { id: "widget-rst", name: "Reference" },
-        { id: "widget-spot-detail", name: "DX Detail" },
-        { id: "widget-contests", name: "Contests" },
-        { id: "widget-dxpeditions", name: "DXpeditions" },
-        { id: "widget-beacons", name: "NCDXF Beacons" },
-        { id: "widget-dedx", name: "DE/DX Info" },
-        { id: "widget-stopwatch", name: "Stopwatch / Timer" },
-        { id: "widget-analog-clock", name: "Analog Clock" }
+        { id: "widget-filters", name: "Filters", short: "Filt" },
+        { id: "widget-activations", name: "On the Air", short: "OTA" },
+        { id: "widget-map", name: "HamMap", short: "MAP" },
+        { id: "widget-solar", name: "Solar", short: "Sol" },
+        { id: "widget-spacewx", name: "Space Wx", short: "SpWx" },
+        { id: "widget-propagation", name: "Band Conditions", short: "Band" },
+        { id: "widget-voacap", name: "VOACAP DE\u2192DX", short: "VOA" },
+        { id: "widget-live-spots", name: "Live Spots", short: "Live" },
+        { id: "widget-lunar", name: "Lunar / EME", short: "Moon" },
+        { id: "widget-satellites", name: "Satellites", short: "Sat" },
+        { id: "widget-rst", name: "Reference", short: "Ref" },
+        { id: "widget-spot-detail", name: "DX Detail", short: "DXDt" },
+        { id: "widget-contests", name: "Contests", short: "Cont" },
+        { id: "widget-dxpeditions", name: "DXpeditions", short: "DXpd" },
+        { id: "widget-beacons", name: "NCDXF Beacons", short: "Bcn" },
+        { id: "widget-dedx", name: "DE/DX Info", short: "DEDX" },
+        { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
+        { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" }
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -8537,7 +8534,6 @@ ${beacon.location}`);
 
   // src/splash.js
   init_beacons();
-  init_map_init();
   init_voacap();
 
   // src/live-spots.js
@@ -8768,6 +8764,8 @@ ${beacon.location}`);
   init_solar();
   init_lunar();
   init_dedx_info();
+  var stagedAssignments = {};
+  var selectedCell = null;
   function updateOperatorDisplay2() {
     const opCall = $("opCall");
     const opLoc = $("opLoc");
@@ -9004,7 +9002,10 @@ ${beacon.location}`);
       cb.type = "checkbox";
       cb.dataset.widgetId = w.id;
       cb.checked = state_default.widgetVisibility[w.id] !== false;
-      cb.addEventListener("change", updateWidgetSlotEnforcement);
+      cb.addEventListener("change", () => {
+        updateWidgetSlotEnforcement();
+        onWidgetCheckboxChange(cb.dataset.widgetId, cb.checked);
+      });
       label.appendChild(cb);
       label.appendChild(document.createTextNode(w.name));
       widgetList.appendChild(label);
@@ -9073,8 +9074,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.49.2";
-    $("aboutVersion").textContent = "0.49.2";
+    $("splashVersion").textContent = "0.50.0";
+    $("aboutVersion").textContent = "0.50.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -9095,69 +9096,123 @@ ${beacon.location}`);
       if (gridPermSection) {
         gridPermSection.style.display = state_default.gridMode === "grid" ? "" : "none";
       }
-      renderGridPreview(state_default.gridPermutation);
+      const currentPerm = permSelect ? permSelect.value : state_default.gridPermutation;
+      if (state_default.gridAssignments && Object.keys(state_default.gridAssignments).length > 0) {
+        stagedAssignments = { ...state_default.gridAssignments };
+      } else {
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[currentPerm];
+        stagedAssignments = defaults ? { ...defaults } : {};
+      }
+      selectedCell = null;
+      renderGridPreview(currentPerm, stagedAssignments);
     }
     updateWidgetSlotEnforcement();
+    updateWidgetCellBadges(stagedAssignments);
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
     $("splashCallsign").focus();
   }
   function dismissSplash() {
-    const val = $("splashCallsign").value.trim().toUpperCase();
+    const callsignEl = $("splashCallsign");
+    const val = callsignEl ? callsignEl.value.trim().toUpperCase() : "";
     if (!val) return;
-    state_default.myCallsign = val;
-    localStorage.setItem("hamtab_callsign", state_default.myCallsign);
-    if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
-      localStorage.setItem("hamtab_lat", String(state_default.myLat));
-      localStorage.setItem("hamtab_lon", String(state_default.myLon));
+    const splashEl = $("splash");
+    const gridDropdown = $("splashGridDropdown");
+    if (gridDropdown) gridDropdown.classList.remove("open");
+    if (splashEl) splashEl.classList.add("hidden");
+    try {
+      state_default.myCallsign = val;
+      localStorage.setItem("hamtab_callsign", state_default.myCallsign);
+      if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
+        localStorage.setItem("hamtab_lat", String(state_default.myLat));
+        localStorage.setItem("hamtab_lon", String(state_default.myLon));
+      }
+      const timeFmt24 = $("timeFmt24");
+      state_default.use24h = timeFmt24 ? timeFmt24.checked : state_default.use24h;
+      localStorage.setItem("hamtab_time24", String(state_default.use24h));
+      const distUnitKm = $("distUnitKm");
+      const tempUnitC = $("tempUnitC");
+      state_default.distanceUnit = distUnitKm && distUnitKm.checked ? "km" : "mi";
+      state_default.temperatureUnit = tempUnitC && tempUnitC.checked ? "C" : "F";
+      localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
+      localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
+      const wxStationEl = $("splashWxStation");
+      const wxApiKeyEl = $("splashWxApiKey");
+      const n2yoApiKeyEl = $("splashN2yoApiKey");
+      state_default.wxStation = wxStationEl ? wxStationEl.value.trim().toUpperCase() : state_default.wxStation;
+      state_default.wxApiKey = wxApiKeyEl ? wxApiKeyEl.value.trim() : state_default.wxApiKey;
+      state_default.n2yoApiKey = n2yoApiKeyEl ? n2yoApiKeyEl.value.trim() : state_default.n2yoApiKey;
+      localStorage.setItem("hamtab_wx_station", state_default.wxStation);
+      localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
+      localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
+      fetchWeather();
+      const oldVis2 = { ...state_default.widgetVisibility };
+      const widgetList = document.getElementById("splashWidgetList");
+      if (widgetList) {
+        widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+          state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
+        });
+      }
+      saveWidgetVisibility();
+      applyWidgetVisibility();
+      const justShown2 = (id) => oldVis2[id] === false && state_default.widgetVisibility[id] !== false;
+      const justHidden2 = (id) => oldVis2[id] !== false && state_default.widgetVisibility[id] === false;
+      if (justShown2("widget-satellites")) fetchSatellitePositions();
+      if (justShown2("widget-voacap")) fetchVoacapMatrixThrottled();
+      if (justShown2("widget-live-spots")) fetchLiveSpots();
+      if (justShown2("widget-dedx")) renderDedxInfo();
+      if (justShown2("widget-solar")) fetchSolar();
+      if (justShown2("widget-lunar")) fetchLunar();
+      if (justShown2("widget-spacewx")) fetchSpaceWxData();
+      if (justShown2("widget-dxpeditions")) fetchDxpeditions();
+      if (justShown2("widget-contests")) fetchContests();
+      if (justShown2("widget-beacons")) {
+        startBeaconTimer();
+        updateBeaconMarkers();
+      }
+      if (justHidden2("widget-beacons")) {
+        stopBeaconTimer();
+      }
+      const intervalSelect2 = $("splashUpdateInterval");
+      if (intervalSelect2) {
+        const intervalVal = intervalSelect2.value;
+        localStorage.setItem("hamtab_update_interval", intervalVal);
+        fetch("/api/update/interval", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
+        }).catch(() => {
+        });
+      }
+    } catch (e) {
+      console.warn("Error saving settings:", e);
     }
-    state_default.use24h = $("timeFmt24").checked;
-    localStorage.setItem("hamtab_time24", String(state_default.use24h));
-    state_default.distanceUnit = $("distUnitKm").checked ? "km" : "mi";
-    state_default.temperatureUnit = $("tempUnitC").checked ? "C" : "F";
-    localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
-    localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
-    state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
-    state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
-    state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
-    localStorage.setItem("hamtab_wx_station", state_default.wxStation);
-    localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
-    localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
-    const envUpdates = {};
-    if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
-    if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
-    if (Object.keys(envUpdates).length > 0) {
-      fetch("/api/config/env", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(envUpdates)
-      }).catch(() => {
-      });
+    try {
+      updateOperatorDisplay2();
+      centerMapOnUser();
+      updateUserMarker();
+      updateClocks();
+      renderSpots();
+      if (_initApp) _initApp();
+      fetchLicenseClass(state_default.myCallsign);
+    } catch (e) {
+      console.warn("Error updating display after dismiss:", e);
     }
-    fetchWeather();
-    const oldVis = { ...state_default.widgetVisibility };
-    const widgetList = document.getElementById("splashWidgetList");
-    widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
-    });
-    saveWidgetVisibility();
     if (currentThemeSupportsGrid()) {
-      const newMode = $("layoutModeGrid").checked ? "grid" : "float";
+      const newMode = $("layoutModeGrid") && $("layoutModeGrid").checked ? "grid" : "float";
       const permSelect = document.getElementById("gridPermSelect");
       const newPerm = permSelect ? permSelect.value : state_default.gridPermutation;
-      if (newMode === "grid" && state_default.gridMode !== "grid") {
+      const oldPerm = state_default.gridPermutation;
+      if (newMode === "grid") {
         state_default.gridPermutation = newPerm;
-        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
-        state_default.gridAssignments = defaults ? { ...defaults } : {};
+        state_default.gridAssignments = { ...stagedAssignments };
         saveGridAssignments();
-        activateGridMode(newPerm);
-      } else if (newMode === "grid" && newPerm !== state_default.gridPermutation) {
-        state_default.gridPermutation = newPerm;
-        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
-        state_default.gridAssignments = defaults ? { ...defaults } : {};
-        saveGridAssignments();
-        activateGridMode(newPerm);
+        if (state_default.gridMode !== "grid" || newPerm !== oldPerm) {
+          activateGridMode(newPerm);
+        } else {
+          applyGridAssignments();
+        }
       } else if (newMode === "float" && state_default.gridMode === "grid") {
         deactivateGridMode();
       }
@@ -9391,17 +9446,31 @@ ${beacon.location}`);
     if (layoutModeFloat && layoutModeGrid) {
       layoutModeFloat.addEventListener("change", () => {
         if (gridPermSection) gridPermSection.style.display = "none";
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
       layoutModeGrid.addEventListener("change", () => {
         if (gridPermSection) gridPermSection.style.display = "";
-        if (gridPermSelect) renderGridPreview(gridPermSelect.value);
+        if (gridPermSelect) {
+          if (!stagedAssignments || Object.keys(stagedAssignments).length === 0) {
+            const defaults = GRID_DEFAULT_ASSIGNMENTS[gridPermSelect.value];
+            stagedAssignments = defaults ? { ...defaults } : {};
+          }
+          selectedCell = null;
+          renderGridPreview(gridPermSelect.value, stagedAssignments);
+        }
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
     }
     if (gridPermSelect) {
       gridPermSelect.addEventListener("change", () => {
-        renderGridPreview(gridPermSelect.value);
+        const newPermId = gridPermSelect.value;
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPermId];
+        stagedAssignments = defaults ? { ...defaults } : {};
+        selectedCell = null;
+        renderGridPreview(newPermId, stagedAssignments);
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
     }
@@ -9409,7 +9478,11 @@ ${beacon.location}`);
     if (resetGridBtn) {
       resetGridBtn.addEventListener("click", () => {
         resetGridAssignments();
-        renderGridPreview(state_default.gridPermutation);
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
+        stagedAssignments = defaults ? { ...defaults } : {};
+        selectedCell = null;
+        renderGridPreview(state_default.gridPermutation, stagedAssignments);
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
     }
@@ -9492,11 +9565,21 @@ ${beacon.location}`);
       container.appendChild(row);
     });
   }
-  function renderGridPreview(permId) {
+  function renderGridPreview(permId, assignments) {
     const container = document.getElementById("gridPermPreview");
     if (!container) return;
     const perm = getGridPermutation(permId);
     container.innerHTML = "";
+    const picker = document.getElementById("gridAssignPicker");
+    if (picker) {
+      picker.innerHTML = "";
+      picker.classList.remove("open");
+    }
+    const asgn = assignments || stagedAssignments || {};
+    const widgetShortMap = {};
+    WIDGET_DEFS.forEach((w) => {
+      widgetShortMap[w.id] = w.short || w.name.substring(0, 4);
+    });
     const spans = permId === state_default.gridPermutation ? state_default.gridSpans || {} : {};
     let areas = perm.areas;
     const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
@@ -9523,11 +9606,157 @@ ${beacon.location}`);
       if (absorbed.has(name)) return;
       const cell = document.createElement("div");
       const span = spans[name] || 1;
-      cell.className = "grid-preview-cell" + (span > 1 ? " grid-preview-spanned" : "");
+      const isSpanned = span > 1;
+      cell.className = "grid-preview-cell grid-preview-assignable" + (isSpanned ? " grid-preview-spanned" : "") + (selectedCell === name ? " grid-preview-selected" : "");
       cell.style.gridArea = name;
-      cell.textContent = span > 1 ? `${name} (+${span - 1})` : name;
+      const nameEl = document.createElement("span");
+      nameEl.className = "cell-name";
+      nameEl.textContent = isSpanned ? `${name} (+${span - 1})` : name;
+      cell.appendChild(nameEl);
+      const widgetEl = document.createElement("span");
+      widgetEl.className = "cell-widget";
+      const widgetId = asgn[name];
+      widgetEl.textContent = widgetId ? widgetShortMap[widgetId] || "\u2014" : "\u2014";
+      cell.appendChild(widgetEl);
+      cell.addEventListener("click", () => {
+        if (selectedCell === name) {
+          selectedCell = null;
+          renderGridPreview(permId, asgn);
+        } else {
+          selectedCell = name;
+          renderGridPreview(permId, asgn);
+          renderAssignmentPicker(name, asgn, permId);
+        }
+      });
       container.appendChild(cell);
     });
+  }
+  function renderAssignmentPicker(cellName, assignments, permId) {
+    const picker = document.getElementById("gridAssignPicker");
+    if (!picker) return;
+    picker.innerHTML = "";
+    const asgn = assignments || stagedAssignments;
+    const currentWidgetId = asgn[cellName] || null;
+    const widgetList = document.getElementById("splashWidgetList");
+    const enabledWidgets = [];
+    if (widgetList) {
+      widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        if (cb.dataset.widgetId !== "widget-map" && cb.checked) {
+          const def = WIDGET_DEFS.find((w) => w.id === cb.dataset.widgetId);
+          if (def) enabledWidgets.push(def);
+        }
+      });
+    }
+    const reverseMap = {};
+    for (const [cell, wid] of Object.entries(asgn)) {
+      if (wid) reverseMap[wid] = cell;
+    }
+    const emptyOpt = document.createElement("div");
+    emptyOpt.className = "assign-option" + (!currentWidgetId ? " assign-current" : "");
+    emptyOpt.textContent = "(Empty)";
+    emptyOpt.addEventListener("click", () => {
+      delete asgn[cellName];
+      selectedCell = null;
+      renderGridPreview(permId, asgn);
+      updateWidgetCellBadges(asgn);
+      picker.innerHTML = "";
+      picker.classList.remove("open");
+    });
+    picker.appendChild(emptyOpt);
+    enabledWidgets.forEach((w) => {
+      const opt = document.createElement("div");
+      opt.className = "assign-option" + (currentWidgetId === w.id ? " assign-current" : "");
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = w.name;
+      opt.appendChild(nameSpan);
+      if (reverseMap[w.id] && reverseMap[w.id] !== cellName) {
+        const hint = document.createElement("span");
+        hint.className = "assign-hint";
+        hint.textContent = reverseMap[w.id];
+        opt.appendChild(hint);
+      }
+      opt.addEventListener("click", () => {
+        const oldCell = reverseMap[w.id] || null;
+        const displaced = asgn[cellName] || null;
+        asgn[cellName] = w.id;
+        if (oldCell && oldCell !== cellName) {
+          if (displaced) {
+            asgn[oldCell] = displaced;
+          } else {
+            delete asgn[oldCell];
+          }
+        }
+        selectedCell = null;
+        renderGridPreview(permId, asgn);
+        updateWidgetCellBadges(asgn);
+        picker.innerHTML = "";
+        picker.classList.remove("open");
+      });
+      picker.appendChild(opt);
+    });
+    picker.classList.add("open");
+  }
+  function updateWidgetCellBadges(assignments) {
+    const widgetList = document.getElementById("splashWidgetList");
+    if (!widgetList) return;
+    const floatRadio = document.getElementById("layoutModeFloat");
+    const isGrid = floatRadio ? !floatRadio.checked : false;
+    widgetList.querySelectorAll(".widget-cell-badge").forEach((b) => b.remove());
+    if (!isGrid) return;
+    const asgn = assignments || stagedAssignments || {};
+    const reverseMap = {};
+    for (const [cell, wid] of Object.entries(asgn)) {
+      if (wid) reverseMap[wid] = cell;
+    }
+    widgetList.querySelectorAll("label").forEach((label) => {
+      const cb = label.querySelector('input[type="checkbox"]');
+      if (!cb || cb.dataset.widgetId === "widget-map") return;
+      const cell = reverseMap[cb.dataset.widgetId];
+      if (cell) {
+        const badge = document.createElement("span");
+        badge.className = "widget-cell-badge";
+        badge.textContent = `[${cell}]`;
+        label.appendChild(badge);
+      }
+    });
+  }
+  function onWidgetCheckboxChange(widgetId, checked) {
+    const floatRadio = document.getElementById("layoutModeFloat");
+    const isGrid = floatRadio ? !floatRadio.checked : false;
+    if (!isGrid || widgetId === "widget-map") return;
+    const permSelect = document.getElementById("gridPermSelect");
+    const permId = permSelect ? permSelect.value : state_default.gridPermutation;
+    const perm = getGridPermutation(permId);
+    if (!checked) {
+      for (const [cell, wid] of Object.entries(stagedAssignments)) {
+        if (wid === widgetId) {
+          delete stagedAssignments[cell];
+          break;
+        }
+      }
+    } else {
+      const spans = permId === state_default.gridPermutation ? state_default.gridSpans || {} : {};
+      const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
+      const absorbed = /* @__PURE__ */ new Set();
+      for (const wrapperCells of allWrappers) {
+        for (let i = 0; i < wrapperCells.length; i++) {
+          const span = spans[wrapperCells[i]] || 1;
+          for (let s = 1; s < span && i + s < wrapperCells.length; s++) {
+            absorbed.add(wrapperCells[i + s]);
+          }
+        }
+      }
+      for (const cellName of perm.cellNames) {
+        if (absorbed.has(cellName)) continue;
+        if (!stagedAssignments[cellName]) {
+          stagedAssignments[cellName] = widgetId;
+          break;
+        }
+      }
+    }
+    selectedCell = null;
+    renderGridPreview(permId, stagedAssignments);
+    updateWidgetCellBadges(stagedAssignments);
   }
 
   // src/config.js
@@ -9662,78 +9891,71 @@ ${beacon.location}`);
   }
 
   // src/update.js
-  init_state();
   init_dom();
-  init_utils();
-  async function checkUpdateStatus() {
+  function initUpdateDisplay() {
+    const el2 = $("platformLabel");
+    if (el2) el2.textContent = "v0.50.0";
+  }
+
+  // src/settings-sync.js
+  var SYNC_KEYS = [
+    "hamtab_callsign",
+    "hamtab_lat",
+    "hamtab_lon",
+    "hamtab_gps_lat",
+    "hamtab_gps_lon",
+    "hamtab_time24",
+    "hamtab_spot_source",
+    "hamtab_privilege_filter",
+    "hamtab_license_class",
+    "hamtab_prop_metric",
+    "hamtab_map_center",
+    "hamtab_clock_style",
+    "hamtab_wx_station",
+    "hamtab_wx_apikey",
+    "hamtab_map_overlays",
+    "hamtab_widgets_user",
+    "hamtab_widget_visibility",
+    "hamtab_solar_fields",
+    "hamtab_lunar_fields",
+    "hamtab_spot_columns",
+    "hamtab_sdo_type"
+  ];
+  function getUserId() {
+    let id = localStorage.getItem("hamtab_user_id");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("hamtab_user_id", id);
+    }
+    return id;
+  }
+  function settingsUrl() {
+    return `/api/settings?userId=${getUserId()}`;
+  }
+  async function pullSettings() {
     try {
-      const resp = await fetch("/api/update/status");
+      const resp = await fetch(settingsUrl());
       if (!resp.ok) return;
-      const data = await resp.json();
-      if (data.available && data.latestVersion) {
-        $("updateDot").className = "update-dot green";
-        $("updateLabel").textContent = `v${data.latestVersion} available`;
-        state_default.updateReleaseUrl = data.releaseUrl || null;
-      } else {
-        $("updateDot").className = "update-dot gray";
-        $("updateLabel").textContent = data.lastCheck ? "Checked " + fmtTime(new Date(data.lastCheck), { hour: "2-digit", minute: "2-digit" }) : "No updates";
-        state_default.updateReleaseUrl = null;
-      }
-    } catch (e) {
-    }
-  }
-  function startUpdateStatusPolling() {
-    if (state_default.updateStatusPolling) clearInterval(state_default.updateStatusPolling);
-    checkUpdateStatus();
-    state_default.updateStatusPolling = setInterval(checkUpdateStatus, 3e4);
-  }
-  function pollForServer(attempts) {
-    if (attempts <= 0) {
-      $("updateLabel").textContent = "Server did not come back";
-      $("updateDot").className = "update-dot red";
-      return;
-    }
-    setTimeout(() => {
-      fetch("/api/spots").then((resp) => {
-        if (resp.ok) {
-          $("updateLabel").textContent = "Reloading...";
-          location.reload();
-        } else {
-          pollForServer(attempts - 1);
+      const remote = await resp.json();
+      if (!remote || typeof remote !== "object") return;
+      let changed = false;
+      for (const key of SYNC_KEYS) {
+        if (key in remote) {
+          const local = localStorage.getItem(key);
+          const remoteVal = remote[key] === null ? null : String(remote[key]);
+          if (local !== remoteVal) {
+            if (remoteVal === null) {
+              localStorage.removeItem(key);
+            } else {
+              localStorage.setItem(key, remoteVal);
+            }
+            changed = true;
+          }
         }
-      }).catch(() => {
-        pollForServer(attempts - 1);
-      });
-    }, 1e3);
-  }
-  function sendUpdateInterval() {
-    const saved = localStorage.getItem("hamtab_update_interval");
-    if (saved) {
-      fetch("/api/update/interval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seconds: parseInt(saved, 10) })
-      }).catch(() => {
-      });
+      }
+      if (changed) location.reload();
+    } catch {
     }
-  }
-  function initUpdateListeners() {
-    $("updateIndicator").addEventListener("click", () => {
-      if ($("updateDot").classList.contains("green") && state_default.updateReleaseUrl) {
-        window.open(state_default.updateReleaseUrl, "_blank", "noopener");
-      }
-    });
-    $("restartBtn").addEventListener("click", async (e) => {
-      e.stopPropagation();
-      $("restartBtn").classList.add("hidden");
-      $("updateDot").className = "update-dot yellow";
-      $("updateLabel").textContent = "Restarting...";
-      try {
-        await fetch("/api/restart", { method: "POST" });
-      } catch {
-      }
-      pollForServer(30);
-    });
   }
 
   // src/fullscreen.js
@@ -11099,6 +11321,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   state_default.widgetVisibility = loadWidgetVisibility();
   state_default.spotColumnVisibility = loadSpotColumnVisibility();
   initMap();
+  pullSettings();
   updateGrayLine();
   updateSunMarker();
   setInterval(() => {
@@ -11125,7 +11348,6 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initSplashListeners();
   initConfigListeners();
   initRefreshListeners();
-  initUpdateListeners();
   initFullscreenListeners();
   initWeatherListeners();
   initPropListeners();
@@ -11153,8 +11375,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     refreshAll();
     if (state_default.autoRefreshEnabled) startAutoRefresh();
     fetchLocation();
-    startUpdateStatusPolling();
-    sendUpdateInterval();
+    initUpdateDisplay();
     fetchWeather();
     startNwsPolling();
     if (isWidgetVisible("widget-live-spots")) fetchLiveSpots();

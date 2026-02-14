@@ -50,6 +50,7 @@ import { initContestListeners, fetchContests } from './contests.js';
 import { initDedxListeners, renderDedxInfo, startDedxTimer } from './dedx-info.js';
 import { initBigClock, updateBigClock } from './big-clock.js';
 import { initStopwatchListeners } from './stopwatch.js';
+import { initAnalogClock, updateAnalogClock } from './analog-clock.js';
 
 // Initialize map
 initMap();
@@ -66,7 +67,7 @@ setInterval(() => { if (isWidgetVisible('widget-satellites')) fetchSatellitePosi
 
 // Clocks
 updateClocks();
-setInterval(() => { updateClocks(); updateBigClock(); }, 1000);
+setInterval(() => { updateClocks(); updateBigClock(); updateAnalogClock(); }, 1000);
 setInterval(renderSpots, 30000); // 30 s — re-render spot table to update age column
 
 // Set up all event listeners
@@ -96,6 +97,7 @@ initContestListeners();
 initDedxListeners();
 initBigClock();
 initStopwatchListeners();
+initAnalogClock();
 
 // Wire initApp into splash dismissal
 function initApp() {

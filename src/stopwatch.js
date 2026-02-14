@@ -177,3 +177,8 @@ export function startStopwatchDisplay() {
 export function stopStopwatchDisplay() {
   // Timer already stopped via state.stopwatchTimer; nothing to clean up
 }
+
+// Read-only getters for clock complication
+export function getStopwatchElapsed() { return elapsed; }
+export function getStopwatchRunning() { return running; }
+export function getStopwatchMode() { return mode; }

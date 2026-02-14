@@ -1645,7 +1645,7 @@ app.post('/api/update/apply', async (req, res) => {
 
 // --- Update diagnostics endpoint ---
 // Dry-run tests every step of the update process and reports pass/fail/warn.
-// Temporary debug tool for issue #129 — helps diagnose update failures on user machines.
+// Accessible at /update-debug.html — helps diagnose update failures on user machines.
 app.get('/api/update/diagnostics', async (req, res) => {
   const results = {};
 

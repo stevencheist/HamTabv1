@@ -24,9 +24,22 @@ export async function checkUpdateStatus() {
       state.updateReleaseUrl = null;
     }
 
-    // Upgrade label with platform info if server provides it
+    // Upgrade label with platform info if server provides it (lanmode only)
     if (data.platform && data.currentVersion) {
       el.textContent = `v${data.currentVersion} · ${data.platform}`;
+
+      // Add diagnostics link to About panel (once)
+      const aboutVer = $('aboutVersion');
+      if (aboutVer && !document.getElementById('diagLink')) {
+        const link = document.createElement('a');
+        link.id = 'diagLink';
+        link.href = '/update-debug.html';
+        link.target = '_blank';
+        link.textContent = 'System Diagnostics';
+        link.style.cssText = 'display:inline-block;margin-left:8px;font-size:0.85em;';
+        aboutVer.parentNode.appendChild(document.createTextNode(' · '));
+        aboutVer.parentNode.appendChild(link);
+      }
     }
   } catch (e) {
     // ignore — version label already set above
@@ -93,7 +106,7 @@ export function initUpdateListeners() {
       const label = $('updateLabel');
       label.innerHTML = '';
       const link = document.createElement('a');
-      link.href = '/update-debug';
+      link.href = '/update-debug.html';
       link.textContent = err.message || 'Update failed';
       link.style.color = 'inherit';
       link.title = 'Run update diagnostics';

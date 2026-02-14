@@ -9451,6 +9451,17 @@ ${beacon.location}`);
       }
       if (data.platform && data.currentVersion) {
         el.textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
+        const aboutVer = $("aboutVersion");
+        if (aboutVer && !document.getElementById("diagLink")) {
+          const link = document.createElement("a");
+          link.id = "diagLink";
+          link.href = "/update-debug.html";
+          link.target = "_blank";
+          link.textContent = "System Diagnostics";
+          link.style.cssText = "display:inline-block;margin-left:8px;font-size:0.85em;";
+          aboutVer.parentNode.appendChild(document.createTextNode(" \xB7 "));
+          aboutVer.parentNode.appendChild(link);
+        }
       }
     } catch (e) {
     }
@@ -9510,7 +9521,7 @@ ${beacon.location}`);
         const label = $("updateLabel");
         label.innerHTML = "";
         const link = document.createElement("a");
-        link.href = "/update-debug";
+        link.href = "/update-debug.html";
         link.textContent = err.message || "Update failed";
         link.style.color = "inherit";
         link.title = "Run update diagnostics";

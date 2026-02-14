@@ -51,6 +51,7 @@ import { initDedxListeners, renderDedxInfo, startDedxTimer } from './dedx-info.j
 import { initBigClock, updateBigClock } from './big-clock.js';
 import { initStopwatchListeners } from './stopwatch.js';
 import { initAnalogClock, updateAnalogClock } from './analog-clock.js';
+import { initClockConfigListeners } from './clock-config.js';
 
 // Initialize map
 initMap();
@@ -98,6 +99,7 @@ initDedxListeners();
 initBigClock();
 initStopwatchListeners();
 initAnalogClock();
+initClockConfigListeners();
 
 // Wire initApp into splash dismissal
 function initApp() {

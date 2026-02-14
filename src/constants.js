@@ -19,6 +19,7 @@ export const WIDGET_DEFS = [
   { id: 'widget-beacons',      name: 'NCDXF Beacons' },
   { id: 'widget-dedx',         name: 'DE/DX Info' },
   { id: 'widget-stopwatch',    name: 'Stopwatch / Timer' },
+  { id: 'widget-analog-clock', name: 'Analog Clock' },
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)
@@ -488,6 +489,15 @@ export const WIDGET_HELP = {
       { heading: 'Bearing & Distance', content: 'The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact.' },
     ],
   },
+  'widget-analog-clock': {
+    title: 'Analog Clock',
+    description: 'A classic round analog clock showing your local time at a glance. Inspired by the wall clocks found in many ham shacks, this widget also displays a sunrise/sunset arc when your location is set — a quick visual reference for gray line propagation windows.',
+    sections: [
+      { heading: 'Clock Face', content: 'Displays your local time with hour, minute, and second hands. The second hand is highlighted in your theme\'s accent color for easy reading. The current day and date are shown below the center.' },
+      { heading: 'Sunrise/Sunset Arc', content: 'When your location (QTH) is set in Config, a golden arc appears on the clock face showing the daylight hours. The arc spans from sunrise to sunset on the 12-hour dial. This helps you visualize how much daylight remains and when gray line propagation windows occur.' },
+      { heading: 'Theme Support', content: 'The clock colors automatically adapt to your selected theme. The face, hands, and numbers all use your theme\'s color scheme.' },
+    ],
+  },
   'widget-stopwatch': {
     title: 'Stopwatch / Timer',
     description: 'A dual-mode timer for contest operations and general use. Switch between Stopwatch (count up with laps) and Countdown (preset timers including the 10-minute FCC station ID reminder).',
@@ -662,6 +672,7 @@ export const REFLOW_WIDGET_ORDER = [
   'widget-beacons',
   'widget-dedx',
   'widget-stopwatch',
+  'widget-analog-clock',
 ];
 
 export function getLayoutMode() {

@@ -165,7 +165,7 @@ $LogFile = Join-Path $LogDir "hamtab.log"
 & $NssmExe set $ServiceName AppStopMethodWindow 5000
 & $NssmExe set $ServiceName AppStopMethodThreads 10000
 
-# Auto-restart on crash with 5s delay (mirrors systemd Restart=on-failure)
+# Auto-restart on any exit with 5s delay (covers update restarts and crashes)
 & $NssmExe set $ServiceName AppExit Default Restart
 & $NssmExe set $ServiceName AppRestartDelay 5000
 

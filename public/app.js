@@ -4899,6 +4899,16 @@
     all[permId] = { columns, rows, ...flexRatios || {} };
     localStorage.setItem(GRID_SIZES_KEY, JSON.stringify(all));
   }
+  function clearCustomTrackSizes(permId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(GRID_SIZES_KEY));
+      if (all && all[permId]) {
+        delete all[permId];
+        localStorage.setItem(GRID_SIZES_KEY, JSON.stringify(all));
+      }
+    } catch (e) {
+    }
+  }
   function loadGridSpans(permId) {
     try {
       const all = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
@@ -4916,6 +4926,16 @@
     }
     all[state_default.gridPermutation] = state_default.gridSpans;
     localStorage.setItem(GRID_SPANS_KEY, JSON.stringify(all));
+  }
+  function clearGridSpans(permId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
+      if (all && all[permId]) {
+        delete all[permId];
+        localStorage.setItem(GRID_SPANS_KEY, JSON.stringify(all));
+      }
+    } catch (e) {
+    }
   }
   function isAbsorbed(cellName, cellNames, spans) {
     const idx = cellNames.indexOf(cellName);
@@ -5520,6 +5540,23 @@
         el2.style.display = "";
       }
     });
+  }
+  function resetGridAssignments() {
+    const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
+    state_default.gridAssignments = defaults ? { ...defaults } : {};
+    saveGridAssignments();
+    state_default.gridSpans = {};
+    clearGridSpans(state_default.gridPermutation);
+    clearCustomTrackSizes(state_default.gridPermutation);
+    const perm = getGridPermutation(state_default.gridPermutation);
+    const area = document.getElementById("widgetArea");
+    if (area) {
+      area.style.gridTemplateAreas = perm.outerAreas;
+      area.style.gridTemplateColumns = perm.outerColumns;
+      area.style.gridTemplateRows = perm.outerRows;
+    }
+    applyGridAssignments();
+    createTrackHandles();
   }
   function handleGridDragStart(widget, e) {
     if (widget.id === "widget-map") return;
@@ -9036,8 +9073,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.49.1";
-    $("aboutVersion").textContent = "0.49.1";
+    $("splashVersion").textContent = "0.49.2";
+    $("aboutVersion").textContent = "0.49.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -9368,6 +9405,14 @@ ${beacon.location}`);
         updateWidgetSlotEnforcement();
       });
     }
+    const resetGridBtn = document.getElementById("resetGridBtn");
+    if (resetGridBtn) {
+      resetGridBtn.addEventListener("click", () => {
+        resetGridAssignments();
+        renderGridPreview(state_default.gridPermutation);
+        updateWidgetSlotEnforcement();
+      });
+    }
     $("editCallBtn").addEventListener("click", () => {
       showSplash();
     });
@@ -9452,7 +9497,21 @@ ${beacon.location}`);
     if (!container) return;
     const perm = getGridPermutation(permId);
     container.innerHTML = "";
-    container.style.gridTemplateAreas = perm.areas;
+    const spans = permId === state_default.gridPermutation ? state_default.gridSpans || {} : {};
+    let areas = perm.areas;
+    const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
+    const absorbed = /* @__PURE__ */ new Set();
+    for (const wrapperCells of allWrappers) {
+      for (let i = 0; i < wrapperCells.length; i++) {
+        const span = spans[wrapperCells[i]] || 1;
+        for (let s = 1; s < span && i + s < wrapperCells.length; s++) {
+          const absCell = wrapperCells[i + s];
+          areas = areas.replace(new RegExp("\\b" + absCell + "\\b", "g"), wrapperCells[i]);
+          absorbed.add(absCell);
+        }
+      }
+    }
+    container.style.gridTemplateAreas = areas;
     container.style.gridTemplateColumns = perm.columns;
     container.style.gridTemplateRows = perm.rows;
     const mapCell = document.createElement("div");
@@ -9461,10 +9520,12 @@ ${beacon.location}`);
     mapCell.textContent = "MAP";
     container.appendChild(mapCell);
     perm.cellNames.forEach((name) => {
+      if (absorbed.has(name)) return;
       const cell = document.createElement("div");
-      cell.className = "grid-preview-cell";
+      const span = spans[name] || 1;
+      cell.className = "grid-preview-cell" + (span > 1 ? " grid-preview-spanned" : "");
       cell.style.gridArea = name;
-      cell.textContent = name;
+      cell.textContent = span > 1 ? `${name} (+${span - 1})` : name;
       container.appendChild(cell);
     });
   }

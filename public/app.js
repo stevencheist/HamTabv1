@@ -5212,11 +5212,23 @@
     const totalPx = beforePx + afterPx;
     const pxPerFlex = totalPx / totalFlex;
     const startPos = isColumn ? e.clientY : e.clientX;
+    const spanCtx = handle._spanCtx;
     function onMove(ev) {
       const delta = (isColumn ? ev.clientY : ev.clientX) - startPos;
       const deltaFlex = delta / pxPerFlex;
       let newBefore = beforeFlex + deltaFlex;
       let newAfter = afterFlex - deltaFlex;
+      if (spanCtx) {
+        const estAfterPx = afterPx - delta;
+        if (estAfterPx < SNAP_PX && delta > 0) {
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+          beforeEl.style.flexGrow = beforeFlex;
+          afterEl.style.flexGrow = afterFlex;
+          toggleSpan(handle, wrapper, spanCtx.cellNames, isColumn, spanCtx.flexKey);
+          return;
+        }
+      }
       if (newBefore < MIN_FLEX) {
         newAfter -= MIN_FLEX - newBefore;
         newBefore = MIN_FLEX;
@@ -5309,6 +5321,7 @@
       if (!firstRendered) {
         const handle = document.createElement("div");
         handle.className = isColumn ? "grid-flex-handle grid-flex-handle--col" : "grid-flex-handle grid-flex-handle--row";
+        handle._spanCtx = { cellNames, flexKey };
         handle.addEventListener("mousedown", onFlexHandleMouseDown);
         handle.addEventListener("dblclick", (e) => {
           e.preventDefault();
@@ -5634,7 +5647,7 @@
     saveGridAssignments();
     applyGridAssignments();
   }
-  var trackHandles, MIN_FR, MIN_FLEX;
+  var trackHandles, MIN_FR, MIN_FLEX, SNAP_PX;
   var init_grid_layout = __esm({
     "src/grid-layout.js"() {
       init_state();
@@ -5642,6 +5655,7 @@
       trackHandles = [];
       MIN_FR = 0.3;
       MIN_FLEX = 0.15;
+      SNAP_PX = 40;
     }
   });
 
@@ -9074,8 +9088,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.50.0";
-    $("aboutVersion").textContent = "0.50.0";
+    $("splashVersion").textContent = "0.50.1";
+    $("aboutVersion").textContent = "0.50.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

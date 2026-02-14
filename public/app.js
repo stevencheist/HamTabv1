@@ -8865,8 +8865,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.45.2";
-    $("aboutVersion").textContent = "0.45.2";
+    $("splashVersion").textContent = "0.46.0";
+    $("aboutVersion").textContent = "0.46.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -9128,6 +9128,42 @@ ${beacon.location}`);
         );
       } else {
         updateLocStatus("Geolocation unavailable", true);
+      }
+    });
+    $("splashCallsignLocBtn").addEventListener("click", async () => {
+      const call = $("splashCallsign").value.trim().toUpperCase();
+      if (!call) {
+        updateLocStatus("Enter a callsign first", true);
+        return;
+      }
+      const btn = $("splashCallsignLocBtn");
+      btn.disabled = true;
+      updateLocStatus("Looking up " + call + "...");
+      try {
+        const resp = await fetch("/api/callsign/" + encodeURIComponent(call));
+        const data = await resp.json();
+        if (data.status === "VALID" && data.lat != null && data.lon != null) {
+          state_default.syncingFields = true;
+          $("splashLat").value = data.lat.toFixed(2);
+          $("splashLon").value = data.lon.toFixed(2);
+          if (data.grid) {
+            $("splashGrid").value = data.grid.substring(0, 4).toUpperCase();
+          } else {
+            $("splashGrid").value = latLonToGrid(data.lat, data.lon).substring(0, 4).toUpperCase();
+          }
+          state_default.myLat = data.lat;
+          state_default.myLon = data.lon;
+          state_default.syncingFields = false;
+          state_default.manualLoc = true;
+          $("splashGpsBtn").classList.remove("active");
+          updateLocStatus("Location set from callsign");
+        } else {
+          updateLocStatus("No location found for " + call, true);
+        }
+      } catch {
+        updateLocStatus("Lookup failed \u2014 try again", true);
+      } finally {
+        btn.disabled = false;
       }
     });
     $("splashSaveLayout").addEventListener("click", () => {

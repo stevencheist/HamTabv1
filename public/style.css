@@ -5266,6 +5266,29 @@ header {
   font-weight: 600;
 }
 
+.grid-perm-preview .grid-preview-cell.grid-preview-spanned {
+  background: var(--accent);
+  color: #fff;
+  opacity: 0.7;
+  font-weight: 600;
+}
+
+.splash-reset-grid-btn {
+  margin-top: 4px;
+  padding: 4px 12px;
+  font-size: 0.7rem;
+  background: var(--surface2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  align-self: center;
+}
+.splash-reset-grid-btn:hover {
+  background: var(--surface3);
+  color: var(--text);
+}
+
 /* Grid mode section in config modal */
 .splash-grid-mode-section {
   display: flex;

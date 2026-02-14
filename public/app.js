@@ -393,11 +393,11 @@
   }
   function distanceMi(lat1, lon1, lat2, lon2) {
     const r = Math.PI / 180;
-    const R = 3958.8;
+    const R2 = 3958.8;
     const dLat = (lat2 - lat1) * r;
     const dLon = (lon2 - lon1) * r;
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R2 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
   function geodesicPoints(lat1, lon1, lat2, lon2, n) {
     const r = Math.PI / 180;
@@ -1302,11 +1302,11 @@
   }
   function distanceKm(lat1, lon1, lat2, lon2) {
     const r = Math.PI / 180;
-    const R = 6371;
+    const R2 = 6371;
     const dLat = (lat2 - lat1) * r;
     const dLon = (lon2 - lon1) * r;
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R2 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
   function distanceModifier(distKm) {
     if (distKm < 100) return 0.3;
@@ -1852,9 +1852,9 @@
     }
   }
   function renderLocalTime(lon) {
-    const el = document.getElementById("spotDetailTime");
-    if (!el) return;
-    el.textContent = localTimeAtLon(lon, state_default.use24h);
+    const el2 = document.getElementById("spotDetailTime");
+    if (!el2) return;
+    el2.textContent = localTimeAtLon(lon, state_default.use24h);
   }
   function wxClass(shortForecast) {
     if (!shortForecast) return "";
@@ -2042,8 +2042,8 @@
   }
   function renderDedxDe() {
     const timeEl = $("dedxDeTime");
-    const el = $("dedxDeContent");
-    if (!el) return;
+    const el2 = $("dedxDeContent");
+    if (!el2) return;
     const now = /* @__PURE__ */ new Date();
     if (timeEl) timeEl.textContent = fmtTime2(now, state_default.use24h);
     const call = state_default.myCallsign || "\u2014";
@@ -2067,12 +2067,12 @@
     } else {
       rows += `<div class="dedx-row dedx-empty">Set location in Config</div>`;
     }
-    el.innerHTML = rows;
+    el2.innerHTML = rows;
   }
   function renderDedxDx() {
     const timeEl = $("dedxDxTime");
-    const el = $("dedxDxContent");
-    if (!el) return;
+    const el2 = $("dedxDxContent");
+    if (!el2) return;
     if (!selectedSpot) {
       if (timeEl) {
         const now = /* @__PURE__ */ new Date();
@@ -2081,7 +2081,7 @@
         const s = String(now.getUTCSeconds()).padStart(2, "0");
         timeEl.textContent = `${h}:${m}:${s}`;
       }
-      el.innerHTML = '<div class="dedx-utc-label">UTC</div><div class="dedx-row dedx-empty">Select a spot</div>';
+      el2.innerHTML = '<div class="dedx-utc-label">UTC</div><div class="dedx-row dedx-empty">Select a spot</div>';
       return;
     }
     const spot = selectedSpot;
@@ -2134,7 +2134,7 @@
       const sign = offset >= 0 ? "+" : "";
       rows += `<div class="dedx-row"><span class="dedx-label-sm">TZ</span><span class="dedx-value dedx-utc-badge">UTC${sign}${offset}</span></div>`;
     }
-    el.innerHTML = rows;
+    el2.innerHTML = rows;
   }
   var selectedSpot;
   var init_dedx_info = __esm({
@@ -4040,7 +4040,8 @@
         { id: "widget-dxpeditions", name: "DXpeditions" },
         { id: "widget-beacons", name: "NCDXF Beacons" },
         { id: "widget-dedx", name: "DE/DX Info" },
-        { id: "widget-stopwatch", name: "Stopwatch / Timer" }
+        { id: "widget-stopwatch", name: "Stopwatch / Timer" },
+        { id: "widget-analog-clock", name: "Analog Clock" }
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -4522,6 +4523,15 @@
             { heading: "Bearing & Distance", content: "The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact." }
           ]
         },
+        "widget-analog-clock": {
+          title: "Analog Clock",
+          description: "A classic round analog clock showing your local time at a glance. Inspired by the wall clocks found in many ham shacks, this widget also displays a sunrise/sunset arc when your location is set \u2014 a quick visual reference for gray line propagation windows.",
+          sections: [
+            { heading: "Clock Face", content: "Displays your local time with hour, minute, and second hands. The second hand is highlighted in your theme's accent color for easy reading. The current day and date are shown below the center." },
+            { heading: "Sunrise/Sunset Arc", content: "When your location (QTH) is set in Config, a golden arc appears on the clock face showing the daylight hours. The arc spans from sunrise to sunset on the 12-hour dial. This helps you visualize how much daylight remains and when gray line propagation windows occur." },
+            { heading: "Theme Support", content: "The clock colors automatically adapt to your selected theme. The face, hands, and numbers all use your theme's color scheme." }
+          ]
+        },
         "widget-stopwatch": {
           title: "Stopwatch / Timer",
           description: "A dual-mode timer for contest operations and general use. Switch between Stopwatch (count up with laps) and Countdown (preset timers including the 10-minute FCC station ID reminder).",
@@ -4692,7 +4702,8 @@
         "widget-dxpeditions",
         "widget-beacons",
         "widget-dedx",
-        "widget-stopwatch"
+        "widget-stopwatch",
+        "widget-analog-clock"
       ];
       DEFAULT_BAND_COLORS = {
         "160m": "#9c27b0",
@@ -5087,7 +5098,7 @@
       if (!wrapper) return;
       const widgets = wrapper.querySelectorAll(".widget");
       widgets.forEach((w) => area.appendChild(w));
-      wrapper.querySelectorAll(".grid-flex-handle, .grid-cell-placeholder").forEach((el) => el.remove());
+      wrapper.querySelectorAll(".grid-flex-handle, .grid-cell-placeholder").forEach((el2) => el2.remove());
       wrapper.remove();
     });
   }
@@ -5206,28 +5217,28 @@
         wrapper.appendChild(handle);
       }
       const widgetId = state_default.gridAssignments[cellName];
-      let el;
+      let el2;
       const isVisible = widgetId && state_default.widgetVisibility && state_default.widgetVisibility[widgetId] !== false;
       if (isVisible) {
-        el = document.getElementById(widgetId);
-        if (el) {
-          el.style.gridArea = "";
-          el.style.display = "";
-          wrapper.appendChild(el);
+        el2 = document.getElementById(widgetId);
+        if (el2) {
+          el2.style.gridArea = "";
+          el2.style.display = "";
+          wrapper.appendChild(el2);
         }
       } else if (widgetId) {
         const hiddenEl = document.getElementById(widgetId);
         if (hiddenEl) hiddenEl.style.display = "none";
       }
-      if (!el) {
-        el = document.createElement("div");
-        el.className = "grid-cell-placeholder";
-        el.dataset.gridCell = cellName;
-        wrapper.appendChild(el);
+      if (!el2) {
+        el2 = document.createElement("div");
+        el2.className = "grid-cell-placeholder";
+        el2.dataset.gridCell = cellName;
+        wrapper.appendChild(el2);
       }
-      el.style.flexGrow = flexValues[idx];
-      el.style.flexShrink = "1";
-      el.style.flexBasis = "0%";
+      el2.style.flexGrow = flexValues[idx];
+      el2.style.flexShrink = "1";
+      el2.style.flexBasis = "0%";
     });
   }
   function isGridMode() {
@@ -5307,7 +5318,7 @@
         w.style.height = saved[w.id].height + "px";
       }
     });
-    area.querySelectorAll(".grid-cell-placeholder").forEach((el) => el.remove());
+    area.querySelectorAll(".grid-cell-placeholder").forEach((el2) => el2.remove());
     setTimeout(() => {
       if (state_default.map) state_default.map.invalidateSize();
     }, 100);
@@ -5357,13 +5368,13 @@
     const assignedWidgets = new Set(Object.values(state_default.gridAssignments));
     WIDGET_DEFS.forEach((def) => {
       if (def.id === "widget-map") return;
-      const el = document.getElementById(def.id);
-      if (!el) return;
+      const el2 = document.getElementById(def.id);
+      if (!el2) return;
       if (!assignedWidgets.has(def.id) || vis[def.id] === false) {
-        el.style.gridArea = "";
-        el.style.display = "none";
+        el2.style.gridArea = "";
+        el2.style.display = "none";
       } else {
-        el.style.display = "";
+        el2.style.display = "";
       }
     });
   }
@@ -5376,14 +5387,14 @@
     widget.classList.add("grid-dragging");
     function onMove(ev) {
       widget.style.pointerEvents = "none";
-      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      const el2 = document.elementFromPoint(ev.clientX, ev.clientY);
       widget.style.pointerEvents = "";
       if (currentTarget) {
         currentTarget.classList.remove("grid-drop-target");
         currentTarget = null;
       }
-      if (!el) return;
-      const target = el.closest(".widget, .grid-cell-placeholder");
+      if (!el2) return;
+      const target = el2.closest(".widget, .grid-cell-placeholder");
       if (target && target !== widget && target.id !== "widget-map") {
         target.classList.add("grid-drop-target");
         currentTarget = target;
@@ -5467,12 +5478,12 @@
       return;
     }
     WIDGET_DEFS.forEach((w) => {
-      const el = document.getElementById(w.id);
-      if (!el) return;
+      const el2 = document.getElementById(w.id);
+      if (!el2) return;
       if (state_default.widgetVisibility[w.id] === false) {
-        el.style.display = "none";
+        el2.style.display = "none";
       } else {
-        el.style.display = "";
+        el2.style.display = "";
       }
     });
     redistributeRightColumn();
@@ -5486,7 +5497,7 @@
     const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
     const rightX = parseInt(solarEl.style.left) || 0;
     const rightW = parseInt(solarEl.style.width) || 0;
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch", "widget-analog-clock"];
     const vis = state_default.widgetVisibility || {};
     const visible = rightBottomIds.filter((id) => vis[id] !== false);
     if (visible.length === 0) return;
@@ -5495,12 +5506,12 @@
     const slotH = Math.round((bottomSpace - gaps * pad) / visible.length);
     let curY = solarBottom + pad;
     visible.forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.style.left = rightX + "px";
-      el.style.top = curY + "px";
-      el.style.width = rightW + "px";
-      el.style.height = slotH + "px";
+      const el2 = document.getElementById(id);
+      if (!el2) return;
+      el2.style.left = rightX + "px";
+      el2.style.top = curY + "px";
+      el2.style.width = rightW + "px";
+      el2.style.height = slotH + "px";
       curY += slotH + pad;
     });
     saveWidgets();
@@ -5525,7 +5536,7 @@
       "widget-map": { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
       "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
     };
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch", "widget-analog-clock"];
     const vis = state_default.widgetVisibility || {};
     const visibleBottom = rightBottomIds.filter((id) => vis[id] !== false);
     const bottomSpace = H - rightHalf - pad * 2;
@@ -5866,14 +5877,14 @@
     area.classList.add("reflow-layout");
     const vis = state_default.widgetVisibility || {};
     REFLOW_WIDGET_ORDER.forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
+      const el2 = document.getElementById(id);
+      if (!el2) return;
       if (vis[id] === false) {
-        el.style.display = "none";
+        el2.style.display = "none";
         return;
       }
-      el.style.display = "";
-      area.appendChild(el);
+      el2.style.display = "";
+      area.appendChild(el2);
     });
     if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 100);
   }
@@ -8683,9 +8694,9 @@ ${beacon.location}`);
     }
   }
   function updateLocStatus(msg, isError) {
-    const el = $("splashLocStatus");
-    el.textContent = msg || "";
-    el.classList.toggle("error", !!isError);
+    const el2 = $("splashLocStatus");
+    el2.textContent = msg || "";
+    el2.classList.toggle("error", !!isError);
   }
   function updateGridHighlight() {
     const options = $("splashGridDropdown").querySelectorAll(".grid-option");
@@ -8865,8 +8876,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.46.4";
-    $("aboutVersion").textContent = "0.46.4";
+    $("splashVersion").textContent = "0.47.0";
+    $("aboutVersion").textContent = "0.47.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -9434,8 +9445,8 @@ ${beacon.location}`);
   init_dom();
   init_utils();
   async function checkUpdateStatus() {
-    const el = $("platformLabel");
-    if (el && !el.textContent) el.textContent = "v0.46.4";
+    const el2 = $("platformLabel");
+    if (el2 && !el2.textContent) el2.textContent = "v0.47.0";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
@@ -9450,7 +9461,7 @@ ${beacon.location}`);
         state_default.updateReleaseUrl = null;
       }
       if (data.platform && data.currentVersion) {
-        if (el) el.textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
+        if (el2) el2.textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
         const aboutVer = $("aboutVersion");
         if (aboutVer && !document.getElementById("diagLink")) {
           const link = document.createElement("a");
@@ -10092,6 +10103,141 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     container.innerHTML = html;
   }
 
+  // src/analog-clock.js
+  init_state();
+  init_widgets();
+  init_geo();
+  var NS = "http://www.w3.org/2000/svg";
+  var CX = 100;
+  var CY = 100;
+  var R = 88;
+  var svgBuilt = false;
+  var lastDateStr = "";
+  var lastArcDay = -1;
+  var el = {};
+  function buildSvg() {
+    const svg = document.getElementById("analogClockSvg");
+    if (!svg) return;
+    svg.innerHTML = "";
+    const face = makeSvg("circle", { cx: CX, cy: CY, r: R, fill: "var(--surface)", stroke: "var(--border)", "stroke-width": 2 });
+    svg.appendChild(face);
+    el.arc = makeSvg("path", { d: "", fill: "rgba(255,193,7,0.25)", stroke: "none" });
+    svg.appendChild(el.arc);
+    for (let i = 0; i < 60; i++) {
+      const isMajor = i % 5 === 0;
+      const angle = (i * 6 - 90) * Math.PI / 180;
+      const outerR = R - 2;
+      const innerR = isMajor ? R - 10 : R - 5;
+      const line = makeSvg("line", {
+        x1: CX + Math.cos(angle) * innerR,
+        y1: CY + Math.sin(angle) * innerR,
+        x2: CX + Math.cos(angle) * outerR,
+        y2: CY + Math.sin(angle) * outerR,
+        stroke: "var(--text-dim)",
+        "stroke-width": isMajor ? 2 : 1
+      });
+      svg.appendChild(line);
+    }
+    for (let h = 1; h <= 12; h++) {
+      const angle = (h * 30 - 90) * Math.PI / 180;
+      const numR = R - 18;
+      const txt = makeSvg("text", {
+        x: CX + Math.cos(angle) * numR,
+        y: CY + Math.sin(angle) * numR + 4,
+        // +4 vertical centering fudge
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "12",
+        "font-family": "inherit"
+      });
+      txt.textContent = h;
+      svg.appendChild(txt);
+    }
+    el.hour = makeSvg("line", { x1: CX, y1: CY, x2: CX, y2: CY - 50, stroke: "var(--text)", "stroke-width": 4, "stroke-linecap": "round" });
+    el.minute = makeSvg("line", { x1: CX, y1: CY, x2: CX, y2: CY - 70, stroke: "var(--text)", "stroke-width": 2.5, "stroke-linecap": "round" });
+    el.second = makeSvg("line", { x1: CX, y1: CY + 12, x2: CX, y2: CY - 78, stroke: "var(--accent)", "stroke-width": 1, "stroke-linecap": "round" });
+    svg.appendChild(el.hour);
+    svg.appendChild(el.minute);
+    svg.appendChild(el.second);
+    svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: 3.5, fill: "var(--accent)" }));
+    el.dateText = makeSvg("text", {
+      x: CX,
+      y: CY + 30,
+      "text-anchor": "middle",
+      fill: "var(--text-dim)",
+      "font-size": "11",
+      "font-family": "inherit"
+    });
+    svg.appendChild(el.dateText);
+    svgBuilt = true;
+  }
+  function makeSvg(tag, attrs) {
+    const node = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    return node;
+  }
+  function setHand(line, angleDeg) {
+    line.setAttribute("transform", `rotate(${angleDeg} ${CX} ${CY})`);
+  }
+  function updateArc(now) {
+    if (!el.arc) return;
+    if (state_default.myLat == null || state_default.myLon == null) {
+      el.arc.setAttribute("d", "");
+      return;
+    }
+    const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 864e5);
+    if (dayOfYear === lastArcDay) return;
+    lastArcDay = dayOfYear;
+    const times = getSunTimes(state_default.myLat, state_default.myLon, now);
+    if (!times.sunrise || !times.sunset) {
+      el.arc.setAttribute("d", "");
+      return;
+    }
+    const riseAngle = timeToAngle(times.sunrise);
+    const setAngle = timeToAngle(times.sunset);
+    const arcR = R - 12;
+    const riseRad = (riseAngle - 90) * Math.PI / 180;
+    const setRad = (setAngle - 90) * Math.PI / 180;
+    const x1 = CX + Math.cos(riseRad) * arcR;
+    const y1 = CY + Math.sin(riseRad) * arcR;
+    const x2 = CX + Math.cos(setRad) * arcR;
+    const y2 = CY + Math.sin(setRad) * arcR;
+    let sweep = setAngle - riseAngle;
+    if (sweep < 0) sweep += 360;
+    const largeArc = sweep > 180 ? 1 : 0;
+    const d = `M ${CX} ${CY} L ${x1} ${y1} A ${arcR} ${arcR} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+    el.arc.setAttribute("d", d);
+  }
+  function timeToAngle(date) {
+    const h = date.getHours() % 12;
+    const m = date.getMinutes();
+    return (h + m / 60) * 30;
+  }
+  function initAnalogClock() {
+    buildSvg();
+  }
+  function updateAnalogClock() {
+    if (!svgBuilt) return;
+    if (!isWidgetVisible("widget-analog-clock")) return;
+    const now = /* @__PURE__ */ new Date();
+    const h = now.getHours() % 12;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const hourAngle = (h + m / 60) * 30;
+    const minuteAngle = (m + s / 60) * 6;
+    const secondAngle = s * 6;
+    setHand(el.hour, hourAngle);
+    setHand(el.minute, minuteAngle);
+    setHand(el.second, secondAngle);
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const dateStr = `${days[now.getDay()]} ${now.getDate()}`;
+    if (dateStr !== lastDateStr) {
+      lastDateStr = dateStr;
+      el.dateText.textContent = dateStr;
+    }
+    updateArc(now);
+  }
+
   // src/main.js
   migrate();
   migrateV2();
@@ -10118,6 +10264,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   setInterval(() => {
     updateClocks();
     updateBigClock();
+    updateAnalogClock();
   }, 1e3);
   setInterval(renderSpots, 3e4);
   initSourceListeners();
@@ -10146,6 +10293,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initDedxListeners();
   initBigClock();
   initStopwatchListeners();
+  initAnalogClock();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

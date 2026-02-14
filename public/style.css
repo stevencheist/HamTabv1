@@ -5254,10 +5254,12 @@ header {
   font-size: 0.6rem;
   text-align: center;
   color: var(--text-dim);
-  min-height: 18px;
+  min-height: 28px;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  gap: 1px;
 }
 
 .grid-perm-preview .grid-preview-cell.grid-preview-map {
@@ -5270,6 +5272,73 @@ header {
   background: var(--accent);
   color: #fff;
   opacity: 0.7;
+  font-weight: 600;
+}
+
+.grid-perm-preview .grid-preview-cell.grid-preview-assignable {
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: border-color 0.15s;
+}
+.grid-perm-preview .grid-preview-cell.grid-preview-assignable:hover {
+  border-color: var(--accent);
+}
+.grid-perm-preview .grid-preview-cell.grid-preview-selected {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 25%, var(--surface2));
+}
+.grid-preview-cell .cell-name {
+  font-size: 0.5rem;
+  opacity: 0.6;
+  line-height: 1;
+}
+.grid-preview-cell .cell-widget {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1;
+}
+
+/* Grid assignment picker dropdown */
+.grid-assign-picker {
+  display: none;
+  max-height: 180px;
+  overflow-y: auto;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin: 4px auto 0;
+  max-width: 220px;
+}
+.grid-assign-picker.open {
+  display: block;
+}
+.grid-assign-picker .assign-option {
+  padding: 4px 8px;
+  font-size: 0.7rem;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--text);
+}
+.grid-assign-picker .assign-option:hover {
+  background: var(--surface3);
+}
+.grid-assign-picker .assign-option.assign-current {
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface2));
+}
+.grid-assign-picker .assign-option .assign-hint {
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  margin-left: 8px;
+}
+
+/* Widget cell badge in checkbox list */
+.widget-cell-badge {
+  font-size: 0.6rem;
+  color: var(--accent);
+  margin-left: 4px;
   font-weight: 600;
 }
 

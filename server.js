@@ -1310,6 +1310,8 @@ app.get('/api/callsign/:call', async (req, res) => {
       addr1: addr.line1 || '',
       addr2: addr.line2 || '',
       grid: loc.gridsquare || '',
+      lat: loc.latitude ? parseFloat(loc.latitude) : null,
+      lon: loc.longitude ? parseFloat(loc.longitude) : null,
     });
   } catch (err) {
     console.error('Error fetching callsign data:', err.message);

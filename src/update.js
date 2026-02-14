@@ -26,7 +26,7 @@ export async function checkUpdateStatus() {
 
     // Upgrade label with platform info if server provides it (lanmode only)
     if (data.platform && data.currentVersion) {
-      el.textContent = `v${data.currentVersion} · ${data.platform}`;
+      if (el) el.textContent = `v${data.currentVersion} · ${data.platform}`;
 
       // Add diagnostics link to About panel (once)
       const aboutVer = $('aboutVersion');

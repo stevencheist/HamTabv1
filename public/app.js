@@ -9450,7 +9450,7 @@ ${beacon.location}`);
         state_default.updateReleaseUrl = null;
       }
       if (data.platform && data.currentVersion) {
-        el.textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
+        if (el) el.textContent = `v${data.currentVersion} \xB7 ${data.platform}`;
         const aboutVer = $("aboutVersion");
         if (aboutVer && !document.getElementById("diagLink")) {
           const link = document.createElement("a");

@@ -5932,6 +5932,21 @@ body.grayscale {
   color: var(--text-dim, #555);
   margin-top: 2rem;
 }
+/* ---- Analog Clock Widget ---- */
+#widget-analog-clock .widget-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  overflow: hidden;
+}
+#analogClockSvg {
+  width: 100%;
+  height: 100%;
+  max-width: 300px;
+  max-height: 300px;
+}
+
 /* Header clocks get pointer cursor to indicate clickability */
 .header-clock { cursor: pointer; }
 

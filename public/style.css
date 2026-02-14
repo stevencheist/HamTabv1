@@ -183,6 +183,11 @@ html, body {
   margin-bottom: 10px;
 }
 
+.splash-loc-btns {
+  display: flex;
+  gap: 6px;
+}
+
 .splash-loc-title {
   font-size: 0.85rem;
   font-weight: 600;

@@ -190,6 +190,8 @@
         // active permutation ID
         gridAssignments: null,
         // loaded at grid activation — maps cell names to widget IDs
+        gridSpans: null,
+        // loaded at grid activation — per-permutation spans { cellName: spanCount }
         // Reference widget
         currentReferenceTab: "rst",
         // active reference tab (rst, phonetic, etc.)
@@ -3990,6 +3992,7 @@
     GRID_PERMUTATIONS: () => GRID_PERMUTATIONS,
     GRID_PERM_KEY: () => GRID_PERM_KEY,
     GRID_SIZES_KEY: () => GRID_SIZES_KEY,
+    GRID_SPANS_KEY: () => GRID_SPANS_KEY,
     HEADER_H: () => HEADER_H,
     LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
     REFERENCE_TABS: () => REFERENCE_TABS,
@@ -4026,7 +4029,7 @@
   function getBandColorOverrides() {
     return { ...bandColorOverrides };
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -4743,6 +4746,7 @@
       GRID_PERM_KEY = "hamtab_grid_permutation";
       GRID_ASSIGN_KEY = "hamtab_grid_assignments";
       GRID_SIZES_KEY = "hamtab_grid_sizes";
+      GRID_SPANS_KEY = "hamtab_grid_spans";
       GRID_PERMUTATIONS = [
         {
           id: "2L-2R",
@@ -4894,6 +4898,49 @@
     }
     all[permId] = { columns, rows, ...flexRatios || {} };
     localStorage.setItem(GRID_SIZES_KEY, JSON.stringify(all));
+  }
+  function loadGridSpans(permId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
+      if (all && all[permId]) return all[permId];
+    } catch (e) {
+    }
+    return null;
+  }
+  function saveGridSpans() {
+    let all = {};
+    try {
+      const saved = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
+      if (saved && typeof saved === "object") all = saved;
+    } catch (e) {
+    }
+    all[state_default.gridPermutation] = state_default.gridSpans;
+    localStorage.setItem(GRID_SPANS_KEY, JSON.stringify(all));
+  }
+  function isAbsorbed(cellName, cellNames, spans) {
+    const idx = cellNames.indexOf(cellName);
+    for (let i = 0; i < idx; i++) {
+      const span = spans[cellNames[i]] || 1;
+      if (i + span > idx) return true;
+    }
+    return false;
+  }
+  function sumFlexForSpan(cellName, span, cellNames, flexValues) {
+    const startIdx = cellNames.indexOf(cellName);
+    let total = 0;
+    for (let s = 0; s < span && startIdx + s < cellNames.length; s++) {
+      total += flexValues[startIdx + s];
+    }
+    return total;
+  }
+  function getSpanForVisibleChild(childIdx, cellNames, spans) {
+    let visibleCount = 0;
+    for (let i = 0; i < cellNames.length; i++) {
+      if (isAbsorbed(cellNames[i], cellNames, spans)) continue;
+      if (visibleCount === childIdx) return spans[cellNames[i]] || 1;
+      visibleCount++;
+    }
+    return 1;
   }
   function parseTracks(templateStr) {
     return templateStr.trim().split(/\s+/).map((t) => {
@@ -5186,21 +5233,33 @@
   }
   function readCurrentFlexRatios(perm) {
     const ratios = {};
+    const spans = state_default.gridSpans || {};
     const wrapperMap = {
-      leftFlex: "grid-col-left",
-      rightFlex: "grid-col-right",
-      topFlex: "grid-bar-top",
-      bottomFlex: "grid-bar-bottom"
+      leftFlex: { wrapperId: "grid-col-left", cellNames: perm.left },
+      rightFlex: { wrapperId: "grid-col-right", cellNames: perm.right },
+      topFlex: { wrapperId: "grid-bar-top", cellNames: perm.top },
+      bottomFlex: { wrapperId: "grid-bar-bottom", cellNames: perm.bottom }
     };
-    for (const [key, wrapperId] of Object.entries(wrapperMap)) {
+    for (const [key, { wrapperId, cellNames }] of Object.entries(wrapperMap)) {
       const wrapper = document.getElementById(wrapperId);
       if (!wrapper) continue;
       const children = Array.from(wrapper.children).filter(
         (c) => !c.classList.contains("grid-flex-handle")
       );
-      if (children.length > 0) {
-        ratios[key] = children.map((c) => parseFloat(c.style.flexGrow) || 1);
+      if (children.length === 0) continue;
+      const perCellRatios = [];
+      let childIdx = 0;
+      for (let i = 0; i < cellNames.length; i++) {
+        if (isAbsorbed(cellNames[i], cellNames, spans)) {
+          continue;
+        }
+        const span = getSpanForVisibleChild(childIdx, cellNames, spans);
+        const combinedFlex = childIdx < children.length ? parseFloat(children[childIdx].style.flexGrow) || 1 : 1;
+        const perCell = combinedFlex / span;
+        for (let s = 0; s < span; s++) perCellRatios.push(perCell);
+        childIdx++;
       }
+      ratios[key] = perCellRatios.length === cellNames.length ? perCellRatios : children.map((c) => parseFloat(c.style.flexGrow) || 1);
     }
     return ratios;
   }
@@ -5218,13 +5277,30 @@
     const savedFlex = customSizes && customSizes[flexKey];
     const defaultFlex = cellNames.map(() => 1);
     const flexValues = savedFlex && savedFlex.length === cellNames.length ? savedFlex : defaultFlex;
+    const spans = state_default.gridSpans || {};
+    let firstRendered = true;
     cellNames.forEach((cellName, idx) => {
-      if (idx > 0) {
+      if (isAbsorbed(cellName, cellNames, spans)) {
+        const absWidgetId = state_default.gridAssignments[cellName];
+        if (absWidgetId) {
+          const absEl = document.getElementById(absWidgetId);
+          if (absEl) absEl.style.display = "none";
+        }
+        return;
+      }
+      const span = spans[cellName] || 1;
+      if (!firstRendered) {
         const handle = document.createElement("div");
         handle.className = isColumn ? "grid-flex-handle grid-flex-handle--col" : "grid-flex-handle grid-flex-handle--row";
         handle.addEventListener("mousedown", onFlexHandleMouseDown);
+        handle.addEventListener("dblclick", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleSpan(handle, wrapper, cellNames, isColumn, flexKey);
+        });
         wrapper.appendChild(handle);
       }
+      firstRendered = false;
       const widgetId = state_default.gridAssignments[cellName];
       let el2;
       const isVisible = widgetId && state_default.widgetVisibility && state_default.widgetVisibility[widgetId] !== false;
@@ -5245,10 +5321,63 @@
         el2.dataset.gridCell = cellName;
         wrapper.appendChild(el2);
       }
-      el2.style.flexGrow = flexValues[idx];
+      const combinedFlex = span > 1 ? sumFlexForSpan(cellName, span, cellNames, flexValues) : flexValues[idx];
+      el2.style.flexGrow = combinedFlex;
       el2.style.flexShrink = "1";
       el2.style.flexBasis = "0%";
     });
+  }
+  function toggleSpan(handle, wrapper, cellNames, isColumn, flexKey) {
+    if (state_default.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return;
+    const children = Array.from(wrapper.children).filter(
+      (c) => !c.classList.contains("grid-flex-handle")
+    );
+    const handleIdx = Array.from(wrapper.children).indexOf(handle);
+    let beforeEl = null;
+    let afterEl = null;
+    for (let i = handleIdx - 1; i >= 0; i--) {
+      const c = wrapper.children[i];
+      if (!c.classList.contains("grid-flex-handle")) {
+        beforeEl = c;
+        break;
+      }
+    }
+    for (let i = handleIdx + 1; i < wrapper.children.length; i++) {
+      const c = wrapper.children[i];
+      if (!c.classList.contains("grid-flex-handle")) {
+        afterEl = c;
+        break;
+      }
+    }
+    if (!beforeEl || !afterEl) return;
+    const spans = state_default.gridSpans || {};
+    const visibleCells = cellNames.filter((c) => !isAbsorbed(c, cellNames, spans));
+    const beforeCellIdx = children.indexOf(beforeEl);
+    const afterCellIdx = children.indexOf(afterEl);
+    if (beforeCellIdx < 0 || afterCellIdx < 0) return;
+    const beforeCell = visibleCells[beforeCellIdx];
+    const afterCell = visibleCells[afterCellIdx];
+    if (!beforeCell || !afterCell) return;
+    const currentSpan = spans[beforeCell] || 1;
+    const afterCellPos = cellNames.indexOf(afterCell);
+    const beforeCellPos = cellNames.indexOf(beforeCell);
+    if (beforeCellPos + currentSpan > afterCellPos) {
+      const newSpan = afterCellPos - beforeCellPos;
+      if (newSpan <= 1) {
+        delete spans[beforeCell];
+      } else {
+        spans[beforeCell] = newSpan;
+      }
+    } else {
+      const afterSpan = spans[afterCell] || 1;
+      const newSpan = afterCellPos + afterSpan - beforeCellPos;
+      const maxSpan = cellNames.length - beforeCellPos;
+      spans[beforeCell] = Math.min(newSpan, maxSpan);
+      delete spans[afterCell];
+    }
+    state_default.gridSpans = spans;
+    saveGridSpans();
+    applyGridAssignments();
   }
   function isGridMode() {
     return state_default.gridMode === "grid";
@@ -5261,12 +5390,14 @@
       const saved = JSON.parse(localStorage.getItem(GRID_ASSIGN_KEY));
       if (saved && typeof saved === "object" && Object.keys(saved).length > 0) {
         state_default.gridAssignments = saved;
+        state_default.gridSpans = loadGridSpans(state_default.gridPermutation) || {};
         return saved;
       }
     } catch (e) {
     }
     const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
     state_default.gridAssignments = defaults ? { ...defaults } : {};
+    state_default.gridSpans = loadGridSpans(state_default.gridPermutation) || {};
     return state_default.gridAssignments;
   }
   function saveGridAssignments() {
@@ -5347,12 +5478,15 @@
     const vis = state_default.widgetVisibility || {};
     const assignments = state_default.gridAssignments;
     let dirty = false;
+    const spans = state_default.gridSpans || {};
     for (const cell of Object.keys(assignments)) {
       if (vis[assignments[cell]] === false) {
         delete assignments[cell];
+        if (spans[cell]) delete spans[cell];
         dirty = true;
       }
     }
+    state_default.gridSpans = spans;
     const assignedSet = new Set(Object.values(assignments));
     const unassigned = WIDGET_DEFS.filter((w) => w.id !== "widget-map" && vis[w.id] !== false && !assignedSet.has(w.id)).map((w) => w.id);
     if (unassigned.length > 0) {
@@ -5431,21 +5565,35 @@
       }
     }
     if (!sourceCell) return;
+    let targetCell = null;
     if (target.classList.contains("grid-cell-placeholder")) {
-      const targetCell = target.dataset.gridCell;
-      if (!targetCell) return;
-      delete state_default.gridAssignments[sourceCell];
-      state_default.gridAssignments[targetCell] = sourceWidgetId;
+      targetCell = target.dataset.gridCell;
     } else if (target.classList.contains("widget")) {
-      const targetWidgetId = target.id;
-      let targetCell = null;
       for (const [cell, wId] of Object.entries(state_default.gridAssignments)) {
-        if (wId === targetWidgetId) {
+        if (wId === target.id) {
           targetCell = cell;
           break;
         }
       }
-      if (!targetCell) return;
+    }
+    if (!targetCell) return;
+    const perm = getGridPermutation(state_default.gridPermutation);
+    const spans = state_default.gridSpans || {};
+    const wrapperCells = [perm.left, perm.right, perm.top, perm.bottom].find((cells) => cells.includes(targetCell)) || [];
+    if (isAbsorbed(targetCell, wrapperCells, spans)) return;
+    if (spans[sourceCell]) {
+      delete spans[sourceCell];
+    }
+    if (spans[targetCell]) {
+      delete spans[targetCell];
+    }
+    state_default.gridSpans = spans;
+    saveGridSpans();
+    if (target.classList.contains("grid-cell-placeholder")) {
+      delete state_default.gridAssignments[sourceCell];
+      state_default.gridAssignments[targetCell] = sourceWidgetId;
+    } else {
+      const targetWidgetId = target.id;
       state_default.gridAssignments[sourceCell] = targetWidgetId;
       state_default.gridAssignments[targetCell] = sourceWidgetId;
     }
@@ -8885,8 +9033,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.48.0";
-    $("aboutVersion").textContent = "0.48.0";
+    $("splashVersion").textContent = "0.49.0";
+    $("aboutVersion").textContent = "0.49.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

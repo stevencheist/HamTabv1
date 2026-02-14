@@ -8886,7 +8886,9 @@ ${beacon.location}`);
     const permSelect = document.getElementById("gridPermSelect");
     const permId = permSelect ? permSelect.value : state_default.gridPermutation;
     const perm = getGridPermutation(permId);
-    const maxSlots = perm.slots;
+    const spans = state_default.gridSpans || {};
+    const absorbedCount = Object.values(spans).reduce((sum, s) => sum + (s - 1), 0);
+    const maxSlots = perm.slots - absorbedCount;
     const checkboxes = widgetList.querySelectorAll('input[type="checkbox"]');
     let checkedNonMap = 0;
     checkboxes.forEach((cb) => {
@@ -8913,7 +8915,8 @@ ${beacon.location}`);
       counter.textContent = `${checkedNonMap} / ${maxSlots} slots \u2014 excess hidden in grid`;
       counter.classList.add("over-limit");
     } else {
-      counter.textContent = `${checkedNonMap} / ${maxSlots} slots`;
+      const spanNote = absorbedCount > 0 ? ` (${absorbedCount} spanned)` : "";
+      counter.textContent = `${checkedNonMap} / ${maxSlots} slots${spanNote}`;
       counter.classList.remove("over-limit");
     }
   }
@@ -9035,8 +9038,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.49.0";
-    $("aboutVersion").textContent = "0.49.0";
+    $("splashVersion").textContent = "0.49.1";
+    $("aboutVersion").textContent = "0.49.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

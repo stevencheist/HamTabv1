@@ -1303,6 +1303,25 @@ app.get('/api/callsign/:call', async (req, res) => {
     const data = await fetchJSON(`https://callook.info/${call}/json`);
     const addr = data.address || {};
     const loc = data.location || {};
+    let lat = loc.latitude ? parseFloat(loc.latitude) : null;
+    let lon = loc.longitude ? parseFloat(loc.longitude) : null;
+
+    // Fallback: geocode via Nominatim when callook.info has address but no coordinates
+    if (lat === null && lon === null && addr.line2) {
+      try {
+        const q = encodeURIComponent(addr.line2);
+        const geoUrl = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=us`;
+        const geoText = await secureFetch(geoUrl);
+        const geoResults = JSON.parse(geoText);
+        if (geoResults.length > 0) {
+          lat = parseFloat(geoResults[0].lat);
+          lon = parseFloat(geoResults[0].lon);
+        }
+      } catch {
+        // Geocode is best-effort — silently fall through with null coordinates
+      }
+    }
+
     res.json({
       status: data.status || 'INVALID',
       class: (data.current && data.current.operClass) || '',
@@ -1310,8 +1329,8 @@ app.get('/api/callsign/:call', async (req, res) => {
       addr1: addr.line1 || '',
       addr2: addr.line2 || '',
       grid: loc.gridsquare || '',
-      lat: loc.latitude ? parseFloat(loc.latitude) : null,
-      lon: loc.longitude ? parseFloat(loc.longitude) : null,
+      lat,
+      lon,
     });
   } catch (err) {
     console.error('Error fetching callsign data:', err.message);

@@ -755,6 +755,47 @@ export function initSplashListeners() {
     }
   });
 
+  // --- Use Callsign location button ---
+  $('splashCallsignLocBtn').addEventListener('click', async () => {
+    const call = $('splashCallsign').value.trim().toUpperCase();
+    if (!call) {
+      updateLocStatus('Enter a callsign first', true);
+      return;
+    }
+
+    const btn = $('splashCallsignLocBtn');
+    btn.disabled = true;
+    updateLocStatus('Looking up ' + call + '...');
+
+    try {
+      const resp = await fetch('/api/callsign/' + encodeURIComponent(call));
+      const data = await resp.json();
+
+      if (data.status === 'VALID' && data.lat != null && data.lon != null) {
+        state.syncingFields = true;
+        $('splashLat').value = data.lat.toFixed(2);
+        $('splashLon').value = data.lon.toFixed(2);
+        if (data.grid) {
+          $('splashGrid').value = data.grid.substring(0, 4).toUpperCase();
+        } else {
+          $('splashGrid').value = latLonToGrid(data.lat, data.lon).substring(0, 4).toUpperCase();
+        }
+        state.myLat = data.lat;
+        state.myLon = data.lon;
+        state.syncingFields = false;
+        state.manualLoc = true;
+        $('splashGpsBtn').classList.remove('active');
+        updateLocStatus('Location set from callsign');
+      } else {
+        updateLocStatus('No location found for ' + call, true);
+      }
+    } catch {
+      updateLocStatus('Lookup failed — try again', true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   // --- Layout save / clear buttons ---
   $('splashSaveLayout').addEventListener('click', () => {
     saveUserLayout();

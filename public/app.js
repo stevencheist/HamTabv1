@@ -277,6 +277,16 @@
         // L.circleMarker[] for DXpedition map markers
         dxPathLines: [],
         // L.polyline[] for band-colored DX contact paths
+        // Clock face config
+        clockFace: localStorage.getItem("hamtab_clock_face") || "classic",
+        clockComplications: (() => {
+          try {
+            const s = JSON.parse(localStorage.getItem("hamtab_clock_complications"));
+            if (s && typeof s === "object" && !Array.isArray(s)) return s;
+          } catch (e) {
+          }
+          return {};
+        })(),
         // Day/night
         lastLocalDay: null,
         lastUtcDay: null
@@ -391,11 +401,11 @@
   }
   function distanceMi(lat1, lon1, lat2, lon2) {
     const r = Math.PI / 180;
-    const R2 = 3958.8;
+    const R3 = 3958.8;
     const dLat = (lat2 - lat1) * r;
     const dLon = (lon2 - lon1) * r;
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
-    return R2 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R3 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
   function geodesicPoints(lat1, lon1, lat2, lon2, n) {
     const r = Math.PI / 180;
@@ -1300,11 +1310,11 @@
   }
   function distanceKm(lat1, lon1, lat2, lon2) {
     const r = Math.PI / 180;
-    const R2 = 6371;
+    const R3 = 6371;
     const dLat = (lat2 - lat1) * r;
     const dLon = (lon2 - lon1) * r;
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
-    return R2 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R3 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
   function distanceModifier(distKm) {
     if (distKm < 100) return 0.3;
@@ -4523,11 +4533,12 @@
         },
         "widget-analog-clock": {
           title: "Analog Clock",
-          description: "A classic round analog clock showing your local time at a glance. Inspired by the wall clocks found in many ham shacks, this widget also displays a sunrise/sunset arc when your location is set \u2014 a quick visual reference for gray line propagation windows.",
+          description: "A customizable round analog clock showing your local time at a glance. Choose from 6 clock face styles and add up to 4 complications (sub-dials) for UTC time, Solar Flux, stopwatch mirror, and sunrise/sunset countdown \u2014 inspired by luxury watch complications.",
           sections: [
-            { heading: "Clock Face", content: "Displays your local time with hour, minute, and second hands. The second hand is highlighted in your theme's accent color for easy reading. The current day and date are shown below the center." },
+            { heading: "Clock Faces", content: "Click the gear icon to choose from 6 face styles: Classic (Arabic numerals), Minimal (clean index bars), Roman (Roman numerals), Pilot (bold indices with luminous triangle at 12), Railroad (double concentric track ring), and Digital (analog hands plus a digital time readout). Your selection is saved and persists across sessions." },
+            { heading: "Complications", content: "Complications are optional sub-dials that embed useful data directly on the clock face. Enable them in the gear menu:\n\n\u2022 Sunrise/Sunset (12 o'clock) \u2014 countdown to next sunrise or sunset with color-coded icon\n\u2022 Solar SFI (3 o'clock) \u2014 arc gauge showing Solar Flux Index, colored green/yellow/red\n\u2022 Stopwatch (6 o'clock) \u2014 mirrors the Stopwatch widget's elapsed time with running indicator\n\u2022 UTC 24h (9 o'clock) \u2014 24-hour sub-dial showing current UTC time" },
             { heading: "Sunrise/Sunset Arc", content: "When your location (QTH) is set in Config, a golden arc appears on the clock face showing the daylight hours. The arc spans from sunrise to sunset on the 12-hour dial. This helps you visualize how much daylight remains and when gray line propagation windows occur." },
-            { heading: "Theme Support", content: "The clock colors automatically adapt to your selected theme. The face, hands, and numbers all use your theme's color scheme." }
+            { heading: "Theme Support", content: "The clock colors automatically adapt to your selected theme. All face styles, hands, complications, and numbers use your theme's color scheme." }
           ]
         },
         "widget-stopwatch": {
@@ -8874,8 +8885,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.47.0";
-    $("aboutVersion").textContent = "0.47.0";
+    $("splashVersion").textContent = "0.48.0";
+    $("aboutVersion").textContent = "0.48.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -10062,82 +10073,659 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     }
     container.innerHTML = html;
   }
+  function getStopwatchElapsed() {
+    return elapsed;
+  }
+  function getStopwatchRunning() {
+    return running;
+  }
+  function getStopwatchMode() {
+    return mode;
+  }
 
   // src/analog-clock.js
   init_state();
   init_widgets();
   init_geo();
+
+  // src/clock-faces.js
   var NS = "http://www.w3.org/2000/svg";
   var CX = 100;
   var CY = 100;
   var R = 88;
-  var svgBuilt = false;
-  var lastDateStr = "";
-  var lastArcDay = -1;
-  var el = {};
-  function buildSvg() {
-    const svg = document.getElementById("analogClockSvg");
-    if (!svg) return;
-    svg.innerHTML = "";
-    const face = makeSvg("circle", { cx: CX, cy: CY, r: R, fill: "var(--surface)", stroke: "var(--border)", "stroke-width": 2 });
-    svg.appendChild(face);
-    el.arc = makeSvg("path", { d: "", fill: "rgba(255,193,7,0.25)", stroke: "none" });
-    svg.appendChild(el.arc);
-    for (let i = 0; i < 60; i++) {
-      const isMajor = i % 5 === 0;
-      const angle = (i * 6 - 90) * Math.PI / 180;
-      const outerR = R - 2;
-      const innerR = isMajor ? R - 10 : R - 5;
-      const line = makeSvg("line", {
-        x1: CX + Math.cos(angle) * innerR,
-        y1: CY + Math.sin(angle) * innerR,
-        x2: CX + Math.cos(angle) * outerR,
-        y2: CY + Math.sin(angle) * outerR,
-        stroke: "var(--text-dim)",
-        "stroke-width": isMajor ? 2 : 1
-      });
-      svg.appendChild(line);
+  var ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+  var CLOCK_FACES = {
+    classic: {
+      id: "classic",
+      name: "Classic",
+      ticks: { minor: true, major: true, majorWidth: 2, minorWidth: 1, majorLength: 10, minorLength: 5 },
+      labels: { type: "arabic", fontSize: 12, radius: R - 18 },
+      hands: {
+        hour: { length: 50, width: 4, tail: 0 },
+        minute: { length: 70, width: 2.5, tail: 0 },
+        second: { length: 78, width: 1, tail: 12, color: "var(--accent)" }
+      },
+      centerDot: { radius: 3.5, color: "var(--accent)" },
+      dateWindow: { show: true, y: 130, fontSize: 11 },
+      extras: null
+    },
+    minimal: {
+      id: "minimal",
+      name: "Minimal",
+      ticks: { minor: false, major: false },
+      labels: { type: "indices", fontSize: 0, radius: R - 10 },
+      hands: {
+        hour: { length: 48, width: 5, tail: 0 },
+        minute: { length: 68, width: 2, tail: 0 },
+        second: { length: 76, width: 0.8, tail: 10, color: "var(--accent)" }
+      },
+      centerDot: { radius: 3, color: "var(--accent)" },
+      dateWindow: { show: false },
+      extras: null
+    },
+    roman: {
+      id: "roman",
+      name: "Roman",
+      ticks: { minor: true, major: true, majorWidth: 2, minorWidth: 1, majorLength: 8, minorLength: 4 },
+      labels: { type: "roman", fontSize: 11, radius: R - 18 },
+      hands: {
+        hour: { length: 48, width: 4, tail: 0 },
+        minute: { length: 68, width: 2.5, tail: 0 },
+        second: { length: 76, width: 1, tail: 12, color: "var(--accent)" }
+      },
+      centerDot: { radius: 3.5, color: "var(--accent)" },
+      dateWindow: { show: true, y: 130, fontSize: 10 },
+      extras: null
+    },
+    pilot: {
+      id: "pilot",
+      name: "Pilot",
+      ticks: { minor: true, major: true, majorWidth: 3, minorWidth: 1, majorLength: 10, minorLength: 5 },
+      labels: { type: "indices", fontSize: 0, radius: R - 10 },
+      hands: {
+        hour: { length: 46, width: 5, tail: 0 },
+        minute: { length: 68, width: 3, tail: 0 },
+        second: { length: 76, width: 1, tail: 14, color: "var(--accent)" }
+      },
+      centerDot: { radius: 4, color: "var(--accent)" },
+      dateWindow: { show: true, y: 130, fontSize: 10 },
+      extras: "pilotTriangle"
+    },
+    railroad: {
+      id: "railroad",
+      name: "Railroad",
+      ticks: { minor: true, major: true, majorWidth: 2.5, minorWidth: 1, majorLength: 10, minorLength: 6 },
+      labels: { type: "arabic", fontSize: 11, radius: R - 20 },
+      hands: {
+        hour: { length: 46, width: 4, tail: 0 },
+        minute: { length: 66, width: 2.5, tail: 0 },
+        second: { length: 74, width: 1, tail: 12, color: "var(--accent)" }
+      },
+      centerDot: { radius: 3.5, color: "var(--accent)" },
+      dateWindow: { show: true, y: 130, fontSize: 10 },
+      extras: "doubleTrack"
+    },
+    digitalHybrid: {
+      id: "digitalHybrid",
+      name: "Digital",
+      ticks: { minor: false, major: true, majorWidth: 2, minorWidth: 0, majorLength: 8, minorLength: 0 },
+      labels: { type: "arabic", fontSize: 10, radius: R - 16 },
+      hands: {
+        hour: { length: 48, width: 4, tail: 0 },
+        minute: { length: 68, width: 2.5, tail: 0 },
+        second: { length: 76, width: 1, tail: 12, color: "var(--accent)" }
+      },
+      centerDot: { radius: 3, color: "var(--accent)" },
+      dateWindow: { show: false },
+      extras: "digitalReadout"
     }
-    for (let h = 1; h <= 12; h++) {
-      const angle = (h * 30 - 90) * Math.PI / 180;
-      const numR = R - 18;
-      const txt = makeSvg("text", {
-        x: CX + Math.cos(angle) * numR,
-        y: CY + Math.sin(angle) * numR + 4,
-        // +4 vertical centering fudge
-        "text-anchor": "middle",
-        fill: "var(--text-dim)",
-        "font-size": "12",
-        "font-family": "inherit"
-      });
-      txt.textContent = h;
-      svg.appendChild(txt);
-    }
-    el.hour = makeSvg("line", { x1: CX, y1: CY, x2: CX, y2: CY - 50, stroke: "var(--text)", "stroke-width": 4, "stroke-linecap": "round" });
-    el.minute = makeSvg("line", { x1: CX, y1: CY, x2: CX, y2: CY - 70, stroke: "var(--text)", "stroke-width": 2.5, "stroke-linecap": "round" });
-    el.second = makeSvg("line", { x1: CX, y1: CY + 12, x2: CX, y2: CY - 78, stroke: "var(--accent)", "stroke-width": 1, "stroke-linecap": "round" });
-    svg.appendChild(el.hour);
-    svg.appendChild(el.minute);
-    svg.appendChild(el.second);
-    svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: 3.5, fill: "var(--accent)" }));
-    el.dateText = makeSvg("text", {
-      x: CX,
-      y: CY + 30,
-      "text-anchor": "middle",
-      fill: "var(--text-dim)",
-      "font-size": "11",
-      "font-family": "inherit"
-    });
-    svg.appendChild(el.dateText);
-    svgBuilt = true;
-  }
+  };
   function makeSvg(tag, attrs) {
     const node = document.createElementNS(NS, tag);
     for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
     return node;
   }
+  function buildFaceSvg(svg, faceId, complications) {
+    const face = CLOCK_FACES[faceId] || CLOCK_FACES.classic;
+    svg.innerHTML = "";
+    svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R, fill: "var(--surface)", stroke: "var(--border)", "stroke-width": 2 }));
+    if (face.extras === "doubleTrack") {
+      svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R - 2, fill: "none", stroke: "var(--text-dim)", "stroke-width": 0.5 }));
+      svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R - 12, fill: "none", stroke: "var(--text-dim)", "stroke-width": 0.5 }));
+    }
+    const arc = makeSvg("path", { d: "", fill: "rgba(255,193,7,0.25)", stroke: "none" });
+    svg.appendChild(arc);
+    if (face.ticks.major || face.ticks.minor) {
+      for (let i = 0; i < 60; i++) {
+        const isMajor = i % 5 === 0;
+        if (!isMajor && !face.ticks.minor) continue;
+        if (isMajor && !face.ticks.major) continue;
+        const angle = (i * 6 - 90) * Math.PI / 180;
+        const outerR = R - 2;
+        const innerR = outerR - (isMajor ? face.ticks.majorLength : face.ticks.minorLength);
+        svg.appendChild(makeSvg("line", {
+          x1: CX + Math.cos(angle) * innerR,
+          y1: CY + Math.sin(angle) * innerR,
+          x2: CX + Math.cos(angle) * outerR,
+          y2: CY + Math.sin(angle) * outerR,
+          stroke: "var(--text-dim)",
+          "stroke-width": isMajor ? face.ticks.majorWidth : face.ticks.minorWidth
+        }));
+      }
+    }
+    if (face.labels.type === "arabic") {
+      for (let h = 1; h <= 12; h++) {
+        const angle = (h * 30 - 90) * Math.PI / 180;
+        const txt = makeSvg("text", {
+          x: CX + Math.cos(angle) * face.labels.radius,
+          y: CY + Math.sin(angle) * face.labels.radius + 4,
+          "text-anchor": "middle",
+          fill: "var(--text-dim)",
+          "font-size": face.labels.fontSize,
+          "font-family": "inherit"
+        });
+        txt.textContent = h;
+        svg.appendChild(txt);
+      }
+    } else if (face.labels.type === "roman") {
+      for (let h = 1; h <= 12; h++) {
+        const angle = (h * 30 - 90) * Math.PI / 180;
+        const txt = makeSvg("text", {
+          x: CX + Math.cos(angle) * face.labels.radius,
+          y: CY + Math.sin(angle) * face.labels.radius + 4,
+          "text-anchor": "middle",
+          fill: "var(--text-dim)",
+          "font-size": face.labels.fontSize,
+          "font-family": "inherit"
+        });
+        txt.textContent = ROMAN[h];
+        svg.appendChild(txt);
+      }
+    } else if (face.labels.type === "indices") {
+      const positions = [
+        { h: 12, angle: -90 },
+        { h: 3, angle: 0 },
+        { h: 6, angle: 90 },
+        { h: 9, angle: 180 }
+      ];
+      for (const pos of positions) {
+        const rad = pos.angle * Math.PI / 180;
+        const outerR = R - 4;
+        const innerR = R - 16;
+        svg.appendChild(makeSvg("line", {
+          x1: CX + Math.cos(rad) * innerR,
+          y1: CY + Math.sin(rad) * innerR,
+          x2: CX + Math.cos(rad) * outerR,
+          y2: CY + Math.sin(rad) * outerR,
+          stroke: "var(--text)",
+          "stroke-width": 4,
+          "stroke-linecap": "round"
+        }));
+      }
+    }
+    if (face.extras === "pilotTriangle") {
+      const triSize = 8;
+      const triY = CY - R + 6;
+      svg.appendChild(makeSvg("polygon", {
+        points: `${CX},${triY} ${CX - triSize / 2},${triY + triSize} ${CX + triSize / 2},${triY + triSize}`,
+        fill: "var(--accent)",
+        stroke: "none"
+      }));
+    }
+    let digitalText = null;
+    if (face.extras === "digitalReadout") {
+      const hasBottomComp = complications && complications.stopwatch;
+      const dY = hasBottomComp ? 118 : 125;
+      digitalText = makeSvg("text", {
+        x: CX,
+        y: dY,
+        "text-anchor": "middle",
+        fill: "var(--text)",
+        "font-size": "10",
+        "font-family": "monospace, inherit"
+      });
+      digitalText.textContent = "--:--:--";
+      svg.appendChild(digitalText);
+    }
+    let dateText = null;
+    if (face.dateWindow && face.dateWindow.show) {
+      const hasBottomComp = complications && complications.stopwatch;
+      const dY = hasBottomComp ? 118 : face.dateWindow.y;
+      dateText = makeSvg("text", {
+        x: CX,
+        y: dY,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": face.dateWindow.fontSize,
+        "font-family": "inherit"
+      });
+      svg.appendChild(dateText);
+    }
+    return { arc, dateText, digitalText, face };
+  }
+  function buildFacePreview(faceId) {
+    const face = CLOCK_FACES[faceId] || CLOCK_FACES.classic;
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 200 200");
+    svg.setAttribute("width", "48");
+    svg.setAttribute("height", "48");
+    svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R, fill: "var(--surface)", stroke: "var(--border)", "stroke-width": 3 }));
+    if (face.extras === "doubleTrack") {
+      svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R - 2, fill: "none", stroke: "var(--text-dim)", "stroke-width": 1 }));
+      svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R - 12, fill: "none", stroke: "var(--text-dim)", "stroke-width": 1 }));
+    }
+    if (face.ticks.major) {
+      for (let i = 0; i < 12; i++) {
+        const angle = (i * 30 - 90) * Math.PI / 180;
+        const outerR = R - 2;
+        const innerR = outerR - face.ticks.majorLength;
+        svg.appendChild(makeSvg("line", {
+          x1: CX + Math.cos(angle) * innerR,
+          y1: CY + Math.sin(angle) * innerR,
+          x2: CX + Math.cos(angle) * outerR,
+          y2: CY + Math.sin(angle) * outerR,
+          stroke: "var(--text-dim)",
+          "stroke-width": face.ticks.majorWidth
+        }));
+      }
+    }
+    if (face.labels.type === "indices") {
+      for (const a of [-90, 0, 90, 180]) {
+        const rad = a * Math.PI / 180;
+        svg.appendChild(makeSvg("line", {
+          x1: CX + Math.cos(rad) * (R - 16),
+          y1: CY + Math.sin(rad) * (R - 16),
+          x2: CX + Math.cos(rad) * (R - 4),
+          y2: CY + Math.sin(rad) * (R - 4),
+          stroke: "var(--text)",
+          "stroke-width": 5,
+          "stroke-linecap": "round"
+        }));
+      }
+    }
+    if (face.extras === "pilotTriangle") {
+      const triY = CY - R + 6;
+      svg.appendChild(makeSvg("polygon", {
+        points: `${CX},${triY} ${CX - 5},${triY + 10} ${CX + 5},${triY + 10}`,
+        fill: "var(--accent)"
+      }));
+    }
+    const hourAngle = (10 + 10 / 60) * 30;
+    const minuteAngle = 10 * 6;
+    const hRad = (hourAngle - 90) * Math.PI / 180;
+    const mRad = (minuteAngle - 90) * Math.PI / 180;
+    svg.appendChild(makeSvg("line", {
+      x1: CX,
+      y1: CY,
+      x2: CX + Math.cos(hRad) * face.hands.hour.length,
+      y2: CY + Math.sin(hRad) * face.hands.hour.length,
+      stroke: "var(--text)",
+      "stroke-width": face.hands.hour.width,
+      "stroke-linecap": "round"
+    }));
+    svg.appendChild(makeSvg("line", {
+      x1: CX,
+      y1: CY,
+      x2: CX + Math.cos(mRad) * face.hands.minute.length,
+      y2: CY + Math.sin(mRad) * face.hands.minute.length,
+      stroke: "var(--text)",
+      "stroke-width": face.hands.minute.width,
+      "stroke-linecap": "round"
+    }));
+    svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: face.centerDot.radius, fill: face.centerDot.color }));
+    return svg;
+  }
+
+  // src/clock-complications.js
+  init_state();
+  init_geo();
+  var NS2 = "http://www.w3.org/2000/svg";
+  function makeSvg2(tag, attrs) {
+    const node = document.createElementNS(NS2, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    return node;
+  }
+  var COMPLICATION_DEFS = [
+    { id: "sunrise", name: "Sunrise / Sunset", cx: 100, cy: 62, radius: 16, description: "Next sunrise or sunset countdown" },
+    { id: "solar", name: "Solar (SFI)", cx: 138, cy: 100, radius: 16, description: "Solar Flux Index gauge" },
+    { id: "stopwatch", name: "Stopwatch", cx: 100, cy: 138, radius: 16, description: "Mirrors Stopwatch widget elapsed time" },
+    { id: "utc", name: "UTC 24h", cx: 62, cy: 100, radius: 16, description: "24-hour UTC sub-dial" }
+  ];
+  function mountComplication(svg, compId) {
+    const def = COMPLICATION_DEFS.find((c) => c.id === compId);
+    if (!def) return null;
+    const g = document.createElementNS(NS2, "g");
+    g.setAttribute("class", `comp-${compId}`);
+    g.appendChild(makeSvg2("circle", {
+      cx: def.cx,
+      cy: def.cy,
+      r: def.radius,
+      fill: "var(--surface)",
+      stroke: "var(--border)",
+      "stroke-width": 1
+    }));
+    const refs = { g, def };
+    if (compId === "utc") {
+      for (let i = 0; i < 4; i++) {
+        const angle = (i * 90 - 90) * Math.PI / 180;
+        const outerR = def.radius - 1;
+        const innerR = def.radius - 4;
+        g.appendChild(makeSvg2("line", {
+          x1: def.cx + Math.cos(angle) * innerR,
+          y1: def.cy + Math.sin(angle) * innerR,
+          x2: def.cx + Math.cos(angle) * outerR,
+          y2: def.cy + Math.sin(angle) * outerR,
+          stroke: "var(--text-dim)",
+          "stroke-width": 1
+        }));
+      }
+      refs.hand = makeSvg2("line", {
+        x1: def.cx,
+        y1: def.cy,
+        x2: def.cx,
+        y2: def.cy - 12,
+        stroke: "var(--text)",
+        "stroke-width": 1.5,
+        "stroke-linecap": "round"
+      });
+      g.appendChild(refs.hand);
+      g.appendChild(makeSvg2("circle", { cx: def.cx, cy: def.cy, r: 1.5, fill: "var(--text)" }));
+      refs.label = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 8,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "5",
+        "font-family": "inherit"
+      });
+      refs.label.textContent = "UTC";
+      g.appendChild(refs.label);
+    } else if (compId === "stopwatch") {
+      refs.timeText = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 1,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "7",
+        "font-family": "monospace, inherit"
+      });
+      refs.timeText.textContent = "00:00";
+      g.appendChild(refs.timeText);
+      refs.statusDot = makeSvg2("circle", {
+        cx: def.cx,
+        cy: def.cy - 8,
+        r: 2,
+        fill: "var(--text-dim)",
+        opacity: "0.3"
+      });
+      g.appendChild(refs.statusDot);
+      refs.modeLabel = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 9,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "4",
+        "font-family": "inherit"
+      });
+      refs.modeLabel.textContent = "STOP";
+      g.appendChild(refs.modeLabel);
+    } else if (compId === "solar") {
+      const arcPath = describeArc(def.cx, def.cy, def.radius - 3, -135, 135);
+      g.appendChild(makeSvg2("path", {
+        d: arcPath,
+        fill: "none",
+        stroke: "var(--border)",
+        "stroke-width": 2,
+        "stroke-linecap": "round"
+      }));
+      refs.arcFill = makeSvg2("path", {
+        d: arcPath,
+        fill: "none",
+        stroke: "var(--text-dim)",
+        "stroke-width": 2,
+        "stroke-linecap": "round"
+      });
+      g.appendChild(refs.arcFill);
+      refs.needle = makeSvg2("line", {
+        x1: def.cx,
+        y1: def.cy,
+        x2: def.cx,
+        y2: def.cy - 11,
+        stroke: "var(--text)",
+        "stroke-width": 1,
+        "stroke-linecap": "round"
+      });
+      g.appendChild(refs.needle);
+      g.appendChild(makeSvg2("circle", { cx: def.cx, cy: def.cy, r: 1.5, fill: "var(--text)" }));
+      refs.label = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 8,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "5",
+        "font-family": "inherit"
+      });
+      refs.label.textContent = "SFI";
+      g.appendChild(refs.label);
+      refs.valueText = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 14,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "5",
+        "font-family": "inherit"
+      });
+      refs.valueText.textContent = "---";
+      g.appendChild(refs.valueText);
+    } else if (compId === "sunrise") {
+      refs.icon = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy - 3,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "8"
+      });
+      refs.icon.textContent = "\u2600";
+      g.appendChild(refs.icon);
+      refs.countdownText = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 7,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "6",
+        "font-family": "monospace, inherit"
+      });
+      refs.countdownText.textContent = "--:--";
+      g.appendChild(refs.countdownText);
+      refs.eventLabel = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 13,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "4",
+        "font-family": "inherit"
+      });
+      refs.eventLabel.textContent = "";
+      g.appendChild(refs.eventLabel);
+    }
+    svg.appendChild(g);
+    return refs;
+  }
+  function updateComplication(compId, refs) {
+    if (!refs) return;
+    if (compId === "utc") {
+      const now = /* @__PURE__ */ new Date();
+      const h = now.getUTCHours();
+      const m = now.getUTCMinutes();
+      const angle = (h + m / 60) / 24 * 360;
+      refs.hand.setAttribute("transform", `rotate(${angle} ${refs.def.cx} ${refs.def.cy})`);
+    } else if (compId === "stopwatch") {
+      const elapsed2 = getStopwatchElapsed();
+      const running2 = getStopwatchRunning();
+      const swMode = getStopwatchMode();
+      const ms = Math.abs(elapsed2);
+      const totalSec = Math.floor(ms / 1e3);
+      const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
+      const ss = String(totalSec % 60).padStart(2, "0");
+      refs.timeText.textContent = `${mm}:${ss}`;
+      refs.timeText.setAttribute("fill", running2 ? "var(--text)" : "var(--text-dim)");
+      refs.statusDot.setAttribute("fill", running2 ? "#4caf50" : "var(--text-dim)");
+      refs.statusDot.setAttribute("opacity", running2 ? "1" : "0.3");
+      refs.modeLabel.textContent = swMode === "countdown" ? "CNTDN" : "STOP";
+    } else if (compId === "solar") {
+      const data = state_default.lastSolarData;
+      if (data && data.sfi != null) {
+        const sfi = parseInt(data.sfi, 10);
+        if (!isNaN(sfi)) {
+          const clamped = Math.max(50, Math.min(200, sfi));
+          const ratio = (clamped - 50) / 150;
+          const angle = -135 + ratio * 270;
+          refs.needle.setAttribute("transform", `rotate(${angle} ${refs.def.cx} ${refs.def.cy})`);
+          let color = "#4caf50";
+          if (sfi < 70) color = "#f44336";
+          else if (sfi <= 100) color = "#ff9800";
+          const fillPath = describeArc(refs.def.cx, refs.def.cy, refs.def.radius - 3, -135, angle);
+          refs.arcFill.setAttribute("d", fillPath);
+          refs.arcFill.setAttribute("stroke", color);
+          refs.valueText.textContent = sfi;
+          refs.valueText.setAttribute("fill", color);
+          return;
+        }
+      }
+      refs.valueText.textContent = "---";
+      refs.valueText.setAttribute("fill", "var(--text-dim)");
+      refs.arcFill.setAttribute("d", "");
+      refs.needle.setAttribute("transform", `rotate(-135 ${refs.def.cx} ${refs.def.cy})`);
+    } else if (compId === "sunrise") {
+      if (state_default.myLat == null || state_default.myLon == null) {
+        refs.countdownText.textContent = "--:--";
+        refs.icon.textContent = "\u2600";
+        refs.icon.setAttribute("fill", "var(--text-dim)");
+        refs.eventLabel.textContent = "";
+        return;
+      }
+      const now = /* @__PURE__ */ new Date();
+      const times = getSunTimes(state_default.myLat, state_default.myLon, now);
+      if (!times.sunrise || !times.sunset) {
+        refs.countdownText.textContent = "--:--";
+        return;
+      }
+      let nextEvent, nextTime, isRise;
+      if (now < times.sunrise) {
+        nextEvent = "RISE";
+        nextTime = times.sunrise;
+        isRise = true;
+      } else if (now < times.sunset) {
+        nextEvent = "SET";
+        nextTime = times.sunset;
+        isRise = false;
+      } else {
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tTimes = getSunTimes(state_default.myLat, state_default.myLon, tomorrow);
+        nextEvent = "RISE";
+        nextTime = tTimes.sunrise || times.sunrise;
+        isRise = true;
+      }
+      const diffMs = nextTime - now;
+      const diffMin = Math.floor(diffMs / 6e4);
+      const h = Math.floor(diffMin / 60);
+      const m = diffMin % 60;
+      refs.countdownText.textContent = `${h}h${String(m).padStart(2, "0")}`;
+      refs.countdownText.setAttribute("fill", isRise ? "#42a5f5" : "#ff9800");
+      refs.icon.textContent = isRise ? "\u2600" : "\u263D";
+      refs.icon.setAttribute("fill", isRise ? "#42a5f5" : "#ff9800");
+      refs.eventLabel.textContent = nextEvent;
+      refs.eventLabel.setAttribute("fill", isRise ? "#42a5f5" : "#ff9800");
+    }
+  }
+  function describeArc(cx, cy, r, startAngle, endAngle) {
+    const start = polarToCartesian(cx, cy, r, endAngle);
+    const end = polarToCartesian(cx, cy, r, startAngle);
+    const largeArc = endAngle - startAngle <= 180 ? "0" : "1";
+    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y}`;
+  }
+  function polarToCartesian(cx, cy, r, angleDeg) {
+    const rad = (angleDeg - 90) * Math.PI / 180;
+    return { x: cx + Math.cos(rad) * r, y: cy + Math.sin(rad) * r };
+  }
+
+  // src/analog-clock.js
+  var NS3 = "http://www.w3.org/2000/svg";
+  var CX2 = 100;
+  var CY2 = 100;
+  var R2 = 88;
+  var svgBuilt = false;
+  var lastDateStr = "";
+  var lastArcDay = -1;
+  var lastFaceId = null;
+  var el = {};
+  var compRefs = {};
+  function makeSvg3(tag, attrs) {
+    const node = document.createElementNS(NS3, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    return node;
+  }
+  function buildSvg() {
+    const svg = document.getElementById("analogClockSvg");
+    if (!svg) return;
+    const faceId = state_default.clockFace || "classic";
+    const comps = state_default.clockComplications || {};
+    const result = buildFaceSvg(svg, faceId, comps);
+    el.arc = result.arc;
+    el.dateText = result.dateText;
+    el.digitalText = result.digitalText;
+    compRefs = {};
+    for (const def of COMPLICATION_DEFS) {
+      if (comps[def.id]) {
+        compRefs[def.id] = mountComplication(svg, def.id);
+      }
+    }
+    const face = CLOCK_FACES[faceId] || CLOCK_FACES.classic;
+    const hc = face.hands;
+    el.hour = makeSvg3("line", {
+      x1: CX2,
+      y1: CY2 + (hc.hour.tail || 0),
+      x2: CX2,
+      y2: CY2 - hc.hour.length,
+      stroke: "var(--text)",
+      "stroke-width": hc.hour.width,
+      "stroke-linecap": "round"
+    });
+    el.minute = makeSvg3("line", {
+      x1: CX2,
+      y1: CY2 + (hc.minute.tail || 0),
+      x2: CX2,
+      y2: CY2 - hc.minute.length,
+      stroke: "var(--text)",
+      "stroke-width": hc.minute.width,
+      "stroke-linecap": "round"
+    });
+    el.second = makeSvg3("line", {
+      x1: CX2,
+      y1: CY2 + (hc.second.tail || 0),
+      x2: CX2,
+      y2: CY2 - hc.second.length,
+      stroke: hc.second.color || "var(--accent)",
+      "stroke-width": hc.second.width,
+      "stroke-linecap": "round"
+    });
+    svg.appendChild(el.hour);
+    svg.appendChild(el.minute);
+    svg.appendChild(el.second);
+    svg.appendChild(makeSvg3("circle", {
+      cx: CX2,
+      cy: CY2,
+      r: face.centerDot.radius,
+      fill: face.centerDot.color
+    }));
+    lastFaceId = faceId;
+    lastDateStr = "";
+    lastArcDay = -1;
+    svgBuilt = true;
+  }
   function setHand(line, angleDeg) {
-    line.setAttribute("transform", `rotate(${angleDeg} ${CX} ${CY})`);
+    line.setAttribute("transform", `rotate(${angleDeg} ${CX2} ${CY2})`);
   }
   function updateArc(now) {
     if (!el.arc) return;
@@ -10155,17 +10743,17 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     }
     const riseAngle = timeToAngle(times.sunrise);
     const setAngle = timeToAngle(times.sunset);
-    const arcR = R - 12;
+    const arcR = R2 - 12;
     const riseRad = (riseAngle - 90) * Math.PI / 180;
     const setRad = (setAngle - 90) * Math.PI / 180;
-    const x1 = CX + Math.cos(riseRad) * arcR;
-    const y1 = CY + Math.sin(riseRad) * arcR;
-    const x2 = CX + Math.cos(setRad) * arcR;
-    const y2 = CY + Math.sin(setRad) * arcR;
+    const x1 = CX2 + Math.cos(riseRad) * arcR;
+    const y1 = CY2 + Math.sin(riseRad) * arcR;
+    const x2 = CX2 + Math.cos(setRad) * arcR;
+    const y2 = CY2 + Math.sin(setRad) * arcR;
     let sweep = setAngle - riseAngle;
     if (sweep < 0) sweep += 360;
     const largeArc = sweep > 180 ? 1 : 0;
-    const d = `M ${CX} ${CY} L ${x1} ${y1} A ${arcR} ${arcR} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+    const d = `M ${CX2} ${CY2} L ${x1} ${y1} A ${arcR} ${arcR} 0 ${largeArc} 1 ${x2} ${y2} Z`;
     el.arc.setAttribute("d", d);
   }
   function timeToAngle(date) {
@@ -10176,9 +10764,19 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   function initAnalogClock() {
     buildSvg();
   }
+  function rebuildClock() {
+    svgBuilt = false;
+    buildSvg();
+    updateAnalogClock();
+  }
   function updateAnalogClock() {
     if (!svgBuilt) return;
     if (!isWidgetVisible("widget-analog-clock")) return;
+    const currentFace = state_default.clockFace || "classic";
+    if (currentFace !== lastFaceId) {
+      rebuildClock();
+      return;
+    }
     const now = /* @__PURE__ */ new Date();
     const h = now.getHours() % 12;
     const m = now.getMinutes();
@@ -10189,13 +10787,95 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     setHand(el.hour, hourAngle);
     setHand(el.minute, minuteAngle);
     setHand(el.second, secondAngle);
-    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const dateStr = `${days[now.getDay()]} ${now.getDate()}`;
-    if (dateStr !== lastDateStr) {
-      lastDateStr = dateStr;
-      el.dateText.textContent = dateStr;
+    if (el.dateText) {
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dateStr = `${days[now.getDay()]} ${now.getDate()}`;
+      if (dateStr !== lastDateStr) {
+        lastDateStr = dateStr;
+        el.dateText.textContent = dateStr;
+      }
+    }
+    if (el.digitalText) {
+      const dh = String(now.getHours()).padStart(2, "0");
+      const dm = String(m).padStart(2, "0");
+      const ds = String(s).padStart(2, "0");
+      el.digitalText.textContent = `${dh}:${dm}:${ds}`;
+    }
+    for (const [id, refs] of Object.entries(compRefs)) {
+      updateComplication(id, refs);
     }
     updateArc(now);
+  }
+
+  // src/clock-config.js
+  init_state();
+  init_dom();
+  function initClockConfigListeners() {
+    const btn = $("clockCfgBtn");
+    if (!btn) return;
+    btn.addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+    });
+    btn.addEventListener("click", () => {
+      const picker = $("clockFacePicker");
+      const compList = $("clockCompList");
+      if (!picker || !compList) return;
+      picker.innerHTML = "";
+      for (const face of Object.values(CLOCK_FACES)) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "clock-face-item";
+        const thumb = document.createElement("div");
+        thumb.className = "clock-face-thumb";
+        if (state_default.clockFace === face.id) thumb.classList.add("active");
+        thumb.appendChild(buildFacePreview(face.id));
+        thumb.dataset.faceId = face.id;
+        thumb.addEventListener("click", () => {
+          picker.querySelectorAll(".clock-face-thumb").forEach((t) => t.classList.remove("active"));
+          thumb.classList.add("active");
+        });
+        wrapper.appendChild(thumb);
+        const label = document.createElement("div");
+        label.className = "clock-face-label";
+        label.textContent = face.name;
+        wrapper.appendChild(label);
+        picker.appendChild(wrapper);
+      }
+      compList.innerHTML = "";
+      for (const comp of COMPLICATION_DEFS) {
+        const label = document.createElement("label");
+        label.className = "splash-widget-item";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.compId = comp.id;
+        cb.checked = !!(state_default.clockComplications && state_default.clockComplications[comp.id]);
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(` ${comp.name}`));
+        const desc = document.createElement("span");
+        desc.className = "comp-desc";
+        desc.textContent = ` \u2014 ${comp.description}`;
+        label.appendChild(desc);
+        compList.appendChild(label);
+      }
+      $("clockCfgSplash").classList.remove("hidden");
+    });
+    const okBtn = $("clockCfgOk");
+    if (okBtn) {
+      okBtn.addEventListener("click", () => {
+        const activeThumb = document.querySelector(".clock-face-thumb.active");
+        if (activeThumb) {
+          state_default.clockFace = activeThumb.dataset.faceId;
+          localStorage.setItem("hamtab_clock_face", state_default.clockFace);
+        }
+        const comps = {};
+        document.querySelectorAll('#clockCompList input[type="checkbox"]').forEach((cb) => {
+          if (cb.checked) comps[cb.dataset.compId] = true;
+        });
+        state_default.clockComplications = comps;
+        localStorage.setItem("hamtab_clock_complications", JSON.stringify(comps));
+        $("clockCfgSplash").classList.add("hidden");
+        rebuildClock();
+      });
+    }
   }
 
   // src/main.js
@@ -10254,6 +10934,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initBigClock();
   initStopwatchListeners();
   initAnalogClock();
+  initClockConfigListeners();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

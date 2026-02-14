@@ -491,11 +491,12 @@ export const WIDGET_HELP = {
   },
   'widget-analog-clock': {
     title: 'Analog Clock',
-    description: 'A classic round analog clock showing your local time at a glance. Inspired by the wall clocks found in many ham shacks, this widget also displays a sunrise/sunset arc when your location is set — a quick visual reference for gray line propagation windows.',
+    description: 'A customizable round analog clock showing your local time at a glance. Choose from 6 clock face styles and add up to 4 complications (sub-dials) for UTC time, Solar Flux, stopwatch mirror, and sunrise/sunset countdown — inspired by luxury watch complications.',
     sections: [
-      { heading: 'Clock Face', content: 'Displays your local time with hour, minute, and second hands. The second hand is highlighted in your theme\'s accent color for easy reading. The current day and date are shown below the center.' },
+      { heading: 'Clock Faces', content: 'Click the gear icon to choose from 6 face styles: Classic (Arabic numerals), Minimal (clean index bars), Roman (Roman numerals), Pilot (bold indices with luminous triangle at 12), Railroad (double concentric track ring), and Digital (analog hands plus a digital time readout). Your selection is saved and persists across sessions.' },
+      { heading: 'Complications', content: 'Complications are optional sub-dials that embed useful data directly on the clock face. Enable them in the gear menu:\n\n\u2022 Sunrise/Sunset (12 o\'clock) — countdown to next sunrise or sunset with color-coded icon\n\u2022 Solar SFI (3 o\'clock) — arc gauge showing Solar Flux Index, colored green/yellow/red\n\u2022 Stopwatch (6 o\'clock) — mirrors the Stopwatch widget\'s elapsed time with running indicator\n\u2022 UTC 24h (9 o\'clock) — 24-hour sub-dial showing current UTC time' },
       { heading: 'Sunrise/Sunset Arc', content: 'When your location (QTH) is set in Config, a golden arc appears on the clock face showing the daylight hours. The arc spans from sunrise to sunset on the 12-hour dial. This helps you visualize how much daylight remains and when gray line propagation windows occur.' },
-      { heading: 'Theme Support', content: 'The clock colors automatically adapt to your selected theme. The face, hands, and numbers all use your theme\'s color scheme.' },
+      { heading: 'Theme Support', content: 'The clock colors automatically adapt to your selected theme. All face styles, hands, complications, and numbers use your theme\'s color scheme.' },
     ],
   },
   'widget-stopwatch': {

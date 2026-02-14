@@ -5947,6 +5947,18 @@ body.grayscale {
   max-height: 300px;
 }
 
+/* ---- Clock Config Panel ---- */
+.clock-cfg-box { max-width: 420px; }
+.clock-cfg-box h3 { color: var(--text); font-size: 0.85rem; margin: 12px 0 6px; }
+.clock-face-picker { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-bottom: 8px; }
+.clock-face-item { display: flex; flex-direction: column; align-items: center; }
+.clock-face-thumb { width: 56px; height: 56px; border: 2px solid var(--border); border-radius: 50%; cursor: pointer; padding: 2px; background: var(--surface); display: flex; align-items: center; justify-content: center; }
+.clock-face-thumb:hover { border-color: var(--text); }
+.clock-face-thumb.active { border-color: var(--accent); }
+.clock-face-thumb svg { width: 100%; height: 100%; }
+.clock-face-label { text-align: center; font-size: 0.6rem; color: var(--text-dim); margin-top: 2px; }
+.comp-desc { color: var(--text-dim); font-size: 0.75rem; }
+
 /* Header clocks get pointer cursor to indicate clickability */
 .header-clock { cursor: pointer; }
 

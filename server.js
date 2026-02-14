@@ -67,12 +67,15 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
 
-// Rate limiting — /api/ routes only, 60 requests per minute per IP
+// Rate limiting — /api/ routes only, 120 requests per minute per IP
+// Lanmode runs on private LANs with a single user; 60 was too tight —
+// initial page load fires 30+ calls and solar animation adds dozens more.
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60,
+  max: 120,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.path.startsWith('/api/update/'), // update endpoints exempt — lightweight local-only
   message: { error: 'Too many requests, please try again later.' },
 });
 app.use('/api/', apiLimiter);

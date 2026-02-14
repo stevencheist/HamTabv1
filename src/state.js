@@ -217,6 +217,16 @@ const state = {
   dxpedMarkers: [],     // L.circleMarker[] for DXpedition map markers
   dxPathLines: [],      // L.polyline[] for band-colored DX contact paths
 
+  // Clock face config
+  clockFace: localStorage.getItem('hamtab_clock_face') || 'classic',
+  clockComplications: (() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('hamtab_clock_complications'));
+      if (s && typeof s === 'object' && !Array.isArray(s)) return s;
+    } catch (e) {}
+    return {}; // all off by default — user opts in
+  })(),
+
   // Day/night
   lastLocalDay: null,
   lastUtcDay: null,

@@ -1,96 +1,93 @@
+// --- Analog Clock Widget (Orchestrator) ---
+// Delegates face rendering to clock-faces.js and complication sub-dials to clock-complications.js.
+// Manages hand rotation, date text, sunrise/sunset arc, and the 1-second update loop.
+
 import state from './state.js';
 import { isWidgetVisible } from './widgets.js';
 import { getSunTimes } from './geo.js';
+import { buildFaceSvg, CLOCK_FACES } from './clock-faces.js';
+import { mountComplication, updateComplication, COMPLICATION_DEFS } from './clock-complications.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-const CX = 100; // center x/y of the 200x200 viewBox
+const CX = 100;
 const CY = 100;
-const R = 88; // clock face radius
+const R = 88;
 
 let svgBuilt = false;
-let lastDateStr = ''; // avoid redundant date text updates
-let lastArcDay = -1;  // day-of-year when arc was last computed
+let lastDateStr = '';
+let lastArcDay = -1;
+let lastFaceId = null; // detect config changes and auto-rebuild
 
 // SVG element refs (populated in buildSvg)
 const el = {};
 
-// --- SVG Construction (runs once) ---
+// Complication refs keyed by complication ID
+let compRefs = {};
 
-function buildSvg() {
-  const svg = document.getElementById('analogClockSvg');
-  if (!svg) return;
-  svg.innerHTML = '';
-
-  // Face circle
-  const face = makeSvg('circle', { cx: CX, cy: CY, r: R, fill: 'var(--surface)', stroke: 'var(--border)', 'stroke-width': 2 });
-  svg.appendChild(face);
-
-  // Sunrise/sunset arc (hidden until lat/lon available)
-  el.arc = makeSvg('path', { d: '', fill: 'rgba(255,193,7,0.25)', stroke: 'none' });
-  svg.appendChild(el.arc);
-
-  // Tick marks
-  for (let i = 0; i < 60; i++) {
-    const isMajor = i % 5 === 0;
-    const angle = (i * 6 - 90) * Math.PI / 180; // 6 deg per minute tick, 0 at 12
-    const outerR = R - 2;
-    const innerR = isMajor ? R - 10 : R - 5;
-    const line = makeSvg('line', {
-      x1: CX + Math.cos(angle) * innerR,
-      y1: CY + Math.sin(angle) * innerR,
-      x2: CX + Math.cos(angle) * outerR,
-      y2: CY + Math.sin(angle) * outerR,
-      stroke: 'var(--text-dim)',
-      'stroke-width': isMajor ? 2 : 1,
-    });
-    svg.appendChild(line);
-  }
-
-  // Hour numbers
-  for (let h = 1; h <= 12; h++) {
-    const angle = (h * 30 - 90) * Math.PI / 180; // 30 deg per hour
-    const numR = R - 18;
-    const txt = makeSvg('text', {
-      x: CX + Math.cos(angle) * numR,
-      y: CY + Math.sin(angle) * numR + 4, // +4 vertical centering fudge
-      'text-anchor': 'middle',
-      fill: 'var(--text-dim)',
-      'font-size': '12',
-      'font-family': 'inherit',
-    });
-    txt.textContent = h;
-    svg.appendChild(txt);
-  }
-
-  // Hands (hour, minute, second — drawn in this order so second is on top)
-  el.hour = makeSvg('line', { x1: CX, y1: CY, x2: CX, y2: CY - 50, stroke: 'var(--text)', 'stroke-width': 4, 'stroke-linecap': 'round' });
-  el.minute = makeSvg('line', { x1: CX, y1: CY, x2: CX, y2: CY - 70, stroke: 'var(--text)', 'stroke-width': 2.5, 'stroke-linecap': 'round' });
-  el.second = makeSvg('line', { x1: CX, y1: CY + 12, x2: CX, y2: CY - 78, stroke: 'var(--accent)', 'stroke-width': 1, 'stroke-linecap': 'round' });
-  svg.appendChild(el.hour);
-  svg.appendChild(el.minute);
-  svg.appendChild(el.second);
-
-  // Center dot
-  svg.appendChild(makeSvg('circle', { cx: CX, cy: CY, r: 3.5, fill: 'var(--accent)' }));
-
-  // Date text
-  el.dateText = makeSvg('text', {
-    x: CX,
-    y: CY + 30,
-    'text-anchor': 'middle',
-    fill: 'var(--text-dim)',
-    'font-size': '11',
-    'font-family': 'inherit',
-  });
-  svg.appendChild(el.dateText);
-
-  svgBuilt = true;
-}
+// --- SVG Helper ---
 
 function makeSvg(tag, attrs) {
   const node = document.createElementNS(NS, tag);
   for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
   return node;
+}
+
+// --- Build / Rebuild ---
+
+function buildSvg() {
+  const svg = document.getElementById('analogClockSvg');
+  if (!svg) return;
+
+  const faceId = state.clockFace || 'classic';
+  const comps = state.clockComplications || {};
+
+  // Delegate face rendering
+  const result = buildFaceSvg(svg, faceId, comps);
+  el.arc = result.arc;
+  el.dateText = result.dateText;
+  el.digitalText = result.digitalText;
+
+  // Mount enabled complications (before hands so hands stay on top)
+  compRefs = {};
+  for (const def of COMPLICATION_DEFS) {
+    if (comps[def.id]) {
+      compRefs[def.id] = mountComplication(svg, def.id);
+    }
+  }
+
+  // Get face config for hand dimensions
+  const face = CLOCK_FACES[faceId] || CLOCK_FACES.classic;
+  const hc = face.hands;
+
+  // Hands (drawn after complications for z-order)
+  el.hour = makeSvg('line', {
+    x1: CX, y1: CY + (hc.hour.tail || 0),
+    x2: CX, y2: CY - hc.hour.length,
+    stroke: 'var(--text)', 'stroke-width': hc.hour.width, 'stroke-linecap': 'round',
+  });
+  el.minute = makeSvg('line', {
+    x1: CX, y1: CY + (hc.minute.tail || 0),
+    x2: CX, y2: CY - hc.minute.length,
+    stroke: 'var(--text)', 'stroke-width': hc.minute.width, 'stroke-linecap': 'round',
+  });
+  el.second = makeSvg('line', {
+    x1: CX, y1: CY + (hc.second.tail || 0),
+    x2: CX, y2: CY - hc.second.length,
+    stroke: hc.second.color || 'var(--accent)', 'stroke-width': hc.second.width, 'stroke-linecap': 'round',
+  });
+  svg.appendChild(el.hour);
+  svg.appendChild(el.minute);
+  svg.appendChild(el.second);
+
+  // Center dot (on top of everything)
+  svg.appendChild(makeSvg('circle', {
+    cx: CX, cy: CY, r: face.centerDot.radius, fill: face.centerDot.color,
+  }));
+
+  lastFaceId = faceId;
+  lastDateStr = '';
+  lastArcDay = -1;
+  svgBuilt = true;
 }
 
 // --- Hand rotation ---
@@ -155,9 +152,22 @@ export function initAnalogClock() {
   buildSvg();
 }
 
+export function rebuildClock() {
+  svgBuilt = false;
+  buildSvg();
+  updateAnalogClock();
+}
+
 export function updateAnalogClock() {
   if (!svgBuilt) return;
   if (!isWidgetVisible('widget-analog-clock')) return;
+
+  // Auto-rebuild if face config changed
+  const currentFace = state.clockFace || 'classic';
+  if (currentFace !== lastFaceId) {
+    rebuildClock();
+    return;
+  }
 
   const now = new Date();
   const h = now.getHours() % 12;
@@ -174,11 +184,26 @@ export function updateAnalogClock() {
   setHand(el.second, secondAngle);
 
   // Date text (update only when date changes)
-  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-  const dateStr = `${days[now.getDay()]} ${now.getDate()}`;
-  if (dateStr !== lastDateStr) {
-    lastDateStr = dateStr;
-    el.dateText.textContent = dateStr;
+  if (el.dateText) {
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const dateStr = `${days[now.getDay()]} ${now.getDate()}`;
+    if (dateStr !== lastDateStr) {
+      lastDateStr = dateStr;
+      el.dateText.textContent = dateStr;
+    }
+  }
+
+  // Digital readout (digitalHybrid face)
+  if (el.digitalText) {
+    const dh = String(now.getHours()).padStart(2, '0');
+    const dm = String(m).padStart(2, '0');
+    const ds = String(s).padStart(2, '0');
+    el.digitalText.textContent = `${dh}:${dm}:${ds}`;
+  }
+
+  // Update complications
+  for (const [id, refs] of Object.entries(compRefs)) {
+    updateComplication(id, refs);
   }
 
   updateArc(now);

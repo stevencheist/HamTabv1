@@ -4035,24 +4035,24 @@
       init_solar();
       init_lunar();
       WIDGET_DEFS = [
-        { id: "widget-filters", name: "Filters" },
-        { id: "widget-activations", name: "On the Air" },
-        { id: "widget-map", name: "HamMap" },
-        { id: "widget-solar", name: "Solar" },
-        { id: "widget-spacewx", name: "Space Wx" },
-        { id: "widget-propagation", name: "Band Conditions" },
-        { id: "widget-voacap", name: "VOACAP DE\u2192DX" },
-        { id: "widget-live-spots", name: "Live Spots" },
-        { id: "widget-lunar", name: "Lunar / EME" },
-        { id: "widget-satellites", name: "Satellites" },
-        { id: "widget-rst", name: "Reference" },
-        { id: "widget-spot-detail", name: "DX Detail" },
-        { id: "widget-contests", name: "Contests" },
-        { id: "widget-dxpeditions", name: "DXpeditions" },
-        { id: "widget-beacons", name: "NCDXF Beacons" },
-        { id: "widget-dedx", name: "DE/DX Info" },
-        { id: "widget-stopwatch", name: "Stopwatch / Timer" },
-        { id: "widget-analog-clock", name: "Analog Clock" }
+        { id: "widget-filters", name: "Filters", short: "Filt" },
+        { id: "widget-activations", name: "On the Air", short: "OTA" },
+        { id: "widget-map", name: "HamMap", short: "MAP" },
+        { id: "widget-solar", name: "Solar", short: "Sol" },
+        { id: "widget-spacewx", name: "Space Wx", short: "SpWx" },
+        { id: "widget-propagation", name: "Band Conditions", short: "Band" },
+        { id: "widget-voacap", name: "VOACAP DE\u2192DX", short: "VOA" },
+        { id: "widget-live-spots", name: "Live Spots", short: "Live" },
+        { id: "widget-lunar", name: "Lunar / EME", short: "Moon" },
+        { id: "widget-satellites", name: "Satellites", short: "Sat" },
+        { id: "widget-rst", name: "Reference", short: "Ref" },
+        { id: "widget-spot-detail", name: "DX Detail", short: "DXDt" },
+        { id: "widget-contests", name: "Contests", short: "Cont" },
+        { id: "widget-dxpeditions", name: "DXpeditions", short: "DXpd" },
+        { id: "widget-beacons", name: "NCDXF Beacons", short: "Bcn" },
+        { id: "widget-dedx", name: "DE/DX Info", short: "DEDX" },
+        { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
+        { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" }
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -8768,6 +8768,8 @@ ${beacon.location}`);
   init_solar();
   init_lunar();
   init_dedx_info();
+  var stagedAssignments = {};
+  var selectedCell = null;
   function updateOperatorDisplay2() {
     const opCall = $("opCall");
     const opLoc = $("opLoc");
@@ -9004,7 +9006,10 @@ ${beacon.location}`);
       cb.type = "checkbox";
       cb.dataset.widgetId = w.id;
       cb.checked = state_default.widgetVisibility[w.id] !== false;
-      cb.addEventListener("change", updateWidgetSlotEnforcement);
+      cb.addEventListener("change", () => {
+        updateWidgetSlotEnforcement();
+        onWidgetCheckboxChange(cb.dataset.widgetId, cb.checked);
+      });
       label.appendChild(cb);
       label.appendChild(document.createTextNode(w.name));
       widgetList.appendChild(label);
@@ -9073,8 +9078,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.49.2";
-    $("aboutVersion").textContent = "0.49.2";
+    $("splashVersion").textContent = "0.50.0";
+    $("aboutVersion").textContent = "0.50.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -9095,9 +9100,18 @@ ${beacon.location}`);
       if (gridPermSection) {
         gridPermSection.style.display = state_default.gridMode === "grid" ? "" : "none";
       }
-      renderGridPreview(state_default.gridPermutation);
+      const currentPerm = permSelect ? permSelect.value : state_default.gridPermutation;
+      if (state_default.gridAssignments && Object.keys(state_default.gridAssignments).length > 0) {
+        stagedAssignments = { ...state_default.gridAssignments };
+      } else {
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[currentPerm];
+        stagedAssignments = defaults ? { ...defaults } : {};
+      }
+      selectedCell = null;
+      renderGridPreview(currentPerm, stagedAssignments);
     }
     updateWidgetSlotEnforcement();
+    updateWidgetCellBadges(stagedAssignments);
     const hasSaved = hasUserLayout();
     $("splashClearLayout").disabled = !hasSaved;
     $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
@@ -9146,18 +9160,16 @@ ${beacon.location}`);
       const newMode = $("layoutModeGrid").checked ? "grid" : "float";
       const permSelect = document.getElementById("gridPermSelect");
       const newPerm = permSelect ? permSelect.value : state_default.gridPermutation;
-      if (newMode === "grid" && state_default.gridMode !== "grid") {
+      const oldPerm = state_default.gridPermutation;
+      if (newMode === "grid") {
         state_default.gridPermutation = newPerm;
-        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
-        state_default.gridAssignments = defaults ? { ...defaults } : {};
+        state_default.gridAssignments = { ...stagedAssignments };
         saveGridAssignments();
-        activateGridMode(newPerm);
-      } else if (newMode === "grid" && newPerm !== state_default.gridPermutation) {
-        state_default.gridPermutation = newPerm;
-        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
-        state_default.gridAssignments = defaults ? { ...defaults } : {};
-        saveGridAssignments();
-        activateGridMode(newPerm);
+        if (state_default.gridMode !== "grid" || newPerm !== oldPerm) {
+          activateGridMode(newPerm);
+        } else {
+          applyGridAssignments();
+        }
       } else if (newMode === "float" && state_default.gridMode === "grid") {
         deactivateGridMode();
       }
@@ -9391,17 +9403,31 @@ ${beacon.location}`);
     if (layoutModeFloat && layoutModeGrid) {
       layoutModeFloat.addEventListener("change", () => {
         if (gridPermSection) gridPermSection.style.display = "none";
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
       layoutModeGrid.addEventListener("change", () => {
         if (gridPermSection) gridPermSection.style.display = "";
-        if (gridPermSelect) renderGridPreview(gridPermSelect.value);
+        if (gridPermSelect) {
+          if (!stagedAssignments || Object.keys(stagedAssignments).length === 0) {
+            const defaults = GRID_DEFAULT_ASSIGNMENTS[gridPermSelect.value];
+            stagedAssignments = defaults ? { ...defaults } : {};
+          }
+          selectedCell = null;
+          renderGridPreview(gridPermSelect.value, stagedAssignments);
+        }
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
     }
     if (gridPermSelect) {
       gridPermSelect.addEventListener("change", () => {
-        renderGridPreview(gridPermSelect.value);
+        const newPermId = gridPermSelect.value;
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPermId];
+        stagedAssignments = defaults ? { ...defaults } : {};
+        selectedCell = null;
+        renderGridPreview(newPermId, stagedAssignments);
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
     }
@@ -9409,7 +9435,11 @@ ${beacon.location}`);
     if (resetGridBtn) {
       resetGridBtn.addEventListener("click", () => {
         resetGridAssignments();
-        renderGridPreview(state_default.gridPermutation);
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
+        stagedAssignments = defaults ? { ...defaults } : {};
+        selectedCell = null;
+        renderGridPreview(state_default.gridPermutation, stagedAssignments);
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
     }
@@ -9492,11 +9522,21 @@ ${beacon.location}`);
       container.appendChild(row);
     });
   }
-  function renderGridPreview(permId) {
+  function renderGridPreview(permId, assignments) {
     const container = document.getElementById("gridPermPreview");
     if (!container) return;
     const perm = getGridPermutation(permId);
     container.innerHTML = "";
+    const picker = document.getElementById("gridAssignPicker");
+    if (picker) {
+      picker.innerHTML = "";
+      picker.classList.remove("open");
+    }
+    const asgn = assignments || stagedAssignments || {};
+    const widgetShortMap = {};
+    WIDGET_DEFS.forEach((w) => {
+      widgetShortMap[w.id] = w.short || w.name.substring(0, 4);
+    });
     const spans = permId === state_default.gridPermutation ? state_default.gridSpans || {} : {};
     let areas = perm.areas;
     const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
@@ -9523,11 +9563,157 @@ ${beacon.location}`);
       if (absorbed.has(name)) return;
       const cell = document.createElement("div");
       const span = spans[name] || 1;
-      cell.className = "grid-preview-cell" + (span > 1 ? " grid-preview-spanned" : "");
+      const isSpanned = span > 1;
+      cell.className = "grid-preview-cell grid-preview-assignable" + (isSpanned ? " grid-preview-spanned" : "") + (selectedCell === name ? " grid-preview-selected" : "");
       cell.style.gridArea = name;
-      cell.textContent = span > 1 ? `${name} (+${span - 1})` : name;
+      const nameEl = document.createElement("span");
+      nameEl.className = "cell-name";
+      nameEl.textContent = isSpanned ? `${name} (+${span - 1})` : name;
+      cell.appendChild(nameEl);
+      const widgetEl = document.createElement("span");
+      widgetEl.className = "cell-widget";
+      const widgetId = asgn[name];
+      widgetEl.textContent = widgetId ? widgetShortMap[widgetId] || "\u2014" : "\u2014";
+      cell.appendChild(widgetEl);
+      cell.addEventListener("click", () => {
+        if (selectedCell === name) {
+          selectedCell = null;
+          renderGridPreview(permId, asgn);
+        } else {
+          selectedCell = name;
+          renderGridPreview(permId, asgn);
+          renderAssignmentPicker(name, asgn, permId);
+        }
+      });
       container.appendChild(cell);
     });
+  }
+  function renderAssignmentPicker(cellName, assignments, permId) {
+    const picker = document.getElementById("gridAssignPicker");
+    if (!picker) return;
+    picker.innerHTML = "";
+    const asgn = assignments || stagedAssignments;
+    const currentWidgetId = asgn[cellName] || null;
+    const widgetList = document.getElementById("splashWidgetList");
+    const enabledWidgets = [];
+    if (widgetList) {
+      widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        if (cb.dataset.widgetId !== "widget-map" && cb.checked) {
+          const def = WIDGET_DEFS.find((w) => w.id === cb.dataset.widgetId);
+          if (def) enabledWidgets.push(def);
+        }
+      });
+    }
+    const reverseMap = {};
+    for (const [cell, wid] of Object.entries(asgn)) {
+      if (wid) reverseMap[wid] = cell;
+    }
+    const emptyOpt = document.createElement("div");
+    emptyOpt.className = "assign-option" + (!currentWidgetId ? " assign-current" : "");
+    emptyOpt.textContent = "(Empty)";
+    emptyOpt.addEventListener("click", () => {
+      delete asgn[cellName];
+      selectedCell = null;
+      renderGridPreview(permId, asgn);
+      updateWidgetCellBadges(asgn);
+      picker.innerHTML = "";
+      picker.classList.remove("open");
+    });
+    picker.appendChild(emptyOpt);
+    enabledWidgets.forEach((w) => {
+      const opt = document.createElement("div");
+      opt.className = "assign-option" + (currentWidgetId === w.id ? " assign-current" : "");
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = w.name;
+      opt.appendChild(nameSpan);
+      if (reverseMap[w.id] && reverseMap[w.id] !== cellName) {
+        const hint = document.createElement("span");
+        hint.className = "assign-hint";
+        hint.textContent = reverseMap[w.id];
+        opt.appendChild(hint);
+      }
+      opt.addEventListener("click", () => {
+        const oldCell = reverseMap[w.id] || null;
+        const displaced = asgn[cellName] || null;
+        asgn[cellName] = w.id;
+        if (oldCell && oldCell !== cellName) {
+          if (displaced) {
+            asgn[oldCell] = displaced;
+          } else {
+            delete asgn[oldCell];
+          }
+        }
+        selectedCell = null;
+        renderGridPreview(permId, asgn);
+        updateWidgetCellBadges(asgn);
+        picker.innerHTML = "";
+        picker.classList.remove("open");
+      });
+      picker.appendChild(opt);
+    });
+    picker.classList.add("open");
+  }
+  function updateWidgetCellBadges(assignments) {
+    const widgetList = document.getElementById("splashWidgetList");
+    if (!widgetList) return;
+    const floatRadio = document.getElementById("layoutModeFloat");
+    const isGrid = floatRadio ? !floatRadio.checked : false;
+    widgetList.querySelectorAll(".widget-cell-badge").forEach((b) => b.remove());
+    if (!isGrid) return;
+    const asgn = assignments || stagedAssignments || {};
+    const reverseMap = {};
+    for (const [cell, wid] of Object.entries(asgn)) {
+      if (wid) reverseMap[wid] = cell;
+    }
+    widgetList.querySelectorAll("label").forEach((label) => {
+      const cb = label.querySelector('input[type="checkbox"]');
+      if (!cb || cb.dataset.widgetId === "widget-map") return;
+      const cell = reverseMap[cb.dataset.widgetId];
+      if (cell) {
+        const badge = document.createElement("span");
+        badge.className = "widget-cell-badge";
+        badge.textContent = `[${cell}]`;
+        label.appendChild(badge);
+      }
+    });
+  }
+  function onWidgetCheckboxChange(widgetId, checked) {
+    const floatRadio = document.getElementById("layoutModeFloat");
+    const isGrid = floatRadio ? !floatRadio.checked : false;
+    if (!isGrid || widgetId === "widget-map") return;
+    const permSelect = document.getElementById("gridPermSelect");
+    const permId = permSelect ? permSelect.value : state_default.gridPermutation;
+    const perm = getGridPermutation(permId);
+    if (!checked) {
+      for (const [cell, wid] of Object.entries(stagedAssignments)) {
+        if (wid === widgetId) {
+          delete stagedAssignments[cell];
+          break;
+        }
+      }
+    } else {
+      const spans = permId === state_default.gridPermutation ? state_default.gridSpans || {} : {};
+      const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
+      const absorbed = /* @__PURE__ */ new Set();
+      for (const wrapperCells of allWrappers) {
+        for (let i = 0; i < wrapperCells.length; i++) {
+          const span = spans[wrapperCells[i]] || 1;
+          for (let s = 1; s < span && i + s < wrapperCells.length; s++) {
+            absorbed.add(wrapperCells[i + s]);
+          }
+        }
+      }
+      for (const cellName of perm.cellNames) {
+        if (absorbed.has(cellName)) continue;
+        if (!stagedAssignments[cellName]) {
+          stagedAssignments[cellName] = widgetId;
+          break;
+        }
+      }
+    }
+    selectedCell = null;
+    renderGridPreview(permId, stagedAssignments);
+    updateWidgetCellBadges(stagedAssignments);
   }
 
   // src/config.js

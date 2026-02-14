@@ -734,6 +734,7 @@ export const GRID_MODE_KEY = 'hamtab_grid_mode';
 export const GRID_PERM_KEY = 'hamtab_grid_permutation';
 export const GRID_ASSIGN_KEY = 'hamtab_grid_assignments';
 export const GRID_SIZES_KEY = 'hamtab_grid_sizes';
+export const GRID_SPANS_KEY = 'hamtab_grid_spans';
 
 // Grid permutation definitions — each defines a CSS Grid template with a fixed center map cell.
 // `areas` is the grid-template-areas string, `columns`/`rows` are the track sizes,

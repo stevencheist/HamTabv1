@@ -166,6 +166,7 @@ const state = {
     data: [],
     summary: {},
     lastFetch: null,
+    error: false, // true when fetch fails — shows retry message instead of eternal "Loading..."
     displayMode: localStorage.getItem('hamtab_livespots_mode') || 'count', // 'count' or 'distance'
     maxAge: parseInt(localStorage.getItem('hamtab_livespots_maxage'), 10) || 60, // minutes
     visibleBands: new Set(),

@@ -74,10 +74,12 @@ export async function fetchLiveSpots() {
     state.liveSpots.data = data.spots || [];
     state.liveSpots.summary = data.summary || {};
     state.liveSpots.lastFetch = Date.now();
+    state.liveSpots.error = false;
 
     renderLiveSpots();
   } catch (err) {
     if (state.debug) console.error('Failed to fetch Live Spots:', err);
+    state.liveSpots.error = true;
     renderLiveSpots();
   }
 }
@@ -102,9 +104,12 @@ export function renderLiveSpots() {
     return;
   }
 
-  // Hide status if we have data
+  // Show status messages
   if (status) {
-    if (state.liveSpots.data.length === 0 && state.liveSpots.lastFetch) {
+    if (state.liveSpots.error && !state.liveSpots.lastFetch) {
+      status.textContent = 'PSKReporter unavailable — retrying';
+      status.classList.add('visible');
+    } else if (state.liveSpots.data.length === 0 && state.liveSpots.lastFetch) {
       status.textContent = 'No spots in last hour';
       status.classList.add('visible');
     } else if (!state.liveSpots.lastFetch) {

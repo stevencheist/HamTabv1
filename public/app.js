@@ -201,6 +201,8 @@
           data: [],
           summary: {},
           lastFetch: null,
+          error: false,
+          // true when fetch fails — shows retry message instead of eternal "Loading..."
           displayMode: localStorage.getItem("hamtab_livespots_mode") || "count",
           // 'count' or 'distance'
           maxAge: parseInt(localStorage.getItem("hamtab_livespots_maxage"), 10) || 60,
@@ -8385,9 +8387,11 @@ ${beacon.location}`);
       state_default.liveSpots.data = data.spots || [];
       state_default.liveSpots.summary = data.summary || {};
       state_default.liveSpots.lastFetch = Date.now();
+      state_default.liveSpots.error = false;
       renderLiveSpots();
     } catch (err) {
       if (state_default.debug) console.error("Failed to fetch Live Spots:", err);
+      state_default.liveSpots.error = true;
       renderLiveSpots();
     }
   }
@@ -8406,7 +8410,10 @@ ${beacon.location}`);
       return;
     }
     if (status) {
-      if (state_default.liveSpots.data.length === 0 && state_default.liveSpots.lastFetch) {
+      if (state_default.liveSpots.error && !state_default.liveSpots.lastFetch) {
+        status.textContent = "PSKReporter unavailable \u2014 retrying";
+        status.classList.add("visible");
+      } else if (state_default.liveSpots.data.length === 0 && state_default.liveSpots.lastFetch) {
         status.textContent = "No spots in last hour";
         status.classList.add("visible");
       } else if (!state_default.liveSpots.lastFetch) {
@@ -8856,8 +8863,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.45.1";
-    $("aboutVersion").textContent = "0.45.1";
+    $("splashVersion").textContent = "0.45.2";
+    $("aboutVersion").textContent = "0.45.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

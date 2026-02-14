@@ -8865,8 +8865,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.46.1";
-    $("aboutVersion").textContent = "0.46.1";
+    $("splashVersion").textContent = "0.46.2";
+    $("aboutVersion").textContent = "0.46.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -9435,7 +9435,7 @@ ${beacon.location}`);
   init_utils();
   async function checkUpdateStatus() {
     const el = $("platformLabel");
-    if (el && !el.textContent) el.textContent = "v0.37.1";
+    if (el && !el.textContent) el.textContent = "v0.46.2";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
@@ -9507,7 +9507,14 @@ ${beacon.location}`);
         pollForServer(60);
       } catch (err) {
         dot.className = "update-dot red";
-        $("updateLabel").textContent = err.message || "Update failed";
+        const label = $("updateLabel");
+        label.innerHTML = "";
+        const link = document.createElement("a");
+        link.href = "/update-debug";
+        link.textContent = err.message || "Update failed";
+        link.style.color = "inherit";
+        link.title = "Run update diagnostics";
+        label.appendChild(link);
         state_default.updateApplying = false;
       }
     });

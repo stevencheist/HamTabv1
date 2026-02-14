@@ -1643,6 +1643,186 @@ app.post('/api/update/apply', async (req, res) => {
   }
 });
 
+// --- Update diagnostics endpoint ---
+// Dry-run tests every step of the update process and reports pass/fail/warn.
+// Temporary debug tool for issue #129 — helps diagnose update failures on user machines.
+app.get('/api/update/diagnostics', async (req, res) => {
+  const results = {};
+
+  // 1. Environment info
+  try {
+    const userInfo = os.userInfo();
+    results.environment = {
+      status: 'pass',
+      detail: {
+        platform: os.platform(),
+        arch: os.arch(),
+        nodeVersion: process.version,
+        pid: process.pid,
+        user: userInfo.username,
+        uid: userInfo.uid,
+        gid: userInfo.gid,
+        appDir: APP_DIR,
+        cwd: process.cwd(),
+      },
+    };
+  } catch (err) {
+    results.environment = { status: 'fail', detail: err.message };
+  }
+
+  // 2. Update state snapshot
+  results.update_state = {
+    status: 'pass',
+    detail: {
+      currentVersion,
+      latestVersion: latestVersion || null,
+      updateAvailable,
+      updateInProgress,
+      lastCheckTime: lastCheckTime ? new Date(lastCheckTime).toISOString() : null,
+      checking,
+      updateCheckInterval,
+      releaseUrl,
+    },
+  };
+
+  // 3. GitHub API reachability
+  try {
+    const data = await fetchJSON('https://api.github.com/repos/stevencheist/HamTabv1/releases/latest');
+    const tag = data.tag_name || '(no tag)';
+    results.github_api = { status: 'pass', detail: { tag, name: data.name || '' } };
+  } catch (err) {
+    results.github_api = { status: 'fail', detail: err.message };
+  }
+
+  // 4. Version comparison
+  try {
+    const latest = latestVersion || currentVersion;
+    const cmp = compareSemver(currentVersion, latest);
+    results.version_compare = {
+      status: cmp < 0 ? 'pass' : 'warn',
+      detail: {
+        current: currentVersion,
+        latest,
+        result: cmp < 0 ? 'update available' : cmp === 0 ? 'up to date' : 'local is newer',
+      },
+    };
+  } catch (err) {
+    results.version_compare = { status: 'fail', detail: err.message };
+  }
+
+  // 5. Zip URL resolvability (HEAD request via secureFetch-style check)
+  try {
+    const zipUrl = `https://github.com/stevencheist/HamTabv1/archive/refs/heads/lanmode.zip`;
+    // Use https module directly for a HEAD-like test (first redirect only)
+    const testResult = await new Promise((resolve, reject) => {
+      const parsed = new URL(zipUrl);
+      const reqOpts = {
+        method: 'HEAD',
+        hostname: parsed.hostname,
+        path: parsed.pathname,
+        port: 443,
+        headers: { 'User-Agent': 'HamTab/1.0' },
+        timeout: 10000,
+      };
+      const r = https.request(reqOpts, (resp) => {
+        resp.resume();
+        resolve({
+          statusCode: resp.statusCode,
+          location: resp.headers.location || null,
+        });
+      });
+      r.on('error', reject);
+      r.on('timeout', () => { r.destroy(); reject(new Error('Timed out')); });
+      r.end();
+    });
+    const ok = testResult.statusCode >= 200 && testResult.statusCode < 400;
+    results.zip_url_resolve = {
+      status: ok ? 'pass' : 'fail',
+      detail: { url: `https://github.com/.../lanmode.zip`, ...testResult },
+    };
+  } catch (err) {
+    results.zip_url_resolve = { status: 'fail', detail: err.message };
+  }
+
+  // 6. Write permissions
+  try {
+    const testFile = path.join(APP_DIR, '.diag-write-test');
+    fs.writeFileSync(testFile, 'test');
+    fs.unlinkSync(testFile);
+    const nmDir = path.join(APP_DIR, 'node_modules');
+    let nmWritable = false;
+    if (fs.existsSync(nmDir)) {
+      const nmTest = path.join(nmDir, '.diag-write-test');
+      try {
+        fs.writeFileSync(nmTest, 'test');
+        fs.unlinkSync(nmTest);
+        nmWritable = true;
+      } catch { nmWritable = false; }
+    } else {
+      nmWritable = false; // node_modules doesn't exist
+    }
+    results.write_permissions = {
+      status: nmWritable ? 'pass' : 'warn',
+      detail: {
+        appDir: 'writable',
+        nodeModules: nmWritable ? 'writable' : 'NOT writable or missing',
+      },
+    };
+  } catch (err) {
+    results.write_permissions = {
+      status: 'fail',
+      detail: { appDir: `NOT writable: ${err.message}`, nodeModules: 'not tested' },
+    };
+  }
+
+  // 7. Disk space
+  try {
+    if (os.platform() === 'win32') {
+      results.disk_space = { status: 'pass', detail: { freeMemMB: Math.round(os.freemem() / 1048576), note: 'freemem only (Windows)' } };
+    } else {
+      const dfOut = await runCommand(`df -h "${APP_DIR}" | tail -1`);
+      const parts = dfOut.trim().split(/\s+/);
+      results.disk_space = {
+        status: 'pass',
+        detail: { filesystem: parts[0], size: parts[1], used: parts[2], available: parts[3], usePercent: parts[4], mount: parts[5] },
+      };
+    }
+  } catch (err) {
+    results.disk_space = { status: 'warn', detail: err.message };
+  }
+
+  // 8. npm available
+  try {
+    const npmVer = await runCommand('npm --version', { timeout: 10000 });
+    results.npm_available = { status: 'pass', detail: { version: npmVer.trim() } };
+  } catch (err) {
+    results.npm_available = { status: 'fail', detail: err.message };
+  }
+
+  // 9. unzip available (Linux) or PowerShell Expand-Archive (Windows)
+  try {
+    if (os.platform() === 'win32') {
+      const psOut = await runCommand('powershell -Command "Get-Command Expand-Archive | Select-Object -ExpandProperty Version"', { timeout: 10000 });
+      results.unzip_available = { status: 'pass', detail: { tool: 'Expand-Archive', version: psOut.trim() } };
+    } else {
+      const unzipOut = await runCommand('unzip -v 2>&1 | head -1', { timeout: 10000 });
+      results.unzip_available = { status: 'pass', detail: { tool: 'unzip', version: unzipOut.trim() } };
+    }
+  } catch (err) {
+    results.unzip_available = { status: 'fail', detail: err.message };
+  }
+
+  // 10. esbuild available (needed for npm run build)
+  try {
+    const esbuildVer = await runCommand('npx esbuild --version', { timeout: 15000 });
+    results.esbuild_available = { status: 'pass', detail: { version: esbuildVer.trim() } };
+  } catch (err) {
+    results.esbuild_available = { status: 'fail', detail: err.message };
+  }
+
+  res.json({ timestamp: new Date().toISOString(), checks: results });
+});
+
 // --- Restart endpoint ---
 app.post('/api/restart', (req, res) => {
   res.json({ restarting: true });

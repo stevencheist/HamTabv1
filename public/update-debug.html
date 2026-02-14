@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HamTab Update Diagnostics</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a2e; color: #e0e0e0; padding: 24px; max-width: 800px; margin: 0 auto; }
+  h1 { font-size: 1.4em; margin-bottom: 4px; color: #00d4aa; }
+  .subtitle { font-size: 0.85em; color: #888; margin-bottom: 20px; }
+  .subtitle a { color: #6ea8fe; }
+  .controls { margin-bottom: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+  button { background: #2a2a4a; color: #e0e0e0; border: 1px solid #444; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-size: 0.9em; }
+  button:hover { background: #3a3a5a; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  .copied { background: #1a5a3a !important; border-color: #00d4aa !important; }
+  #status { font-size: 0.85em; color: #888; margin-bottom: 12px; }
+  .check { background: #16213e; border: 1px solid #333; border-radius: 6px; margin-bottom: 8px; overflow: hidden; }
+  .check-header { display: flex; align-items: center; padding: 10px 14px; cursor: pointer; gap: 10px; }
+  .check-header:hover { background: #1a2744; }
+  .indicator { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .indicator.pass { background: #00d4aa; }
+  .indicator.fail { background: #ff4757; }
+  .indicator.warn { background: #ffa502; }
+  .indicator.pending { background: #555; }
+  .check-name { font-weight: 600; font-size: 0.95em; flex: 1; }
+  .check-summary { font-size: 0.8em; color: #aaa; max-width: 50%; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .check-detail { display: none; padding: 10px 14px; border-top: 1px solid #333; background: #0f1a2e; font-size: 0.85em; white-space: pre-wrap; word-break: break-all; font-family: 'Cascadia Code', 'Fira Code', monospace; line-height: 1.5; }
+  .check.open .check-detail { display: block; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #444; border-top-color: #00d4aa; border-radius: 50%; animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .back-link { display: inline-block; margin-top: 16px; color: #6ea8fe; font-size: 0.85em; }
+</style>
+</head>
+<body>
+
+<h1>Update Diagnostics</h1>
+<p class="subtitle">Dry-run test of every update step &mdash; <a href="https://github.com/stevencheist/HamTabv1/issues/129" target="_blank">Issue #129</a></p>
+
+<div class="controls">
+  <button id="runBtn" onclick="runDiagnostics()">Re-run</button>
+  <button id="copyBtn" onclick="copyResults()">Copy Results</button>
+</div>
+<div id="status">Running diagnostics...</div>
+<div id="results"></div>
+<a class="back-link" href="/">&#8592; Back to HamTab</a>
+
+<script>
+const CHECK_LABELS = {
+  environment: 'Environment',
+  update_state: 'Update State',
+  github_api: 'GitHub API',
+  version_compare: 'Version Compare',
+  zip_url_resolve: 'Zip URL Resolve',
+  write_permissions: 'Write Permissions',
+  disk_space: 'Disk Space',
+  npm_available: 'npm Available',
+  unzip_available: 'Unzip Available',
+  esbuild_available: 'esbuild Available',
+};
+
+let lastData = null;
+
+function summarize(key, check) {
+  const d = check.detail;
+  if (typeof d === 'string') return d.substring(0, 80);
+  switch (key) {
+    case 'environment': return d.platform + ' / Node ' + d.nodeVersion + ' / user: ' + d.user;
+    case 'update_state': return 'v' + d.currentVersion + (d.updateAvailable ? ' → v' + d.latestVersion : ' (no update)');
+    case 'github_api': return d.tag || d;
+    case 'version_compare': return d.result;
+    case 'zip_url_resolve': return 'HTTP ' + (d.statusCode || '?');
+    case 'write_permissions': return 'appDir: ' + d.appDir + ', node_modules: ' + d.nodeModules;
+    case 'disk_space': return d.available ? d.available + ' free' : (d.freeMemMB ? d.freeMemMB + ' MB free (mem)' : '');
+    case 'npm_available': return 'v' + (d.version || '?');
+    case 'unzip_available': return d.tool + ' ' + (d.version || '').substring(0, 40);
+    case 'esbuild_available': return 'v' + (d.version || '?');
+    default: return JSON.stringify(d).substring(0, 60);
+  }
+}
+
+function renderChecks(data) {
+  const container = document.getElementById('results');
+  container.innerHTML = '';
+  const checks = data.checks || {};
+
+  for (const [key, check] of Object.entries(checks)) {
+    const div = document.createElement('div');
+    div.className = 'check';
+
+    const header = document.createElement('div');
+    header.className = 'check-header';
+    header.innerHTML =
+      '<span class="indicator ' + check.status + '"></span>' +
+      '<span class="check-name">' + (CHECK_LABELS[key] || key) + '</span>' +
+      '<span class="check-summary">' + escHtml(summarize(key, check)) + '</span>';
+    header.addEventListener('click', function() { div.classList.toggle('open'); });
+
+    const detail = document.createElement('div');
+    detail.className = 'check-detail';
+    detail.textContent = JSON.stringify(check.detail, null, 2);
+
+    div.appendChild(header);
+    div.appendChild(detail);
+    container.appendChild(div);
+  }
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+async function runDiagnostics() {
+  const btn = document.getElementById('runBtn');
+  const status = document.getElementById('status');
+  btn.disabled = true;
+  status.innerHTML = '<span class="spinner"></span> Running diagnostics...';
+  document.getElementById('results').innerHTML = '';
+
+  try {
+    const resp = await fetch('/api/update/diagnostics');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    lastData = await resp.json();
+    renderChecks(lastData);
+
+    const checks = Object.values(lastData.checks || {});
+    const fails = checks.filter(c => c.status === 'fail').length;
+    const warns = checks.filter(c => c.status === 'warn').length;
+    const total = checks.length;
+    status.textContent = total + ' checks: ' + (total - fails - warns) + ' pass, ' + fails + ' fail, ' + warns + ' warn — ' + lastData.timestamp;
+  } catch (err) {
+    status.textContent = 'Error: ' + err.message;
+    lastData = { error: err.message };
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function copyResults() {
+  if (!lastData) return;
+  const btn = document.getElementById('copyBtn');
+  try {
+    await navigator.clipboard.writeText(JSON.stringify(lastData, null, 2));
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy Results'; btn.classList.remove('copied'); }, 2000);
+  } catch {
+    // Fallback for non-HTTPS or permission denial
+    const ta = document.createElement('textarea');
+    ta.value = JSON.stringify(lastData, null, 2);
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy Results'; btn.classList.remove('copied'); }, 2000);
+  }
+}
+
+// Auto-run on load
+runDiagnostics();
+</script>
+</body>
+</html>

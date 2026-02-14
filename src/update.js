@@ -90,7 +90,14 @@ export function initUpdateListeners() {
       pollForServer(60); // longer timeout — npm install + build adds time on Pi
     } catch (err) {
       dot.className = 'update-dot red';
-      $('updateLabel').textContent = err.message || 'Update failed';
+      const label = $('updateLabel');
+      label.innerHTML = '';
+      const link = document.createElement('a');
+      link.href = '/update-debug';
+      link.textContent = err.message || 'Update failed';
+      link.style.color = 'inherit';
+      link.title = 'Run update diagnostics';
+      label.appendChild(link);
       state.updateApplying = false;
     }
   });

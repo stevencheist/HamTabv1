@@ -75,7 +75,7 @@ const apiLimiter = rateLimit({
   max: 120,
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path.startsWith('/api/update/'), // update endpoints exempt — lightweight local-only
+  skip: (req) => req.path === '/api/update/status', // status check exempt — just returns cached vars
   message: { error: 'Too many requests, please try again later.' },
 });
 app.use('/api/', apiLimiter);

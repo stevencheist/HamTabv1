@@ -258,7 +258,7 @@
         lastContestData: null,
         // cached /api/contests response
         // Mobile tab bar
-        activeTab: localStorage.getItem("hamtab_active_tab") || "map",
+        activeTab: localStorage.getItem("hamtab_active_tab") || "widget-map",
         // Progressive scaling
         reflowActive: false,
         // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
@@ -4103,7 +4103,6 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     GRID_SPANS_KEY: () => GRID_SPANS_KEY,
     HEADER_H: () => HEADER_H,
     LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
-    MOBILE_TAB_DEFS: () => MOBILE_TAB_DEFS,
     MOBILE_TAB_KEY: () => MOBILE_TAB_KEY,
     REFERENCE_TABS: () => REFERENCE_TABS,
     REFLOW_WIDGET_ORDER: () => REFLOW_WIDGET_ORDER,
@@ -4139,7 +4138,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   function getBandColorOverrides() {
     return { ...bandColorOverrides };
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, MOBILE_TAB_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -4848,28 +4847,6 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       } catch (e) {
       }
       MOBILE_TAB_KEY = "hamtab_active_tab";
-      MOBILE_TAB_DEFS = [
-        {
-          id: "map",
-          label: "Map",
-          widgets: ["widget-map", "widget-dedx"]
-        },
-        {
-          id: "spots",
-          label: "Spots",
-          widgets: ["widget-filters", "widget-activations", "widget-spot-detail", "widget-live-spots"]
-        },
-        {
-          id: "prop",
-          label: "Prop",
-          widgets: ["widget-solar", "widget-spacewx", "widget-propagation", "widget-voacap", "widget-beacons"]
-        },
-        {
-          id: "more",
-          label: "More",
-          widgets: ["widget-lunar", "widget-satellites", "widget-rst", "widget-contests", "widget-dxpeditions", "widget-stopwatch", "widget-analog-clock"]
-        }
-      ];
       WIDGET_STORAGE_KEY = "hamtab_widgets";
       USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
@@ -5795,62 +5772,173 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   });
 
   // src/tabs.js
-  function switchTab(tabId) {
+  function saveSecondary() {
+    localStorage.setItem(SECONDARY_KEY, JSON.stringify(secondaryWidgets));
+  }
+  function buildTabBar() {
+    const tabBar = document.getElementById("tabBar");
+    if (!tabBar) return;
+    tabBar.innerHTML = "";
+    const vis = state_default.widgetVisibility || {};
+    WIDGET_DEFS.forEach((def) => {
+      if (def.id === "widget-filters") return;
+      if (vis[def.id] === false) return;
+      const btn = document.createElement("button");
+      btn.className = "tab-bar-btn";
+      btn.dataset.tab = def.id;
+      btn.title = def.name;
+      if (def.id === "widget-map") {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${def.short}</span>`;
+      } else {
+        btn.innerHTML = `<span>${def.short}</span>`;
+      }
+      btn.addEventListener("click", () => {
+        if (def.id === state_default.activeTab) {
+          const area = document.getElementById("widgetArea");
+          if (area) area.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+        switchTab(def.id);
+      });
+      tabBar.appendChild(btn);
+    });
+    tabBar.querySelectorAll(".tab-bar-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tab === state_default.activeTab);
+    });
+  }
+  function dismantleGridForMobile() {
+    const area = document.getElementById("widgetArea");
+    if (!area) return;
+    const wrapperIds = ["grid-col-left", "grid-col-right", "grid-bar-top", "grid-bar-bottom"];
+    wrapperIds.forEach((id) => {
+      const wrapper = document.getElementById(id);
+      if (!wrapper) return;
+      const widgets = wrapper.querySelectorAll(".widget");
+      widgets.forEach((w) => area.appendChild(w));
+    });
+    area.querySelectorAll(".grid-col-wrapper, .grid-bar-wrapper, .grid-flex-handle, .grid-cell-placeholder, .grid-track-handle").forEach((el2) => {
+      el2.style.display = "none";
+    });
+    area.classList.remove("grid-active", "reflow-layout");
+    area.style.gridTemplateAreas = "";
+    area.style.gridTemplateColumns = "";
+    area.style.gridTemplateRows = "";
+  }
+  function buildSecondaryPicker(area, primaryId) {
+    const old = document.getElementById("mobileSecondaryPicker");
+    if (old) old.remove();
+    const vis = state_default.widgetVisibility || {};
+    const currentSecondary = secondaryWidgets[primaryId] || "";
+    const options = WIDGET_DEFS.filter(
+      (w) => w.id !== "widget-filters" && w.id !== primaryId && vis[w.id] !== false
+    );
+    if (options.length === 0) return;
+    const picker = document.createElement("div");
+    picker.id = "mobileSecondaryPicker";
+    picker.className = "mobile-secondary-picker";
+    const select = document.createElement("select");
+    select.className = "mobile-secondary-select";
+    const noneOpt = document.createElement("option");
+    noneOpt.value = "";
+    noneOpt.textContent = "+ Add widget below\u2026";
+    select.appendChild(noneOpt);
+    options.forEach((def) => {
+      const opt = document.createElement("option");
+      opt.value = def.id;
+      opt.textContent = def.name;
+      if (def.id === currentSecondary) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.addEventListener("change", () => {
+      const val = select.value;
+      if (val) {
+        secondaryWidgets[primaryId] = val;
+      } else {
+        delete secondaryWidgets[primaryId];
+      }
+      saveSecondary();
+      switchTab(primaryId);
+    });
+    picker.appendChild(select);
+    area.appendChild(picker);
+  }
+  function switchTab(widgetId) {
     if (getLayoutMode() !== "mobile") return;
-    const tabDef = MOBILE_TAB_DEFS.find((t) => t.id === tabId);
-    if (!tabDef) return;
-    state_default.activeTab = tabId;
-    localStorage.setItem(MOBILE_TAB_KEY, tabId);
+    dismantleGridForMobile();
+    const vis = state_default.widgetVisibility || {};
+    const def = WIDGET_DEFS.find((w) => w.id === widgetId);
+    if (!def || vis[widgetId] === false) {
+      widgetId = "widget-map";
+    }
+    state_default.activeTab = widgetId;
+    localStorage.setItem(MOBILE_TAB_KEY, widgetId);
+    let secondaryId = secondaryWidgets[widgetId] || "";
+    if (secondaryId && (vis[secondaryId] === false || secondaryId === widgetId || secondaryId === "widget-filters")) {
+      secondaryId = "";
+      delete secondaryWidgets[widgetId];
+      saveSecondary();
+    }
     const tabBar = document.getElementById("tabBar");
     if (tabBar) {
       tabBar.querySelectorAll(".tab-bar-btn").forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.tab === tabId);
+        btn.classList.toggle("active", btn.dataset.tab === widgetId);
       });
     }
-    document.body.classList.toggle("tab-map-active", tabId === "map");
-    const tabWidgets = new Set(tabDef.widgets);
-    const allTabWidgets = /* @__PURE__ */ new Set();
-    MOBILE_TAB_DEFS.forEach((t) => t.widgets.forEach((w) => allTabWidgets.add(w)));
+    document.body.classList.toggle("tab-map-active", widgetId === "widget-map" && !secondaryId);
     const area = document.getElementById("widgetArea");
-    allTabWidgets.forEach((wid) => {
-      const el2 = document.getElementById(wid);
+    WIDGET_DEFS.forEach((w) => {
+      const el2 = document.getElementById(w.id);
       if (!el2) return;
-      if (tabWidgets.has(wid)) {
-        if (state_default.widgetVisibility[wid] !== false) {
-          el2.style.display = "";
-        } else {
-          el2.style.display = "none";
+      el2.style.gridArea = "";
+      el2.style.flex = "";
+      el2.style.flexGrow = "";
+      el2.style.flexShrink = "";
+      el2.style.flexBasis = "";
+      el2.classList.remove("mobile-active-widget");
+      el2.classList.remove("mobile-secondary-widget");
+      if (w.id === "widget-filters") {
+        el2.style.display = vis[w.id] !== false ? "" : "none";
+        if (el2.style.display !== "none") {
+          el2.style.order = "-1";
+          area.prepend(el2);
+          if (!el2.dataset.mobileCollapsed) {
+            el2.classList.add("collapsed");
+            el2.dataset.mobileCollapsed = "1";
+          }
         }
+      } else if (w.id === widgetId) {
+        el2.style.display = vis[w.id] !== false ? "" : "none";
+        el2.classList.add("mobile-active-widget");
+        el2.classList.remove("collapsed");
+      } else if (w.id === secondaryId) {
+        el2.style.display = "";
+        el2.classList.add("mobile-secondary-widget");
+        el2.classList.remove("collapsed");
       } else {
         el2.style.display = "none";
       }
     });
-    tabDef.widgets.forEach((wid) => {
-      const el2 = document.getElementById(wid);
-      if (el2 && el2.style.display !== "none") {
-        area.appendChild(el2);
-      }
-    });
-    if (tabId === "map" && state_default.map) {
+    buildSecondaryPicker(area, widgetId);
+    if ((widgetId === "widget-map" || secondaryId === "widget-map") && state_default.map) {
       setTimeout(() => state_default.map.invalidateSize(), 50);
+    }
+  }
+  function rebuildTabs() {
+    if (getLayoutMode() !== "mobile") return;
+    buildTabBar();
+    const vis = state_default.widgetVisibility || {};
+    if (vis[state_default.activeTab] === false || !WIDGET_DEFS.find((w) => w.id === state_default.activeTab)) {
+      switchTab("widget-map");
+    } else {
+      switchTab(state_default.activeTab);
     }
   }
   function initTabs() {
     const tabBar = document.getElementById("tabBar");
     if (!tabBar) return;
-    tabBar.querySelectorAll(".tab-bar-btn").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const tabId = btn.dataset.tab;
-        if (tabId === state_default.activeTab) {
-          const area = document.getElementById("widgetArea");
-          if (area) area.scrollTo({ top: 0, behavior: "smooth" });
-          return;
-        }
-        switchTab(tabId);
-      });
-    });
     if (getLayoutMode() === "mobile") {
-      const saved = state_default.activeTab || "map";
+      buildTabBar();
+      const saved = state_default.activeTab || "widget-map";
       switchTab(saved);
     }
     let prevMode = getLayoutMode();
@@ -5859,28 +5947,44 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       if (mode2 === prevMode) return;
       prevMode = mode2;
       if (mode2 === "mobile") {
-        tabBar.style.display = "";
-        switchTab(state_default.activeTab || "map");
+        buildTabBar();
+        switchTab(state_default.activeTab || "widget-map");
       } else {
-        tabBar.style.display = "";
         document.body.classList.remove("tab-map-active");
-        MOBILE_TAB_DEFS.forEach((t) => t.widgets.forEach((wid) => {
-          const el2 = document.getElementById(wid);
+        const picker = document.getElementById("mobileSecondaryPicker");
+        if (picker) picker.remove();
+        const area = document.getElementById("widgetArea");
+        if (area) {
+          area.querySelectorAll(".grid-col-wrapper, .grid-bar-wrapper, .grid-flex-handle, .grid-cell-placeholder, .grid-track-handle").forEach((el2) => {
+            el2.style.display = "";
+          });
+        }
+        WIDGET_DEFS.forEach((w) => {
+          const el2 = document.getElementById(w.id);
           if (!el2) return;
-          if (state_default.widgetVisibility[wid] !== false) {
+          el2.style.order = "";
+          el2.classList.remove("mobile-active-widget", "mobile-secondary-widget");
+          if (state_default.widgetVisibility[w.id] !== false) {
             el2.style.display = "";
           }
-        }));
+        });
       }
     });
     initialized = true;
   }
-  var initialized;
+  var initialized, SECONDARY_KEY, secondaryWidgets;
   var init_tabs = __esm({
     "src/tabs.js"() {
       init_state();
       init_constants();
       initialized = false;
+      SECONDARY_KEY = "hamtab_mobile_secondary";
+      secondaryWidgets = {};
+      try {
+        const s = JSON.parse(localStorage.getItem(SECONDARY_KEY));
+        if (s && typeof s === "object") secondaryWidgets = s;
+      } catch (e) {
+      }
     }
   });
 
@@ -5902,13 +6006,13 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     return state_default.widgetVisibility[id] !== false;
   }
   function applyWidgetVisibility() {
+    if (getLayoutMode() === "mobile") {
+      rebuildTabs();
+      return;
+    }
     if (isGridMode()) {
       applyGridAssignments();
       if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
-      return;
-    }
-    if (getLayoutMode() === "mobile") {
-      switchTab(state_default.activeTab || "map");
       return;
     }
     WIDGET_DEFS.forEach((w) => {
@@ -6308,12 +6412,13 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     area.style.width = "";
     area.style.transformOrigin = "";
     area.classList.remove("scaling-active");
-    area.classList.add("reflow-layout");
     if (getLayoutMode() === "mobile") {
-      switchTab(state_default.activeTab || "map");
+      area.classList.remove("reflow-layout");
+      rebuildTabs();
       if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 100);
       return;
     }
+    area.classList.add("reflow-layout");
     const vis = state_default.widgetVisibility || {};
     REFLOW_WIDGET_ORDER.forEach((id) => {
       const el2 = document.getElementById(id);

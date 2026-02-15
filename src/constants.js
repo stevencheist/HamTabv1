@@ -729,6 +729,9 @@ export const MOBILE_TAB_KEY = 'hamtab_active_tab';
 export const WIDGET_STORAGE_KEY = 'hamtab_widgets';
 export const USER_LAYOUT_KEY = 'hamtab_widgets_user';
 export const SNAP_DIST = 20; // px — edge-snap threshold for widget dragging
+export const SNAP_GRID = 20; // px — grid increment for snap-to-grid in free-float mode
+export const SNAP_GRID_KEY = 'hamtab_snap_grid'; // localStorage key for snap-to-grid toggle
+export const ALLOW_OVERLAP_KEY = 'hamtab_allow_overlap'; // localStorage key for overlap toggle
 export const HEADER_H = 30; // px — widget header/title-bar height used in snap calculations
 
 // --- Grid Layout Mode ---

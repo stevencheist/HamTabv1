@@ -863,6 +863,14 @@ header {
   background: var(--bg);
 }
 
+/* ---- Snap-to-Grid Visual Overlay ---- */
+/* Shown while dragging/resizing in free-float mode with snap enabled */
+.widget-area.snap-grid-visible {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 20px),
+    repeating-linear-gradient(90deg, rgba(255,255,255,0.04) 0 1px, transparent 1px 20px);
+}
+
 .widget {
   position: absolute;
   background: var(--surface);
@@ -5398,6 +5406,21 @@ header {
 }
 
 .splash-layout-mode-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: var(--text);
+}
+
+.splash-float-options {
+  display: flex;
+  gap: 16px;
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.splash-float-options label {
   display: flex;
   align-items: center;
   gap: 4px;

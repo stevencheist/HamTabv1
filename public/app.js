@@ -6716,13 +6716,17 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   function initMap() {
     const hasLeaflet = typeof L !== "undefined" && L.map;
     if (!hasLeaflet) return;
+    const isMobile = window.innerWidth < BREAKPOINT_MOBILE;
     try {
       state_default.map = L.map("map", {
         worldCopyJump: true,
         maxBoundsViscosity: 1,
         maxBounds: [[-90, -180], [90, 180]],
-        minZoom: 1
+        minZoom: 1,
+        zoomControl: false
+        // added manually for position control
       }).setView([39.8, -98.5], 4);
+      L.control.zoom({ position: isMobile ? "bottomright" : "topleft" }).addTo(state_default.map);
       state_default.tileLayer = L.tileLayer(TILE_DARK, {
         attribution: "&copy; OpenStreetMap &copy; CARTO",
         maxZoom: 19
@@ -6927,6 +6931,7 @@ ${beacon.location}`);
       init_utils();
       init_map_overlays();
       init_beacons();
+      init_constants();
       TILE_DARK = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
       TILE_VOYAGER = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
       BEACON_COLORS = {
@@ -9503,8 +9508,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.51.4";
-    $("aboutVersion").textContent = "0.51.4";
+    $("splashVersion").textContent = "0.51.5";
+    $("aboutVersion").textContent = "0.51.5";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

@@ -5893,16 +5893,18 @@ header {
     min-height: 200px;
   }
 
-  /* --- Mobile map controls: larger touch targets --- */
+  /* --- Mobile map controls: larger touch targets, thumb-friendly position --- */
   .leaflet-control-zoom a {
-    width: 36px !important;
-    height: 36px !important;
-    line-height: 36px !important;
-    font-size: 20px !important;
+    width: 44px !important;
+    height: 44px !important;
+    line-height: 44px !important;
+    font-size: 22px !important;
   }
 
   .leaflet-control-zoom {
-    border-radius: 6px !important;
+    border-radius: 8px !important;
+    margin-bottom: 12px !important;
+    margin-right: 8px !important;
   }
 
   #widget-activations {

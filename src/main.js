@@ -54,6 +54,7 @@ import { initStopwatchListeners } from './stopwatch.js';
 import { initAnalogClock, updateAnalogClock } from './analog-clock.js';
 import { initClockConfigListeners } from './clock-config.js';
 import { initMobileMenu } from './menu.js';
+import { initTabs } from './tabs.js';
 
 // Initialize map
 initMap();
@@ -105,6 +106,7 @@ initStopwatchListeners();
 initAnalogClock();
 initClockConfigListeners();
 initMobileMenu();
+initTabs();
 
 // Wire initApp into splash dismissal
 function initApp() {

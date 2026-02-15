@@ -5559,6 +5559,93 @@ header {
   }
 }
 
+/* ---- Mobile Menu (hamburger + drawer) ---- */
+
+/* Hamburger button — hidden on desktop, shown on mobile via media query */
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-color);
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-menu-btn:active {
+  background: var(--accent-bg, rgba(255,255,255,0.1));
+}
+
+/* Backdrop overlay */
+.mobile-menu-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
+}
+
+.mobile-menu-backdrop.open {
+  display: block;
+}
+
+/* Slide-out drawer */
+.mobile-menu-drawer {
+  position: fixed;
+  top: 0;
+  right: -280px;
+  width: 260px;
+  height: 100%;
+  background: var(--widget-bg, #1a1a1a);
+  border-left: 1px solid var(--border);
+  z-index: 9999;
+  transition: right 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.mobile-menu-drawer.open {
+  right: 0;
+}
+
+.mobile-menu-header {
+  padding: 16px 20px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-menu-item {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  font-size: 0.95rem;
+  color: var(--text-color);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.mobile-menu-item:active {
+  background: var(--accent-bg, rgba(255,255,255,0.08));
+}
+
+.mobile-menu-update {
+  padding: 14px 20px;
+  font-size: 0.8rem;
+  color: var(--text-dim, #888);
+}
+
 /* ==== Responsive — Mobile (< 768px) ==== */
 
 @media (max-width: 767px) {
@@ -5863,93 +5950,6 @@ header {
   #widget-beacons .widget-body,
   #widget-contests .widget-body,
   #widget-dxpeditions .widget-body { max-height: 250px; }
-}
-
-/* ---- Mobile Menu (hamburger + drawer) ---- */
-
-/* Hamburger button — hidden on desktop, shown on mobile via media query */
-.mobile-menu-btn {
-  display: none;
-  background: none;
-  border: 1px solid var(--border);
-  color: var(--text-color);
-  font-size: 1.5rem;
-  line-height: 1;
-  padding: 6px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
-.mobile-menu-btn:active {
-  background: var(--accent-bg, rgba(255,255,255,0.1));
-}
-
-/* Backdrop overlay */
-.mobile-menu-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  z-index: 9998;
-}
-
-.mobile-menu-backdrop.open {
-  display: block;
-}
-
-/* Slide-out drawer */
-.mobile-menu-drawer {
-  position: fixed;
-  top: 0;
-  right: -280px;
-  width: 260px;
-  height: 100%;
-  background: var(--widget-bg, #1a1a1a);
-  border-left: 1px solid var(--border);
-  z-index: 9999;
-  transition: right 0.25s ease;
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  overflow-y: auto;
-}
-
-.mobile-menu-drawer.open {
-  right: 0;
-}
-
-.mobile-menu-header {
-  padding: 16px 20px;
-  font-size: 1.1rem;
-  font-weight: bold;
-  color: var(--text-color);
-  border-bottom: 1px solid var(--border);
-}
-
-.mobile-menu-item {
-  display: block;
-  width: 100%;
-  padding: 14px 20px;
-  font-size: 0.95rem;
-  color: var(--text-color);
-  background: none;
-  border: none;
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  cursor: pointer;
-  text-decoration: none;
-  font-family: inherit;
-}
-
-.mobile-menu-item:active {
-  background: var(--accent-bg, rgba(255,255,255,0.08));
-}
-
-.mobile-menu-update {
-  padding: 14px 20px;
-  font-size: 0.8rem;
-  color: var(--text-dim, #888);
 }
 
 /* ---- Grayscale Mode ---- */

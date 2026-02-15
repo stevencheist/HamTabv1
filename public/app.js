@@ -171,6 +171,7 @@
         // Weather
         wxStation: localStorage.getItem("hamtab_wx_station") || "",
         wxApiKey: localStorage.getItem("hamtab_wx_apikey") || "",
+        owmApiKey: localStorage.getItem("hamtab_owm_apikey") || "",
         nwsAlerts: [],
         weatherTimer: null,
         nwsCondTimer: null,
@@ -9444,6 +9445,7 @@ ${beacon.location}`);
     });
     $("splashWxStation").value = state_default.wxStation;
     $("splashWxApiKey").value = state_default.wxApiKey;
+    $("splashOwmApiKey").value = state_default.owmApiKey;
     $("splashN2yoApiKey").value = state_default.n2yoApiKey;
     const intervalSelect = $("splashUpdateInterval");
     if (intervalSelect) {
@@ -9506,8 +9508,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.51.5";
-    $("aboutVersion").textContent = "0.51.5";
+    $("splashVersion").textContent = "0.51.6";
+    $("aboutVersion").textContent = "0.51.6";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -9562,12 +9564,15 @@ ${beacon.location}`);
     localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
     state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
     state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
+    state_default.owmApiKey = ($("splashOwmApiKey").value || "").trim();
     state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
     localStorage.setItem("hamtab_wx_station", state_default.wxStation);
     localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
+    localStorage.setItem("hamtab_owm_apikey", state_default.owmApiKey);
     localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
     const envUpdates = {};
     if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
+    if (state_default.owmApiKey) envUpdates.OWM_API_KEY = state_default.owmApiKey;
     if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
     if (Object.keys(envUpdates).length > 0) {
       fetch("/api/config/env", {

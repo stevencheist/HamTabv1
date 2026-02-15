@@ -721,21 +721,29 @@ export function initWidgets() {
       maxBtn.title = 'Toggle fullscreen map';
       maxBtn.textContent = '\u26F6'; // ⛶
       maxBtn.addEventListener('mousedown', e => e.stopPropagation());
+
+      const enterFS = () => {
+        mapWidget.classList.add('map-fullscreen');
+        document.body.classList.add('map-fullscreen-active'); // neutralize parent transform + overflow
+        maxBtn.textContent = '\u2715'; // ✕
+        if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+      };
+      const exitFS = () => {
+        mapWidget.classList.remove('map-fullscreen');
+        document.body.classList.remove('map-fullscreen-active');
+        maxBtn.textContent = '\u26F6'; // ⛶
+        if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+      };
+
       maxBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // don't trigger collapse
-        const isFS = mapWidget.classList.toggle('map-fullscreen');
-        maxBtn.textContent = isFS ? '\u2715' : '\u26F6'; // ✕ or ⛶
-        if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+        mapWidget.classList.contains('map-fullscreen') ? exitFS() : enterFS();
       });
       mapHeader.appendChild(maxBtn);
 
       // Escape key closes fullscreen map (matches Big Clock pattern)
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && mapWidget.classList.contains('map-fullscreen')) {
-          mapWidget.classList.remove('map-fullscreen');
-          maxBtn.textContent = '\u26F6'; // ⛶
-          if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
-        }
+        if (e.key === 'Escape' && mapWidget.classList.contains('map-fullscreen')) exitFS();
       });
     }
   }

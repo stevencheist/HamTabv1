@@ -722,6 +722,31 @@ export function getBandColorOverrides() {
   return { ...bandColorOverrides };
 }
 
+// --- Mobile Tab Bar ---
+export const MOBILE_TAB_KEY = 'hamtab_active_tab';
+export const MOBILE_TAB_DEFS = [
+  {
+    id: 'map',
+    label: 'Map',
+    widgets: ['widget-map', 'widget-dedx'],
+  },
+  {
+    id: 'spots',
+    label: 'Spots',
+    widgets: ['widget-filters', 'widget-activations', 'widget-spot-detail', 'widget-live-spots'],
+  },
+  {
+    id: 'prop',
+    label: 'Prop',
+    widgets: ['widget-solar', 'widget-spacewx', 'widget-propagation', 'widget-voacap', 'widget-beacons'],
+  },
+  {
+    id: 'more',
+    label: 'More',
+    widgets: ['widget-lunar', 'widget-satellites', 'widget-rst', 'widget-contests', 'widget-dxpeditions', 'widget-stopwatch', 'widget-analog-clock'],
+  },
+];
+
 export const WIDGET_STORAGE_KEY = 'hamtab_widgets';
 export const USER_LAYOUT_KEY = 'hamtab_widgets_user';
 export const SNAP_DIST = 20; // px — edge-snap threshold for widget dragging

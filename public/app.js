@@ -9667,8 +9667,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.53.1";
-    $("aboutVersion").textContent = "0.53.1";
+    $("splashVersion").textContent = "0.53.2";
+    $("aboutVersion").textContent = "0.53.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -10482,7 +10482,7 @@ ${beacon.location}`);
   init_utils();
   async function checkUpdateStatus() {
     const el2 = $("platformLabel");
-    if (el2 && !el2.textContent) el2.textContent = "v0.53.1";
+    if (el2 && !el2.textContent) el2.textContent = "v0.53.2";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;

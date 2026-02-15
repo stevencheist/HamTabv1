@@ -55,7 +55,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **Day/Night Indicator** — SVG sun/moon graphic on clock widgets based on computed sunrise/sunset
 
 ### Community
-- **Discord** — [Join the HamTab Discord](https://discord.gg/GcX9cHtT) for release notes, community discussion, feature requests, and support. Discord icon in the header links directly to the server.
+- **Discord** — [Join the HamTab Discord](https://discord.gg/Ru3ydQY75U) for release notes, community discussion, feature requests, and support. Discord icon in the header links directly to the server.
 
 ### System
 - **Operator Identity** — Callsign prompt at startup with geolocation and Maidenhead grid square display

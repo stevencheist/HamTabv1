@@ -3632,7 +3632,7 @@ header {
 .dedx-utc-label { font-size: 0.65rem; color: var(--text-dim); text-align: center; font-weight: 600; margin-bottom: 3px; }
 .dedx-empty { color: var(--text-dim); font-style: italic; font-size: 0.7rem; text-align: center; padding: 8px 0; }
 
-@media (max-width: 767px) {
+@media (max-width: 1024px) {
   .dedx-container { flex-direction: column; }
   .dedx-de { border-right: none; border-bottom: 1px solid var(--border); }
 }
@@ -4371,8 +4371,8 @@ header {
 .theme-lcars #spotsTable tbody tr:nth-child(19) { animation-delay: 9.0s; }
 .theme-lcars #spotsTable tbody tr:nth-child(20) { animation-delay: 9.5s; }
 
-/* LCARS mobile: disable elbow cutout, simplify to stacked layout */
-@media (max-width: 767px) {
+/* LCARS mobile/tablet: disable elbow cutout, simplify to stacked layout */
+@media (max-width: 1024px) {
   .theme-lcars .header-left {
     min-width: 0;
     max-width: none;
@@ -5646,9 +5646,9 @@ header {
   color: var(--text-dim, #888);
 }
 
-/* ==== Responsive — Mobile (< 768px) ==== */
+/* ==== Responsive — Mobile & Tablet (≤ 1024px) ==== */
 
-@media (max-width: 767px) {
+@media (max-width: 1024px) {
 
   /* --- Header: stack vertically --- */
 

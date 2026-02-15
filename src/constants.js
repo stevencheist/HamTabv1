@@ -646,13 +646,12 @@ export const REFERENCE_TABS = {
 export const DEFAULT_REFERENCE_TAB = 'rst';
 
 // --- Responsive breakpoints ---
-export const BREAKPOINT_MOBILE = 768;  // legacy — kept for existing @media rules
-export const BREAKPOINT_TABLET = 1024; // legacy — kept for existing @media rules
+export const BREAKPOINT_MOBILE = 1025;  // matches @media (max-width: 1024px) — phones + tablets
 
 // --- Progressive Responsive Scaling ---
 export const SCALE_REFERENCE_WIDTH = 1200; // px — viewport width where scale = 1.0 (Zone A starts)
 export const SCALE_MIN_FACTOR = 0.55;      // minimum scale factor before reflow triggers
-export const SCALE_REFLOW_WIDTH = 660;     // px — below this, switch to reflow layout (Zone C)
+export const SCALE_REFLOW_WIDTH = 1025;    // px — below this, switch to mobile layout (stacked widgets)
 
 // Priority order for reflow layout — most important widgets first
 export const REFLOW_WIDGET_ORDER = [

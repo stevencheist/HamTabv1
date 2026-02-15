@@ -8,6 +8,7 @@ The default base map uses OpenStreetMap tiles. The map supports standard interac
 - **Zoom** — Mouse wheel, pinch gesture, or +/- buttons
 - **Pan** — Click and drag
 - **Double-click** — Zoom in on clicked location
+- **Fullscreen** — Click the ⛶ button in the map header to expand the map to fill the entire viewport. Click ✕ or press Escape to exit fullscreen.
 
 ## Marker Types
 

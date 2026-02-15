@@ -712,8 +712,8 @@ export function initWidgets() {
     new ResizeObserver(() => state.map.invalidateSize()).observe(mapWidget);
   }
 
-  // Mobile: full-screen map toggle
-  if (!isDesktop && mapWidget) {
+  // Full-screen map toggle (all screen sizes)
+  if (mapWidget) {
     const mapHeader = mapWidget.querySelector('.widget-header');
     if (mapHeader) {
       const maxBtn = document.createElement('button');
@@ -723,10 +723,20 @@ export function initWidgets() {
       maxBtn.addEventListener('mousedown', e => e.stopPropagation());
       maxBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // don't trigger collapse
-        mapWidget.classList.toggle('map-fullscreen');
+        const isFS = mapWidget.classList.toggle('map-fullscreen');
+        maxBtn.textContent = isFS ? '\u2715' : '\u26F6'; // ✕ or ⛶
         if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
       });
       mapHeader.appendChild(maxBtn);
+
+      // Escape key closes fullscreen map (matches Big Clock pattern)
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && mapWidget.classList.contains('map-fullscreen')) {
+          mapWidget.classList.remove('map-fullscreen');
+          maxBtn.textContent = '\u26F6'; // ⛶
+          if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+        }
+      });
     }
   }
 

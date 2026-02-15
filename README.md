@@ -20,6 +20,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **Map Overlays** — Toggleable lat/lon grid, Maidenhead grid squares, timezone lines, MUF image overlay, tropics & arctic lines, and weather radar via map gear icon
 - **Weather Radar** — Global precipitation overlay from RainViewer, semi-transparent tile layer with 5-minute auto-refresh
 - **Map Legend** — Toggleable legend panel showing color keys for all marker and line types on the map
+- **Fullscreen Map** — Expand the map to fill the entire viewport with a single click; press Escape or click the close button to return to the grid
 - **Satellite Tracking** — Real-time positions for ISS, SO-50, TEVEL, and custom satellites via N2YO with orbital ground tracks and radio footprint circles
 
 ### Propagation & Space Weather

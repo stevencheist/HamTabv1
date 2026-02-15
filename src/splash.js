@@ -319,6 +319,7 @@ export function showSplash() {
 
   $('splashWxStation').value = state.wxStation;
   $('splashWxApiKey').value = state.wxApiKey;
+  $('splashOwmApiKey').value = state.owmApiKey;
   $('splashN2yoApiKey').value = state.n2yoApiKey;
 
   const intervalSelect = $('splashUpdateInterval');
@@ -495,12 +496,15 @@ function dismissSplash() {
 
     const wxStationEl = $('splashWxStation');
     const wxApiKeyEl = $('splashWxApiKey');
+    const owmApiKeyEl = $('splashOwmApiKey');
     const n2yoApiKeyEl = $('splashN2yoApiKey');
     state.wxStation = wxStationEl ? wxStationEl.value.trim().toUpperCase() : state.wxStation;
     state.wxApiKey = wxApiKeyEl ? wxApiKeyEl.value.trim() : state.wxApiKey;
+    state.owmApiKey = owmApiKeyEl ? owmApiKeyEl.value.trim() : state.owmApiKey;
     state.n2yoApiKey = n2yoApiKeyEl ? n2yoApiKeyEl.value.trim() : state.n2yoApiKey;
     localStorage.setItem('hamtab_wx_station', state.wxStation);
     localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
+    localStorage.setItem('hamtab_owm_apikey', state.owmApiKey);
     localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
 
     fetchWeather();

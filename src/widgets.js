@@ -1,6 +1,6 @@
 import state from './state.js';
-import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, SNAP_GRID, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
-import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, repositionGridHandles } from './grid-layout.js';
+import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
+import { isGridMode, activateGridMode, deactivateGridMode, applyGridAssignments, handleGridDragStart, repositionGridHandles, saveGridAssignments } from './grid-layout.js';
 import { switchTab, rebuildTabs, getActiveTabWidgets } from './tabs.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
@@ -338,6 +338,88 @@ export function clearUserLayout() {
 
 export function hasUserLayout() {
   return localStorage.getItem(USER_LAYOUT_KEY) !== null;
+}
+
+// --- Named Layout Profiles ---
+
+export function getNamedLayouts() {
+  try {
+    const raw = localStorage.getItem(LAYOUTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch (e) {}
+  return {};
+}
+
+function captureCurrentLayout() {
+  const positions = {};
+  document.querySelectorAll('.widget').forEach(w => {
+    positions[w.id] = {
+      left: parseInt(w.style.left) || 0,
+      top: parseInt(w.style.top) || 0,
+      width: parseInt(w.style.width) || 200,
+      height: parseInt(w.style.height) || 150,
+    };
+  });
+  return {
+    positions,
+    visibility: { ...state.widgetVisibility },
+    gridMode: state.gridMode || 'float',
+    gridPermutation: state.gridPermutation || '3L-3R',
+    gridAssignments: state.gridAssignments ? { ...state.gridAssignments } : {},
+    gridSpans: state.gridSpans ? { ...state.gridSpans } : {},
+  };
+}
+
+export function saveNamedLayout(name) {
+  if (!name || typeof name !== 'string') return false;
+  const layouts = getNamedLayouts();
+  if (!layouts[name] && Object.keys(layouts).length >= MAX_LAYOUTS) return false; // cap at 20
+  layouts[name] = captureCurrentLayout();
+  localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+  return true;
+}
+
+export function loadNamedLayout(name) {
+  const layouts = getNamedLayouts();
+  const profile = layouts[name];
+  if (!profile) return false;
+
+  // Restore visibility
+  if (profile.visibility) {
+    state.widgetVisibility = { ...profile.visibility };
+    saveWidgetVisibility();
+  }
+
+  // Restore grid/float mode
+  if (profile.gridMode === 'grid') {
+    state.gridPermutation = profile.gridPermutation || '3L-3R';
+    state.gridAssignments = profile.gridAssignments ? { ...profile.gridAssignments } : {};
+    state.gridSpans = profile.gridSpans ? { ...profile.gridSpans } : {};
+    saveGridAssignments();
+    activateGridMode(state.gridPermutation);
+  } else {
+    if (isGridMode()) deactivateGridMode();
+    // Restore float positions
+    if (profile.positions) {
+      applyLayout(profile.positions);
+      localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(profile.positions));
+    }
+  }
+
+  applyWidgetVisibility();
+  if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
+  return true;
+}
+
+export function deleteNamedLayout(name) {
+  const layouts = getNamedLayouts();
+  if (!layouts[name]) return false;
+  delete layouts[name];
+  localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+  return true;
 }
 
 function bringToFront(widget) {

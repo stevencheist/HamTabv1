@@ -149,6 +149,10 @@ const state = {
   // Widgets
   zCounter: 10, // next z-index to assign when a widget is focused (increments on each click)
 
+  // Free-float snap settings
+  snapToGrid: localStorage.getItem('hamtab_snap_grid') !== 'false', // snap widget positions to grid (default: on)
+  allowOverlap: localStorage.getItem('hamtab_allow_overlap') === 'true', // skip overlap resolution (default: off)
+
   // Grid layout mode
   gridMode: localStorage.getItem('hamtab_grid_mode') || 'grid', // 'float' or 'grid'
   gridPermutation: localStorage.getItem('hamtab_grid_permutation') || '3L-3R', // active permutation ID

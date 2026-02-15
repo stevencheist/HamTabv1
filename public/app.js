@@ -184,6 +184,11 @@
         // Widgets
         zCounter: 10,
         // next z-index to assign when a widget is focused (increments on each click)
+        // Free-float snap settings
+        snapToGrid: localStorage.getItem("hamtab_snap_grid") !== "false",
+        // snap widget positions to grid (default: on)
+        allowOverlap: localStorage.getItem("hamtab_allow_overlap") === "true",
+        // skip overlap resolution (default: off)
         // Grid layout mode
         gridMode: localStorage.getItem("hamtab_grid_mode") || "grid",
         // 'float' or 'grid'
@@ -4137,6 +4142,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   // src/constants.js
   var constants_exports = {};
   __export(constants_exports, {
+    ALLOW_OVERLAP_KEY: () => ALLOW_OVERLAP_KEY,
     BREAKPOINT_MOBILE: () => BREAKPOINT_MOBILE,
     DEFAULT_BAND_COLORS: () => DEFAULT_BAND_COLORS,
     DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
@@ -4158,6 +4164,8 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     SCALE_REFERENCE_WIDTH: () => SCALE_REFERENCE_WIDTH,
     SCALE_REFLOW_WIDTH: () => SCALE_REFLOW_WIDTH,
     SNAP_DIST: () => SNAP_DIST,
+    SNAP_GRID: () => SNAP_GRID,
+    SNAP_GRID_KEY: () => SNAP_GRID_KEY,
     SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
     SOURCE_DEFS: () => SOURCE_DEFS,
     USER_LAYOUT_KEY: () => USER_LAYOUT_KEY,
@@ -4185,7 +4193,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   function getBandColorOverrides() {
     return { ...bandColorOverrides };
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -4898,6 +4906,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       WIDGET_STORAGE_KEY = "hamtab_widgets";
       USER_LAYOUT_KEY = "hamtab_widgets_user";
       SNAP_DIST = 20;
+      SNAP_GRID = 20;
+      SNAP_GRID_KEY = "hamtab_snap_grid";
+      ALLOW_OVERLAP_KEY = "hamtab_allow_overlap";
       HEADER_H = 30;
       GRID_MODE_KEY = "hamtab_grid_mode";
       GRID_PERM_KEY = "hamtab_grid_permutation";
@@ -6146,6 +6157,10 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   }
   function snapPosition(left, top, wW, wH) {
     const { width: aW, height: aH } = getWidgetArea();
+    if (state_default.snapToGrid) {
+      left = Math.round(left / SNAP_GRID) * SNAP_GRID;
+      top = Math.round(top / SNAP_GRID) * SNAP_GRID;
+    }
     const right = left + wW;
     const bottom = top + wH;
     if (Math.abs(left) < SNAP_DIST) left = 0;
@@ -6310,6 +6325,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       startY = e.clientY;
       origLeft = parseInt(widget.style.left) || 0;
       origTop = parseInt(widget.style.top) || 0;
+      if (state_default.snapToGrid) {
+        document.getElementById("widgetArea").classList.add("snap-grid-visible");
+      }
       function onMove(ev) {
         let newLeft = origLeft + (ev.clientX - startX);
         let newTop = origTop + (ev.clientY - startY);
@@ -6323,7 +6341,8 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       function onUp() {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
-        resolveOverlaps(widget);
+        document.getElementById("widgetArea").classList.remove("snap-grid-visible");
+        if (!state_default.allowOverlap) resolveOverlaps(widget);
         saveWidgets();
       }
       document.addEventListener("mousemove", onMove);
@@ -6345,9 +6364,16 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       origH = widget.offsetHeight;
       origLeft = parseInt(widget.style.left) || 0;
       origTop = parseInt(widget.style.top) || 0;
+      if (state_default.snapToGrid) {
+        document.getElementById("widgetArea").classList.add("snap-grid-visible");
+      }
       function onMove(ev) {
         let newW = origW + (ev.clientX - startX);
         let newH = origH + (ev.clientY - startY);
+        if (state_default.snapToGrid) {
+          newW = Math.round(newW / SNAP_GRID) * SNAP_GRID;
+          newH = Math.round(newH / SNAP_GRID) * SNAP_GRID;
+        }
         ({ w: newW, h: newH } = clampSize(origLeft, origTop, newW, newH));
         widget.style.width = newW + "px";
         widget.style.height = newH + "px";
@@ -6358,7 +6384,8 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       function onUp() {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
-        resolveOverlaps(widget);
+        document.getElementById("widgetArea").classList.remove("snap-grid-visible");
+        if (!state_default.allowOverlap) resolveOverlaps(widget);
         saveWidgets();
         if (state_default.map && widget.id === "widget-map") {
           state_default.map.invalidateSize();
@@ -9542,14 +9569,20 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.52.1";
-    $("aboutVersion").textContent = "0.52.1";
+    $("splashVersion").textContent = "0.53.0";
+    $("aboutVersion").textContent = "0.53.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
       gridSection.style.display = currentThemeSupportsGrid() ? "" : "none";
       $("layoutModeFloat").checked = state_default.gridMode !== "grid";
       $("layoutModeGrid").checked = state_default.gridMode === "grid";
+      const snapCheck = document.getElementById("snapToGridCheck");
+      const overlapCheck = document.getElementById("allowOverlapCheck");
+      const floatOpts = document.getElementById("floatOptions");
+      if (snapCheck) snapCheck.checked = state_default.snapToGrid;
+      if (overlapCheck) overlapCheck.checked = state_default.allowOverlap;
+      if (floatOpts) floatOpts.style.display = state_default.gridMode === "grid" ? "none" : "";
       const permSelect = document.getElementById("gridPermSelect");
       if (permSelect) {
         permSelect.innerHTML = "";
@@ -9867,14 +9900,17 @@ ${beacon.location}`);
     const layoutModeGrid = document.getElementById("layoutModeGrid");
     const gridPermSelect = document.getElementById("gridPermSelect");
     const gridPermSection = document.getElementById("gridPermSection");
+    const floatOptions = document.getElementById("floatOptions");
     if (layoutModeFloat && layoutModeGrid) {
       layoutModeFloat.addEventListener("change", () => {
         if (gridPermSection) gridPermSection.style.display = "none";
+        if (floatOptions) floatOptions.style.display = "";
         updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
       layoutModeGrid.addEventListener("change", () => {
         if (gridPermSection) gridPermSection.style.display = "";
+        if (floatOptions) floatOptions.style.display = "none";
         if (gridPermSelect) {
           if (!stagedAssignments || Object.keys(stagedAssignments).length === 0) {
             const defaults = GRID_DEFAULT_ASSIGNMENTS[gridPermSelect.value];
@@ -9885,6 +9921,20 @@ ${beacon.location}`);
         }
         updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
+      });
+    }
+    const snapToGridCheck = document.getElementById("snapToGridCheck");
+    const allowOverlapCheck = document.getElementById("allowOverlapCheck");
+    if (snapToGridCheck) {
+      snapToGridCheck.addEventListener("change", () => {
+        state_default.snapToGrid = snapToGridCheck.checked;
+        localStorage.setItem("hamtab_snap_grid", state_default.snapToGrid);
+      });
+    }
+    if (allowOverlapCheck) {
+      allowOverlapCheck.addEventListener("change", () => {
+        state_default.allowOverlap = allowOverlapCheck.checked;
+        localStorage.setItem("hamtab_allow_overlap", state_default.allowOverlap);
       });
     }
     if (gridPermSelect) {
@@ -10322,7 +10372,7 @@ ${beacon.location}`);
   init_utils();
   async function checkUpdateStatus() {
     const el2 = $("platformLabel");
-    if (el2 && !el2.textContent) el2.textContent = "v0.51.4";
+    if (el2 && !el2.textContent) el2.textContent = "v0.53.0";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;

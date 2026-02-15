@@ -1928,6 +1928,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   function weatherCacheKey(lat, lon) {
     return `${lat.toFixed(1)},${lon.toFixed(1)}`;
   }
+  function isNwsCoverage(lat, lon) {
+    return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
+  }
   async function fetchCallsignInfo(call) {
     if (!call) return null;
     const key = call.toUpperCase();
@@ -2050,7 +2053,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       if (info.addr2) parts.push(`\xB7 ${info.addr2}`);
       nameEl.textContent = parts.join(" ");
     }
-    if (!isNaN(lat) && !isNaN(lon)) {
+    if (!isNaN(lat) && !isNaN(lon) && isNwsCoverage(lat, lon)) {
       const wxEl = document.getElementById("spotDetailWx");
       const wx = await fetchSpotWeather(lat, lon);
       if (wx && wxEl && currentSpot === spot) {
@@ -7239,6 +7242,9 @@ ${beacon.location}`);
   function useWU() {
     return state_default.wxStation && state_default.wxApiKey;
   }
+  function isNwsCoverage2(lat, lon) {
+    return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
+  }
   function setWxSource(src) {
     const wxSourceLogo = $("wxSourceLogo");
     wxSourceLogo.classList.remove("hidden", "wx-src-wu", "wx-src-nws");
@@ -7280,6 +7286,7 @@ ${beacon.location}`);
   }
   function fetchNwsConditions() {
     if (state_default.myLat === null || state_default.myLon === null) return;
+    if (!isNwsCoverage2(state_default.myLat, state_default.myLon)) return;
     const url = "/api/weather/conditions?lat=" + state_default.myLat + "&lon=" + state_default.myLon;
     fetch(url).then((r) => r.ok ? r.json() : Promise.reject()).then((data) => {
       applyWeatherBackground(data.shortForecast, data.isDaytime);
@@ -7342,6 +7349,7 @@ ${beacon.location}`);
   }
   function fetchNwsAlerts() {
     if (state_default.myLat === null || state_default.myLon === null) return;
+    if (!isNwsCoverage2(state_default.myLat, state_default.myLon)) return;
     const url = "/api/weather/alerts?lat=" + state_default.myLat + "&lon=" + state_default.myLon;
     fetch(url).then((r) => r.ok ? r.json() : Promise.reject()).then((alerts) => {
       state_default.nwsAlerts = alerts;
@@ -9198,8 +9206,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.50.2";
-    $("aboutVersion").textContent = "0.50.2";
+    $("splashVersion").textContent = "0.50.3";
+    $("aboutVersion").textContent = "0.50.3";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

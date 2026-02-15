@@ -3836,6 +3836,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         });
         L.marker([mid[1], mid[0]], { icon, pane: "propagation", interactive: false }).addTo(state_default.propLabelLayer);
       });
+      state_default.map.invalidateSize();
     } catch (err) {
       console.error("Failed to fetch propagation:", err);
     }
@@ -6160,11 +6161,10 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     return { left, top };
   }
   function snapPosition(left, top, wW, wH) {
+    if (!state_default.snapToGrid) return { left, top };
     const { width: aW, height: aH } = getWidgetArea();
-    if (state_default.snapToGrid) {
-      left = Math.round(left / SNAP_GRID) * SNAP_GRID;
-      top = Math.round(top / SNAP_GRID) * SNAP_GRID;
-    }
+    left = Math.round(left / SNAP_GRID) * SNAP_GRID;
+    top = Math.round(top / SNAP_GRID) * SNAP_GRID;
     const right = left + wW;
     const bottom = top + wH;
     if (Math.abs(left) < SNAP_DIST) left = 0;

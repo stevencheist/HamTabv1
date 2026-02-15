@@ -5559,6 +5559,9 @@ header {
   }
 }
 
+/* ---- Mobile Tab Bar (hidden on desktop, shown via media query) ---- */
+.tab-bar { display: none; }
+
 /* ---- Mobile Menu (hamburger + drawer) ---- */
 
 /* Hamburger button — hidden on desktop, shown on mobile via media query */
@@ -5950,6 +5953,124 @@ header {
   #widget-beacons .widget-body,
   #widget-contests .widget-body,
   #widget-dxpeditions .widget-body { max-height: 250px; }
+
+  /* --- Mobile Tab Bar --- */
+
+  .tab-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--surface, #1a1a1a);
+    border-top: 1px solid var(--border, #333);
+    z-index: 6000;
+    justify-content: space-around;
+    align-items: center;
+  }
+
+  .tab-bar-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    color: var(--text-dim, #888);
+    font-size: 0.6rem;
+    padding: 4px 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.15s;
+  }
+
+  .tab-bar-btn.active {
+    color: var(--accent, #4fc3f7);
+  }
+
+  .tab-bar-btn svg {
+    flex-shrink: 0;
+  }
+
+  /* Widget area: add bottom padding to clear the tab bar */
+  .widget-area {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* --- Header compaction for mobile tabs --- */
+
+  header {
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 8px;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .header-left {
+    flex: 0 0 auto;
+  }
+
+  .op-name, .op-loc, .op-btn {
+    display: none;
+  }
+
+  .op-call {
+    font-size: 1.1rem;
+  }
+
+  .header-center {
+    flex: 1;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .header-clock {
+    padding: 2px 6px;
+  }
+
+  .header-clock-label {
+    font-size: 0.55rem;
+  }
+
+  .header-clock-time {
+    font-size: 0.85rem;
+  }
+
+  .header-clock-weather,
+  .header-clock-wx-icon,
+  .wx-source-logo {
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    position: static;
+    flex: 0 0 auto;
+  }
+
+  header {
+    padding-right: 8px;
+  }
+
+  /* --- Map tab: near-fullscreen map --- */
+
+  body.tab-map-active #widget-map {
+    min-height: calc(100vh - 56px - 44px - env(safe-area-inset-bottom, 0px));
+  }
+
+  body.tab-map-active #widget-map .widget-body,
+  body.tab-map-active #widget-map #map {
+    height: calc(100vh - 56px - 44px - 36px - env(safe-area-inset-bottom, 0px));
+  }
+
+  /* Fullscreen map z-index: above tab bar */
+  #widget-map.map-fullscreen {
+    z-index: 7000 !important;
+  }
 }
 
 /* ---- Grayscale Mode ---- */

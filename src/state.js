@@ -202,6 +202,9 @@ const state = {
   lastDxpeditionData: null,   // cached /api/dxpeditions response
   lastContestData: null,      // cached /api/contests response
 
+  // Mobile tab bar
+  activeTab: localStorage.getItem('hamtab_active_tab') || 'map',
+
   // Progressive scaling
   reflowActive: false, // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
 

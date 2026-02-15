@@ -10278,7 +10278,7 @@ ${beacon.location}`);
   init_utils();
   async function checkUpdateStatus() {
     const el2 = $("platformLabel");
-    if (el2 && !el2.textContent) el2.textContent = "v0.47.0";
+    if (el2 && !el2.textContent) el2.textContent = "v0.51.0";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
@@ -10316,8 +10316,27 @@ ${beacon.location}`);
   }
   function pollForServer(attempts) {
     if (attempts <= 0) {
-      $("updateLabel").textContent = "Server did not come back";
       $("updateDot").className = "update-dot red";
+      state_default.updateApplying = false;
+      const label = $("updateLabel");
+      label.innerHTML = "";
+      label.textContent = "Server did not come back \u2014 ";
+      const restartLink = document.createElement("a");
+      restartLink.href = "#";
+      restartLink.textContent = "Restart manually";
+      restartLink.style.color = "inherit";
+      restartLink.style.textDecoration = "underline";
+      restartLink.addEventListener("click", async (e) => {
+        e.preventDefault();
+        $("updateDot").className = "update-dot yellow";
+        $("updateLabel").textContent = "Restarting...";
+        try {
+          await fetch("/api/restart", { method: "POST" });
+        } catch {
+        }
+        pollForServer(30);
+      });
+      label.appendChild(restartLink);
       return;
     }
     setTimeout(() => {

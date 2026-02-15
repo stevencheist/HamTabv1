@@ -54,8 +54,24 @@ export function startUpdateStatusPolling() {
 
 function pollForServer(attempts) {
   if (attempts <= 0) {
-    $('updateLabel').textContent = 'Server did not come back';
     $('updateDot').className = 'update-dot red';
+    state.updateApplying = false;
+    const label = $('updateLabel');
+    label.innerHTML = '';
+    label.textContent = 'Server did not come back — ';
+    const restartLink = document.createElement('a');
+    restartLink.href = '#';
+    restartLink.textContent = 'Restart manually';
+    restartLink.style.color = 'inherit';
+    restartLink.style.textDecoration = 'underline';
+    restartLink.addEventListener('click', async (e) => {
+      e.preventDefault();
+      $('updateDot').className = 'update-dot yellow';
+      $('updateLabel').textContent = 'Restarting...';
+      try { await fetch('/api/restart', { method: 'POST' }); } catch { /* server exiting */ }
+      pollForServer(30);
+    });
+    label.appendChild(restartLink);
     return;
   }
   setTimeout(() => {

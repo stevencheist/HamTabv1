@@ -1646,6 +1646,10 @@ app.post('/api/update/apply', async (req, res) => {
 
     // Exit after response is sent — systemd/NSSM will restart the process
     setTimeout(() => process.exit(0), 1000);
+
+    // Safety net: if process.exit didn't work (e.g. open handles), reset the flag
+    // after 5 minutes so the user isn't permanently 409'd
+    setTimeout(() => { updateInProgress = false; }, 300000); // 5 min
   } catch (err) {
     console.error('Update failed:', err.message);
     updateInProgress = false;
@@ -1825,8 +1829,9 @@ app.get('/api/update/diagnostics', async (req, res) => {
   }
 
   // 10. esbuild available (needed for npm run build)
+  // Use direct require instead of npx — npx can hang trying to download/install
   try {
-    const esbuildVer = await runCommand('npx esbuild --version', { timeout: 15000 });
+    const esbuildVer = await runCommand('node -e "console.log(require(\'esbuild\').version)"', { timeout: 10000 });
     results.esbuild_available = { status: 'pass', detail: { version: esbuildVer.trim() } };
   } catch (err) {
     results.esbuild_available = { status: 'fail', detail: err.message };

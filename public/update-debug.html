@@ -121,7 +121,10 @@ async function runDiagnostics() {
   document.getElementById('results').innerHTML = '';
 
   try {
-    const resp = await fetch('/api/update/diagnostics');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 90000); // 90s timeout
+    const resp = await fetch('/api/update/diagnostics', { signal: controller.signal });
+    clearTimeout(timeout);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     lastData = await resp.json();
     renderChecks(lastData);
@@ -132,8 +135,11 @@ async function runDiagnostics() {
     const total = checks.length;
     status.textContent = total + ' checks: ' + (total - fails - warns) + ' pass, ' + fails + ' fail, ' + warns + ' warn — ' + lastData.timestamp;
   } catch (err) {
-    status.textContent = 'Error: ' + err.message;
-    lastData = { error: err.message };
+    const msg = err.name === 'AbortError'
+      ? 'Diagnostics timed out — one or more checks may be hanging. Click Re-run to try again.'
+      : 'Error: ' + err.message;
+    status.textContent = msg;
+    lastData = { error: msg };
   } finally {
     btn.disabled = false;
   }

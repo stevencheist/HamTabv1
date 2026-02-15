@@ -2683,6 +2683,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     getAvailableGrids: () => getAvailableGrids,
     getAvailableModes: () => getAvailableModes,
     getAvailableStates: () => getAvailableStates,
+    hasActiveFilters: () => hasActiveFilters,
     initFilterListeners: () => initFilterListeners,
     isUSCallsign: () => isUSCallsign,
     loadFiltersForSource: () => loadFiltersForSource,
@@ -3340,6 +3341,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       sortDirection: state_default.spotSortDirection
     };
     localStorage.setItem(`hamtab_filter_${source}`, JSON.stringify(filterState));
+    updateFilterIndicator();
   }
   function loadFiltersForSource(source) {
     try {
@@ -3374,6 +3376,30 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     state_default.spotSortColumn = null;
     state_default.spotSortDirection = "desc";
   }
+  function hasActiveFilters() {
+    return state_default.activeBands.size > 0 || state_default.activeModes.size > 0 || state_default.activeMaxDistance !== null || state_default.activeMaxAge !== null || state_default.activeCountry !== null || state_default.activeState !== null || state_default.activeGrid !== null || state_default.activeContinent !== null || state_default.privilegeFilterEnabled || state_default.propagationFilterEnabled;
+  }
+  function updateFilterIndicator() {
+    const active2 = hasActiveFilters();
+    const header = document.querySelector("#widget-filters .widget-header");
+    if (header) {
+      let badge = header.querySelector(".filter-active-badge");
+      if (active2) {
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "filter-active-badge";
+          badge.title = "Filters active \u2014 some spots may be hidden";
+          header.appendChild(badge);
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+    }
+    const clearBtn = $("clearFiltersBtn");
+    if (clearBtn) {
+      clearBtn.classList.toggle("filters-active", active2);
+    }
+  }
   function updateAllFilterUI() {
     updateBandFilterButtons();
     updateModeFilterButtons();
@@ -3401,6 +3427,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     if (propBtn) {
       propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
     }
+    updateFilterIndicator();
   }
   function clearAllFilters() {
     state_default.activeBands.clear();

@@ -728,6 +728,8 @@ export const MOBILE_TAB_KEY = 'hamtab_active_tab';
 
 export const WIDGET_STORAGE_KEY = 'hamtab_widgets';
 export const USER_LAYOUT_KEY = 'hamtab_widgets_user';
+export const LAYOUTS_KEY = 'hamtab_layouts'; // named layout profiles
+export const MAX_LAYOUTS = 20; // prevent localStorage bloat
 export const SNAP_DIST = 20; // px — edge-snap threshold for widget dragging
 export const SNAP_GRID = 20; // px — grid increment for snap-to-grid in free-float mode
 export const SNAP_GRID_KEY = 'hamtab_snap_grid'; // localStorage key for snap-to-grid toggle

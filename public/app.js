@@ -4150,7 +4150,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     GRID_SIZES_KEY: () => GRID_SIZES_KEY,
     GRID_SPANS_KEY: () => GRID_SPANS_KEY,
     HEADER_H: () => HEADER_H,
+    LAYOUTS_KEY: () => LAYOUTS_KEY,
     LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
+    MAX_LAYOUTS: () => MAX_LAYOUTS,
     MOBILE_TAB_KEY: () => MOBILE_TAB_KEY,
     REFERENCE_TABS: () => REFERENCE_TABS,
     REFLOW_WIDGET_ORDER: () => REFLOW_WIDGET_ORDER,
@@ -4188,7 +4190,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   function getBandColorOverrides() {
     return { ...bandColorOverrides };
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -4900,6 +4902,8 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       MOBILE_TAB_KEY = "hamtab_active_tab";
       WIDGET_STORAGE_KEY = "hamtab_widgets";
       USER_LAYOUT_KEY = "hamtab_widgets_user";
+      LAYOUTS_KEY = "hamtab_layouts";
+      MAX_LAYOUTS = 20;
       SNAP_DIST = 20;
       SNAP_GRID = 20;
       SNAP_GRID_KEY = "hamtab_snap_grid";
@@ -6283,23 +6287,78 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     });
     localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(layout));
   }
-  function saveUserLayout() {
-    const layout = {};
+  function clearUserLayout() {
+    localStorage.removeItem(USER_LAYOUT_KEY);
+  }
+  function getNamedLayouts() {
+    try {
+      const raw = localStorage.getItem(LAYOUTS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") return parsed;
+      }
+    } catch (e) {
+    }
+    return {};
+  }
+  function captureCurrentLayout() {
+    const positions = {};
     document.querySelectorAll(".widget").forEach((w) => {
-      layout[w.id] = {
+      positions[w.id] = {
         left: parseInt(w.style.left) || 0,
         top: parseInt(w.style.top) || 0,
         width: parseInt(w.style.width) || 200,
         height: parseInt(w.style.height) || 150
       };
     });
-    localStorage.setItem(USER_LAYOUT_KEY, JSON.stringify(layout));
+    return {
+      positions,
+      visibility: { ...state_default.widgetVisibility },
+      gridMode: state_default.gridMode || "float",
+      gridPermutation: state_default.gridPermutation || "3L-3R",
+      gridAssignments: state_default.gridAssignments ? { ...state_default.gridAssignments } : {},
+      gridSpans: state_default.gridSpans ? { ...state_default.gridSpans } : {}
+    };
   }
-  function clearUserLayout() {
-    localStorage.removeItem(USER_LAYOUT_KEY);
+  function saveNamedLayout(name) {
+    if (!name || typeof name !== "string") return false;
+    const layouts = getNamedLayouts();
+    if (!layouts[name] && Object.keys(layouts).length >= MAX_LAYOUTS) return false;
+    layouts[name] = captureCurrentLayout();
+    localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+    return true;
   }
-  function hasUserLayout() {
-    return localStorage.getItem(USER_LAYOUT_KEY) !== null;
+  function loadNamedLayout(name) {
+    const layouts = getNamedLayouts();
+    const profile = layouts[name];
+    if (!profile) return false;
+    if (profile.visibility) {
+      state_default.widgetVisibility = { ...profile.visibility };
+      saveWidgetVisibility();
+    }
+    if (profile.gridMode === "grid") {
+      state_default.gridPermutation = profile.gridPermutation || "3L-3R";
+      state_default.gridAssignments = profile.gridAssignments ? { ...profile.gridAssignments } : {};
+      state_default.gridSpans = profile.gridSpans ? { ...profile.gridSpans } : {};
+      saveGridAssignments();
+      activateGridMode(state_default.gridPermutation);
+    } else {
+      if (isGridMode()) deactivateGridMode();
+      if (profile.positions) {
+        applyLayout(profile.positions);
+        localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(profile.positions));
+      }
+    }
+    applyWidgetVisibility();
+    if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 100);
+    return true;
+  }
+  function deleteNamedLayout(name) {
+    const layouts = getNamedLayouts();
+    if (!layouts[name]) return false;
+    delete layouts[name];
+    localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+    return true;
   }
   function bringToFront(widget) {
     state_default.zCounter++;
@@ -9445,6 +9504,45 @@ ${beacon.location}`);
   function setInitApp(fn) {
     _initApp = fn;
   }
+  function renderSplashLayoutList() {
+    const list = document.getElementById("splashLayoutList");
+    if (!list) return;
+    list.innerHTML = "";
+    const layouts = getNamedLayouts();
+    const names = Object.keys(layouts);
+    if (names.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "splash-layout-empty";
+      empty.textContent = "No saved layouts";
+      list.appendChild(empty);
+      return;
+    }
+    names.forEach((name) => {
+      const row = document.createElement("div");
+      row.className = "splash-layout-item";
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "splash-layout-item-name";
+      nameSpan.textContent = name;
+      nameSpan.addEventListener("click", () => {
+        loadNamedLayout(name);
+        $("splashLayoutStatus").textContent = `Loaded "${name}"`;
+      });
+      row.appendChild(nameSpan);
+      const delBtn = document.createElement("button");
+      delBtn.className = "splash-layout-item-del";
+      delBtn.textContent = "\xD7";
+      delBtn.title = "Delete";
+      delBtn.addEventListener("click", () => {
+        if (confirm(`Delete layout "${name}"?`)) {
+          deleteNamedLayout(name);
+          renderSplashLayoutList();
+          $("splashLayoutStatus").textContent = `Deleted "${name}"`;
+        }
+      });
+      row.appendChild(delBtn);
+      list.appendChild(row);
+    });
+  }
   function showSplash() {
     const splash = $("splash");
     splash.classList.remove("hidden");
@@ -9603,9 +9701,9 @@ ${beacon.location}`);
     }
     updateWidgetSlotEnforcement();
     updateWidgetCellBadges(stagedAssignments);
-    const hasSaved = hasUserLayout();
-    $("splashClearLayout").disabled = !hasSaved;
-    $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
+    renderSplashLayoutList();
+    $("splashLayoutName").value = "";
+    $("splashLayoutStatus").textContent = "";
     $("splashCallsign").focus();
   }
   function dismissSplash() {
@@ -9928,14 +10026,26 @@ ${beacon.location}`);
       }
     });
     $("splashSaveLayout").addEventListener("click", () => {
-      saveUserLayout();
-      $("splashLayoutStatus").textContent = "Layout saved";
-      $("splashClearLayout").disabled = false;
+      const name = $("splashLayoutName").value.trim();
+      if (!name) {
+        $("splashLayoutStatus").textContent = "Enter a layout name";
+        return;
+      }
+      const ok = saveNamedLayout(name);
+      if (!ok) {
+        $("splashLayoutStatus").textContent = "Max 20 layouts. Delete one first.";
+        return;
+      }
+      $("splashLayoutName").value = "";
+      $("splashLayoutStatus").textContent = `Saved "${name}"`;
+      renderSplashLayoutList();
+    });
+    $("splashLayoutName").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") $("splashSaveLayout").click();
     });
     $("splashClearLayout").addEventListener("click", () => {
       clearUserLayout();
-      $("splashLayoutStatus").textContent = "App default restored";
-      $("splashClearLayout").disabled = true;
+      $("splashLayoutStatus").textContent = "Reset to app default";
     });
     const layoutModeFloat = document.getElementById("layoutModeFloat");
     const layoutModeGrid = document.getElementById("layoutModeGrid");
@@ -10411,7 +10521,7 @@ ${beacon.location}`);
   init_dom();
   function initUpdateDisplay() {
     const el2 = $("platformLabel");
-    if (el2) el2.textContent = "v0.52.0";
+    if (el2) el2.textContent = "v0.53.0";
   }
 
   // src/settings-sync.js
@@ -11831,8 +11941,165 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
 
   // src/menu.js
   init_dom();
-  var isOpen = false;
+
+  // src/layouts.js
+  init_dom();
+  init_constants();
+  init_widgets();
+  var menuOpen = false;
+  function renderMenu() {
+    const menu = $("layoutMenu");
+    if (!menu) return;
+    menu.innerHTML = "";
+    const layouts = getNamedLayouts();
+    const names = Object.keys(layouts);
+    names.forEach((name) => {
+      const item = document.createElement("div");
+      item.className = "layout-menu-item";
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = name;
+      nameSpan.style.cursor = "pointer";
+      nameSpan.style.flex = "1";
+      nameSpan.addEventListener("click", () => {
+        loadNamedLayout(name);
+        closeMenu();
+      });
+      item.appendChild(nameSpan);
+      const delBtn = document.createElement("button");
+      delBtn.className = "layout-delete-btn";
+      delBtn.textContent = "\xD7";
+      delBtn.title = "Delete layout";
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (confirm(`Delete layout "${name}"?`)) {
+          deleteNamedLayout(name);
+          renderMenu();
+        }
+      });
+      item.appendChild(delBtn);
+      menu.appendChild(item);
+    });
+    if (names.length > 0) {
+      const divider = document.createElement("div");
+      divider.className = "layout-menu-divider";
+      menu.appendChild(divider);
+    }
+    const saveAction = document.createElement("div");
+    saveAction.className = "layout-menu-action";
+    saveAction.textContent = "Save Current\u2026";
+    saveAction.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showSaveInput(menu);
+    });
+    menu.appendChild(saveAction);
+  }
+  function showSaveInput(menu) {
+    const existing = menu.querySelector(".layout-save-row");
+    if (existing) {
+      existing.querySelector("input")?.focus();
+      return;
+    }
+    const action = menu.querySelector(".layout-menu-action");
+    if (action) action.remove();
+    const row = document.createElement("div");
+    row.className = "layout-save-row";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "Layout name";
+    input.maxLength = 40;
+    const saveBtn = document.createElement("button");
+    saveBtn.textContent = "Save";
+    saveBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      doSave(input.value.trim());
+    });
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doSave(input.value.trim());
+      if (e.key === "Escape") closeMenu();
+    });
+    function doSave(name) {
+      if (!name) return;
+      const ok = saveNamedLayout(name);
+      if (!ok) {
+        alert("Maximum 20 layouts reached. Delete one first.");
+        return;
+      }
+      renderMenu();
+    }
+    row.appendChild(input);
+    row.appendChild(saveBtn);
+    menu.appendChild(row);
+    requestAnimationFrame(() => input.focus());
+  }
   function openMenu() {
+    const menu = $("layoutMenu");
+    if (!menu) return;
+    renderMenu();
+    menu.classList.add("open");
+    menuOpen = true;
+  }
+  function closeMenu() {
+    const menu = $("layoutMenu");
+    if (!menu) return;
+    menu.classList.remove("open");
+    menuOpen = false;
+  }
+  function toggleMenu() {
+    if (menuOpen) closeMenu();
+    else openMenu();
+  }
+  function migrateOldLayout() {
+    const hasOld = localStorage.getItem(USER_LAYOUT_KEY);
+    const hasNew = localStorage.getItem(LAYOUTS_KEY);
+    if (hasOld && !hasNew) {
+      try {
+        const oldPositions = JSON.parse(hasOld);
+        if (oldPositions && typeof oldPositions === "object") {
+          const layouts = {
+            "My Default": {
+              positions: oldPositions,
+              visibility: {},
+              gridMode: "float",
+              gridPermutation: "3L-3R",
+              gridAssignments: {},
+              gridSpans: {}
+            }
+          };
+          localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+          localStorage.removeItem(USER_LAYOUT_KEY);
+        }
+      } catch (e) {
+      }
+    }
+  }
+  function initLayoutDropdown() {
+    migrateOldLayout();
+    const btn = $("layoutBtn");
+    if (btn) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleMenu();
+      });
+    }
+    document.addEventListener("click", (e) => {
+      if (!menuOpen) return;
+      const dropdown = $("layoutDropdown");
+      if (dropdown && !dropdown.contains(e.target)) {
+        closeMenu();
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && menuOpen) closeMenu();
+    });
+  }
+  function openLayoutMenu() {
+    openMenu();
+  }
+
+  // src/menu.js
+  var isOpen = false;
+  function openMenu2() {
     const drawer = $("mobileMenuDrawer");
     const backdrop = $("mobileMenuBackdrop");
     if (!drawer || !backdrop) return;
@@ -11845,7 +12112,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       menuUpdate.innerHTML = updateEl.innerHTML;
     }
   }
-  function closeMenu() {
+  function closeMenu2() {
     const drawer = $("mobileMenuDrawer");
     const backdrop = $("mobileMenuBackdrop");
     if (!drawer || !backdrop) return;
@@ -11859,23 +12126,26 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     const drawer = $("mobileMenuDrawer");
     if (!menuBtn || !backdrop || !drawer) return;
     menuBtn.addEventListener("click", () => {
-      if (isOpen) closeMenu();
-      else openMenu();
+      if (isOpen) closeMenu2();
+      else openMenu2();
     });
-    backdrop.addEventListener("click", closeMenu);
+    backdrop.addEventListener("click", closeMenu2);
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && isOpen) closeMenu();
+      if (e.key === "Escape" && isOpen) closeMenu2();
     });
     drawer.addEventListener("click", (e) => {
       const item = e.target.closest(".mobile-menu-item");
       if (!item) return;
       const action = item.dataset.action;
       if (!action) {
-        closeMenu();
+        closeMenu2();
         return;
       }
-      closeMenu();
+      closeMenu2();
       switch (action) {
+        case "layouts":
+          openLayoutMenu();
+          break;
         case "config":
           document.getElementById("editCallBtn")?.click();
           break;
@@ -11981,6 +12251,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   }, 1e4);
   setInitApp(initApp);
   initWidgets();
+  initLayoutDropdown();
   switchSource(state_default.currentSource);
   if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 100);
   if (state_default.myCallsign) {

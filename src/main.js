@@ -55,6 +55,7 @@ import { initAnalogClock, updateAnalogClock } from './analog-clock.js';
 import { initClockConfigListeners } from './clock-config.js';
 import { initMobileMenu } from './menu.js';
 import { initTabs } from './tabs.js';
+import { initLayoutDropdown } from './layouts.js';
 
 // Initialize map
 initMap();
@@ -144,6 +145,9 @@ setInitApp(initApp);
 
 // Initialize widgets
 initWidgets();
+
+// Initialize layout profiles dropdown
+initLayoutDropdown();
 
 // Restore saved source tab
 switchSource(state.currentSource);

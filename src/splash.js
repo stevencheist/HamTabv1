@@ -9,7 +9,7 @@ import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
-import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, isWidgetVisible, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
+import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, isWidgetVisible, saveUserLayout, clearUserLayout, hasUserLayout, getNamedLayouts, saveNamedLayout, loadNamedLayout, deleteNamedLayout } from './widgets.js';
 import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
 import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, DEFAULT_BAND_COLORS, getBandColor, getBandColorOverrides, saveBandColors } from './constants.js';
 import { activateGridMode, deactivateGridMode, saveGridAssignments, applyGridAssignments, resetGridAssignments, getGridPermutation } from './grid-layout.js';
@@ -251,6 +251,52 @@ function updateWidgetSlotEnforcement() {
 let _initApp = null;
 export function setInitApp(fn) { _initApp = fn; }
 
+function renderSplashLayoutList() {
+  const list = document.getElementById('splashLayoutList');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const layouts = getNamedLayouts();
+  const names = Object.keys(layouts);
+
+  if (names.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'splash-layout-empty';
+    empty.textContent = 'No saved layouts';
+    list.appendChild(empty);
+    return;
+  }
+
+  names.forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'splash-layout-item';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'splash-layout-item-name';
+    nameSpan.textContent = name;
+    nameSpan.addEventListener('click', () => {
+      loadNamedLayout(name);
+      $('splashLayoutStatus').textContent = `Loaded "${name}"`;
+    });
+    row.appendChild(nameSpan);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'splash-layout-item-del';
+    delBtn.textContent = '\u00D7';
+    delBtn.title = 'Delete';
+    delBtn.addEventListener('click', () => {
+      if (confirm(`Delete layout "${name}"?`)) {
+        deleteNamedLayout(name);
+        renderSplashLayoutList();
+        $('splashLayoutStatus').textContent = `Deleted "${name}"`;
+      }
+    });
+    row.appendChild(delBtn);
+
+    list.appendChild(row);
+  });
+}
+
 export function showSplash() {
   const splash = $('splash');
   splash.classList.remove('hidden');
@@ -461,9 +507,9 @@ export function showSplash() {
   updateWidgetCellBadges(stagedAssignments);
 
   // --- Layout section state ---
-  const hasSaved = hasUserLayout();
-  $('splashClearLayout').disabled = !hasSaved;
-  $('splashLayoutStatus').textContent = hasSaved ? 'Custom layout saved' : '';
+  renderSplashLayoutList();
+  $('splashLayoutName').value = '';
+  $('splashLayoutStatus').textContent = '';
 
   $('splashCallsign').focus();
 }
@@ -829,15 +875,28 @@ export function initSplashListeners() {
 
   // --- Layout save / clear buttons ---
   $('splashSaveLayout').addEventListener('click', () => {
-    saveUserLayout();
-    $('splashLayoutStatus').textContent = 'Layout saved';
-    $('splashClearLayout').disabled = false;
+    const name = $('splashLayoutName').value.trim();
+    if (!name) {
+      $('splashLayoutStatus').textContent = 'Enter a layout name';
+      return;
+    }
+    const ok = saveNamedLayout(name);
+    if (!ok) {
+      $('splashLayoutStatus').textContent = 'Max 20 layouts. Delete one first.';
+      return;
+    }
+    $('splashLayoutName').value = '';
+    $('splashLayoutStatus').textContent = `Saved "${name}"`;
+    renderSplashLayoutList();
+  });
+
+  $('splashLayoutName').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('splashSaveLayout').click();
   });
 
   $('splashClearLayout').addEventListener('click', () => {
     clearUserLayout();
-    $('splashLayoutStatus').textContent = 'App default restored';
-    $('splashClearLayout').disabled = true;
+    $('splashLayoutStatus').textContent = 'Reset to app default';
   });
 
   // --- Grid mode listeners ---

@@ -1166,6 +1166,23 @@ header {
   margin-left: auto;
 }
 
+#clearFiltersBtn.filters-active {
+  background: var(--accent, #e74c3c);
+  color: #fff;
+  border-color: var(--accent, #e74c3c);
+}
+
+/* Badge dot on Filters header when any filter is non-default */
+.filter-active-badge {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent, #e74c3c);
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
 #distanceFilterWrap[style*="display: none"],
 #ageFilterWrap[style*="display: none"] {
   display: none;

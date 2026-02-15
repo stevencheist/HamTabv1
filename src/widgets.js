@@ -1,7 +1,7 @@
 import state from './state.js';
 import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
 import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, repositionGridHandles } from './grid-layout.js';
-import { switchTab, getActiveTabWidgets } from './tabs.js';
+import { switchTab, rebuildTabs, getActiveTabWidgets } from './tabs.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
 
@@ -24,15 +24,15 @@ export function isWidgetVisible(id) {
 }
 
 export function applyWidgetVisibility() {
-  if (isGridMode()) {
-    applyGridAssignments();
-    if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+  // On mobile with tabs active, rebuild dynamic tabs and delegate (check before grid mode)
+  if (getLayoutMode() === 'mobile') {
+    rebuildTabs();
     return;
   }
 
-  // On mobile with tabs active, delegate to tab switcher
-  if (getLayoutMode() === 'mobile') {
-    switchTab(state.activeTab || 'map');
+  if (isGridMode()) {
+    applyGridAssignments();
+    if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
     return;
   }
 
@@ -554,15 +554,16 @@ function applyReflowLayout() {
   area.style.transformOrigin = '';
   area.classList.remove('scaling-active');
 
-  // Apply reflow CSS class
-  area.classList.add('reflow-layout');
-
-  // When tabs are active on mobile, let the tab switcher handle DOM ordering
+  // When tabs are active on mobile, skip reflow grid — use tab layout instead
   if (getLayoutMode() === 'mobile') {
-    switchTab(state.activeTab || 'map');
+    area.classList.remove('reflow-layout');
+    rebuildTabs();
     if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
     return;
   }
+
+  // Apply reflow CSS class (desktop only)
+  area.classList.add('reflow-layout');
 
   // Reorder widget DOM nodes by priority (visible ones first in order)
   const vis = state.widgetVisibility || {};

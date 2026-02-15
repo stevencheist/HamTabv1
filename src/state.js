@@ -199,7 +199,7 @@ const state = {
   lastContestData: null,      // cached /api/contests response
 
   // Mobile tab bar
-  activeTab: localStorage.getItem('hamtab_active_tab') || 'map',
+  activeTab: localStorage.getItem('hamtab_active_tab') || 'widget-map',
 
   // Progressive scaling
   reflowActive: false, // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)

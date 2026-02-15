@@ -232,10 +232,14 @@
 
           <div class="splash-divider"></div>
           <div class="splash-layout-section">
-            <span class="splash-loc-title">Layout</span>
+            <span class="splash-loc-title">Layout Profiles</span>
+            <div class="splash-layout-list" id="splashLayoutList"></div>
+            <div class="splash-layout-save-row" id="splashLayoutSaveRow">
+              <input type="text" id="splashLayoutName" placeholder="Layout name" maxlength="40" />
+              <button type="button" class="splash-layout-btn" id="splashSaveLayout">Save</button>
+            </div>
             <div class="splash-layout-actions">
-              <button type="button" class="splash-layout-btn" id="splashSaveLayout">Save as My Default</button>
-              <button type="button" class="splash-layout-btn" id="splashClearLayout">Reset to App Default</button>
+              <button type="button" class="splash-layout-btn" id="splashClearLayout">Reset to Default</button>
             </div>
             <div class="splash-layout-status" id="splashLayoutStatus"></div>
           </div>
@@ -416,6 +420,10 @@
     </div>
     <button class="mobile-menu-btn" id="mobileMenuBtn" title="Menu">&#9776;</button>
     <div class="header-right">
+      <div class="layout-dropdown" id="layoutDropdown">
+        <button class="layout-btn" id="layoutBtn" title="Layout profiles">Layouts &#9662;</button>
+        <div class="layout-menu" id="layoutMenu"></div>
+      </div>
       <button id="refreshBtn" title="Click to refresh now">Refresh</button>
       <button id="fullscreenBtn" title="Toggle fullscreen">Fullscreen</button>
       <button id="feedbackBtn" class="feedback-btn" title="Send feedback">Feedback</button>
@@ -430,6 +438,7 @@
     <div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
     <nav class="mobile-menu-drawer" id="mobileMenuDrawer">
       <div class="mobile-menu-header">Menu</div>
+      <button class="mobile-menu-item" data-action="layouts">Layouts</button>
       <button class="mobile-menu-item" data-action="config">Config</button>
       <button class="mobile-menu-item" data-action="refresh">Refresh</button>
       <button class="mobile-menu-item" data-action="feedback">Feedback</button>

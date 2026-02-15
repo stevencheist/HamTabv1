@@ -186,25 +186,114 @@ export function renderMufImageOverlay() {
 let drapImageLayer = null;
 let drapImageRefreshTimer = null;
 
+// D-RAP color scale — maps normalized value (0–1) to RGBA
+// NOAA gradient: purple → blue → cyan → green → yellow → red
+// Scale adapts to actual data range so quiet conditions are still visible
+function drapColor(mhz, maxVal) {
+  if (mhz <= 0) return { r: 0, g: 0, b: 0, a: 0 }; // transparent for no absorption
+  // Use the larger of actual max or 5 MHz as the scale ceiling —
+  // ensures quiet-time data (0–2 MHz) uses the full color range,
+  // but severe events (30+ MHz) still scale correctly
+  const ceil = Math.max(maxVal, 5);
+  const t = Math.min(mhz / ceil, 1); // normalize to 0–1 against dynamic ceiling
+  let r, g, b;
+  if (t < 0.2) {        // low: purple → blue
+    const s = t / 0.2;
+    r = Math.round(80 * (1 - s));
+    g = 0;
+    b = Math.round(128 + 127 * s);
+  } else if (t < 0.4) { // blue → cyan
+    const s = (t - 0.2) / 0.2;
+    r = 0;
+    g = Math.round(255 * s);
+    b = 255;
+  } else if (t < 0.6) { // cyan → green
+    const s = (t - 0.4) / 0.2;
+    r = 0;
+    g = 255;
+    b = Math.round(255 * (1 - s));
+  } else if (t < 0.8) { // green → yellow
+    const s = (t - 0.6) / 0.2;
+    r = Math.round(255 * s);
+    g = 255;
+    b = 0;
+  } else {               // yellow → red (severe)
+    const s = (t - 0.8) / 0.2;
+    r = 255;
+    g = Math.round(255 * (1 - s));
+    b = 0;
+  }
+  return { r, g, b, a: 180 }; // semi-transparent
+}
+
 export function renderDrapOverlay() {
   if (drapImageLayer) { state.map.removeLayer(drapImageLayer); drapImageLayer = null; }
   if (drapImageRefreshTimer) { clearInterval(drapImageRefreshTimer); drapImageRefreshTimer = null; }
   if (!state.mapOverlays.drapOverlay) return;
 
   const L = window.L;
-  const url = `/api/drap/image?_t=${Date.now()}`;
-  const bounds = [[-90, -180], [90, 180]]; // Plate Carree full world
 
-  drapImageLayer = L.imageOverlay(url, bounds, {
-    opacity: 0.5,
-    pane: 'propagation', // same z-index as MUF overlay (300)
-    interactive: false,
-  }).addTo(state.map);
+  async function fetchAndRender() {
+    try {
+      const resp = await fetch('/api/drap/data');
+      if (!resp.ok) return;
+      const { lons, rows } = await resp.json();
+      if (!lons || !rows || rows.length === 0) return;
+
+      const cols = lons.length;    // 90 longitude columns
+      const numRows = rows.length; // ~90 latitude rows (89 to -89, step -2)
+
+      // Find max value for dynamic color scaling
+      let maxVal = 0;
+      for (let r = 0; r < numRows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const v = rows[r].values[c] || 0;
+          if (v > maxVal) maxVal = v;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = cols;
+      canvas.height = numRows;
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.createImageData(cols, numRows);
+      const data = imageData.data;
+
+      for (let r = 0; r < numRows; r++) {
+        const values = rows[r].values;
+        for (let c = 0; c < cols; c++) {
+          const px = drapColor(values[c] || 0, maxVal);
+          const idx = (r * cols + c) * 4;
+          data[idx] = px.r;
+          data[idx + 1] = px.g;
+          data[idx + 2] = px.b;
+          data[idx + 3] = px.a;
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+
+      // Grid centers are at (lat, lon) but each cell spans 2° lat × 4° lon,
+      // so the full grid covers -90 to 90 lat, -180 to 180 lon
+      const bounds = [[-90, -180], [90, 180]];
+
+      if (drapImageLayer) state.map.removeLayer(drapImageLayer);
+      drapImageLayer = L.imageOverlay(canvas.toDataURL(), bounds, {
+        opacity: 0.55,
+        pane: 'propagation',
+        interactive: false,
+      }).addTo(state.map);
+    } catch (err) {
+      if (state.debug) console.error('D-RAP render error:', err);
+    }
+  }
+
+  fetchAndRender();
 
   // Refresh every 15 minutes (SWPC updates D-RAP on ~15m cadence)
   drapImageRefreshTimer = setInterval(() => {
-    if (!state.mapOverlays.drapOverlay || !drapImageLayer) return;
-    drapImageLayer.setUrl(`/api/drap/image?_t=${Date.now()}`);
+    if (!state.mapOverlays.drapOverlay) return;
+    fetchAndRender();
   }, 15 * 60 * 1000); // 15 minutes
 }
 

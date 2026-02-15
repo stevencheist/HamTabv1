@@ -310,6 +310,7 @@ export const WIDGET_HELP = {
       { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC — shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), Cloud Cover (OpenWeatherMap — useful for satellite and EME ops), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (≥5). Cloud Cover requires an OpenWeatherMap API key (enter in Config > Services).' },
       { heading: 'Geodesic Paths', content: 'The curved line between you and a selected station is called a geodesic (great-circle) path — this is the shortest route over the Earth\'s surface and the direction to point your antenna.' },
       { heading: 'Center Mode', content: 'In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot.' },
+      { heading: 'Fullscreen', content: 'Click the ⛶ button in the map header to expand the map to fill the entire screen. Click the ✕ button or press Escape to return to the normal layout.' },
     ],
   },
   'widget-solar': {

@@ -1,6 +1,7 @@
 import state from './state.js';
 import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
 import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, repositionGridHandles } from './grid-layout.js';
+import { switchTab, rebuildTabs, getActiveTabWidgets } from './tabs.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
 
@@ -23,11 +24,18 @@ export function isWidgetVisible(id) {
 }
 
 export function applyWidgetVisibility() {
+  // On mobile with tabs active, rebuild dynamic tabs and delegate (check before grid mode)
+  if (getLayoutMode() === 'mobile') {
+    rebuildTabs();
+    return;
+  }
+
   if (isGridMode()) {
     applyGridAssignments();
     if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
     return;
   }
+
   WIDGET_DEFS.forEach(w => {
     const el = document.getElementById(w.id);
     if (!el) return;
@@ -546,7 +554,15 @@ function applyReflowLayout() {
   area.style.transformOrigin = '';
   area.classList.remove('scaling-active');
 
-  // Apply reflow CSS class
+  // When tabs are active on mobile, skip reflow grid — use tab layout instead
+  if (getLayoutMode() === 'mobile') {
+    area.classList.remove('reflow-layout');
+    rebuildTabs();
+    if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
+    return;
+  }
+
+  // Apply reflow CSS class (desktop only)
   area.classList.add('reflow-layout');
 
   // Reorder widget DOM nodes by priority (visible ones first in order)
@@ -652,6 +668,40 @@ export function initWidgets() {
         applyWidgetVisibility();
       });
       header.insertBefore(closeBtn, header.firstChild);
+
+      // Mobile: collapsible widgets — tap header to toggle
+      if (!isDesktop) {
+        // Widgets that start expanded on mobile
+        const expandedByDefault = new Set(['widget-map', 'widget-activations']);
+        const collapseKey = 'hamtab_collapsed';
+        let collapsed;
+        try {
+          collapsed = new Set(JSON.parse(localStorage.getItem(collapseKey) || '[]'));
+        } catch { collapsed = new Set(); }
+
+        // Apply initial collapsed state
+        const wid = widget.id;
+        if (collapsed.has(wid) || (!collapsed.size && !expandedByDefault.has(wid))) {
+          widget.classList.add('collapsed');
+        }
+
+        header.addEventListener('click', (e) => {
+          // Don't collapse when clicking buttons inside the header
+          if (e.target.closest('button') || e.target.closest('select') || e.target.closest('a')) return;
+
+          widget.classList.toggle('collapsed');
+
+          // Persist collapsed state
+          const allCollapsed = [];
+          document.querySelectorAll('.widget.collapsed').forEach(w => allCollapsed.push(w.id));
+          localStorage.setItem(collapseKey, JSON.stringify(allCollapsed));
+
+          // If expanding the map, invalidate so Leaflet re-renders
+          if (wid === 'widget-map' && !widget.classList.contains('collapsed') && state.map) {
+            setTimeout(() => state.map.invalidateSize(), 50);
+          }
+        });
+      }
     }
     if (resizer && isDesktop) setupResize(widget, resizer);
     if (isDesktop) widget.addEventListener('mousedown', () => bringToFront(widget));
@@ -660,6 +710,24 @@ export function initWidgets() {
   const mapWidget = document.getElementById('widget-map');
   if (state.map && mapWidget && window.ResizeObserver) {
     new ResizeObserver(() => state.map.invalidateSize()).observe(mapWidget);
+  }
+
+  // Mobile: full-screen map toggle
+  if (!isDesktop && mapWidget) {
+    const mapHeader = mapWidget.querySelector('.widget-header');
+    if (mapHeader) {
+      const maxBtn = document.createElement('button');
+      maxBtn.className = 'map-fullscreen-btn';
+      maxBtn.title = 'Toggle fullscreen map';
+      maxBtn.textContent = '\u26F6'; // ⛶
+      maxBtn.addEventListener('mousedown', e => e.stopPropagation());
+      maxBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // don't trigger collapse
+        mapWidget.classList.toggle('map-fullscreen');
+        if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+      });
+      mapHeader.appendChild(maxBtn);
+    }
   }
 
   // --- Responsive reflow when widget area resizes ---

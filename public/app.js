@@ -9497,8 +9497,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.51.0";
-    $("aboutVersion").textContent = "0.51.0";
+    $("splashVersion").textContent = "0.51.4";
+    $("aboutVersion").textContent = "0.51.4";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -10317,7 +10317,7 @@ ${beacon.location}`);
   init_dom();
   function initUpdateDisplay() {
     const el2 = $("platformLabel");
-    if (el2) el2.textContent = "v0.50.3";
+    if (el2) el2.textContent = "v0.51.4";
   }
 
   // src/settings-sync.js

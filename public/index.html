@@ -402,6 +402,7 @@
         <div class="header-clock-time" id="clockUtcTime"></div>
       </div>
     </div>
+    <button class="mobile-menu-btn" id="mobileMenuBtn" title="Menu">&#9776;</button>
     <div class="header-right">
       <button id="refreshBtn" title="Click to refresh now">Refresh</button>
       <button id="fullscreenBtn" title="Toggle fullscreen">Fullscreen</button>
@@ -414,6 +415,16 @@
         <button class="restart-btn hidden" id="restartBtn">Restart</button>
       </div>
     </div>
+    <div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
+    <nav class="mobile-menu-drawer" id="mobileMenuDrawer">
+      <div class="mobile-menu-header">Menu</div>
+      <button class="mobile-menu-item" data-action="config">Config</button>
+      <button class="mobile-menu-item" data-action="refresh">Refresh</button>
+      <button class="mobile-menu-item" data-action="feedback">Feedback</button>
+      <a href="https://buymeacoffee.com/stevencheist" target="_blank" rel="noopener" class="mobile-menu-item">&#9749; Support</a>
+      <a href="https://discord.gg/GcX9cHtT" target="_blank" rel="noopener" class="mobile-menu-item">Discord</a>
+      <div class="mobile-menu-update" id="mobileMenuUpdate"></div>
+    </nav>
   </header>
 
   <div class="widget-area" id="widgetArea">
@@ -790,6 +801,9 @@
       <div class="widget-resize"></div>
     </div>
   </div>
+
+  <!-- Mobile tab bar (populated dynamically by tabs.js) -->
+  <nav class="tab-bar" id="tabBar"></nav>
 
   <!-- Map overlay config overlay -->
   <div class="splash-overlay hidden" id="mapOverlayCfgSplash">

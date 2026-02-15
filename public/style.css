@@ -3632,7 +3632,7 @@ header {
 .dedx-utc-label { font-size: 0.65rem; color: var(--text-dim); text-align: center; font-weight: 600; margin-bottom: 3px; }
 .dedx-empty { color: var(--text-dim); font-style: italic; font-size: 0.7rem; text-align: center; padding: 8px 0; }
 
-@media (max-width: 767px) {
+@media (max-width: 1199px) {
   .dedx-container { flex-direction: column; }
   .dedx-de { border-right: none; border-bottom: 1px solid var(--border); }
 }
@@ -4371,8 +4371,8 @@ header {
 .theme-lcars #spotsTable tbody tr:nth-child(19) { animation-delay: 9.0s; }
 .theme-lcars #spotsTable tbody tr:nth-child(20) { animation-delay: 9.5s; }
 
-/* LCARS mobile: disable elbow cutout, simplify to stacked layout */
-@media (max-width: 767px) {
+/* LCARS mobile/tablet: disable elbow cutout, simplify to stacked layout */
+@media (max-width: 1199px) {
   .theme-lcars .header-left {
     min-width: 0;
     max-width: none;
@@ -5559,9 +5559,99 @@ header {
   }
 }
 
-/* ==== Responsive — Mobile (< 768px) ==== */
+/* ---- Mobile Tab Bar (hidden on desktop, shown via media query) ---- */
+.tab-bar { display: none; }
 
-@media (max-width: 767px) {
+/* ---- Mobile Menu (hamburger + drawer) ---- */
+
+/* Hamburger button — hidden on desktop, shown on mobile via media query */
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-color);
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-menu-btn:active {
+  background: var(--accent-bg, rgba(255,255,255,0.1));
+}
+
+/* Backdrop overlay */
+.mobile-menu-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
+}
+
+.mobile-menu-backdrop.open {
+  display: block;
+}
+
+/* Slide-out drawer */
+.mobile-menu-drawer {
+  position: fixed;
+  top: 0;
+  right: -280px;
+  width: 260px;
+  height: 100%;
+  background: var(--widget-bg, #1a1a1a);
+  border-left: 1px solid var(--border);
+  z-index: 9999;
+  transition: right 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.mobile-menu-drawer.open {
+  right: 0;
+}
+
+.mobile-menu-header {
+  padding: 16px 20px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-menu-item {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  font-size: 0.95rem;
+  color: var(--text-color);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.mobile-menu-item:active {
+  background: var(--accent-bg, rgba(255,255,255,0.08));
+}
+
+.mobile-menu-update {
+  padding: 14px 20px;
+  font-size: 0.8rem;
+  color: var(--text-dim, #888);
+}
+
+/* ==== Responsive — Mobile & Tablet (≤ 1199px) ==== */
+
+@media (max-width: 1199px) {
 
   /* --- Header: stack vertically --- */
 
@@ -5605,22 +5695,37 @@ header {
   }
 
   .header-right {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    justify-items: stretch;
-    gap: 4px;
-    font-size: 0.7rem;
+    display: none;
   }
 
-  /* --- Widget area: vertical scroll stack --- */
+  .mobile-menu-btn {
+    display: block;
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    z-index: 10;
+  }
 
-  .widget-area {
-    display: flex;
-    flex-direction: column;
+  header {
+    position: relative;
+    padding-right: 56px; /* space for hamburger button */
+  }
+
+  /* --- Widget area: vertical scroll stack (override grid/reflow) --- */
+
+  .widget-area,
+  .widget-area.reflow-layout,
+  .widget-area.grid-active {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-areas: none !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
     gap: 4px;
     padding: 4px;
-    overflow-y: auto;
+    overflow-y: hidden;
     overflow-x: hidden;
+    height: calc(100vh - 44px - 48px - env(safe-area-inset-bottom, 0px));
   }
 
   .widget {
@@ -5629,8 +5734,54 @@ header {
     height: auto !important;
     left: auto !important;
     top: auto !important;
-    min-height: 120px;
+    min-height: 0;
     z-index: auto !important;
+  }
+
+  /* Active widget fills remaining space */
+  .widget.mobile-active-widget {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .widget.mobile-active-widget > .widget-body {
+    flex: 1;
+    overflow-y: auto;
+    max-height: none;
+  }
+
+  /* Secondary widget shares remaining space */
+  .widget.mobile-secondary-widget {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .widget.mobile-secondary-widget > .widget-body {
+    flex: 1;
+    overflow-y: auto;
+    max-height: none;
+  }
+
+  /* "+ Add widget" picker */
+  .mobile-secondary-picker {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    text-align: center;
+  }
+
+  .mobile-secondary-select {
+    font-size: 0.72rem;
+    padding: 4px 8px;
+    border: 1px dashed var(--border, #333);
+    border-radius: 4px;
+    background: var(--surface2, #1e1e1e);
+    color: var(--text-dim, #888);
+    cursor: pointer;
+    width: 100%;
   }
 
   .widget-header {
@@ -5642,15 +5793,87 @@ header {
     display: none;
   }
 
+  /* --- Collapsible widgets on mobile --- */
+
+  .widget-header {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 28px;
+  }
+
+  .widget-header::after {
+    content: '\25BC'; /* ▼ */
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    color: var(--text-dim, #888);
+    transition: transform 0.2s;
+  }
+
+  .widget.collapsed .widget-header::after {
+    transform: translateY(-50%) rotate(-90deg);
+  }
+
+  .widget.collapsed .widget-body {
+    display: none;
+  }
+
+  .widget.collapsed {
+    min-height: auto;
+  }
+
+  /* --- Full-screen map mode --- */
+
+  .map-fullscreen-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-color);
+    font-size: 1rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    margin-left: auto;
+  }
+
+  .map-fullscreen-btn:active {
+    background: var(--accent-bg, rgba(255,255,255,0.1));
+  }
+
+  #widget-map.map-fullscreen {
+    position: fixed !important;
+    inset: 0;
+    z-index: 5000;
+    min-height: 100vh;
+    border-radius: 0;
+  }
+
+  #widget-map.map-fullscreen .widget-body,
+  #widget-map.map-fullscreen #map {
+    height: calc(100vh - 36px);
+  }
+
+  /* Don't show collapse chevron on map when fullscreen */
+  #widget-map.map-fullscreen .widget-header::after {
+    display: none;
+  }
+
   /* --- Per-widget default heights --- */
 
   #widget-map {
-    min-height: 300px;
+    min-height: 0;
   }
 
-  #widget-map .widget-body,
+  #widget-map .widget-body {
+    display: flex;
+    flex-direction: column;
+  }
+
   #widget-map #map {
-    height: 280px;
+    flex: 1;
+    min-height: 200px;
   }
 
   /* --- Mobile map controls: larger touch targets --- */
@@ -5666,15 +5889,21 @@ header {
   }
 
   #widget-activations {
-    min-height: 250px;
+    min-height: 0;
   }
 
   #widget-activations .widget-body {
-    max-height: 300px;
+    max-height: none;
   }
 
   #widget-filters {
     min-height: auto;
+    flex-shrink: 0;
+  }
+
+  #widget-filters .widget-body {
+    max-height: 40vh;
+    overflow-y: auto;
   }
 
   #widget-solar {
@@ -5787,6 +6016,146 @@ header {
   #widget-beacons .widget-body,
   #widget-contests .widget-body,
   #widget-dxpeditions .widget-body { max-height: 250px; }
+
+  /* --- Mobile Tab Bar (dynamic per-widget tabs) --- */
+
+  .tab-bar {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 48px;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: var(--surface, #1a1a1a);
+    border-top: 1px solid var(--border, #333);
+    z-index: 6000;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;          /* Firefox */
+    align-items: stretch;
+    gap: 0;
+  }
+
+  .tab-bar::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
+  .tab-bar-btn {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    background: none;
+    border: none;
+    color: var(--text-dim, #888);
+    font-size: 0.65rem;
+    padding: 4px 10px;
+    min-width: 48px;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: color 0.15s;
+    white-space: nowrap;
+  }
+
+  .tab-bar-btn.active {
+    color: var(--accent, #4fc3f7);
+    border-top: 2px solid var(--accent, #4fc3f7);
+  }
+
+  .tab-bar-btn svg {
+    flex-shrink: 0;
+  }
+
+  /* --- Filters always pinned at top on mobile --- */
+
+  #widget-filters {
+    order: -1;
+  }
+
+  /* --- Hide grid config UI and grid wrappers on mobile --- */
+
+  #gridModeSection { display: none; }
+  .widget-slot-counter { display: none; }
+  .grid-col-wrapper,
+  .grid-bar-wrapper,
+  .grid-flex-handle,
+  .grid-cell-placeholder,
+  .grid-track-handle { display: none !important; }
+
+  /* Widget area: add bottom padding to clear the tab bar */
+  .widget-area {
+    padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* --- Header compaction for mobile tabs --- */
+
+  header {
+    flex-direction: row;
+    align-items: center;
+    padding: 4px 8px;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+
+  .header-left {
+    flex: 0 0 auto;
+  }
+
+  .op-name, .op-loc, .op-btn {
+    display: none;
+  }
+
+  .op-call {
+    font-size: 1.1rem;
+  }
+
+  .header-center {
+    flex: 1;
+    justify-content: center;
+    gap: 8px;
+  }
+
+  .header-clock {
+    padding: 2px 6px;
+  }
+
+  .header-clock-label {
+    font-size: 0.55rem;
+  }
+
+  .header-clock-time {
+    font-size: 0.85rem;
+  }
+
+  .header-clock-weather,
+  .header-clock-wx-icon,
+  .wx-source-logo {
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    position: static;
+    flex: 0 0 auto;
+  }
+
+  header {
+    padding-right: 8px;
+  }
+
+  /* --- Map tab: map fills remaining space via flex --- */
+
+  body.tab-map-active #widget-map .widget-body,
+  body.tab-map-active #widget-map #map {
+    flex: 1;
+    height: 100%;
+  }
+
+  /* Fullscreen map z-index: above tab bar */
+  #widget-map.map-fullscreen {
+    z-index: 7000 !important;
+  }
 }
 
 /* ---- Grayscale Mode ---- */

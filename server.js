@@ -63,10 +63,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
 
-// Rate limiting — /api/ routes only, 60 requests per minute per IP
+// Rate limiting — /api/ routes only; generous in LAN mode, stricter when hosted
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60,
+  max: process.env.HOSTED_MODE === '1' ? 60 : 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
@@ -2658,6 +2658,10 @@ app.get('/api/voacap', async (req, res) => {
     const pathType = validPath.includes(req.query.path) ? req.query.path : 'SP';
     const longPath = pathType === 'LP';
 
+    // Optional client-provided SNR override (integer dB, clamped to safe range)
+    const clientSnr = req.query.snr != null ? parseInt(req.query.snr, 10) : null;
+    const snrOverride = (clientSnr != null && !isNaN(clientSnr)) ? Math.max(-10, Math.min(100, clientSnr)) : null;
+
     // API token validation — if VOACAP_API_TOKENS is set in .env, require a valid token.
     // Format: comma-separated list of tokens, e.g. VOACAP_API_TOKENS=abc123,def456
     // Client sends token via X-Voacap-Token header or ?token= query param.
@@ -2693,6 +2697,7 @@ app.get('/api/voacap', async (req, res) => {
       rxLat != null ? Math.round(rxLat * 10) / 10 : 'all',
       rxLon != null ? Math.round(rxLon * 10) / 10 : 'all',
       power, mode, toa, pathType, kBand,
+      snrOverride != null ? snrOverride : 'default',
     ].join(':');
 
     const cached = voacapCache[cacheKey];
@@ -2700,13 +2705,17 @@ app.get('/api/voacap', async (req, res) => {
       return res.json(cached.data);
     }
 
-    // Mode → required SNR and bandwidth (ITU standard thresholds)
+    // Mode → default required SNR (dB above noise in BW) and bandwidth.
+    // These are the "Normal" (level 3) defaults. Client can override via ?snr= param.
+    // See SENSITIVITY_LEVELS in voacap.js for the full 1-5 preset table.
     const modeMap = {
-      CW:  { snr: 39, bw: 500 },
-      SSB: { snr: 73, bw: 2700 },
+      CW:  { snr: 30, bw: 500 },
+      SSB: { snr: 54, bw: 2700 },
       FT8: { snr: 2,  bw: 50 },
     };
-    const { snr: requiredSnr, bw: bandwidthHz } = modeMap[mode] || modeMap.SSB;
+    const modeDefaults = modeMap[mode] || modeMap.SSB;
+    const requiredSnr = snrOverride != null ? snrOverride : modeDefaults.snr;
+    const bandwidthHz = modeDefaults.bw;
 
     // VOACAP band frequencies (no 160m, no 60m)
     const frequencies = [3.7, 7.15, 10.12, 14.15, 18.1, 21.2, 24.93, 28.5];

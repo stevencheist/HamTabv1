@@ -3355,6 +3355,14 @@ header {
   font-style: italic;
 }
 
+.voacap-no-prop {
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--text-dim);
+  padding: 4px 0;
+  font-style: italic;
+}
+
 .voacap-table {
   border-collapse: separate;
   border-spacing: 1px;

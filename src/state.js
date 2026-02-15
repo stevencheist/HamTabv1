@@ -182,6 +182,7 @@ const state = {
   voacapEngine: 'simplified',   // 'dvoacap' or 'simplified' — which engine produced the data
   voacapTarget: localStorage.getItem('hamtab_voacap_target') || 'overview', // 'overview' or 'spot'
   voacapAutoSpot: localStorage.getItem('hamtab_voacap_auto_spot') === 'true', // auto-switch to SPOT on selection
+  voacapSensitivity: parseInt(localStorage.getItem('hamtab_voacap_sensitivity'), 10) || 3, // 1-5 SNR sensitivity (3=default)
   voacapLastFetch: 0,           // timestamp of last successful /api/voacap fetch
 
   // Heatmap overlay (REL mode for VOACAP)

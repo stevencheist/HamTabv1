@@ -1,6 +1,7 @@
 import state from './state.js';
 import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
 import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, repositionGridHandles } from './grid-layout.js';
+import { switchTab, getActiveTabWidgets } from './tabs.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
 
@@ -28,6 +29,13 @@ export function applyWidgetVisibility() {
     if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
     return;
   }
+
+  // On mobile with tabs active, delegate to tab switcher
+  if (getLayoutMode() === 'mobile') {
+    switchTab(state.activeTab || 'map');
+    return;
+  }
+
   WIDGET_DEFS.forEach(w => {
     const el = document.getElementById(w.id);
     if (!el) return;
@@ -548,6 +556,13 @@ function applyReflowLayout() {
 
   // Apply reflow CSS class
   area.classList.add('reflow-layout');
+
+  // When tabs are active on mobile, let the tab switcher handle DOM ordering
+  if (getLayoutMode() === 'mobile') {
+    switchTab(state.activeTab || 'map');
+    if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
+    return;
+  }
 
   // Reorder widget DOM nodes by priority (visible ones first in order)
   const vis = state.widgetVisibility || {};

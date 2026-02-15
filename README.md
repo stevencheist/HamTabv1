@@ -13,7 +13,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 
 ### Map & Overlays
 - **Interactive Map** — Leaflet map with clustered markers for POTA, SOTA, DX Cluster, WWFF, and PSKReporter spots, dark tiles, and clickable popups with QRZ callsign links
-- **Map Center Controls** — Quick buttons to center on your QTH, prime meridian, or selected spot
+- **Map Center Controls** — Quick buttons to center on your QTH, prime meridian, selected spot, or zoom to fit your country
 - **Day/Night Terminator** — Gray line overlay showing the solar terminator with a subtle daylight tint on the illuminated hemisphere
 - **Propagation Contours** — MUF and foF2 HF propagation overlays on the map from prop.kc2g.com
 - **MUF Map Overlay** — Real-time Maximum Usable Frequency image overlay from prop.kc2g.com showing worldwide MUF conditions, auto-refreshes every 15 minutes
@@ -581,7 +581,8 @@ Interactive Leaflet map with dark tiles showing activation markers, your QTH, sa
 |--------|-------------|
 | **QTH** | Center on your location (zoom 6) |
 | **PM** | Center on the prime meridian (zoom 2) |
-| **Spot** | Auto-center on the selected spot when you click a table row (zoom 5) |
+| **DX** | Auto-center on the selected spot when you click a table row (zoom 5) |
+| **CTY** | Zoom to fit your country's boundaries (determined from your QTH location) |
 
 **Propagation overlay controls** (buttons in the header):
 

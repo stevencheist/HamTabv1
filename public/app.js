@@ -83,7 +83,7 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, symbolLegend: false },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false },
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
         // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
@@ -554,6 +554,7 @@
   var map_overlays_exports = {};
   __export(map_overlays_exports, {
     renderAllMapOverlays: () => renderAllMapOverlays,
+    renderCloudCover: () => renderCloudCover,
     renderDrapOverlay: () => renderDrapOverlay,
     renderLatLonGrid: () => renderLatLonGrid,
     renderMaidenheadGrid: () => renderMaidenheadGrid,
@@ -573,6 +574,7 @@
     renderDrapOverlay();
     renderTropicsLines();
     renderWeatherRadar();
+    renderCloudCover();
     renderSymbolLegend();
   }
   function renderLatLonGrid() {
@@ -851,6 +853,20 @@
       if (state_default.debug) console.error("Weather radar fetch failed:", e);
     }
   }
+  function renderCloudCover() {
+    if (cloudCoverLayer) {
+      state_default.map.removeLayer(cloudCoverLayer);
+      cloudCoverLayer = null;
+    }
+    if (!state_default.mapOverlays.cloudCover) return;
+    cloudCoverLayer = L.tileLayer("/api/weather/clouds/{z}/{x}/{y}", {
+      opacity: 0.4,
+      pane: "propagation",
+      // z-300, below mapOverlays (350)
+      interactive: false,
+      attribution: "&copy; OpenWeatherMap"
+    }).addTo(state_default.map);
+  }
   function renderSymbolLegend() {
     if (legendControl) {
       state_default.map.removeControl(legendControl);
@@ -887,7 +903,7 @@
   function saveMapOverlays() {
     localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
   }
-  var mufImageLayer, mufImageRefreshTimer, drapImageLayer, drapImageRefreshTimer, tropicsLayer, weatherRadarLayer, weatherRadarTimer, legendControl;
+  var mufImageLayer, mufImageRefreshTimer, drapImageLayer, drapImageRefreshTimer, tropicsLayer, weatherRadarLayer, weatherRadarTimer, cloudCoverLayer, legendControl;
   var init_map_overlays = __esm({
     "src/map-overlays.js"() {
       init_state();
@@ -898,6 +914,7 @@
       tropicsLayer = null;
       weatherRadarLayer = null;
       weatherRadarTimer = null;
+      cloudCoverLayer = null;
       legendControl = null;
     }
   });
@@ -4489,7 +4506,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
           description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
           sections: [
             { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
-            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (\u22655)." },
+            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), Cloud Cover (OpenWeatherMap \u2014 useful for satellite and EME ops), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (\u22655). Cloud Cover requires an OpenWeatherMap API key (enter in Config > Services)." },
             { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
             { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
           ]
@@ -9508,8 +9525,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.51.6";
-    $("aboutVersion").textContent = "0.51.6";
+    $("splashVersion").textContent = "0.52.0";
+    $("aboutVersion").textContent = "0.52.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -10228,6 +10245,7 @@ ${beacon.location}`);
         $("mapOvDxpedMarkers").checked = state_default.mapOverlays.dxpedMarkers;
         $("mapOvTropics").checked = state_default.mapOverlays.tropicsLines;
         $("mapOvWeatherRadar").checked = state_default.mapOverlays.weatherRadar;
+        $("mapOvCloudCover").checked = state_default.mapOverlays.cloudCover;
         $("mapOvLegend").checked = state_default.mapOverlays.symbolLegend;
         mapOverlayCfgSplash.classList.remove("hidden");
       });
@@ -10243,6 +10261,7 @@ ${beacon.location}`);
         state_default.mapOverlays.dxpedMarkers = $("mapOvDxpedMarkers").checked;
         state_default.mapOverlays.tropicsLines = $("mapOvTropics").checked;
         state_default.mapOverlays.weatherRadar = $("mapOvWeatherRadar").checked;
+        state_default.mapOverlays.cloudCover = $("mapOvCloudCover").checked;
         state_default.mapOverlays.symbolLegend = $("mapOvLegend").checked;
         saveMapOverlays();
         mapOverlayCfgSplash.classList.add("hidden");

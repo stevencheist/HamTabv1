@@ -652,6 +652,40 @@ export function initWidgets() {
         applyWidgetVisibility();
       });
       header.insertBefore(closeBtn, header.firstChild);
+
+      // Mobile: collapsible widgets — tap header to toggle
+      if (!isDesktop) {
+        // Widgets that start expanded on mobile
+        const expandedByDefault = new Set(['widget-map', 'widget-activations']);
+        const collapseKey = 'hamtab_collapsed';
+        let collapsed;
+        try {
+          collapsed = new Set(JSON.parse(localStorage.getItem(collapseKey) || '[]'));
+        } catch { collapsed = new Set(); }
+
+        // Apply initial collapsed state
+        const wid = widget.id;
+        if (collapsed.has(wid) || (!collapsed.size && !expandedByDefault.has(wid))) {
+          widget.classList.add('collapsed');
+        }
+
+        header.addEventListener('click', (e) => {
+          // Don't collapse when clicking buttons inside the header
+          if (e.target.closest('button') || e.target.closest('select') || e.target.closest('a')) return;
+
+          widget.classList.toggle('collapsed');
+
+          // Persist collapsed state
+          const allCollapsed = [];
+          document.querySelectorAll('.widget.collapsed').forEach(w => allCollapsed.push(w.id));
+          localStorage.setItem(collapseKey, JSON.stringify(allCollapsed));
+
+          // If expanding the map, invalidate so Leaflet re-renders
+          if (wid === 'widget-map' && !widget.classList.contains('collapsed') && state.map) {
+            setTimeout(() => state.map.invalidateSize(), 50);
+          }
+        });
+      }
     }
     if (resizer && isDesktop) setupResize(widget, resizer);
     if (isDesktop) widget.addEventListener('mousedown', () => bringToFront(widget));
@@ -660,6 +694,24 @@ export function initWidgets() {
   const mapWidget = document.getElementById('widget-map');
   if (state.map && mapWidget && window.ResizeObserver) {
     new ResizeObserver(() => state.map.invalidateSize()).observe(mapWidget);
+  }
+
+  // Mobile: full-screen map toggle
+  if (!isDesktop && mapWidget) {
+    const mapHeader = mapWidget.querySelector('.widget-header');
+    if (mapHeader) {
+      const maxBtn = document.createElement('button');
+      maxBtn.className = 'map-fullscreen-btn';
+      maxBtn.title = 'Toggle fullscreen map';
+      maxBtn.textContent = '\u26F6'; // ⛶
+      maxBtn.addEventListener('mousedown', e => e.stopPropagation());
+      maxBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // don't trigger collapse
+        mapWidget.classList.toggle('map-fullscreen');
+        if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+      });
+      mapHeader.appendChild(maxBtn);
+    }
   }
 
   // --- Responsive reflow when widget area resizes ---

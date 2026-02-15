@@ -2090,12 +2090,31 @@ app.get('/api/propagation/image', async (req, res) => {
     const validTypes = ['mufd', 'fof2'];
     const type = validTypes.includes(req.query.type) ? req.query.type : 'mufd';
     const url = `https://prop.kc2g.com/renders/current/${type}-bare-now.jpg`;
-    const response = await secureFetch(url, { timeout: 15000 });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    res.set('Content-Type', 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
-    const buffer = Buffer.from(await response.arrayBuffer());
-    res.send(buffer);
+    const parsed = new URL(url);
+    const resolvedIP = await resolveHost(parsed.hostname);
+    if (isPrivateIP(resolvedIP)) {
+      return res.status(403).json({ error: 'Blocked' });
+    }
+    const proxyReq = https.get({
+      hostname: resolvedIP,
+      path: parsed.pathname,
+      port: 443,
+      headers: { 'User-Agent': 'HamTab/1.0', 'Host': parsed.hostname },
+      servername: parsed.hostname,
+    }, (upstream) => {
+      if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
+        upstream.resume();
+        return res.status(502).json({ error: 'Failed to fetch propagation image' });
+      }
+      res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
+      upstream.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('Propagation image proxy error:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch propagation image' });
+    });
+    proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
   } catch (err) {
     console.error('Error fetching propagation image:', err.message);
     res.status(502).json({ error: 'Failed to fetch propagation image' });
@@ -2107,12 +2126,31 @@ app.get('/api/propagation/image', async (req, res) => {
 app.get('/api/drap/image', async (req, res) => {
   try {
     const url = 'https://services.swpc.noaa.gov/images/animations/d-rap/global/latest.png';
-    const response = await secureFetch(url, { timeout: 15000 });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    res.set('Content-Type', 'image/png');
-    res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
-    const buffer = Buffer.from(await response.arrayBuffer());
-    res.send(buffer);
+    const parsed = new URL(url);
+    const resolvedIP = await resolveHost(parsed.hostname);
+    if (isPrivateIP(resolvedIP)) {
+      return res.status(403).json({ error: 'Blocked' });
+    }
+    const proxyReq = https.get({
+      hostname: resolvedIP,
+      path: parsed.pathname,
+      port: 443,
+      headers: { 'User-Agent': 'HamTab/1.0', 'Host': parsed.hostname },
+      servername: parsed.hostname,
+    }, (upstream) => {
+      if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
+        upstream.resume();
+        return res.status(502).json({ error: 'Failed to fetch D-RAP image' });
+      }
+      res.set('Content-Type', upstream.headers['content-type'] || 'image/png');
+      res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
+      upstream.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('D-RAP image proxy error:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch D-RAP image' });
+    });
+    proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
   } catch (err) {
     console.error('Error fetching D-RAP image:', err.message);
     res.status(502).json({ error: 'Failed to fetch D-RAP image' });

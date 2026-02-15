@@ -5711,15 +5711,21 @@ header {
     padding-right: 56px; /* space for hamburger button */
   }
 
-  /* --- Widget area: vertical scroll stack --- */
+  /* --- Widget area: vertical scroll stack (override grid/reflow) --- */
 
-  .widget-area {
-    display: flex;
-    flex-direction: column;
+  .widget-area,
+  .widget-area.reflow-layout,
+  .widget-area.grid-active {
+    display: flex !important;
+    flex-direction: column !important;
+    grid-template-areas: none !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
     gap: 4px;
     padding: 4px;
-    overflow-y: auto;
+    overflow-y: hidden;
     overflow-x: hidden;
+    height: calc(100vh - 44px - 48px - env(safe-area-inset-bottom, 0px));
   }
 
   .widget {
@@ -5728,8 +5734,54 @@ header {
     height: auto !important;
     left: auto !important;
     top: auto !important;
-    min-height: 120px;
+    min-height: 0;
     z-index: auto !important;
+  }
+
+  /* Active widget fills remaining space */
+  .widget.mobile-active-widget {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .widget.mobile-active-widget > .widget-body {
+    flex: 1;
+    overflow-y: auto;
+    max-height: none;
+  }
+
+  /* Secondary widget shares remaining space */
+  .widget.mobile-secondary-widget {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .widget.mobile-secondary-widget > .widget-body {
+    flex: 1;
+    overflow-y: auto;
+    max-height: none;
+  }
+
+  /* "+ Add widget" picker */
+  .mobile-secondary-picker {
+    flex-shrink: 0;
+    padding: 4px 8px;
+    text-align: center;
+  }
+
+  .mobile-secondary-select {
+    font-size: 0.72rem;
+    padding: 4px 8px;
+    border: 1px dashed var(--border, #333);
+    border-radius: 4px;
+    background: var(--surface2, #1e1e1e);
+    color: var(--text-dim, #888);
+    cursor: pointer;
+    width: 100%;
   }
 
   .widget-header {
@@ -5811,12 +5863,17 @@ header {
   /* --- Per-widget default heights --- */
 
   #widget-map {
-    min-height: 300px;
+    min-height: 0;
   }
 
-  #widget-map .widget-body,
+  #widget-map .widget-body {
+    display: flex;
+    flex-direction: column;
+  }
+
   #widget-map #map {
-    height: 280px;
+    flex: 1;
+    min-height: 200px;
   }
 
   /* --- Mobile map controls: larger touch targets --- */
@@ -5832,15 +5889,21 @@ header {
   }
 
   #widget-activations {
-    min-height: 250px;
+    min-height: 0;
   }
 
   #widget-activations .widget-body {
-    max-height: 300px;
+    max-height: none;
   }
 
   #widget-filters {
     min-height: auto;
+    flex-shrink: 0;
+  }
+
+  #widget-filters .widget-body {
+    max-height: 40vh;
+    overflow-y: auto;
   }
 
   #widget-solar {
@@ -5954,7 +6017,7 @@ header {
   #widget-contests .widget-body,
   #widget-dxpeditions .widget-body { max-height: 250px; }
 
-  /* --- Mobile Tab Bar --- */
+  /* --- Mobile Tab Bar (dynamic per-widget tabs) --- */
 
   .tab-bar {
     display: flex;
@@ -5962,17 +6025,23 @@ header {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 56px;
+    height: 48px;
     padding-bottom: env(safe-area-inset-bottom, 0px);
     background: var(--surface, #1a1a1a);
     border-top: 1px solid var(--border, #333);
     z-index: 6000;
-    justify-content: space-around;
-    align-items: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;          /* Firefox */
+    align-items: stretch;
+    gap: 0;
   }
 
+  .tab-bar::-webkit-scrollbar { display: none; } /* Chrome/Safari */
+
   .tab-bar-btn {
-    flex: 1;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -5981,24 +6050,43 @@ header {
     background: none;
     border: none;
     color: var(--text-dim, #888);
-    font-size: 0.6rem;
-    padding: 4px 0;
+    font-size: 0.65rem;
+    padding: 4px 10px;
+    min-width: 48px;
     cursor: pointer;
     -webkit-tap-highlight-color: transparent;
     transition: color 0.15s;
+    white-space: nowrap;
   }
 
   .tab-bar-btn.active {
     color: var(--accent, #4fc3f7);
+    border-top: 2px solid var(--accent, #4fc3f7);
   }
 
   .tab-bar-btn svg {
     flex-shrink: 0;
   }
 
+  /* --- Filters always pinned at top on mobile --- */
+
+  #widget-filters {
+    order: -1;
+  }
+
+  /* --- Hide grid config UI and grid wrappers on mobile --- */
+
+  #gridModeSection { display: none; }
+  .widget-slot-counter { display: none; }
+  .grid-col-wrapper,
+  .grid-bar-wrapper,
+  .grid-flex-handle,
+  .grid-cell-placeholder,
+  .grid-track-handle { display: none !important; }
+
   /* Widget area: add bottom padding to clear the tab bar */
   .widget-area {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(52px + env(safe-area-inset-bottom, 0px));
   }
 
   /* --- Header compaction for mobile tabs --- */
@@ -6056,15 +6144,12 @@ header {
     padding-right: 8px;
   }
 
-  /* --- Map tab: near-fullscreen map --- */
-
-  body.tab-map-active #widget-map {
-    min-height: calc(100vh - 56px - 44px - env(safe-area-inset-bottom, 0px));
-  }
+  /* --- Map tab: map fills remaining space via flex --- */
 
   body.tab-map-active #widget-map .widget-body,
   body.tab-map-active #widget-map #map {
-    height: calc(100vh - 56px - 44px - 36px - env(safe-area-inset-bottom, 0px));
+    flex: 1;
+    height: 100%;
   }
 
   /* Fullscreen map z-index: above tab bar */

@@ -418,6 +418,14 @@ export function showSplash() {
     $('layoutModeFloat').checked = state.gridMode !== 'grid';
     $('layoutModeGrid').checked = state.gridMode === 'grid';
 
+    // Set float options from state
+    const snapCheck = document.getElementById('snapToGridCheck');
+    const overlapCheck = document.getElementById('allowOverlapCheck');
+    const floatOpts = document.getElementById('floatOptions');
+    if (snapCheck) snapCheck.checked = state.snapToGrid;
+    if (overlapCheck) overlapCheck.checked = state.allowOverlap;
+    if (floatOpts) floatOpts.style.display = state.gridMode === 'grid' ? 'none' : '';
+
     // Populate permutation select
     const permSelect = document.getElementById('gridPermSelect');
     if (permSelect) {
@@ -785,14 +793,18 @@ export function initSplashListeners() {
   const gridPermSelect = document.getElementById('gridPermSelect');
   const gridPermSection = document.getElementById('gridPermSection');
 
+  const floatOptions = document.getElementById('floatOptions');
+
   if (layoutModeFloat && layoutModeGrid) {
     layoutModeFloat.addEventListener('change', () => {
       if (gridPermSection) gridPermSection.style.display = 'none';
+      if (floatOptions) floatOptions.style.display = '';
       updateWidgetCellBadges(stagedAssignments); // hides badges in float mode
       updateWidgetSlotEnforcement();
     });
     layoutModeGrid.addEventListener('change', () => {
       if (gridPermSection) gridPermSection.style.display = '';
+      if (floatOptions) floatOptions.style.display = 'none';
       if (gridPermSelect) {
         // Initialize staged assignments if switching to grid
         if (!stagedAssignments || Object.keys(stagedAssignments).length === 0) {
@@ -804,6 +816,22 @@ export function initSplashListeners() {
       }
       updateWidgetCellBadges(stagedAssignments);
       updateWidgetSlotEnforcement();
+    });
+  }
+
+  // --- Free-float snap/overlap toggles ---
+  const snapToGridCheck = document.getElementById('snapToGridCheck');
+  const allowOverlapCheck = document.getElementById('allowOverlapCheck');
+  if (snapToGridCheck) {
+    snapToGridCheck.addEventListener('change', () => {
+      state.snapToGrid = snapToGridCheck.checked;
+      localStorage.setItem('hamtab_snap_grid', state.snapToGrid);
+    });
+  }
+  if (allowOverlapCheck) {
+    allowOverlapCheck.addEventListener('change', () => {
+      state.allowOverlap = allowOverlapCheck.checked;
+      localStorage.setItem('hamtab_allow_overlap', state.allowOverlap);
     });
   }
   if (gridPermSelect) {

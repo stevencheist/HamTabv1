@@ -1,5 +1,5 @@
 import state from './state.js';
-import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
+import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, SNAP_GRID, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
 import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, repositionGridHandles } from './grid-layout.js';
 import { switchTab, rebuildTabs, getActiveTabWidgets } from './tabs.js';
 
@@ -136,6 +136,14 @@ function clampPosition(left, top, wW, wH) {
 
 function snapPosition(left, top, wW, wH) {
   const { width: aW, height: aH } = getWidgetArea();
+
+  // Grid snap — round to nearest SNAP_GRID increment
+  if (state.snapToGrid) {
+    left = Math.round(left / SNAP_GRID) * SNAP_GRID;
+    top = Math.round(top / SNAP_GRID) * SNAP_GRID;
+  }
+
+  // Edge/center snap — higher priority, overrides grid snap when near edges
   const right = left + wW;
   const bottom = top + wH;
 
@@ -354,6 +362,11 @@ function setupDrag(widget, handle) {
     origLeft = parseInt(widget.style.left) || 0;
     origTop = parseInt(widget.style.top) || 0;
 
+    // Show grid lines while dragging
+    if (state.snapToGrid) {
+      document.getElementById('widgetArea').classList.add('snap-grid-visible');
+    }
+
     function onMove(ev) {
       let newLeft = origLeft + (ev.clientX - startX);
       let newTop = origTop + (ev.clientY - startY);
@@ -370,7 +383,8 @@ function setupDrag(widget, handle) {
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      resolveOverlaps(widget);
+      document.getElementById('widgetArea').classList.remove('snap-grid-visible');
+      if (!state.allowOverlap) resolveOverlaps(widget);
       saveWidgets();
     }
 
@@ -396,9 +410,19 @@ function setupResize(widget, handle) {
     origLeft = parseInt(widget.style.left) || 0;
     origTop = parseInt(widget.style.top) || 0;
 
+    // Show grid lines while resizing
+    if (state.snapToGrid) {
+      document.getElementById('widgetArea').classList.add('snap-grid-visible');
+    }
+
     function onMove(ev) {
       let newW = origW + (ev.clientX - startX);
       let newH = origH + (ev.clientY - startY);
+      // Snap size to grid increments
+      if (state.snapToGrid) {
+        newW = Math.round(newW / SNAP_GRID) * SNAP_GRID;
+        newH = Math.round(newH / SNAP_GRID) * SNAP_GRID;
+      }
       ({ w: newW, h: newH } = clampSize(origLeft, origTop, newW, newH));
       widget.style.width = newW + 'px';
       widget.style.height = newH + 'px';
@@ -410,7 +434,8 @@ function setupResize(widget, handle) {
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      resolveOverlaps(widget);
+      document.getElementById('widgetArea').classList.remove('snap-grid-visible');
+      if (!state.allowOverlap) resolveOverlaps(widget);
       saveWidgets();
       if (state.map && widget.id === 'widget-map') {
         state.map.invalidateSize();

@@ -6586,19 +6586,25 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         maxBtn.title = "Toggle fullscreen map";
         maxBtn.textContent = "\u26F6";
         maxBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+        const enterFS = () => {
+          mapWidget.classList.add("map-fullscreen");
+          document.body.classList.add("map-fullscreen-active");
+          maxBtn.textContent = "\u2715";
+          if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
+        };
+        const exitFS = () => {
+          mapWidget.classList.remove("map-fullscreen");
+          document.body.classList.remove("map-fullscreen-active");
+          maxBtn.textContent = "\u26F6";
+          if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
+        };
         maxBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          const isFS = mapWidget.classList.toggle("map-fullscreen");
-          maxBtn.textContent = isFS ? "\u2715" : "\u26F6";
-          if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
+          mapWidget.classList.contains("map-fullscreen") ? exitFS() : enterFS();
         });
         mapHeader.appendChild(maxBtn);
         document.addEventListener("keydown", (e) => {
-          if (e.key === "Escape" && mapWidget.classList.contains("map-fullscreen")) {
-            mapWidget.classList.remove("map-fullscreen");
-            maxBtn.textContent = "\u26F6";
-            if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
-          }
+          if (e.key === "Escape" && mapWidget.classList.contains("map-fullscreen")) exitFS();
         });
       }
     }

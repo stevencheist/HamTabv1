@@ -5685,20 +5685,34 @@ header {
 
 #widget-map.map-fullscreen {
   position: fixed !important;
-  inset: 0;
+  inset: 0 !important;
   z-index: 5000;
+  width: 100vw !important;
+  height: 100vh !important;
   min-height: 100vh;
   border-radius: 0;
 }
 
 #widget-map.map-fullscreen .widget-body,
 #widget-map.map-fullscreen #map {
-  height: calc(100vh - 36px);
+  height: calc(100vh - 36px) !important;
 }
 
 /* Don't show collapse chevron on map when fullscreen */
 #widget-map.map-fullscreen .widget-header::after {
   display: none;
+}
+
+/* Neutralize parent transform + overflow so position:fixed reaches the viewport */
+body.map-fullscreen-active .widget-area {
+  overflow: visible !important;
+  transform: none !important;
+  width: auto !important;
+}
+
+body.map-fullscreen-active .widget-area.scaling-active {
+  transform: none !important;
+  width: auto !important;
 }
 
 /* ==== Responsive — Mobile & Tablet (≤ 1199px) ==== */

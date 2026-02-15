@@ -1,5 +1,6 @@
 // Mobile hamburger menu — slide-out drawer with backdrop
 import { $ } from './dom.js';
+import { openLayoutMenu } from './layouts.js';
 
 let isOpen = false;
 
@@ -66,6 +67,9 @@ export function initMobileMenu() {
     closeMenu();
 
     switch (action) {
+      case 'layouts':
+        openLayoutMenu();
+        break;
       case 'config':
         document.getElementById('editCallBtn')?.click();
         break;

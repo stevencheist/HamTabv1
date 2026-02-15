@@ -543,7 +543,7 @@ header {
 
 .header-right {
   display: grid;
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: repeat(4, auto);
   gap: 5px 8px;
   align-items: center;
   justify-items: center;
@@ -567,6 +567,141 @@ header {
 #refreshBtn:hover,
 #fullscreenBtn:hover {
   background: var(--accent);
+}
+
+/* ---- Layout Dropdown ---- */
+
+.layout-dropdown {
+  position: relative;
+}
+
+.layout-btn {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+
+.layout-btn:hover {
+  background: var(--accent);
+}
+
+.layout-menu {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  margin-top: 4px;
+  min-width: 220px;
+  max-height: 360px;
+  overflow-y: auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  padding: 4px 0;
+}
+
+.layout-menu.open {
+  display: block;
+}
+
+.layout-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.layout-menu-item:hover {
+  background: var(--surface2);
+}
+
+.layout-menu-item .layout-delete-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s;
+}
+
+.layout-menu-item:hover .layout-delete-btn {
+  opacity: 1;
+}
+
+.layout-menu-item .layout-delete-btn:hover {
+  color: var(--red);
+}
+
+.layout-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 8px;
+}
+
+.layout-save-row {
+  display: flex;
+  gap: 6px;
+  padding: 6px 12px;
+  align-items: center;
+}
+
+.layout-save-row input {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 4px;
+  outline: none;
+}
+
+.layout-save-row input:focus {
+  border-color: var(--accent);
+}
+
+.layout-save-row button {
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.layout-save-row button:hover {
+  background: var(--accent);
+  color: #fff;
+}
+
+.layout-menu-action {
+  padding: 8px 12px;
+  font-size: 0.82rem;
+  color: var(--accent);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.layout-menu-action:hover {
+  background: var(--surface2);
 }
 
 /* ---- Buy Me a Coffee button ---- */
@@ -783,6 +918,79 @@ header {
   font-size: 0.75rem;
   color: var(--green);
   min-height: 1.2em;
+}
+
+.splash-layout-list {
+  max-height: 140px;
+  overflow-y: auto;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.splash-layout-empty {
+  padding: 8px 12px;
+  font-size: 0.78rem;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.splash-layout-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.splash-layout-item:last-child {
+  border-bottom: none;
+}
+
+.splash-layout-item-name {
+  font-size: 0.8rem;
+  cursor: pointer;
+  flex: 1;
+  color: var(--text);
+}
+
+.splash-layout-item-name:hover {
+  color: var(--accent);
+}
+
+.splash-layout-item-del {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.splash-layout-item-del:hover {
+  color: var(--red);
+}
+
+.splash-layout-save-row {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.splash-layout-save-row input {
+  flex: 1;
+  padding: 4px 8px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 4px;
+  outline: none;
+}
+
+.splash-layout-save-row input:focus {
+  border-color: var(--accent);
 }
 
 /* -- Auto-refresh toggle in config modal -- */
@@ -3974,7 +4182,7 @@ header {
   gap: 5px 8px;
   max-width: none;
   display: grid;
-  grid-template-columns: repeat(3, auto);
+  grid-template-columns: repeat(4, auto);
   align-items: center;
   justify-items: center;
 }
@@ -4004,7 +4212,8 @@ header {
 
 /* Buttons on black — need visible colored backgrounds */
 .theme-lcars #refreshBtn,
-.theme-lcars #fullscreenBtn {
+.theme-lcars #fullscreenBtn,
+.theme-lcars .layout-btn {
   background: var(--accent);
   border-color: transparent;
 }
@@ -4028,7 +4237,8 @@ header {
 /* Header buttons readable on colored backgrounds */
 .theme-lcars .op-btn,
 .theme-lcars #refreshBtn,
-.theme-lcars #fullscreenBtn {
+.theme-lcars #fullscreenBtn,
+.theme-lcars .layout-btn {
   color: #000;
 }
 
@@ -4085,6 +4295,7 @@ header {
 .theme-lcars .op-btn,
 .theme-lcars #refreshBtn,
 .theme-lcars #fullscreenBtn,
+.theme-lcars .layout-btn,
 .theme-lcars .feedback-btn,
 .theme-lcars .coffee-btn,
 .theme-lcars .discord-btn {
@@ -4320,7 +4531,8 @@ header {
 .theme-lcars .prop-metric-btn:active,
 .theme-lcars .map-center-btn:active,
 .theme-lcars #refreshBtn:active,
-.theme-lcars #fullscreenBtn:active {
+.theme-lcars #fullscreenBtn:active,
+.theme-lcars .layout-btn:active {
   background: #CC6699 !important; /* hopbush — canonical LCARS click color */
 }
 
@@ -4328,7 +4540,8 @@ header {
 .theme-lcars .op-btn:hover,
 .theme-lcars .source-tab:hover,
 .theme-lcars #refreshBtn:hover,
-.theme-lcars #fullscreenBtn:hover {
+.theme-lcars #fullscreenBtn:hover,
+.theme-lcars .layout-btn:hover {
   background: #FFFF99; /* pale-canary */
   color: #000;
 }
@@ -4475,6 +4688,7 @@ header {
 .theme-terminal .op-btn,
 .theme-terminal #refreshBtn,
 .theme-terminal #fullscreenBtn,
+.theme-terminal .layout-btn,
 .theme-terminal .feedback-btn,
 .theme-terminal .coffee-btn,
 .theme-terminal .discord-btn {

@@ -4,6 +4,7 @@ import { esc } from './utils.js';
 import { renderAllMapOverlays, renderTropicsLines } from './map-overlays.js';
 import { BEACONS, getActiveBeacons } from './beacons.js';
 import { BREAKPOINT_MOBILE } from './constants.js';
+import { findCountryBounds } from './country-bounds.js';
 
 // --- Tile URL constants ---
 const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -120,6 +121,14 @@ export function centerMapOnUser() {
   } else if (state.mapCenterMode === 'qth') {
     if (state.myLat !== null && state.myLon !== null) {
       state.map.setView([state.myLat, state.myLon], state.map.getZoom());
+    }
+  } else if (state.mapCenterMode === 'cty') {
+    if (state.myLat !== null && state.myLon !== null) {
+      const bounds = findCountryBounds(state.myLat, state.myLon);
+      if (bounds) {
+        const [south, west, north, east] = bounds;
+        state.map.fitBounds([[south, west], [north, east]], { maxZoom: 10, padding: [20, 20] });
+      }
     }
   }
 }

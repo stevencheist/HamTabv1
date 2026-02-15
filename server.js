@@ -2608,6 +2608,53 @@ app.get('/api/drap/image', async (req, res) => {
   }
 });
 
+// D-RAP text grid — parsed frequency data for client-side heatmap rendering
+// 4° lat/lon grid of "Highest Frequency Affected by 1dB Absorption" in MHz
+const drapDataCache = { data: null, expires: 0 };
+const DRAP_TTL = 5 * 60 * 1000; // 5 min — SWPC updates ~every 1-2 min but data changes slowly
+
+app.get('/api/drap/data', async (req, res) => {
+  try {
+    if (drapDataCache.data && Date.now() < drapDataCache.expires) {
+      return res.json(drapDataCache.data);
+    }
+    const url = 'https://services.swpc.noaa.gov/text/drap_global_frequencies.txt';
+    const text = await secureFetch(url);
+
+    // Parse the NOAA text grid into a structured object
+    const lines = text.split('\n');
+    const lons = []; // longitude values from header
+    const rows = []; // { lat, values[] }
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('---')) continue;
+
+      // Header row: longitude values
+      if (lons.length === 0 && /^\s*-?\d+/.test(trimmed) && !trimmed.includes('|')) {
+        trimmed.split(/\s+/).forEach(v => lons.push(parseFloat(v)));
+        continue;
+      }
+
+      // Data row: "lat | val val val ..."
+      const match = trimmed.match(/^\s*(-?\d+)\s*\|\s*(.+)$/);
+      if (match) {
+        const lat = parseInt(match[1]);
+        const values = match[2].trim().split(/\s+/).map(Number);
+        rows.push({ lat, values });
+      }
+    }
+
+    const result = { lons, rows };
+    drapDataCache.data = result;
+    drapDataCache.expires = Date.now() + DRAP_TTL;
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching D-RAP data:', err.message);
+    res.status(502).json({ error: 'Failed to fetch D-RAP data' });
+  }
+});
+
 // --- Weather Radar (RainViewer) ---
 
 const radarCache = { data: null, expires: 0 };

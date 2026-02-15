@@ -115,6 +115,7 @@ const CACHE_RULES = [
   { prefix: '/api/spots/sota',         cc: 'public, max-age=30, s-maxage=60' },        // no server cache; browser 30s, edge 60s
   { prefix: '/api/spots',              cc: 'public, max-age=30, s-maxage=60' },        // POTA; client polls 60s
   { prefix: '/api/iss/position',       cc: 'public, max-age=5, s-maxage=10' },         // real-time; client polls 10s
+  { prefix: '/api/weather/clouds',     cc: 'public, max-age=1800, s-maxage=3600' },     // OWM cloud tiles; browser 30m, edge 1h
   { prefix: '/api/weather/radar',      cc: 'public, max-age=120, s-maxage=300' },      // RainViewer; browser 2m, edge 5m
   { prefix: '/api/weather/conditions', cc: 'public, max-age=300, s-maxage=900' },      // NWS 15m refresh; browser 5m, edge 15m
   { prefix: '/api/weather/alerts',     cc: 'public, max-age=120, s-maxage=300' },      // safety-critical; browser 2m, edge 5m
@@ -1862,7 +1863,7 @@ app.post('/api/config/env', (req, res) => {
     }
 
     // Update or append each key
-    const allowedKeys = ['WU_API_KEY', 'N2YO_API_KEY'];
+    const allowedKeys = ['WU_API_KEY', 'OWM_API_KEY', 'N2YO_API_KEY'];
     for (const [key, value] of Object.entries(updates)) {
       // Only allow known env keys
       if (!allowedKeys.includes(key)) continue;
@@ -2631,6 +2632,50 @@ app.get('/api/weather/radar', async (req, res) => {
   } catch (err) {
     console.error('Error fetching weather radar:', err.message);
     res.status(502).json({ error: 'Failed to fetch weather radar data' });
+  }
+});
+
+// Cloud cover tiles — proxy OpenWeatherMap tile API to keep API key server-side
+app.get('/api/weather/clouds/:z/:x/:y', async (req, res) => {
+  try {
+    const apiKey = process.env.OWM_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({ error: 'No OpenWeatherMap API key configured' });
+    }
+    const { z, x, y } = req.params;
+    // Validate tile coordinates are integers
+    if (!/^\d+$/.test(z) || !/^\d+$/.test(x) || !/^\d+$/.test(y)) {
+      return res.status(400).json({ error: 'Invalid tile coordinates' });
+    }
+    const url = `https://tile.openweathermap.org/map/clouds_new/${z}/${x}/${y}.png?appid=${apiKey}`;
+    const parsed = new URL(url);
+    const resolvedIP = await resolveHost(parsed.hostname);
+    if (isPrivateIP(resolvedIP)) {
+      return res.status(403).json({ error: 'Blocked' });
+    }
+    const proxyReq = https.get({
+      hostname: resolvedIP,
+      path: parsed.pathname + parsed.search,
+      port: 443,
+      headers: { 'User-Agent': 'HamTab/1.0', 'Host': parsed.hostname },
+      servername: parsed.hostname,
+    }, (upstream) => {
+      if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
+        upstream.resume();
+        return res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
+      }
+      res.set('Content-Type', upstream.headers['content-type'] || 'image/png');
+      res.set('Cache-Control', 'public, max-age=1800, s-maxage=3600'); // 30m browser, 1h edge
+      upstream.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('Cloud cover tile proxy error:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
+    });
+    proxyReq.setTimeout(10000, () => { proxyReq.destroy(); });
+  } catch (err) {
+    console.error('Error fetching cloud cover tile:', err.message);
+    res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
   }
 });
 

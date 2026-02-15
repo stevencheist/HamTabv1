@@ -155,7 +155,7 @@ These circles represent:
 
 ## Map Center Modes
 
-Configure how the map centers via Config:
+Use the buttons in the map header (QTH / PM / DX / CTY) to control centering:
 
 ### QTH Mode
 Map centers on your home location. Best for:
@@ -163,11 +163,24 @@ Map centers on your home location. Best for:
 - Planning which spots are in easy reach
 - Seeing your local propagation environment
 
-### Spot Mode
+### PM Mode
+Map centers on the Prime Meridian at zoom level 2, showing the whole world. Best for:
+- Getting a global overview of activity
+- Seeing worldwide propagation patterns
+
+### DX (Spot) Mode
 Map centers on the currently selected spot. Best for:
 - Examining spot details
 - Seeing the spot's geographic context
 - Planning antenna headings
+
+### CTY (Country) Mode
+Map zooms to fit your country's boundaries. Your country is determined automatically from your QTH location. Best for:
+- Seeing all activity within your country at a glance
+- Focusing on domestic activations
+- Quick overview of nearby parks and summits
+
+For large countries like the USA, the map intelligently selects the right sub-region — contiguous 48 states, Alaska, or Hawaii — based on where you are. Small countries are capped at zoom level 10 to prevent over-zoom.
 
 ## Performance Tips
 

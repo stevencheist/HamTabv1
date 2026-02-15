@@ -1147,12 +1147,20 @@ function degToCompass(deg) {
 // NWS weather conditions (background gradient for local clock)
 const nwsGridCache = {}; // { 'lat,lon': { forecastUrl, expires } }
 
+// NWS API only covers the US and territories — reject out-of-range coordinates early
+function isNwsCoverage(lat, lon) {
+  return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
+}
+
 app.get('/api/weather/conditions', async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+    }
+    if (!isNwsCoverage(lat, lon)) {
+      return res.status(400).json({ error: 'NWS only covers US locations' });
     }
     const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
     let grid = nwsGridCache[key];
@@ -1192,6 +1200,9 @@ app.get('/api/weather/alerts', async (req, res) => {
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+    }
+    if (!isNwsCoverage(lat, lon)) {
+      return res.json([]); // no alerts outside US coverage
     }
     const raw = await nwsFetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`);
     const data = JSON.parse(raw);

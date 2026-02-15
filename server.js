@@ -67,12 +67,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
 
-// Rate limiting — /api/ routes only, 120 requests per minute per IP
-// Lanmode runs on private LANs with a single user; 60 was too tight —
-// initial page load fires 30+ calls and solar animation adds dozens more.
+// Rate limiting — /api/ routes only; generous in LAN mode, stricter when hosted
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 120,
+  max: process.env.HOSTED_MODE === '1' ? 60 : 300,
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => req.path === '/api/update/status', // status check exempt — just returns cached vars
@@ -1154,12 +1152,20 @@ function degToCompass(deg) {
 // NWS weather conditions (background gradient for local clock)
 const nwsGridCache = {}; // { 'lat,lon': { forecastUrl, expires } }
 
+// NWS API only covers the US and territories — reject out-of-range coordinates early
+function isNwsCoverage(lat, lon) {
+  return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
+}
+
 app.get('/api/weather/conditions', async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+    }
+    if (!isNwsCoverage(lat, lon)) {
+      return res.status(400).json({ error: 'NWS only covers US locations' });
     }
     const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
     let grid = nwsGridCache[key];
@@ -1199,6 +1205,9 @@ app.get('/api/weather/alerts', async (req, res) => {
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+    }
+    if (!isNwsCoverage(lat, lon)) {
+      return res.json([]); // no alerts outside US coverage
     }
     const raw = await nwsFetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`);
     const data = JSON.parse(raw);
@@ -2988,6 +2997,10 @@ app.get('/api/voacap', async (req, res) => {
     const pathType = validPath.includes(req.query.path) ? req.query.path : 'SP';
     const longPath = pathType === 'LP';
 
+    // Optional client-provided SNR override (integer dB, clamped to safe range)
+    const clientSnr = req.query.snr != null ? parseInt(req.query.snr, 10) : null;
+    const snrOverride = (clientSnr != null && !isNaN(clientSnr)) ? Math.max(-10, Math.min(100, clientSnr)) : null;
+
     // API token validation — if VOACAP_API_TOKENS is set in .env, require a valid token.
     // Format: comma-separated list of tokens, e.g. VOACAP_API_TOKENS=abc123,def456
     // Client sends token via X-Voacap-Token header or ?token= query param.
@@ -3023,6 +3036,7 @@ app.get('/api/voacap', async (req, res) => {
       rxLat != null ? Math.round(rxLat * 10) / 10 : 'all',
       rxLon != null ? Math.round(rxLon * 10) / 10 : 'all',
       power, mode, toa, pathType, kBand,
+      snrOverride != null ? snrOverride : 'default',
     ].join(':');
 
     const cached = voacapCache[cacheKey];
@@ -3030,13 +3044,17 @@ app.get('/api/voacap', async (req, res) => {
       return res.json(cached.data);
     }
 
-    // Mode → required SNR and bandwidth (ITU standard thresholds)
+    // Mode → default required SNR (dB above noise in BW) and bandwidth.
+    // These are the "Normal" (level 3) defaults. Client can override via ?snr= param.
+    // See SENSITIVITY_LEVELS in voacap.js for the full 1-5 preset table.
     const modeMap = {
-      CW:  { snr: 39, bw: 500 },
-      SSB: { snr: 73, bw: 2700 },
+      CW:  { snr: 30, bw: 500 },
+      SSB: { snr: 54, bw: 2700 },
       FT8: { snr: 2,  bw: 50 },
     };
-    const { snr: requiredSnr, bw: bandwidthHz } = modeMap[mode] || modeMap.SSB;
+    const modeDefaults = modeMap[mode] || modeMap.SSB;
+    const requiredSnr = snrOverride != null ? snrOverride : modeDefaults.snr;
+    const bandwidthHz = modeDefaults.bw;
 
     // VOACAP band frequencies (no 160m, no 60m)
     const frequencies = [3.7, 7.15, 10.12, 14.15, 18.1, 21.2, 24.93, 28.5];

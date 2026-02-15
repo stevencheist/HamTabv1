@@ -4,11 +4,15 @@
 
 import state from './state.js';
 import { $ } from './dom.js';
+import { SOURCE_DEFS } from './constants.js';
 import { calculate24HourMatrix, getReliabilityColor, VOACAP_BANDS, HF_BANDS } from './band-conditions.js';
 import { renderHeatmapCanvas, clearHeatmap } from './rel-heatmap.js';
 
 // Store overlay circles on map
 let bandOverlayCircles = [];
+
+// Abort controller — cancel in-flight fetch when a new one starts
+let activeFetchController = null;
 
 // Minimum interval between server fetches
 const FETCH_THROTTLE_MS = 5 * 60 * 1000;      // 5 min when we have real VOACAP data
@@ -23,6 +27,19 @@ const TOA_OPTIONS   = ['3', '5', '10', '15'];
 const PATH_OPTIONS  = ['SP', 'LP'];
 const TARGET_OPTIONS = ['overview', 'spot'];
 
+// SNR sensitivity presets: level → { SSB, CW, FT8 } required SNR (dB)
+// Higher SNR = more strict = fewer paths show as workable
+// Lower SNR = more lenient = more paths show as workable
+const SENSITIVITY_LEVELS = {
+  1: { SSB: 42, CW: 18, FT8: -4, label: 'Optimistic',    desc: 'Beam antenna, low noise — most paths show as workable' },
+  2: { SSB: 48, CW: 24, FT8:  0, label: 'Relaxed',       desc: 'Good antenna, reasonable noise floor' },
+  3: { SSB: 54, CW: 30, FT8:  2, label: 'Normal',        desc: 'Typical amateur station (default)' },
+  4: { SSB: 60, CW: 36, FT8:  8, label: 'Conservative',  desc: 'Compromise antenna, urban noise' },
+  5: { SSB: 66, CW: 42, FT8: 14, label: 'Strict',        desc: 'Small antenna, high noise — only strong paths show' },
+};
+const DEFAULT_SENSITIVITY = 3;
+const MAX_SENSITIVITY = 5;
+
 // --- Initialization ---
 
 export function initVoacapListeners() {
@@ -31,10 +48,14 @@ export function initVoacapListeners() {
 
   // Delegated click handler for band rows and parameter bar
   matrix.addEventListener('click', (e) => {
-    // Parameter cycling
+    // Parameter cycling (shift+click on sensitivity = reset)
     const param = e.target.closest('.voacap-param');
     if (param && param.dataset.param) {
-      cycleParam(param.dataset.param);
+      if (param.dataset.param === 'sensitivity' && e.shiftKey) {
+        cycleParam('sensitivity-reset');
+      } else {
+        cycleParam(param.dataset.param);
+      }
       return;
     }
 
@@ -74,6 +95,28 @@ function cycleParam(name) {
     state.voacapAutoSpot = !state.voacapAutoSpot;
     localStorage.setItem('hamtab_voacap_auto_spot', state.voacapAutoSpot);
     renderVoacapMatrix();
+    return;
+  }
+
+  // Sensitivity reset (shift+click on sensitivity badge)
+  if (name === 'sensitivity-reset') {
+    state.voacapSensitivity = DEFAULT_SENSITIVITY;
+    localStorage.setItem('hamtab_voacap_sensitivity', DEFAULT_SENSITIVITY);
+    renderVoacapMatrix();
+    clearTimeout(state.voacapParamTimer);
+    state.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
+    return;
+  }
+
+  // Sensitivity cycling
+  if (name === 'sensitivity') {
+    const current = state.voacapSensitivity;
+    const next = current >= MAX_SENSITIVITY ? 1 : current + 1;
+    state.voacapSensitivity = next;
+    localStorage.setItem('hamtab_voacap_sensitivity', next);
+    renderVoacapMatrix();
+    clearTimeout(state.voacapParamTimer);
+    state.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
     return;
   }
 
@@ -144,6 +187,17 @@ export async function fetchVoacapMatrix() {
     return;
   }
 
+  console.log(`[VOACAP] fetchVoacapMatrix called, target=${state.voacapTarget}, selectedSpot=${state.selectedSpotId}, sensitivity=${state.voacapSensitivity}`);
+
+  // Cancel any in-flight fetch to prevent stale responses overwriting newer data
+  if (activeFetchController) activeFetchController.abort();
+  const controller = new AbortController();
+  activeFetchController = controller;
+
+  // Compute the required SNR for the current mode and sensitivity level
+  const sensLevel = SENSITIVITY_LEVELS[state.voacapSensitivity] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
+  const currentSnr = sensLevel[state.voacapMode] ?? sensLevel.SSB;
+
   const params = new URLSearchParams({
     txLat: state.myLat,
     txLon: state.myLon,
@@ -151,30 +205,51 @@ export async function fetchVoacapMatrix() {
     mode: state.voacapMode,
     toa: state.voacapToa,
     path: state.voacapPath,
+    snr: currentSnr,
   });
 
   // If in "spot" mode and a spot is selected, add RX coordinates
   if (state.voacapTarget === 'spot' && state.selectedSpotId) {
-    const spot = findSelectedSpot();
-    if (spot && spot.lat != null && spot.lon != null) {
-      params.set('rxLat', spot.lat);
-      params.set('rxLon', spot.lon);
+    try {
+      const spot = findSelectedSpot();
+      const spotLat = parseFloat(spot?.latitude);
+      const spotLon = parseFloat(spot?.longitude);
+      console.log(`[VOACAP] Spot lookup: found=${!!spot}, lat=${spotLat}, lon=${spotLon}`);
+      if (!isNaN(spotLat) && !isNaN(spotLon)) {
+        params.set('rxLat', spotLat);
+        params.set('rxLon', spotLon);
+      }
+    } catch (err) {
+      console.warn('[VOACAP] Spot lookup error:', err);
     }
   }
 
   try {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 25000); // 25s — slightly above server's 20s handler timeout
+    const timeout = setTimeout(() => controller.abort(), 25000);
     const resp = await fetch(`/api/voacap?${params}`, { signal: controller.signal });
     clearTimeout(timeout);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 
-    state.voacapServerData = data;
-    state.voacapEngine = data.engine || 'simplified';
-    state.voacapLastFetch = Date.now();
+    // Only store if this is still the active request (not superseded)
+    if (activeFetchController === controller) {
+      state.voacapServerData = data;
+      state.voacapEngine = data.engine || 'simplified';
+      state.voacapLastFetch = Date.now();
+
+      // Diagnostic: log what the server returned for spot mode debugging
+      if (state.voacapTarget === 'spot') {
+        const hasSignal = matrixHasSignal(data.matrix);
+        const peakRel = Math.max(...data.matrix.flatMap(e =>
+          Object.values(e.bands).map(b => typeof b === 'object' ? (b.rel || 0) : (b || 0))
+        ));
+        console.log(`[VOACAP] SPOT fetch: engine=${data.engine}, rxLat=${params.get('rxLat')}, rxLon=${params.get('rxLon')}, peakRel=${peakRel}%, hasSignal=${hasSignal}${data.fallbackReason ? ', fallback=' + data.fallbackReason : ''}`);
+      }
+    }
   } catch (err) {
-    if (state.debug) console.error('VOACAP fetch error:', err);
+    // Ignore aborts from superseded requests
+    if (err.name === 'AbortError') { console.log('[VOACAP] Fetch aborted (superseded)'); return; }
+    console.warn(`[VOACAP] Fetch error: ${err.message}`);
     // Keep existing data or fall back to client-side model
   }
 
@@ -193,21 +268,39 @@ function findSelectedSpot() {
   if (!state.selectedSpotId) return null;
   const source = state.currentSource;
   const spots = state.sourceData[source] || [];
-  return spots.find(s => {
-    // Different sources use different ID schemes
-    if (source === 'pota') return s.spotId === state.selectedSpotId;
-    if (source === 'sota') return s.id === state.selectedSpotId;
-    return s.id === state.selectedSpotId || s.spotId === state.selectedSpotId;
-  });
+  const def = SOURCE_DEFS[source];
+  if (!def || !def.spotId) return null;
+  return spots.find(s => def.spotId(s) === state.selectedSpotId);
 }
 
 // --- Rendering ---
+
+// Check if a matrix has any meaningful propagation (any band > 5% at any hour)
+function matrixHasSignal(matrix) {
+  for (const entry of matrix) {
+    for (const val of Object.values(entry.bands)) {
+      const rel = typeof val === 'object' ? (val.rel || 0) : (val || 0);
+      if (rel >= 5) return true;
+    }
+  }
+  return false;
+}
 
 // Get the active matrix — prefer server data, fall back to client-side model
 function getActiveMatrix() {
   // If we have recent server data, use it
   if (state.voacapServerData && state.voacapServerData.matrix) {
-    return state.voacapServerData.matrix;
+    const serverMatrix = state.voacapServerData.matrix;
+
+    // In SPOT mode, if dvoacap returned all-zero for this path (skip zone,
+    // dead path, etc.), fall back to overview band conditions so the widget
+    // stays useful. The "no-prop" badge will indicate the specific path is dead.
+    if (state.voacapTarget === 'spot' && !matrixHasSignal(serverMatrix)) {
+      const opts = getVoacapOpts();
+      return calculate24HourMatrix(opts);
+    }
+
+    return serverMatrix;
   }
 
   // Fall back to client-side simplified model
@@ -237,6 +330,13 @@ export function renderVoacapMatrix() {
     container.innerHTML = '<div class="voacap-no-data">Waiting for solar data...</div>';
     return;
   }
+
+  // In SPOT mode, check if the server returned all-zero for this path (skip zone, dead path).
+  // getActiveMatrix() already falls back to overview data in that case, so the table renders
+  // useful band conditions — but we flag it so the user knows the specific path is dead.
+  const spotPathDead = state.voacapTarget === 'spot'
+    && state.voacapServerData?.matrix
+    && !matrixHasSignal(state.voacapServerData.matrix);
 
   // Current UTC hour
   const nowHour = new Date().getUTCHours();
@@ -344,7 +444,26 @@ export function renderVoacapMatrix() {
   html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state.voacapToa}\u00B0</span>`;
   html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state.voacapPath}</span>`;
   html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
+
+  // Sensitivity level badge
+  const sensLvl = state.voacapSensitivity;
+  const sensInfo = SENSITIVITY_LEVELS[sensLvl] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
+  const sensDefault = sensLvl === DEFAULT_SENSITIVITY;
+  const sensActiveClass = !sensDefault ? ' voacap-param-active' : '';
+  const sensTooltip = `SNR Sensitivity: ${sensInfo.label} (${sensLvl}/${MAX_SENSITIVITY})\n`
+    + `${sensInfo.desc}\n\n`
+    + `Required S/N for ${state.voacapMode}: ${sensInfo[state.voacapMode]}dB\n\n`
+    + `Higher = stricter (fewer paths workable)\n`
+    + `Lower = more lenient (more paths workable)\n\n`
+    + `Click to cycle \u2022 Shift+click to reset to Normal`;
+  html += `<span class="voacap-param${sensActiveClass}" data-param="sensitivity" title="${sensTooltip}">SN${sensLvl}</span>`;
+
   html += `</div>`;
+
+  // "No propagation" note when SPOT mode path is dead (showing overview fallback)
+  if (spotPathDead) {
+    html += `<div class="voacap-no-prop">No HF path to this station \u2014 showing overview</div>`;
+  }
 
   // Color legend
   html += `<div class="voacap-legend">`;
@@ -473,5 +592,16 @@ export function onSpotSelected() {
     state.voacapTarget = 'spot';
     localStorage.setItem('hamtab_voacap_target', 'spot');
   }
+  fetchVoacapMatrix();
+}
+
+// Called by markers.js when a spot is deselected — revert to overview mode
+export function onSpotDeselected() {
+  if (!state.voacapAutoSpot) return;
+  if (state.voacapTarget === 'spot') {
+    state.voacapTarget = 'overview';
+    localStorage.setItem('hamtab_voacap_target', 'overview');
+  }
+  state.voacapServerData = null; // clear stale spot-specific data
   fetchVoacapMatrix();
 }

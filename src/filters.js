@@ -771,6 +771,7 @@ export function saveCurrentFilters() {
     sortDirection: state.spotSortDirection,
   };
   localStorage.setItem(`hamtab_filter_${source}`, JSON.stringify(filterState));
+  updateFilterIndicator();
 }
 
 // Load persisted filters for a source and apply to state
@@ -806,6 +807,43 @@ export function loadFiltersForSource(source) {
   state.propagationFilterEnabled = false;
   state.spotSortColumn = null;
   state.spotSortDirection = 'desc';
+}
+
+// Check whether any filter is set to a non-default value
+export function hasActiveFilters() {
+  return state.activeBands.size > 0
+    || state.activeModes.size > 0
+    || state.activeMaxDistance !== null
+    || state.activeMaxAge !== null
+    || state.activeCountry !== null
+    || state.activeState !== null
+    || state.activeGrid !== null
+    || state.activeContinent !== null
+    || state.privilegeFilterEnabled
+    || state.propagationFilterEnabled;
+}
+
+// Update the active-filter indicator on the Filters header and Clear All button
+function updateFilterIndicator() {
+  const active = hasActiveFilters();
+  const header = document.querySelector('#widget-filters .widget-header');
+  if (header) {
+    let badge = header.querySelector('.filter-active-badge');
+    if (active) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'filter-active-badge';
+        badge.title = 'Filters active — some spots may be hidden';
+        header.appendChild(badge);
+      }
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+  const clearBtn = $('clearFiltersBtn');
+  if (clearBtn) {
+    clearBtn.classList.toggle('filters-active', active);
+  }
 }
 
 // Update all filter UI elements to match current state
@@ -844,6 +882,8 @@ export function updateAllFilterUI() {
   if (propBtn) {
     propBtn.classList.toggle('active', state.propagationFilterEnabled);
   }
+
+  updateFilterIndicator();
 }
 
 // Clear all filters and update UI

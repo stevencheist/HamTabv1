@@ -230,6 +230,8 @@
         // 'overview' or 'spot'
         voacapAutoSpot: localStorage.getItem("hamtab_voacap_auto_spot") === "true",
         // auto-switch to SPOT on selection
+        voacapSensitivity: parseInt(localStorage.getItem("hamtab_voacap_sensitivity"), 10) || 3,
+        // 1-5 SNR sensitivity (3=default)
         voacapLastFetch: 0,
         // timestamp of last successful /api/voacap fetch
         // Heatmap overlay (REL mode for VOACAP)
@@ -1464,6 +1466,7 @@
     fetchVoacapMatrixThrottled: () => fetchVoacapMatrixThrottled,
     getVoacapOpts: () => getVoacapOpts,
     initVoacapListeners: () => initVoacapListeners,
+    onSpotDeselected: () => onSpotDeselected,
     onSpotSelected: () => onSpotSelected,
     renderVoacapMatrix: () => renderVoacapMatrix,
     toggleBandOverlay: () => toggleBandOverlay
@@ -1474,7 +1477,11 @@
     matrix.addEventListener("click", (e) => {
       const param = e.target.closest(".voacap-param");
       if (param && param.dataset.param) {
-        cycleParam(param.dataset.param);
+        if (param.dataset.param === "sensitivity" && e.shiftKey) {
+          cycleParam("sensitivity-reset");
+        } else {
+          cycleParam(param.dataset.param);
+        }
         return;
       }
       const row = e.target.closest(".voacap-row");
@@ -1504,6 +1511,24 @@
       state_default.voacapAutoSpot = !state_default.voacapAutoSpot;
       localStorage.setItem("hamtab_voacap_auto_spot", state_default.voacapAutoSpot);
       renderVoacapMatrix();
+      return;
+    }
+    if (name === "sensitivity-reset") {
+      state_default.voacapSensitivity = DEFAULT_SENSITIVITY;
+      localStorage.setItem("hamtab_voacap_sensitivity", DEFAULT_SENSITIVITY);
+      renderVoacapMatrix();
+      clearTimeout(state_default.voacapParamTimer);
+      state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
+      return;
+    }
+    if (name === "sensitivity") {
+      const current2 = state_default.voacapSensitivity;
+      const next2 = current2 >= MAX_SENSITIVITY ? 1 : current2 + 1;
+      state_default.voacapSensitivity = next2;
+      localStorage.setItem("hamtab_voacap_sensitivity", next2);
+      renderVoacapMatrix();
+      clearTimeout(state_default.voacapParamTimer);
+      state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
       return;
     }
     if (name === "target") {
@@ -1565,33 +1590,59 @@
       renderVoacapMatrix();
       return;
     }
+    console.log(`[VOACAP] fetchVoacapMatrix called, target=${state_default.voacapTarget}, selectedSpot=${state_default.selectedSpotId}, sensitivity=${state_default.voacapSensitivity}`);
+    if (activeFetchController) activeFetchController.abort();
+    const controller = new AbortController();
+    activeFetchController = controller;
+    const sensLevel = SENSITIVITY_LEVELS[state_default.voacapSensitivity] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
+    const currentSnr = sensLevel[state_default.voacapMode] ?? sensLevel.SSB;
     const params = new URLSearchParams({
       txLat: state_default.myLat,
       txLon: state_default.myLon,
       power: state_default.voacapPower,
       mode: state_default.voacapMode,
       toa: state_default.voacapToa,
-      path: state_default.voacapPath
+      path: state_default.voacapPath,
+      snr: currentSnr
     });
     if (state_default.voacapTarget === "spot" && state_default.selectedSpotId) {
-      const spot = findSelectedSpot();
-      if (spot && spot.lat != null && spot.lon != null) {
-        params.set("rxLat", spot.lat);
-        params.set("rxLon", spot.lon);
+      try {
+        const spot = findSelectedSpot();
+        const spotLat = parseFloat(spot?.latitude);
+        const spotLon = parseFloat(spot?.longitude);
+        console.log(`[VOACAP] Spot lookup: found=${!!spot}, lat=${spotLat}, lon=${spotLon}`);
+        if (!isNaN(spotLat) && !isNaN(spotLon)) {
+          params.set("rxLat", spotLat);
+          params.set("rxLon", spotLon);
+        }
+      } catch (err) {
+        console.warn("[VOACAP] Spot lookup error:", err);
       }
     }
     try {
-      const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 25e3);
       const resp = await fetch(`/api/voacap?${params}`, { signal: controller.signal });
       clearTimeout(timeout);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      state_default.voacapServerData = data;
-      state_default.voacapEngine = data.engine || "simplified";
-      state_default.voacapLastFetch = Date.now();
+      if (activeFetchController === controller) {
+        state_default.voacapServerData = data;
+        state_default.voacapEngine = data.engine || "simplified";
+        state_default.voacapLastFetch = Date.now();
+        if (state_default.voacapTarget === "spot") {
+          const hasSignal = matrixHasSignal(data.matrix);
+          const peakRel = Math.max(...data.matrix.flatMap(
+            (e) => Object.values(e.bands).map((b) => typeof b === "object" ? b.rel || 0 : b || 0)
+          ));
+          console.log(`[VOACAP] SPOT fetch: engine=${data.engine}, rxLat=${params.get("rxLat")}, rxLon=${params.get("rxLon")}, peakRel=${peakRel}%, hasSignal=${hasSignal}${data.fallbackReason ? ", fallback=" + data.fallbackReason : ""}`);
+        }
+      }
     } catch (err) {
-      if (state_default.debug) console.error("VOACAP fetch error:", err);
+      if (err.name === "AbortError") {
+        console.log("[VOACAP] Fetch aborted (superseded)");
+        return;
+      }
+      console.warn(`[VOACAP] Fetch error: ${err.message}`);
     }
     renderVoacapMatrix();
   }
@@ -1604,15 +1655,27 @@
     if (!state_default.selectedSpotId) return null;
     const source = state_default.currentSource;
     const spots = state_default.sourceData[source] || [];
-    return spots.find((s) => {
-      if (source === "pota") return s.spotId === state_default.selectedSpotId;
-      if (source === "sota") return s.id === state_default.selectedSpotId;
-      return s.id === state_default.selectedSpotId || s.spotId === state_default.selectedSpotId;
-    });
+    const def = SOURCE_DEFS[source];
+    if (!def || !def.spotId) return null;
+    return spots.find((s) => def.spotId(s) === state_default.selectedSpotId);
+  }
+  function matrixHasSignal(matrix) {
+    for (const entry of matrix) {
+      for (const val of Object.values(entry.bands)) {
+        const rel = typeof val === "object" ? val.rel || 0 : val || 0;
+        if (rel >= 5) return true;
+      }
+    }
+    return false;
   }
   function getActiveMatrix() {
     if (state_default.voacapServerData && state_default.voacapServerData.matrix) {
-      return state_default.voacapServerData.matrix;
+      const serverMatrix = state_default.voacapServerData.matrix;
+      if (state_default.voacapTarget === "spot" && !matrixHasSignal(serverMatrix)) {
+        const opts2 = getVoacapOpts();
+        return calculate24HourMatrix(opts2);
+      }
+      return serverMatrix;
     }
     const opts = getVoacapOpts();
     return calculate24HourMatrix(opts);
@@ -1632,6 +1695,7 @@
       container.innerHTML = '<div class="voacap-no-data">Waiting for solar data...</div>';
       return;
     }
+    const spotPathDead = state_default.voacapTarget === "spot" && state_default.voacapServerData?.matrix && !matrixHasSignal(state_default.voacapServerData.matrix);
     const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
     const hourOrder = [];
     for (let i = 0; i < 24; i++) {
@@ -1702,7 +1766,24 @@
     html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
     html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
     html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
+    const sensLvl = state_default.voacapSensitivity;
+    const sensInfo = SENSITIVITY_LEVELS[sensLvl] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
+    const sensDefault = sensLvl === DEFAULT_SENSITIVITY;
+    const sensActiveClass = !sensDefault ? " voacap-param-active" : "";
+    const sensTooltip = `SNR Sensitivity: ${sensInfo.label} (${sensLvl}/${MAX_SENSITIVITY})
+${sensInfo.desc}
+
+Required S/N for ${state_default.voacapMode}: ${sensInfo[state_default.voacapMode]}dB
+
+Higher = stricter (fewer paths workable)
+Lower = more lenient (more paths workable)
+
+Click to cycle \u2022 Shift+click to reset to Normal`;
+    html += `<span class="voacap-param${sensActiveClass}" data-param="sensitivity" title="${sensTooltip}">SN${sensLvl}</span>`;
     html += `</div>`;
+    if (spotPathDead) {
+      html += `<div class="voacap-no-prop">No HF path to this station \u2014 showing overview</div>`;
+    }
     html += `<div class="voacap-legend">`;
     html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(0)}"></span>Closed</span>`;
     html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(20)}"></span>Poor</span>`;
@@ -1800,14 +1881,25 @@
     }
     fetchVoacapMatrix();
   }
-  var bandOverlayCircles, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
+  function onSpotDeselected() {
+    if (!state_default.voacapAutoSpot) return;
+    if (state_default.voacapTarget === "spot") {
+      state_default.voacapTarget = "overview";
+      localStorage.setItem("hamtab_voacap_target", "overview");
+    }
+    state_default.voacapServerData = null;
+    fetchVoacapMatrix();
+  }
+  var bandOverlayCircles, activeFetchController, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS, SENSITIVITY_LEVELS, DEFAULT_SENSITIVITY, MAX_SENSITIVITY;
   var init_voacap = __esm({
     "src/voacap.js"() {
       init_state();
       init_dom();
+      init_constants();
       init_band_conditions();
       init_rel_heatmap();
       bandOverlayCircles = [];
+      activeFetchController = null;
       FETCH_THROTTLE_MS = 5 * 60 * 1e3;
       FETCH_RETRY_MS = 30 * 1e3;
       POWER_OPTIONS = ["5", "100", "1000"];
@@ -1815,6 +1907,15 @@
       MODE_OPTIONS = ["CW", "SSB", "FT8"];
       TOA_OPTIONS = ["3", "5", "10", "15"];
       PATH_OPTIONS = ["SP", "LP"];
+      SENSITIVITY_LEVELS = {
+        1: { SSB: 42, CW: 18, FT8: -4, label: "Optimistic", desc: "Beam antenna, low noise \u2014 most paths show as workable" },
+        2: { SSB: 48, CW: 24, FT8: 0, label: "Relaxed", desc: "Good antenna, reasonable noise floor" },
+        3: { SSB: 54, CW: 30, FT8: 2, label: "Normal", desc: "Typical amateur station (default)" },
+        4: { SSB: 60, CW: 36, FT8: 8, label: "Conservative", desc: "Compromise antenna, urban noise" },
+        5: { SSB: 66, CW: 42, FT8: 14, label: "Strict", desc: "Small antenna, high noise \u2014 only strong paths show" }
+      };
+      DEFAULT_SENSITIVITY = 3;
+      MAX_SENSITIVITY = 5;
     }
   });
 
@@ -2340,12 +2441,13 @@
     ensureIcons();
     clearGeodesicLine();
     const oldSid = state_default.selectedSpotId;
+    const newSid = sid && sid === oldSid ? null : sid;
     if (oldSid && state_default.markers[oldSid]) {
       state_default.markers[oldSid].setIcon(defaultIcon);
     }
-    state_default.selectedSpotId = sid;
-    if (sid && state_default.markers[sid]) {
-      state_default.markers[sid].setIcon(selectedIcon);
+    state_default.selectedSpotId = newSid;
+    if (newSid && state_default.markers[newSid]) {
+      state_default.markers[newSid].setIcon(selectedIcon);
     }
     if (state_default.clusterGroup) {
       if (oldSid && state_default.markers[oldSid]) {
@@ -2354,23 +2456,25 @@
           oldParent._icon.classList.remove("marker-cluster-selected");
         }
       }
-      if (sid && state_default.markers[sid]) {
-        const newParent = state_default.clusterGroup.getVisibleParent(state_default.markers[sid]);
-        if (newParent && newParent !== state_default.markers[sid] && newParent._icon) {
+      if (newSid && state_default.markers[newSid]) {
+        const newParent = state_default.clusterGroup.getVisibleParent(state_default.markers[newSid]);
+        if (newParent && newParent !== state_default.markers[newSid] && newParent._icon) {
           newParent._icon.classList.add("marker-cluster-selected");
         }
       }
     }
     document.querySelectorAll("#spotsBody tr").forEach((tr) => {
-      tr.classList.toggle("selected", tr.dataset.spotId === sid);
+      tr.classList.toggle("selected", tr.dataset.spotId === newSid);
     });
-    const selectedRow = document.querySelector(`#spotsBody tr[data-spot-id="${CSS.escape(sid)}"]`);
-    if (selectedRow) {
-      selectedRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (newSid) {
+      const selectedRow = document.querySelector(`#spotsBody tr[data-spot-id="${CSS.escape(newSid)}"]`);
+      if (selectedRow) {
+        selectedRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
     }
-    if (sid) {
+    if (newSid) {
       const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
-      const spot = filtered.find((s) => spotId(s) === sid);
+      const spot = filtered.find((s) => spotId(s) === newSid);
       if (spot) {
         updateSpotDetail(spot);
         setDedxSpot(spot);
@@ -2383,15 +2487,15 @@
     } else {
       clearSpotDetail();
       clearDedxSpot();
+      onSpotDeselected();
     }
   }
   function flyToSpot(spot) {
-    if (!state_default.map) return;
-    const lat = parseFloat(spot.latitude);
-    const lon = parseFloat(spot.longitude);
-    if (isNaN(lat) || isNaN(lon)) return;
     const sid = spotId(spot);
     selectSpot(sid);
+    const lat = parseFloat(spot.latitude);
+    const lon = parseFloat(spot.longitude);
+    if (!state_default.map || isNaN(lat) || isNaN(lon)) return;
     if (state_default.mapCenterMode === "spot") {
       state_default.map.flyTo([lat, lon], 5, { duration: 0.8 });
     }
@@ -9088,8 +9192,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.50.1";
-    $("aboutVersion").textContent = "0.50.1";
+    $("splashVersion").textContent = "0.50.2";
+    $("aboutVersion").textContent = "0.50.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

@@ -4798,10 +4798,10 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         }
       };
       DEFAULT_REFERENCE_TAB = "rst";
-      BREAKPOINT_MOBILE = 1025;
+      BREAKPOINT_MOBILE = 1200;
       SCALE_REFERENCE_WIDTH = 1200;
       SCALE_MIN_FACTOR = 0.55;
-      SCALE_REFLOW_WIDTH = 1025;
+      SCALE_REFLOW_WIDTH = 1200;
       REFLOW_WIDGET_ORDER = [
         "widget-map",
         "widget-activations",

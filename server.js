@@ -2582,11 +2582,9 @@ app.get('/api/propagation/image', async (req, res) => {
     const validTypes = ['mufd', 'fof2'];
     const type = validTypes.includes(req.query.type) ? req.query.type : 'mufd';
     const url = `https://prop.kc2g.com/renders/current/${type}-bare-now.jpg`;
-    const response = await secureFetch(url, { timeout: 15000 });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const buffer = await secureFetchBinary(url);
     res.set('Content-Type', 'image/jpeg');
     res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
-    const buffer = Buffer.from(await response.arrayBuffer());
     res.send(buffer);
   } catch (err) {
     console.error('Error fetching propagation image:', err.message);
@@ -2599,11 +2597,9 @@ app.get('/api/propagation/image', async (req, res) => {
 app.get('/api/drap/image', async (req, res) => {
   try {
     const url = 'https://services.swpc.noaa.gov/images/animations/d-rap/global/latest.png';
-    const response = await secureFetch(url, { timeout: 15000 });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const buffer = await secureFetchBinary(url);
     res.set('Content-Type', 'image/png');
     res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
-    const buffer = Buffer.from(await response.arrayBuffer());
     res.send(buffer);
   } catch (err) {
     console.error('Error fetching D-RAP image:', err.message);

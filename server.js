@@ -2265,7 +2265,7 @@ app.get('/api/propagation/image', async (req, res) => {
 // Shows HF radio absorption caused by solar X-ray and proton events
 app.get('/api/drap/image', async (req, res) => {
   try {
-    const url = 'https://services.swpc.noaa.gov/images/animations/d-rap/global/d-rap/latest.png';
+    const url = 'https://services.swpc.noaa.gov/images/animations/d-rap/global/latest.png';
     const response = await secureFetch(url, { timeout: 15000 });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     res.set('Content-Type', 'image/png');

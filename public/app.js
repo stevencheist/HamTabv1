@@ -759,6 +759,39 @@
       mufImageLayer.setUrl(freshUrl);
     }, 15 * 60 * 1e3);
   }
+  function drapColor(mhz, maxVal) {
+    if (mhz <= 0) return { r: 0, g: 0, b: 0, a: 0 };
+    const ceil = Math.max(maxVal, 5);
+    const t = Math.min(mhz / ceil, 1);
+    let r, g, b;
+    if (t < 0.2) {
+      const s = t / 0.2;
+      r = Math.round(80 * (1 - s));
+      g = 0;
+      b = Math.round(128 + 127 * s);
+    } else if (t < 0.4) {
+      const s = (t - 0.2) / 0.2;
+      r = 0;
+      g = Math.round(255 * s);
+      b = 255;
+    } else if (t < 0.6) {
+      const s = (t - 0.4) / 0.2;
+      r = 0;
+      g = 255;
+      b = Math.round(255 * (1 - s));
+    } else if (t < 0.8) {
+      const s = (t - 0.6) / 0.2;
+      r = Math.round(255 * s);
+      g = 255;
+      b = 0;
+    } else {
+      const s = (t - 0.8) / 0.2;
+      r = 255;
+      g = Math.round(255 * (1 - s));
+      b = 0;
+    }
+    return { r, g, b, a: 180 };
+  }
   function renderDrapOverlay() {
     if (drapImageLayer) {
       state_default.map.removeLayer(drapImageLayer);
@@ -770,17 +803,54 @@
     }
     if (!state_default.mapOverlays.drapOverlay) return;
     const L2 = window.L;
-    const url = `/api/drap/image?_t=${Date.now()}`;
-    const bounds = [[-90, -180], [90, 180]];
-    drapImageLayer = L2.imageOverlay(url, bounds, {
-      opacity: 0.5,
-      pane: "propagation",
-      // same z-index as MUF overlay (300)
-      interactive: false
-    }).addTo(state_default.map);
+    async function fetchAndRender() {
+      try {
+        const resp = await fetch("/api/drap/data");
+        if (!resp.ok) return;
+        const { lons, rows } = await resp.json();
+        if (!lons || !rows || rows.length === 0) return;
+        const cols = lons.length;
+        const numRows = rows.length;
+        let maxVal = 0;
+        for (let r = 0; r < numRows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const v = rows[r].values[c] || 0;
+            if (v > maxVal) maxVal = v;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = cols;
+        canvas.height = numRows;
+        const ctx = canvas.getContext("2d");
+        const imageData = ctx.createImageData(cols, numRows);
+        const data = imageData.data;
+        for (let r = 0; r < numRows; r++) {
+          const values = rows[r].values;
+          for (let c = 0; c < cols; c++) {
+            const px = drapColor(values[c] || 0, maxVal);
+            const idx = (r * cols + c) * 4;
+            data[idx] = px.r;
+            data[idx + 1] = px.g;
+            data[idx + 2] = px.b;
+            data[idx + 3] = px.a;
+          }
+        }
+        ctx.putImageData(imageData, 0, 0);
+        const bounds = [[-90, -180], [90, 180]];
+        if (drapImageLayer) state_default.map.removeLayer(drapImageLayer);
+        drapImageLayer = L2.imageOverlay(canvas.toDataURL(), bounds, {
+          opacity: 0.55,
+          pane: "propagation",
+          interactive: false
+        }).addTo(state_default.map);
+      } catch (err) {
+        if (state_default.debug) console.error("D-RAP render error:", err);
+      }
+    }
+    fetchAndRender();
     drapImageRefreshTimer = setInterval(() => {
-      if (!state_default.mapOverlays.drapOverlay || !drapImageLayer) return;
-      drapImageLayer.setUrl(`/api/drap/image?_t=${Date.now()}`);
+      if (!state_default.mapOverlays.drapOverlay) return;
+      fetchAndRender();
     }, 15 * 60 * 1e3);
   }
   function renderTropicsLines() {
@@ -9661,8 +9731,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.53.0";
-    $("aboutVersion").textContent = "0.53.0";
+    $("splashVersion").textContent = "0.53.1";
+    $("aboutVersion").textContent = "0.53.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

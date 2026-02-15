@@ -5605,11 +5605,20 @@ header {
   }
 
   .header-right {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    justify-items: stretch;
-    gap: 4px;
-    font-size: 0.7rem;
+    display: none;
+  }
+
+  .mobile-menu-btn {
+    display: block;
+    position: absolute;
+    top: 6px;
+    right: 8px;
+    z-index: 10;
+  }
+
+  header {
+    position: relative;
+    padding-right: 56px; /* space for hamburger button */
   }
 
   /* --- Widget area: vertical scroll stack --- */
@@ -5639,6 +5648,73 @@ header {
 
   /* Hide resize handles — no drag/resize on mobile */
   .widget-resize {
+    display: none;
+  }
+
+  /* --- Collapsible widgets on mobile --- */
+
+  .widget-header {
+    cursor: pointer;
+    user-select: none;
+    position: relative;
+    padding-right: 28px;
+  }
+
+  .widget-header::after {
+    content: '\25BC'; /* ▼ */
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.65rem;
+    color: var(--text-dim, #888);
+    transition: transform 0.2s;
+  }
+
+  .widget.collapsed .widget-header::after {
+    transform: translateY(-50%) rotate(-90deg);
+  }
+
+  .widget.collapsed .widget-body {
+    display: none;
+  }
+
+  .widget.collapsed {
+    min-height: auto;
+  }
+
+  /* --- Full-screen map mode --- */
+
+  .map-fullscreen-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-color);
+    font-size: 1rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    margin-left: auto;
+  }
+
+  .map-fullscreen-btn:active {
+    background: var(--accent-bg, rgba(255,255,255,0.1));
+  }
+
+  #widget-map.map-fullscreen {
+    position: fixed !important;
+    inset: 0;
+    z-index: 5000;
+    min-height: 100vh;
+    border-radius: 0;
+  }
+
+  #widget-map.map-fullscreen .widget-body,
+  #widget-map.map-fullscreen #map {
+    height: calc(100vh - 36px);
+  }
+
+  /* Don't show collapse chevron on map when fullscreen */
+  #widget-map.map-fullscreen .widget-header::after {
     display: none;
   }
 
@@ -5787,6 +5863,93 @@ header {
   #widget-beacons .widget-body,
   #widget-contests .widget-body,
   #widget-dxpeditions .widget-body { max-height: 250px; }
+}
+
+/* ---- Mobile Menu (hamburger + drawer) ---- */
+
+/* Hamburger button — hidden on desktop, shown on mobile via media query */
+.mobile-menu-btn {
+  display: none;
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-color);
+  font-size: 1.5rem;
+  line-height: 1;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.mobile-menu-btn:active {
+  background: var(--accent-bg, rgba(255,255,255,0.1));
+}
+
+/* Backdrop overlay */
+.mobile-menu-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 9998;
+}
+
+.mobile-menu-backdrop.open {
+  display: block;
+}
+
+/* Slide-out drawer */
+.mobile-menu-drawer {
+  position: fixed;
+  top: 0;
+  right: -280px;
+  width: 260px;
+  height: 100%;
+  background: var(--widget-bg, #1a1a1a);
+  border-left: 1px solid var(--border);
+  z-index: 9999;
+  transition: right 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.mobile-menu-drawer.open {
+  right: 0;
+}
+
+.mobile-menu-header {
+  padding: 16px 20px;
+  font-size: 1.1rem;
+  font-weight: bold;
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border);
+}
+
+.mobile-menu-item {
+  display: block;
+  width: 100%;
+  padding: 14px 20px;
+  font-size: 0.95rem;
+  color: var(--text-color);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.mobile-menu-item:active {
+  background: var(--accent-bg, rgba(255,255,255,0.08));
+}
+
+.mobile-menu-update {
+  padding: 14px 20px;
+  font-size: 0.8rem;
+  color: var(--text-dim, #888);
 }
 
 /* ---- Grayscale Mode ---- */

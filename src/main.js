@@ -53,6 +53,7 @@ import { initBigClock, updateBigClock } from './big-clock.js';
 import { initStopwatchListeners } from './stopwatch.js';
 import { initAnalogClock, updateAnalogClock } from './analog-clock.js';
 import { initClockConfigListeners } from './clock-config.js';
+import { initMobileMenu } from './menu.js';
 
 // Initialize map
 initMap();
@@ -103,6 +104,7 @@ initBigClock();
 initStopwatchListeners();
 initAnalogClock();
 initClockConfigListeners();
+initMobileMenu();
 
 // Wire initApp into splash dismissal
 function initApp() {

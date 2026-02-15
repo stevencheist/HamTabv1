@@ -6271,6 +6271,30 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
           applyWidgetVisibility();
         });
         header.insertBefore(closeBtn, header.firstChild);
+        if (!isDesktop) {
+          const expandedByDefault = /* @__PURE__ */ new Set(["widget-map", "widget-activations"]);
+          const collapseKey = "hamtab_collapsed";
+          let collapsed;
+          try {
+            collapsed = new Set(JSON.parse(localStorage.getItem(collapseKey) || "[]"));
+          } catch {
+            collapsed = /* @__PURE__ */ new Set();
+          }
+          const wid = widget.id;
+          if (collapsed.has(wid) || !collapsed.size && !expandedByDefault.has(wid)) {
+            widget.classList.add("collapsed");
+          }
+          header.addEventListener("click", (e) => {
+            if (e.target.closest("button") || e.target.closest("select") || e.target.closest("a")) return;
+            widget.classList.toggle("collapsed");
+            const allCollapsed = [];
+            document.querySelectorAll(".widget.collapsed").forEach((w) => allCollapsed.push(w.id));
+            localStorage.setItem(collapseKey, JSON.stringify(allCollapsed));
+            if (wid === "widget-map" && !widget.classList.contains("collapsed") && state_default.map) {
+              setTimeout(() => state_default.map.invalidateSize(), 50);
+            }
+          });
+        }
       }
       if (resizer && isDesktop) setupResize(widget, resizer);
       if (isDesktop) widget.addEventListener("mousedown", () => bringToFront(widget));
@@ -6278,6 +6302,22 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     const mapWidget = document.getElementById("widget-map");
     if (state_default.map && mapWidget && window.ResizeObserver) {
       new ResizeObserver(() => state_default.map.invalidateSize()).observe(mapWidget);
+    }
+    if (!isDesktop && mapWidget) {
+      const mapHeader = mapWidget.querySelector(".widget-header");
+      if (mapHeader) {
+        const maxBtn = document.createElement("button");
+        maxBtn.className = "map-fullscreen-btn";
+        maxBtn.title = "Toggle fullscreen map";
+        maxBtn.textContent = "\u26F6";
+        maxBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+        maxBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          mapWidget.classList.toggle("map-fullscreen");
+          if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
+        });
+        mapHeader.appendChild(maxBtn);
+      }
     }
     if (window.ResizeObserver) {
       let reflowTimer;
@@ -11438,6 +11478,66 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     }
   }
 
+  // src/menu.js
+  init_dom();
+  var isOpen = false;
+  function openMenu() {
+    const drawer = $("mobileMenuDrawer");
+    const backdrop = $("mobileMenuBackdrop");
+    if (!drawer || !backdrop) return;
+    drawer.classList.add("open");
+    backdrop.classList.add("open");
+    isOpen = true;
+    const updateEl = $("updateIndicator");
+    const menuUpdate = $("mobileMenuUpdate");
+    if (updateEl && menuUpdate) {
+      menuUpdate.innerHTML = updateEl.innerHTML;
+    }
+  }
+  function closeMenu() {
+    const drawer = $("mobileMenuDrawer");
+    const backdrop = $("mobileMenuBackdrop");
+    if (!drawer || !backdrop) return;
+    drawer.classList.remove("open");
+    backdrop.classList.remove("open");
+    isOpen = false;
+  }
+  function initMobileMenu() {
+    const menuBtn = $("mobileMenuBtn");
+    const backdrop = $("mobileMenuBackdrop");
+    const drawer = $("mobileMenuDrawer");
+    if (!menuBtn || !backdrop || !drawer) return;
+    menuBtn.addEventListener("click", () => {
+      if (isOpen) closeMenu();
+      else openMenu();
+    });
+    backdrop.addEventListener("click", closeMenu);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && isOpen) closeMenu();
+    });
+    drawer.addEventListener("click", (e) => {
+      const item = e.target.closest(".mobile-menu-item");
+      if (!item) return;
+      const action = item.dataset.action;
+      if (!action) {
+        closeMenu();
+        return;
+      }
+      closeMenu();
+      switch (action) {
+        case "config":
+          document.getElementById("editCallBtn")?.click();
+          break;
+        case "refresh":
+          document.getElementById("refreshBtn")?.click();
+          break;
+        case "feedback":
+          document.getElementById("feedbackBtn")?.click();
+          break;
+      }
+    });
+  }
+
   // src/main.js
   migrate();
   migrateV2();
@@ -11495,6 +11595,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initStopwatchListeners();
   initAnalogClock();
   initClockConfigListeners();
+  initMobileMenu();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

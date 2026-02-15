@@ -4510,7 +4510,8 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
             { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
             { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), Cloud Cover (OpenWeatherMap \u2014 useful for satellite and EME ops), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (\u22655). Cloud Cover requires an OpenWeatherMap API key (enter in Config > Services)." },
             { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
-            { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
+            { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." },
+            { heading: "Fullscreen", content: "Click the \u26F6 button in the map header to expand the map to fill the entire screen. Click the \u2715 button or press Escape to return to the normal layout." }
           ]
         },
         "widget-solar": {
@@ -6582,7 +6583,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     if (state_default.map && mapWidget && window.ResizeObserver) {
       new ResizeObserver(() => state_default.map.invalidateSize()).observe(mapWidget);
     }
-    if (!isDesktop && mapWidget) {
+    if (mapWidget) {
       const mapHeader = mapWidget.querySelector(".widget-header");
       if (mapHeader) {
         const maxBtn = document.createElement("button");
@@ -6592,10 +6593,18 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         maxBtn.addEventListener("mousedown", (e) => e.stopPropagation());
         maxBtn.addEventListener("click", (e) => {
           e.stopPropagation();
-          mapWidget.classList.toggle("map-fullscreen");
+          const isFS = mapWidget.classList.toggle("map-fullscreen");
+          maxBtn.textContent = isFS ? "\u2715" : "\u26F6";
           if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
         });
         mapHeader.appendChild(maxBtn);
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && mapWidget.classList.contains("map-fullscreen")) {
+            mapWidget.classList.remove("map-fullscreen");
+            maxBtn.textContent = "\u26F6";
+            if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
+          }
+        });
       }
     }
     if (window.ResizeObserver) {
@@ -9527,8 +9536,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.52.0";
-    $("aboutVersion").textContent = "0.52.0";
+    $("splashVersion").textContent = "0.52.1";
+    $("aboutVersion").textContent = "0.52.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

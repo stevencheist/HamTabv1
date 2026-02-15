@@ -3,6 +3,7 @@ import { latLonToGrid } from './geo.js';
 import { esc } from './utils.js';
 import { renderAllMapOverlays, renderTropicsLines } from './map-overlays.js';
 import { BEACONS, getActiveBeacons } from './beacons.js';
+import { BREAKPOINT_MOBILE } from './constants.js';
 
 // --- Tile URL constants ---
 const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -12,13 +13,19 @@ export function initMap() {
   const hasLeaflet = typeof L !== 'undefined' && L.map;
   if (!hasLeaflet) return;
 
+  const isMobile = window.innerWidth < BREAKPOINT_MOBILE;
+
   try {
     state.map = L.map('map', {
       worldCopyJump: true,
       maxBoundsViscosity: 1.0,
       maxBounds: [[-90, -180], [90, 180]],
       minZoom: 1,
+      zoomControl: false, // added manually for position control
     }).setView([39.8, -98.5], 4);
+
+    // Zoom control: bottom-right on mobile for thumb reach, top-left on desktop
+    L.control.zoom({ position: isMobile ? 'bottomright' : 'topleft' }).addTo(state.map);
 
     state.tileLayer = L.tileLayer(TILE_DARK, {
       attribution: '&copy; OpenStreetMap &copy; CARTO',

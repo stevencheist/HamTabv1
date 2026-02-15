@@ -9,6 +9,7 @@ export function renderAllMapOverlays() {
   renderDrapOverlay();
   renderTropicsLines();
   renderWeatherRadar();
+  renderCloudCover();
   renderSymbolLegend();
 }
 
@@ -286,6 +287,22 @@ async function fetchRadarAndShow() {
   } catch (e) {
     if (state.debug) console.error('Weather radar fetch failed:', e);
   }
+}
+
+// --- Cloud Cover (OpenWeatherMap tile layer) ---
+
+let cloudCoverLayer = null;
+
+export function renderCloudCover() {
+  if (cloudCoverLayer) { state.map.removeLayer(cloudCoverLayer); cloudCoverLayer = null; }
+  if (!state.mapOverlays.cloudCover) return;
+
+  cloudCoverLayer = L.tileLayer('/api/weather/clouds/{z}/{x}/{y}', {
+    opacity: 0.4,
+    pane: 'propagation', // z-300, below mapOverlays (350)
+    interactive: false,
+    attribution: '&copy; OpenWeatherMap',
+  }).addTo(state.map);
 }
 
 // --- Symbol Legend (L.Control) ---

@@ -81,6 +81,7 @@ export function initConfigListeners() {
       $('mapOvDxpedMarkers').checked = state.mapOverlays.dxpedMarkers;
       $('mapOvTropics').checked = state.mapOverlays.tropicsLines;
       $('mapOvWeatherRadar').checked = state.mapOverlays.weatherRadar;
+      $('mapOvCloudCover').checked = state.mapOverlays.cloudCover;
       $('mapOvLegend').checked = state.mapOverlays.symbolLegend;
       mapOverlayCfgSplash.classList.remove('hidden');
     });
@@ -97,6 +98,7 @@ export function initConfigListeners() {
       state.mapOverlays.dxpedMarkers = $('mapOvDxpedMarkers').checked;
       state.mapOverlays.tropicsLines = $('mapOvTropics').checked;
       state.mapOverlays.weatherRadar = $('mapOvWeatherRadar').checked;
+      state.mapOverlays.cloudCover = $('mapOvCloudCover').checked;
       state.mapOverlays.symbolLegend = $('mapOvLegend').checked;
       saveMapOverlays();
       mapOverlayCfgSplash.classList.add('hidden');

@@ -56,7 +56,7 @@ const state = {
   maidenheadDebounceTimer: null,
 
   // Map overlay config
-  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, symbolLegend: false },
+  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false },
 
   // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
   dxpedTimeFilter: localStorage.getItem('hamtab_dxped_time_filter') || 'all',
@@ -133,6 +133,7 @@ const state = {
   // Weather
   wxStation: localStorage.getItem('hamtab_wx_station') || '',
   wxApiKey: localStorage.getItem('hamtab_wx_apikey') || '',
+  owmApiKey: localStorage.getItem('hamtab_owm_apikey') || '',
   nwsAlerts: [],
   weatherTimer: null,
   nwsCondTimer: null,

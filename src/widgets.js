@@ -135,13 +135,13 @@ function clampPosition(left, top, wW, wH) {
 }
 
 function snapPosition(left, top, wW, wH) {
+  if (!state.snapToGrid) return { left, top }; // all snapping disabled
+
   const { width: aW, height: aH } = getWidgetArea();
 
   // Grid snap — round to nearest SNAP_GRID increment
-  if (state.snapToGrid) {
-    left = Math.round(left / SNAP_GRID) * SNAP_GRID;
-    top = Math.round(top / SNAP_GRID) * SNAP_GRID;
-  }
+  left = Math.round(left / SNAP_GRID) * SNAP_GRID;
+  top = Math.round(top / SNAP_GRID) * SNAP_GRID;
 
   // Edge/center snap — higher priority, overrides grid snap when near edges
   const right = left + wW;

@@ -51,6 +51,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **Themes** — Eight built-in visual themes: Default, LCARS, Terminal, HamClock, Rebel, Imperial, Neon, and Steampunk
 - **Band Colors** — Customize the color assigned to each amateur band in Live Spots and map lines via Config > Appearance
 - **Widget Layout** — All panels are draggable and resizable with snap-to-edge, persisted across sessions
+- **Named Layout Profiles** — Save up to 20 named layout profiles capturing widget positions, visibility, grid/float mode, and grid configuration. Switch between profiles via the Layouts dropdown in the header bar. Also accessible from Config > Display and the mobile menu
 - **Grid Layout Mode** — Alternative to free-float with 5 grid permutations (2L-2R, 3L-3R, etc.) for organized widget arrangements. Slot counter shows how many widgets fit; excess widgets are hidden with a clear warning
 - **Clock Styles** — Digital or analog clock face for both Local Time and UTC widgets
 - **Day/Night Indicator** — SVG sun/moon graphic on clock widgets based on computed sunrise/sunset

@@ -328,6 +328,10 @@ export async function fetchPropagation() {
       });
       L.marker([mid[1], mid[0]], { icon, pane: 'propagation', interactive: false }).addTo(state.propLabelLayer);
     });
+
+    // Force SVG renderer to recalculate viewport bounds for the new layer —
+    // without this, contour lines can clip mid-map when data loads after initial layout
+    state.map.invalidateSize();
   } catch (err) {
     console.error('Failed to fetch propagation:', err);
   }

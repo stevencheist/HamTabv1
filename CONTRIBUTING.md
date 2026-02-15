@@ -57,7 +57,7 @@ HamTab uses a three-branch model:
 
 ## Community
 
-- **Discord:** Join us at [discord.gg/GcX9cHtT](https://discord.gg/GcX9cHtT) for discussion
+- **Discord:** Join us at [discord.gg/Ru3ydQY75U](https://discord.gg/Ru3ydQY75U) for discussion
 - **Issues:** Check [open issues](https://github.com/stevencheist/HamTabv1/issues) for things to work on
 
 ## License

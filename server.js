@@ -1370,7 +1370,7 @@ app.post('/api/config/env', (req, res) => {
     }
 
     // Update or append each key
-    const allowedKeys = ['WU_API_KEY', 'N2YO_API_KEY'];
+    const allowedKeys = ['WU_API_KEY', 'OWM_API_KEY', 'N2YO_API_KEY'];
     for (const [key, value] of Object.entries(updates)) {
       // Only allow known env keys
       if (!allowedKeys.includes(key)) continue;

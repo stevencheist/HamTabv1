@@ -133,6 +133,7 @@ const state = {
   // Weather
   wxStation: localStorage.getItem('hamtab_wx_station') || '',
   wxApiKey: localStorage.getItem('hamtab_wx_apikey') || '',
+  owmApiKey: localStorage.getItem('hamtab_owm_apikey') || '',
   nwsAlerts: [],
   weatherTimer: null,
   nwsCondTimer: null,

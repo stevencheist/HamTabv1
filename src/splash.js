@@ -320,6 +320,7 @@ export function showSplash() {
 
   $('splashWxStation').value = state.wxStation;
   $('splashWxApiKey').value = state.wxApiKey;
+  $('splashOwmApiKey').value = state.owmApiKey;
   $('splashN2yoApiKey').value = state.n2yoApiKey;
 
   const intervalSelect = $('splashUpdateInterval');
@@ -482,14 +483,17 @@ function dismissSplash() {
 
   state.wxStation = ($('splashWxStation').value || '').trim().toUpperCase();
   state.wxApiKey = ($('splashWxApiKey').value || '').trim();
+  state.owmApiKey = ($('splashOwmApiKey').value || '').trim();
   state.n2yoApiKey = ($('splashN2yoApiKey').value || '').trim();
   localStorage.setItem('hamtab_wx_station', state.wxStation);
   localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
+  localStorage.setItem('hamtab_owm_apikey', state.owmApiKey);
   localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
 
   // Persist API keys to server .env so all clients share them
   const envUpdates = {};
   if (state.wxApiKey) envUpdates.WU_API_KEY = state.wxApiKey;
+  if (state.owmApiKey) envUpdates.OWM_API_KEY = state.owmApiKey;
   if (state.n2yoApiKey) envUpdates.N2YO_API_KEY = state.n2yoApiKey;
   if (Object.keys(envUpdates).length > 0) {
     fetch('/api/config/env', {

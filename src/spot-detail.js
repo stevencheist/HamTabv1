@@ -16,6 +16,11 @@ function weatherCacheKey(lat, lon) {
   return `${lat.toFixed(1)},${lon.toFixed(1)}`;
 }
 
+// NWS API only covers the US and territories — skip requests outside this bounding box
+function isNwsCoverage(lat, lon) {
+  return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
+}
+
 async function fetchCallsignInfo(call) {
   if (!call) return null;
   const key = call.toUpperCase();
@@ -158,7 +163,7 @@ export async function updateSpotDetail(spot) {
   }
 
   // Fetch NWS weather async (US spots only)
-  if (!isNaN(lat) && !isNaN(lon)) {
+  if (!isNaN(lat) && !isNaN(lon) && isNwsCoverage(lat, lon)) {
     const wxEl = document.getElementById('spotDetailWx');
     const wx = await fetchSpotWeather(lat, lon);
     if (wx && wxEl && currentSpot === spot) {

@@ -1,6 +1,7 @@
 import state from './state.js';
-import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
-import { isGridMode, activateGridMode, applyGridAssignments, handleGridDragStart, repositionGridHandles } from './grid-layout.js';
+import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
+import { isGridMode, activateGridMode, deactivateGridMode, applyGridAssignments, handleGridDragStart, repositionGridHandles, saveGridAssignments } from './grid-layout.js';
+import { switchTab, rebuildTabs, getActiveTabWidgets } from './tabs.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
 
@@ -23,11 +24,18 @@ export function isWidgetVisible(id) {
 }
 
 export function applyWidgetVisibility() {
+  // On mobile with tabs active, rebuild dynamic tabs and delegate (check before grid mode)
+  if (getLayoutMode() === 'mobile') {
+    rebuildTabs();
+    return;
+  }
+
   if (isGridMode()) {
     applyGridAssignments();
     if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
     return;
   }
+
   WIDGET_DEFS.forEach(w => {
     const el = document.getElementById(w.id);
     if (!el) return;
@@ -51,7 +59,7 @@ function redistributeRightColumn() {
   const rightX = parseInt(solarEl.style.left) || 0;
   const rightW = parseInt(solarEl.style.width) || 0;
 
-  const rightBottomIds = ['widget-spacewx', 'widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail', 'widget-contests', 'widget-dxpeditions', 'widget-beacons', 'widget-dedx'];
+  const rightBottomIds = ['widget-spacewx', 'widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail', 'widget-contests', 'widget-dxpeditions', 'widget-beacons', 'widget-dedx', 'widget-stopwatch', 'widget-analog-clock'];
   const vis = state.widgetVisibility || {};
   const visible = rightBottomIds.filter(id => vis[id] !== false);
   if (visible.length === 0) return;
@@ -100,7 +108,7 @@ export function getDefaultLayout() {
   };
 
   // Stack visible right-column widgets below solar
-  const rightBottomIds = ['widget-spacewx', 'widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail', 'widget-contests', 'widget-dxpeditions', 'widget-beacons', 'widget-dedx'];
+  const rightBottomIds = ['widget-spacewx', 'widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail', 'widget-contests', 'widget-dxpeditions', 'widget-beacons', 'widget-dedx', 'widget-stopwatch', 'widget-analog-clock'];
   const vis = state.widgetVisibility || {};
   const visibleBottom = rightBottomIds.filter(id => vis[id] !== false);
   const bottomSpace = H - rightHalf - pad * 2;
@@ -127,7 +135,15 @@ function clampPosition(left, top, wW, wH) {
 }
 
 function snapPosition(left, top, wW, wH) {
+  if (!state.snapToGrid) return { left, top }; // all snapping disabled
+
   const { width: aW, height: aH } = getWidgetArea();
+
+  // Grid snap — round to nearest SNAP_GRID increment
+  left = Math.round(left / SNAP_GRID) * SNAP_GRID;
+  top = Math.round(top / SNAP_GRID) * SNAP_GRID;
+
+  // Edge/center snap — higher priority, overrides grid snap when near edges
   const right = left + wW;
   const bottom = top + wH;
 
@@ -324,6 +340,88 @@ export function hasUserLayout() {
   return localStorage.getItem(USER_LAYOUT_KEY) !== null;
 }
 
+// --- Named Layout Profiles ---
+
+export function getNamedLayouts() {
+  try {
+    const raw = localStorage.getItem(LAYOUTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object') return parsed;
+    }
+  } catch (e) {}
+  return {};
+}
+
+function captureCurrentLayout() {
+  const positions = {};
+  document.querySelectorAll('.widget').forEach(w => {
+    positions[w.id] = {
+      left: parseInt(w.style.left) || 0,
+      top: parseInt(w.style.top) || 0,
+      width: parseInt(w.style.width) || 200,
+      height: parseInt(w.style.height) || 150,
+    };
+  });
+  return {
+    positions,
+    visibility: { ...state.widgetVisibility },
+    gridMode: state.gridMode || 'float',
+    gridPermutation: state.gridPermutation || '3L-3R',
+    gridAssignments: state.gridAssignments ? { ...state.gridAssignments } : {},
+    gridSpans: state.gridSpans ? { ...state.gridSpans } : {},
+  };
+}
+
+export function saveNamedLayout(name) {
+  if (!name || typeof name !== 'string') return false;
+  const layouts = getNamedLayouts();
+  if (!layouts[name] && Object.keys(layouts).length >= MAX_LAYOUTS) return false; // cap at 20
+  layouts[name] = captureCurrentLayout();
+  localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+  return true;
+}
+
+export function loadNamedLayout(name) {
+  const layouts = getNamedLayouts();
+  const profile = layouts[name];
+  if (!profile) return false;
+
+  // Restore visibility
+  if (profile.visibility) {
+    state.widgetVisibility = { ...profile.visibility };
+    saveWidgetVisibility();
+  }
+
+  // Restore grid/float mode
+  if (profile.gridMode === 'grid') {
+    state.gridPermutation = profile.gridPermutation || '3L-3R';
+    state.gridAssignments = profile.gridAssignments ? { ...profile.gridAssignments } : {};
+    state.gridSpans = profile.gridSpans ? { ...profile.gridSpans } : {};
+    saveGridAssignments();
+    activateGridMode(state.gridPermutation);
+  } else {
+    if (isGridMode()) deactivateGridMode();
+    // Restore float positions
+    if (profile.positions) {
+      applyLayout(profile.positions);
+      localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(profile.positions));
+    }
+  }
+
+  applyWidgetVisibility();
+  if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
+  return true;
+}
+
+export function deleteNamedLayout(name) {
+  const layouts = getNamedLayouts();
+  if (!layouts[name]) return false;
+  delete layouts[name];
+  localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+  return true;
+}
+
 function bringToFront(widget) {
   state.zCounter++;
   widget.style.zIndex = state.zCounter;
@@ -346,6 +444,11 @@ function setupDrag(widget, handle) {
     origLeft = parseInt(widget.style.left) || 0;
     origTop = parseInt(widget.style.top) || 0;
 
+    // Show grid lines while dragging
+    if (state.snapToGrid) {
+      document.getElementById('widgetArea').classList.add('snap-grid-visible');
+    }
+
     function onMove(ev) {
       let newLeft = origLeft + (ev.clientX - startX);
       let newTop = origTop + (ev.clientY - startY);
@@ -362,7 +465,8 @@ function setupDrag(widget, handle) {
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      resolveOverlaps(widget);
+      document.getElementById('widgetArea').classList.remove('snap-grid-visible');
+      if (!state.allowOverlap) resolveOverlaps(widget);
       saveWidgets();
     }
 
@@ -388,9 +492,19 @@ function setupResize(widget, handle) {
     origLeft = parseInt(widget.style.left) || 0;
     origTop = parseInt(widget.style.top) || 0;
 
+    // Show grid lines while resizing
+    if (state.snapToGrid) {
+      document.getElementById('widgetArea').classList.add('snap-grid-visible');
+    }
+
     function onMove(ev) {
       let newW = origW + (ev.clientX - startX);
       let newH = origH + (ev.clientY - startY);
+      // Snap size to grid increments
+      if (state.snapToGrid) {
+        newW = Math.round(newW / SNAP_GRID) * SNAP_GRID;
+        newH = Math.round(newH / SNAP_GRID) * SNAP_GRID;
+      }
       ({ w: newW, h: newH } = clampSize(origLeft, origTop, newW, newH));
       widget.style.width = newW + 'px';
       widget.style.height = newH + 'px';
@@ -402,7 +516,8 @@ function setupResize(widget, handle) {
     function onUp() {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
-      resolveOverlaps(widget);
+      document.getElementById('widgetArea').classList.remove('snap-grid-visible');
+      if (!state.allowOverlap) resolveOverlaps(widget);
       saveWidgets();
       if (state.map && widget.id === 'widget-map') {
         state.map.invalidateSize();
@@ -546,7 +661,15 @@ function applyReflowLayout() {
   area.style.transformOrigin = '';
   area.classList.remove('scaling-active');
 
-  // Apply reflow CSS class
+  // When tabs are active on mobile, skip reflow grid — use tab layout instead
+  if (getLayoutMode() === 'mobile') {
+    area.classList.remove('reflow-layout');
+    rebuildTabs();
+    if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
+    return;
+  }
+
+  // Apply reflow CSS class (desktop only)
   area.classList.add('reflow-layout');
 
   // Reorder widget DOM nodes by priority (visible ones first in order)
@@ -652,6 +775,40 @@ export function initWidgets() {
         applyWidgetVisibility();
       });
       header.insertBefore(closeBtn, header.firstChild);
+
+      // Mobile: collapsible widgets — tap header to toggle
+      if (!isDesktop) {
+        // Widgets that start expanded on mobile
+        const expandedByDefault = new Set(['widget-map', 'widget-activations']);
+        const collapseKey = 'hamtab_collapsed';
+        let collapsed;
+        try {
+          collapsed = new Set(JSON.parse(localStorage.getItem(collapseKey) || '[]'));
+        } catch { collapsed = new Set(); }
+
+        // Apply initial collapsed state
+        const wid = widget.id;
+        if (collapsed.has(wid) || (!collapsed.size && !expandedByDefault.has(wid))) {
+          widget.classList.add('collapsed');
+        }
+
+        header.addEventListener('click', (e) => {
+          // Don't collapse when clicking buttons inside the header
+          if (e.target.closest('button') || e.target.closest('select') || e.target.closest('a')) return;
+
+          widget.classList.toggle('collapsed');
+
+          // Persist collapsed state
+          const allCollapsed = [];
+          document.querySelectorAll('.widget.collapsed').forEach(w => allCollapsed.push(w.id));
+          localStorage.setItem(collapseKey, JSON.stringify(allCollapsed));
+
+          // If expanding the map, invalidate so Leaflet re-renders
+          if (wid === 'widget-map' && !widget.classList.contains('collapsed') && state.map) {
+            setTimeout(() => state.map.invalidateSize(), 50);
+          }
+        });
+      }
     }
     if (resizer && isDesktop) setupResize(widget, resizer);
     if (isDesktop) widget.addEventListener('mousedown', () => bringToFront(widget));
@@ -660,6 +817,42 @@ export function initWidgets() {
   const mapWidget = document.getElementById('widget-map');
   if (state.map && mapWidget && window.ResizeObserver) {
     new ResizeObserver(() => state.map.invalidateSize()).observe(mapWidget);
+  }
+
+  // Full-screen map toggle (all screen sizes)
+  if (mapWidget) {
+    const mapHeader = mapWidget.querySelector('.widget-header');
+    if (mapHeader) {
+      const maxBtn = document.createElement('button');
+      maxBtn.className = 'map-fullscreen-btn';
+      maxBtn.title = 'Toggle fullscreen map';
+      maxBtn.textContent = '\u26F6'; // ⛶
+      maxBtn.addEventListener('mousedown', e => e.stopPropagation());
+
+      const enterFS = () => {
+        mapWidget.classList.add('map-fullscreen');
+        document.body.classList.add('map-fullscreen-active'); // neutralize parent transform + overflow
+        maxBtn.textContent = '\u2715'; // ✕
+        if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+      };
+      const exitFS = () => {
+        mapWidget.classList.remove('map-fullscreen');
+        document.body.classList.remove('map-fullscreen-active');
+        maxBtn.textContent = '\u26F6'; // ⛶
+        if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
+      };
+
+      maxBtn.addEventListener('click', (e) => {
+        e.stopPropagation(); // don't trigger collapse
+        mapWidget.classList.contains('map-fullscreen') ? exitFS() : enterFS();
+      });
+      mapHeader.appendChild(maxBtn);
+
+      // Escape key closes fullscreen map (matches Big Clock pattern)
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && mapWidget.classList.contains('map-fullscreen')) exitFS();
+      });
+    }
   }
 
   // --- Responsive reflow when widget area resizes ---

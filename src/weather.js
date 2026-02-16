@@ -6,6 +6,11 @@ const wxBgClasses = ['wx-clear-day','wx-clear-night','wx-partly-cloudy-day','wx-
 
 function useWU() { return state.wxStation && state.wxApiKey; }
 
+// NWS API only covers the US and territories
+function isNwsCoverage(lat, lon) {
+  return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
+}
+
 function setWxSource(src) {
   const wxSourceLogo = $('wxSourceLogo');
   wxSourceLogo.classList.remove('hidden', 'wx-src-wu', 'wx-src-nws');
@@ -50,6 +55,7 @@ export function fetchWeather() {
 
 export function fetchNwsConditions() {
   if (state.myLat === null || state.myLon === null) return;
+  if (!isNwsCoverage(state.myLat, state.myLon)) return;
   const url = '/api/weather/conditions?lat=' + state.myLat + '&lon=' + state.myLon;
   fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
     applyWeatherBackground(data.shortForecast, data.isDaytime);
@@ -111,13 +117,14 @@ function applyWeatherBackground(forecast, isDaytime) {
   }
   else if (/sunny|clear/.test(fc)) cls = isDaytime ? 'wx-clear-day' : 'wx-clear-night';
   if (cls) {
-    headerClock.classList.add(cls);
+    if (!state.disableWxBackgrounds) headerClock.classList.add(cls);
     if (wxIcon) wxIcon.textContent = wxIcons[cls] || '';
   }
 }
 
 export function fetchNwsAlerts() {
   if (state.myLat === null || state.myLon === null) return;
+  if (!isNwsCoverage(state.myLat, state.myLon)) return;
   const url = '/api/weather/alerts?lat=' + state.myLat + '&lon=' + state.myLon;
   fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(alerts => {
     state.nwsAlerts = alerts;

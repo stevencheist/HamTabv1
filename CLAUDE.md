@@ -72,6 +72,9 @@ main ──────────────────────── SH
 | `public/index.html` | Semantic HTML structure |
 | `public/style.css` | Dark theme, CSS custom properties |
 | `esbuild.mjs` | Build config (ES modules → IIFE bundle) |
+| `Dockerfile` | Docker image for self-hosted deployment — **uses explicit COPY list** |
+| `docker-compose.yml` | Docker Compose config for self-hosted deployment |
+| `.github/workflows/docker-publish.yml` | CI/CD — builds Docker image on GitHub Release publish |
 
 **Lanmode only:**
 
@@ -87,7 +90,7 @@ main ──────────────────────── SH
 |---|---|
 | `worker.js` | Cloudflare Worker — routes `/api/settings` to KV, proxies to container |
 | `wrangler.jsonc` | Cloudflare deployment config — container, KV namespace, routes |
-| `Dockerfile` | Container image for Cloudflare Containers |
+| `Dockerfile` | Container image for Cloudflare Containers (overrides main's Dockerfile) |
 | `src/settings-sync.js` | Client-side settings sync via Workers KV |
 | `.github/workflows/deploy.yml` | CI/CD — auto-deploy on push to hostedmode |
 | `public/sitemap.xml` | Search engine sitemap (SEO) |
@@ -203,7 +206,9 @@ main ──────────────────────── SH
 
 - **After merging main into hostedmode — verify dependencies and Dockerfile:**
   - `@cloudflare/containers` is a hostedmode-only dependency that `main` doesn't have. When `main` modifies the `dependencies` block in `package.json` (adding/removing packages), git's merge can silently drop `@cloudflare/containers`. **Always check** `package.json` on hostedmode after merge. If missing, re-add it (`npm install @cloudflare/containers`), commit, then push.
-  - **Dockerfile COPY directives** — If new server-side `.js` files are added on main (e.g. `server-config.js`), they must be added to the Dockerfile's COPY list. The Dockerfile uses explicit file copies, not wildcards. Missing files cause `MODULE_NOT_FOUND` crashes in the container.
+  - **Dockerfile COPY directives** — If new server-side `.js` files are added on main (e.g. `server-config.js`), they must be added to **both** Dockerfiles: the one on `main` (self-hosted Docker) AND the one on `hostedmode` (Cloudflare Containers). Both use explicit file copies, not wildcards. Missing files cause `MODULE_NOT_FOUND` crashes in the container.
+
+- **Docker image (main branch):** The `docker-publish.yml` workflow builds and pushes a Docker image to Docker Hub when a GitHub Release is published. It does NOT trigger on every push. The Dockerfile uses a multi-stage build: stage 1 runs `npm ci` + `npm run build` + `npm prune --omit=dev`, stage 2 copies only runtime files via explicit COPY directives. When adding new server-side `.js` files, add them to the COPY list in the Dockerfile.
 
 - **Merge conflict resolution** — See BRANCH_STRATEGY.md for full conflict resolution protocol.
 
@@ -212,7 +217,16 @@ main ──────────────────────── SH
   1. **Syntax check:** `node -c server.js` — catches SyntaxErrors (duplicate declarations, missing brackets)
   2. **Duplicate detection:** `grep -c 'let \|const \|function ' server.js` — compare count against main. Large increase = likely duplicated sections
   3. **Section header scan:** `grep -n '^// ---' server.js` — look for duplicate section headers (e.g. two `// --- N2YO Satellite Tracking API ---`)
-  4. **If any check fails:** Fix the issue on the deployment branch before pushing. Do NOT push broken code — CI/CD will deploy it immediately to production
+  4. **Dockerfile COPY check:** Compare server-side `.js` files against the Dockerfile COPY list. Run: `diff <(grep 'COPY.*\.js' Dockerfile | sed 's/.*\///' | sort) <(ls *.js *.mjs 2>/dev/null | sort)` — any files in the directory but missing from Dockerfile need to be added (except `esbuild.mjs` which is build-only and runs in stage 1). On hostedmode, also check the hostedmode Dockerfile.
+  5. **If any check fails:** Fix the issue on the deployment branch before pushing. Do NOT push broken code — CI/CD will deploy it immediately to production
+
+### New Server-Side File Checklist
+
+**MANDATORY: When adding a new `.js` file to the project root (server-side code):**
+
+1. Add a `COPY` directive to the `main` branch Dockerfile (stage 2 runtime section)
+2. After merging to `hostedmode`, add the same `COPY` directive to the hostedmode Dockerfile
+3. If the file is only needed at build time (like `esbuild.mjs`), it does NOT need a runtime COPY — stage 1 already copies everything via `COPY . .`
 
 ### Documentation Edits
 

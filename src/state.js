@@ -39,6 +39,8 @@ const state = {
 
   // Preferences
   slimHeader: localStorage.getItem('hamtab_slim_header') === 'true',
+  grayscale: localStorage.getItem('hamtab_grayscale') === 'true',
+  disableWxBackgrounds: localStorage.getItem('hamtab_disable_wx_bg') === 'true',
   use24h: localStorage.getItem('hamtab_time24') !== 'false',
   privilegeFilterEnabled: localStorage.getItem('hamtab_privilege_filter') === 'true',
   licenseClass: localStorage.getItem('hamtab_license_class') || '',
@@ -54,7 +56,7 @@ const state = {
   maidenheadDebounceTimer: null,
 
   // Map overlay config
-  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true },
+  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false },
 
   // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
   dxpedTimeFilter: localStorage.getItem('hamtab_dxped_time_filter') || 'all',
@@ -131,6 +133,7 @@ const state = {
   // Weather
   wxStation: localStorage.getItem('hamtab_wx_station') || '',
   wxApiKey: localStorage.getItem('hamtab_wx_apikey') || '',
+  owmApiKey: localStorage.getItem('hamtab_owm_apikey') || '',
   nwsAlerts: [],
   weatherTimer: null,
   nwsCondTimer: null,
@@ -146,10 +149,15 @@ const state = {
   // Widgets
   zCounter: 10, // next z-index to assign when a widget is focused (increments on each click)
 
+  // Free-float snap settings
+  snapToGrid: localStorage.getItem('hamtab_snap_grid') !== 'false', // snap widget positions to grid (default: on)
+  allowOverlap: localStorage.getItem('hamtab_allow_overlap') === 'true', // skip overlap resolution (default: off)
+
   // Grid layout mode
   gridMode: localStorage.getItem('hamtab_grid_mode') || 'grid', // 'float' or 'grid'
   gridPermutation: localStorage.getItem('hamtab_grid_permutation') || '3L-3R', // active permutation ID
   gridAssignments: null, // loaded at grid activation — maps cell names to widget IDs
+  gridSpans: null, // loaded at grid activation — per-permutation spans { cellName: spanCount }
 
   // Reference widget
   currentReferenceTab: 'rst', // active reference tab (rst, phonetic, etc.)
@@ -163,6 +171,7 @@ const state = {
     data: [],
     summary: {},
     lastFetch: null,
+    error: false, // true when fetch fails — shows retry message instead of eternal "Loading..."
     displayMode: localStorage.getItem('hamtab_livespots_mode') || 'count', // 'count' or 'distance'
     maxAge: parseInt(localStorage.getItem('hamtab_livespots_maxage'), 10) || 60, // minutes
     visibleBands: new Set(),
@@ -182,17 +191,24 @@ const state = {
   voacapEngine: 'simplified',   // 'dvoacap' or 'simplified' — which engine produced the data
   voacapTarget: localStorage.getItem('hamtab_voacap_target') || 'overview', // 'overview' or 'spot'
   voacapAutoSpot: localStorage.getItem('hamtab_voacap_auto_spot') === 'true', // auto-switch to SPOT on selection
+  voacapSensitivity: parseInt(localStorage.getItem('hamtab_voacap_sensitivity'), 10) || 3, // 1-5 SNR sensitivity (3=default)
   voacapLastFetch: 0,           // timestamp of last successful /api/voacap fetch
 
   // Heatmap overlay (REL mode for VOACAP)
   heatmapOverlayMode: localStorage.getItem('hamtab_heatmap_mode') || 'circles', // 'circles' or 'heatmap'
   heatmapLayer: null,       // L.imageOverlay instance
   heatmapRenderTimer: null, // debounce timer for pan/zoom re-render
+  voacapParamTimer: null,   // debounce timer for power/mode/TOA/path button clicks
 
   // Beacons / DXpeditions / Contests
   beaconTimer: null,          // setInterval ID for 1-second beacon updates
+  dedxTimer: null,            // setInterval ID for 1-second DE/DX Info clock updates
+  stopwatchTimer: null,       // setInterval ID for 100ms stopwatch/countdown updates
   lastDxpeditionData: null,   // cached /api/dxpeditions response
   lastContestData: null,      // cached /api/contests response
+
+  // Mobile tab bar
+  activeTab: localStorage.getItem('hamtab_active_tab') || 'widget-map',
 
   // Progressive scaling
   reflowActive: false, // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
@@ -210,6 +226,16 @@ const state = {
   beaconMarkers: {},    // { freq: L.circleMarker } for active NCDXF beacon map markers
   dxpedMarkers: [],     // L.circleMarker[] for DXpedition map markers
   dxPathLines: [],      // L.polyline[] for band-colored DX contact paths
+
+  // Clock face config
+  clockFace: localStorage.getItem('hamtab_clock_face') || 'classic',
+  clockComplications: (() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('hamtab_clock_complications'));
+      if (s && typeof s === 'object' && !Array.isArray(s)) return s;
+    } catch (e) {}
+    return {}; // all off by default — user opts in
+  })(),
 
   // Day/night
   lastLocalDay: null,

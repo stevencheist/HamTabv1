@@ -181,6 +181,37 @@ Add or remove satellites from tracking.
 ### Automatic Layout Save
 Widget positions and sizes are automatically saved to localStorage. When you reload, your layout is restored.
 
+### Named Layout Profiles
+
+Save up to 20 named layout profiles and switch between them instantly. Each profile captures your complete layout state: widget positions, visibility, grid/float mode, grid permutation, and grid slot assignments.
+
+#### Saving a Layout
+
+**From the header bar:**
+1. Click the **Layouts ▾** button in the top-right corner
+2. Click **Save Current...**
+3. Type a name (e.g., "Contest Mode", "My DX Setup")
+4. Click **Save** or press Enter
+
+**From the Config panel:**
+1. Open Config → **Display** tab
+2. Scroll to the **Saved Layouts** section
+3. Type a name in the input field and click **Save**
+
+#### Loading a Layout
+
+Click any saved layout name in the Layouts dropdown or in Config → Display. Your widget positions, visibility, and grid settings are restored immediately.
+
+#### Deleting a Layout
+
+Click the **×** button next to any layout name to delete it. You'll be asked to confirm.
+
+#### Mobile Access
+
+On mobile devices, tap the hamburger menu (☰) and select **Layouts** to access the layout dropdown.
+
+<div class="tip">Layout profiles work in both free-float and grid mode. When you load a profile saved in grid mode, grid mode activates automatically (and vice versa). This makes it easy to switch between a grid layout for everyday use and a free-float layout for contests.</div>
+
 ### Reset Layout
 To reset to default layout:
 1. Open browser developer tools (F12)
@@ -230,6 +261,7 @@ HamTab stores all data in browser localStorage with the `hamtab_` prefix:
 | `hamtab_wu_key` | Weather Underground key |
 | `hamtab_widgets` | Widget visibility |
 | `hamtab_widgets_user` | Widget positions/sizes |
+| `hamtab_layouts` | Named layout profiles (up to 20) |
 | `hamtab_filter_presets` | Saved filter presets |
 | `hamtab_solar_fields` | Solar field visibility |
 | `hamtab_lunar_fields` | Lunar field visibility |

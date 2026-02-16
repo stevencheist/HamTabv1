@@ -63,10 +63,10 @@ app.get('/api/health', (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
 
-// Rate limiting — /api/ routes only, 60 requests per minute per IP
+// Rate limiting — /api/ routes only; generous in LAN mode, stricter when hosted
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 60,
+  max: process.env.HOSTED_MODE === '1' ? 60 : 300,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
@@ -110,6 +110,8 @@ const CACHE_RULES = [
   { prefix: '/api/spots/sota',         cc: 'public, max-age=30, s-maxage=60' },        // no server cache; browser 30s, edge 60s
   { prefix: '/api/spots',              cc: 'public, max-age=30, s-maxage=60' },        // POTA; client polls 60s
   { prefix: '/api/iss/position',       cc: 'public, max-age=5, s-maxage=10' },         // real-time; client polls 10s
+  { prefix: '/api/weather/clouds',     cc: 'public, max-age=1800, s-maxage=3600' },     // OWM cloud tiles; browser 30m, edge 1h
+  { prefix: '/api/weather/radar',      cc: 'public, max-age=120, s-maxage=300' },      // RainViewer; browser 2m, edge 5m
   { prefix: '/api/weather/conditions', cc: 'public, max-age=300, s-maxage=900' },      // NWS 15m refresh; browser 5m, edge 15m
   { prefix: '/api/weather/alerts',     cc: 'public, max-age=120, s-maxage=300' },      // safety-critical; browser 2m, edge 5m
   { prefix: '/api/weather',            cc: 'public, max-age=120, s-maxage=300' },      // WU data; browser 2m, edge 5m
@@ -798,8 +800,8 @@ app.get('/api/satellites/positions', async (req, res) => {
     return res.status(400).json({ error: 'Satellite IDs must be numeric' });
   }
 
-  // Cache key based on IDs
-  const cacheKey = satIds.sort().join(',');
+  // Cache key includes IDs + rounded observer coords (~1.1 km granularity)
+  const cacheKey = `${satIds.sort().join(',')}:${obsLat.toFixed(2)}:${obsLon.toFixed(2)}`;
   if (satPosCache.key === cacheKey && satPosCache.data && Date.now() < satPosCache.expires) {
     return res.json(satPosCache.data);
   }
@@ -1146,12 +1148,20 @@ function degToCompass(deg) {
 // NWS weather conditions (background gradient for local clock)
 const nwsGridCache = {}; // { 'lat,lon': { forecastUrl, expires } }
 
+// NWS API only covers the US and territories — reject out-of-range coordinates early
+function isNwsCoverage(lat, lon) {
+  return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
+}
+
 app.get('/api/weather/conditions', async (req, res) => {
   try {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+    }
+    if (!isNwsCoverage(lat, lon)) {
+      return res.status(400).json({ error: 'NWS only covers US locations' });
     }
     const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
     let grid = nwsGridCache[key];
@@ -1191,6 +1201,9 @@ app.get('/api/weather/alerts', async (req, res) => {
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+    }
+    if (!isNwsCoverage(lat, lon)) {
+      return res.json([]); // no alerts outside US coverage
     }
     const raw = await nwsFetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`);
     const data = JSON.parse(raw);
@@ -1302,6 +1315,25 @@ app.get('/api/callsign/:call', async (req, res) => {
     const data = await fetchJSON(`https://callook.info/${call}/json`);
     const addr = data.address || {};
     const loc = data.location || {};
+    let lat = loc.latitude ? parseFloat(loc.latitude) : null;
+    let lon = loc.longitude ? parseFloat(loc.longitude) : null;
+
+    // Fallback: geocode via Nominatim when callook.info has address but no coordinates
+    if (lat === null && lon === null && addr.line2) {
+      try {
+        const q = encodeURIComponent(addr.line2);
+        const geoUrl = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=us`;
+        const geoText = await secureFetch(geoUrl);
+        const geoResults = JSON.parse(geoText);
+        if (geoResults.length > 0) {
+          lat = parseFloat(geoResults[0].lat);
+          lon = parseFloat(geoResults[0].lon);
+        }
+      } catch {
+        // Geocode is best-effort — silently fall through with null coordinates
+      }
+    }
+
     res.json({
       status: data.status || 'INVALID',
       class: (data.current && data.current.operClass) || '',
@@ -1309,6 +1341,8 @@ app.get('/api/callsign/:call', async (req, res) => {
       addr1: addr.line1 || '',
       addr2: addr.line2 || '',
       grid: loc.gridsquare || '',
+      lat,
+      lon,
     });
   } catch (err) {
     console.error('Error fetching callsign data:', err.message);
@@ -1337,7 +1371,7 @@ app.post('/api/config/env', (req, res) => {
     }
 
     // Update or append each key
-    const allowedKeys = ['WU_API_KEY', 'N2YO_API_KEY'];
+    const allowedKeys = ['WU_API_KEY', 'OWM_API_KEY', 'N2YO_API_KEY'];
     for (const [key, value] of Object.entries(updates)) {
       // Only allow known env keys
       if (!allowedKeys.includes(key)) continue;
@@ -2057,12 +2091,31 @@ app.get('/api/propagation/image', async (req, res) => {
     const validTypes = ['mufd', 'fof2'];
     const type = validTypes.includes(req.query.type) ? req.query.type : 'mufd';
     const url = `https://prop.kc2g.com/renders/current/${type}-bare-now.jpg`;
-    const response = await secureFetch(url, { timeout: 15000 });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    res.set('Content-Type', 'image/jpeg');
-    res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
-    const buffer = Buffer.from(await response.arrayBuffer());
-    res.send(buffer);
+    const parsed = new URL(url);
+    const resolvedIP = await resolveHost(parsed.hostname);
+    if (isPrivateIP(resolvedIP)) {
+      return res.status(403).json({ error: 'Blocked' });
+    }
+    const proxyReq = https.get({
+      hostname: resolvedIP,
+      path: parsed.pathname,
+      port: 443,
+      headers: { 'User-Agent': 'HamTab/1.0', 'Host': parsed.hostname },
+      servername: parsed.hostname,
+    }, (upstream) => {
+      if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
+        upstream.resume();
+        return res.status(502).json({ error: 'Failed to fetch propagation image' });
+      }
+      res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
+      res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
+      upstream.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('Propagation image proxy error:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch propagation image' });
+    });
+    proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
   } catch (err) {
     console.error('Error fetching propagation image:', err.message);
     res.status(502).json({ error: 'Failed to fetch propagation image' });
@@ -2073,16 +2126,153 @@ app.get('/api/propagation/image', async (req, res) => {
 // Shows HF radio absorption caused by solar X-ray and proton events
 app.get('/api/drap/image', async (req, res) => {
   try {
-    const url = 'https://services.swpc.noaa.gov/images/animations/d-rap/global/d-rap/latest.png';
-    const response = await secureFetch(url, { timeout: 15000 });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    res.set('Content-Type', 'image/png');
-    res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
-    const buffer = Buffer.from(await response.arrayBuffer());
-    res.send(buffer);
+    const url = 'https://services.swpc.noaa.gov/images/animations/d-rap/global/latest.png';
+    const parsed = new URL(url);
+    const resolvedIP = await resolveHost(parsed.hostname);
+    if (isPrivateIP(resolvedIP)) {
+      return res.status(403).json({ error: 'Blocked' });
+    }
+    const proxyReq = https.get({
+      hostname: resolvedIP,
+      path: parsed.pathname,
+      port: 443,
+      headers: { 'User-Agent': 'HamTab/1.0', 'Host': parsed.hostname },
+      servername: parsed.hostname,
+    }, (upstream) => {
+      if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
+        upstream.resume();
+        return res.status(502).json({ error: 'Failed to fetch D-RAP image' });
+      }
+      res.set('Content-Type', upstream.headers['content-type'] || 'image/png');
+      res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
+      upstream.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('D-RAP image proxy error:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch D-RAP image' });
+    });
+    proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
   } catch (err) {
     console.error('Error fetching D-RAP image:', err.message);
     res.status(502).json({ error: 'Failed to fetch D-RAP image' });
+  }
+});
+
+// D-RAP text grid — parsed frequency data for client-side heatmap rendering
+// 4° lat/lon grid of "Highest Frequency Affected by 1dB Absorption" in MHz
+const drapDataCache = { data: null, expires: 0 };
+const DRAP_TTL = 5 * 60 * 1000; // 5 min — SWPC updates ~every 1-2 min but data changes slowly
+
+app.get('/api/drap/data', async (req, res) => {
+  try {
+    if (drapDataCache.data && Date.now() < drapDataCache.expires) {
+      return res.json(drapDataCache.data);
+    }
+    const url = 'https://services.swpc.noaa.gov/text/drap_global_frequencies.txt';
+    const text = await secureFetch(url);
+
+    // Parse the NOAA text grid into a structured object
+    const lines = text.split('\n');
+    const lons = []; // longitude values from header
+    const rows = []; // { lat, values[] }
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('---')) continue;
+
+      // Header row: longitude values
+      if (lons.length === 0 && /^\s*-?\d+/.test(trimmed) && !trimmed.includes('|')) {
+        trimmed.split(/\s+/).forEach(v => lons.push(parseFloat(v)));
+        continue;
+      }
+
+      // Data row: "lat | val val val ..."
+      const match = trimmed.match(/^\s*(-?\d+)\s*\|\s*(.+)$/);
+      if (match) {
+        const lat = parseInt(match[1]);
+        const values = match[2].trim().split(/\s+/).map(Number);
+        rows.push({ lat, values });
+      }
+    }
+
+    const result = { lons, rows };
+    drapDataCache.data = result;
+    drapDataCache.expires = Date.now() + DRAP_TTL;
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching D-RAP data:', err.message);
+    res.status(502).json({ error: 'Failed to fetch D-RAP data' });
+  }
+});
+
+// --- Weather Radar (RainViewer) ---
+
+const radarCache = { data: null, expires: 0 };
+const RADAR_TTL = 5 * 60 * 1000; // 5 minutes
+
+app.get('/api/weather/radar', async (req, res) => {
+  try {
+    if (radarCache.data && Date.now() < radarCache.expires) {
+      return res.json(radarCache.data);
+    }
+    const json = await fetchJSON('https://api.rainviewer.com/public/weather-maps.json');
+    // Extract latest radar frame
+    const radar = json.radar;
+    if (!radar || !radar.past || !radar.past.length) {
+      throw new Error('No radar frames available');
+    }
+    const latest = radar.past[radar.past.length - 1];
+    const result = { host: json.host, path: latest.path, time: latest.time };
+    radarCache.data = result;
+    radarCache.expires = Date.now() + RADAR_TTL;
+    res.json(result);
+  } catch (err) {
+    console.error('Error fetching weather radar:', err.message);
+    res.status(502).json({ error: 'Failed to fetch weather radar data' });
+  }
+});
+
+// Cloud cover tiles — proxy OpenWeatherMap tile API to keep API key server-side
+app.get('/api/weather/clouds/:z/:x/:y', async (req, res) => {
+  try {
+    const apiKey = process.env.OWM_API_KEY;
+    if (!apiKey) {
+      return res.status(503).json({ error: 'No OpenWeatherMap API key configured' });
+    }
+    const { z, x, y } = req.params;
+    // Validate tile coordinates are integers
+    if (!/^\d+$/.test(z) || !/^\d+$/.test(x) || !/^\d+$/.test(y)) {
+      return res.status(400).json({ error: 'Invalid tile coordinates' });
+    }
+    const url = `https://tile.openweathermap.org/map/clouds_new/${z}/${x}/${y}.png?appid=${apiKey}`;
+    const parsed = new URL(url);
+    const resolvedIP = await resolveHost(parsed.hostname);
+    if (isPrivateIP(resolvedIP)) {
+      return res.status(403).json({ error: 'Blocked' });
+    }
+    const proxyReq = https.get({
+      hostname: resolvedIP,
+      path: parsed.pathname + parsed.search,
+      port: 443,
+      headers: { 'User-Agent': 'HamTab/1.0', 'Host': parsed.hostname },
+      servername: parsed.hostname,
+    }, (upstream) => {
+      if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
+        upstream.resume();
+        return res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
+      }
+      res.set('Content-Type', upstream.headers['content-type'] || 'image/png');
+      res.set('Cache-Control', 'public, max-age=1800, s-maxage=3600'); // 30m browser, 1h edge
+      upstream.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('Cloud cover tile proxy error:', err.message);
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
+    });
+    proxyReq.setTimeout(10000, () => { proxyReq.destroy(); });
+  } catch (err) {
+    console.error('Error fetching cloud cover tile:', err.message);
+    res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
   }
 });
 
@@ -2450,6 +2640,10 @@ app.get('/api/voacap', async (req, res) => {
     const pathType = validPath.includes(req.query.path) ? req.query.path : 'SP';
     const longPath = pathType === 'LP';
 
+    // Optional client-provided SNR override (integer dB, clamped to safe range)
+    const clientSnr = req.query.snr != null ? parseInt(req.query.snr, 10) : null;
+    const snrOverride = (clientSnr != null && !isNaN(clientSnr)) ? Math.max(-10, Math.min(100, clientSnr)) : null;
+
     // API token validation — if VOACAP_API_TOKENS is set in .env, require a valid token.
     // Format: comma-separated list of tokens, e.g. VOACAP_API_TOKENS=abc123,def456
     // Client sends token via X-Voacap-Token header or ?token= query param.
@@ -2485,6 +2679,7 @@ app.get('/api/voacap', async (req, res) => {
       rxLat != null ? Math.round(rxLat * 10) / 10 : 'all',
       rxLon != null ? Math.round(rxLon * 10) / 10 : 'all',
       power, mode, toa, pathType, kBand,
+      snrOverride != null ? snrOverride : 'default',
     ].join(':');
 
     const cached = voacapCache[cacheKey];
@@ -2492,13 +2687,17 @@ app.get('/api/voacap', async (req, res) => {
       return res.json(cached.data);
     }
 
-    // Mode → required SNR and bandwidth (ITU standard thresholds)
+    // Mode → default required SNR (dB above noise in BW) and bandwidth.
+    // These are the "Normal" (level 3) defaults. Client can override via ?snr= param.
+    // See SENSITIVITY_LEVELS in voacap.js for the full 1-5 preset table.
     const modeMap = {
-      CW:  { snr: 39, bw: 500 },
-      SSB: { snr: 73, bw: 2700 },
+      CW:  { snr: 30, bw: 500 },
+      SSB: { snr: 54, bw: 2700 },
       FT8: { snr: 2,  bw: 50 },
     };
-    const { snr: requiredSnr, bw: bandwidthHz } = modeMap[mode] || modeMap.SSB;
+    const modeDefaults = modeMap[mode] || modeMap.SSB;
+    const requiredSnr = snrOverride != null ? snrOverride : modeDefaults.snr;
+    const bandwidthHz = modeDefaults.bw;
 
     // VOACAP band frequencies (no 160m, no 60m)
     const frequencies = [3.7, 7.15, 10.12, 14.15, 18.1, 21.2, 24.93, 28.5];

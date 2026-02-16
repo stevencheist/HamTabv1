@@ -7,6 +7,10 @@ export function renderAllMapOverlays() {
   renderTimezoneGrid();
   renderMufImageOverlay();
   renderDrapOverlay();
+  renderTropicsLines();
+  renderWeatherRadar();
+  renderCloudCover();
+  renderSymbolLegend();
 }
 
 export function renderLatLonGrid() {
@@ -182,26 +186,252 @@ export function renderMufImageOverlay() {
 let drapImageLayer = null;
 let drapImageRefreshTimer = null;
 
+// D-RAP color scale — maps normalized value (0–1) to RGBA
+// NOAA gradient: purple → blue → cyan → green → yellow → red
+// Scale adapts to actual data range so quiet conditions are still visible
+function drapColor(mhz, maxVal) {
+  if (mhz <= 0) return { r: 0, g: 0, b: 0, a: 0 }; // transparent for no absorption
+  // Use the larger of actual max or 5 MHz as the scale ceiling —
+  // ensures quiet-time data (0–2 MHz) uses the full color range,
+  // but severe events (30+ MHz) still scale correctly
+  const ceil = Math.max(maxVal, 5);
+  const t = Math.min(mhz / ceil, 1); // normalize to 0–1 against dynamic ceiling
+  let r, g, b;
+  if (t < 0.2) {        // low: purple → blue
+    const s = t / 0.2;
+    r = Math.round(80 * (1 - s));
+    g = 0;
+    b = Math.round(128 + 127 * s);
+  } else if (t < 0.4) { // blue → cyan
+    const s = (t - 0.2) / 0.2;
+    r = 0;
+    g = Math.round(255 * s);
+    b = 255;
+  } else if (t < 0.6) { // cyan → green
+    const s = (t - 0.4) / 0.2;
+    r = 0;
+    g = 255;
+    b = Math.round(255 * (1 - s));
+  } else if (t < 0.8) { // green → yellow
+    const s = (t - 0.6) / 0.2;
+    r = Math.round(255 * s);
+    g = 255;
+    b = 0;
+  } else {               // yellow → red (severe)
+    const s = (t - 0.8) / 0.2;
+    r = 255;
+    g = Math.round(255 * (1 - s));
+    b = 0;
+  }
+  return { r, g, b, a: 180 }; // semi-transparent
+}
+
 export function renderDrapOverlay() {
   if (drapImageLayer) { state.map.removeLayer(drapImageLayer); drapImageLayer = null; }
   if (drapImageRefreshTimer) { clearInterval(drapImageRefreshTimer); drapImageRefreshTimer = null; }
   if (!state.mapOverlays.drapOverlay) return;
 
   const L = window.L;
-  const url = `/api/drap/image?_t=${Date.now()}`;
-  const bounds = [[-90, -180], [90, 180]]; // Plate Carree full world
 
-  drapImageLayer = L.imageOverlay(url, bounds, {
-    opacity: 0.5,
-    pane: 'propagation', // same z-index as MUF overlay (300)
-    interactive: false,
-  }).addTo(state.map);
+  async function fetchAndRender() {
+    try {
+      const resp = await fetch('/api/drap/data');
+      if (!resp.ok) return;
+      const { lons, rows } = await resp.json();
+      if (!lons || !rows || rows.length === 0) return;
+
+      const cols = lons.length;    // 90 longitude columns
+      const numRows = rows.length; // ~90 latitude rows (89 to -89, step -2)
+
+      // Find max value for dynamic color scaling
+      let maxVal = 0;
+      for (let r = 0; r < numRows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const v = rows[r].values[c] || 0;
+          if (v > maxVal) maxVal = v;
+        }
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width = cols;
+      canvas.height = numRows;
+      const ctx = canvas.getContext('2d');
+      const imageData = ctx.createImageData(cols, numRows);
+      const data = imageData.data;
+
+      for (let r = 0; r < numRows; r++) {
+        const values = rows[r].values;
+        for (let c = 0; c < cols; c++) {
+          const px = drapColor(values[c] || 0, maxVal);
+          const idx = (r * cols + c) * 4;
+          data[idx] = px.r;
+          data[idx + 1] = px.g;
+          data[idx + 2] = px.b;
+          data[idx + 3] = px.a;
+        }
+      }
+
+      ctx.putImageData(imageData, 0, 0);
+
+      // Grid centers are at (lat, lon) but each cell spans 2° lat × 4° lon,
+      // so the full grid covers -90 to 90 lat, -180 to 180 lon
+      const bounds = [[-90, -180], [90, 180]];
+
+      if (drapImageLayer) state.map.removeLayer(drapImageLayer);
+      drapImageLayer = L.imageOverlay(canvas.toDataURL(), bounds, {
+        opacity: 0.55,
+        pane: 'propagation',
+        interactive: false,
+      }).addTo(state.map);
+    } catch (err) {
+      if (state.debug) console.error('D-RAP render error:', err);
+    }
+  }
+
+  fetchAndRender();
 
   // Refresh every 15 minutes (SWPC updates D-RAP on ~15m cadence)
   drapImageRefreshTimer = setInterval(() => {
-    if (!state.mapOverlays.drapOverlay || !drapImageLayer) return;
-    drapImageLayer.setUrl(`/api/drap/image?_t=${Date.now()}`);
+    if (!state.mapOverlays.drapOverlay) return;
+    fetchAndRender();
   }, 15 * 60 * 1000); // 15 minutes
+}
+
+// --- Tropics & Arctic Lines ---
+
+let tropicsLayer = null;
+
+export function renderTropicsLines() {
+  if (tropicsLayer) { state.map.removeLayer(tropicsLayer); tropicsLayer = null; }
+  if (!state.mapOverlays.tropicsLines) return;
+
+  tropicsLayer = L.layerGroup().addTo(state.map);
+
+  const lines = [
+    { lat: 66.5634,  name: 'Arctic Circle',        color: '#6ec6ff', dash: '8,6' },
+    { lat: 23.4362,  name: 'Tropic of Cancer',      color: '#f0a050', dash: '8,6' },
+    { lat: 0,        name: 'Equator',                color: '#f0d060', dash: null },
+    { lat: -23.4362, name: 'Tropic of Capricorn',    color: '#f0a050', dash: '8,6' },
+    { lat: -66.5634, name: 'Antarctic Circle',       color: '#6ec6ff', dash: '8,6' },
+  ];
+
+  const bounds = state.map.getBounds();
+  const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.02;
+
+  for (const ln of lines) {
+    const style = {
+      color: ln.color, weight: ln.dash ? 1.5 : 2, opacity: 0.6,
+      dashArray: ln.dash || undefined,
+      pane: 'mapOverlays', interactive: false,
+    };
+    L.polyline([[ln.lat, -180], [ln.lat, 180]], style).addTo(tropicsLayer);
+
+    // Label at left edge of viewport
+    if (ln.lat >= bounds.getSouth() && ln.lat <= bounds.getNorth()) {
+      const isArctic = Math.abs(ln.lat) > 60;
+      L.marker([ln.lat, labelLon], {
+        icon: L.divIcon({
+          className: 'grid-label tropics-label' + (isArctic ? ' tropics-arctic' : ''),
+          html: ln.name,
+          iconSize: null,
+        }),
+        pane: 'mapOverlays', interactive: false,
+      }).addTo(tropicsLayer);
+    }
+  }
+}
+
+// --- Weather Radar (RainViewer tile layer) ---
+
+let weatherRadarLayer = null;
+let weatherRadarTimer = null;
+
+export function renderWeatherRadar() {
+  if (weatherRadarLayer) { state.map.removeLayer(weatherRadarLayer); weatherRadarLayer = null; }
+  if (weatherRadarTimer) { clearInterval(weatherRadarTimer); weatherRadarTimer = null; }
+  if (!state.mapOverlays.weatherRadar) return;
+
+  fetchRadarAndShow();
+  weatherRadarTimer = setInterval(fetchRadarAndShow, 5 * 60 * 1000); // 5min refresh
+}
+
+async function fetchRadarAndShow() {
+  try {
+    const res = await fetch('/api/weather/radar');
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.host || !data.path) return;
+
+    const tileUrl = `${data.host}${data.path}/256/{z}/{x}/{y}/2/1_1.png`;
+
+    // Remove old layer before adding new one
+    if (weatherRadarLayer) state.map.removeLayer(weatherRadarLayer);
+
+    weatherRadarLayer = L.tileLayer(tileUrl, {
+      opacity: 0.35,
+      pane: 'propagation', // z-300, below mapOverlays (350)
+      interactive: false,
+      attribution: '&copy; RainViewer',
+    }).addTo(state.map);
+  } catch (e) {
+    if (state.debug) console.error('Weather radar fetch failed:', e);
+  }
+}
+
+// --- Cloud Cover (OpenWeatherMap tile layer) ---
+
+let cloudCoverLayer = null;
+
+export function renderCloudCover() {
+  if (cloudCoverLayer) { state.map.removeLayer(cloudCoverLayer); cloudCoverLayer = null; }
+  if (!state.mapOverlays.cloudCover) return;
+
+  cloudCoverLayer = L.tileLayer('/api/weather/clouds/{z}/{x}/{y}', {
+    opacity: 0.4,
+    pane: 'propagation', // z-300, below mapOverlays (350)
+    interactive: false,
+    attribution: '&copy; OpenWeatherMap',
+  }).addTo(state.map);
+}
+
+// --- Symbol Legend (L.Control) ---
+
+let legendControl = null;
+
+export function renderSymbolLegend() {
+  if (legendControl) { state.map.removeControl(legendControl); legendControl = null; }
+  if (!state.mapOverlays.symbolLegend) return;
+
+  const LegendControl = L.Control.extend({
+    options: { position: 'bottomright' },
+    onAdd() {
+      const div = L.DomUtil.create('div', 'map-legend');
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
+
+      const items = [
+        { symbol: '<span class="legend-dot" style="background:#4CAF50"></span>', label: 'POTA' },
+        { symbol: '<span class="legend-dot" style="background:#FF9800"></span>', label: 'SOTA' },
+        { symbol: '<span class="legend-dot" style="background:#f44336"></span>', label: 'DX Cluster' },
+        { symbol: '<span class="legend-dot" style="background:#009688"></span>', label: 'WWFF' },
+        { symbol: '<span class="legend-dot" style="background:#9C27B0"></span>', label: 'PSKReporter' },
+        { symbol: '<span class="legend-circle" style="border-color:#FF9800"></span>', label: 'DXped (active)' },
+        { symbol: '<span class="legend-circle" style="border-color:#888"></span>', label: 'DXped (upcoming)' },
+        { symbol: '<span class="legend-dot legend-sun"></span>', label: 'Sun sub-point' },
+        { symbol: '<span class="legend-dot legend-moon"></span>', label: 'Moon sub-point' },
+        { symbol: '<span class="legend-line" style="border-color:#666"></span>', label: 'Gray line' },
+        { symbol: '<span class="legend-line" style="border-color:#4a90e2"></span>', label: 'Geodesic path' },
+        { symbol: '<span class="legend-dot legend-beacon"></span>', label: 'NCDXF beacon' },
+      ];
+
+      div.innerHTML = '<div class="legend-title">Legend</div>' +
+        items.map(i => `<div class="legend-row">${i.symbol}<span class="legend-label">${i.label}</span></div>`).join('');
+      return div;
+    },
+  });
+
+  legendControl = new LegendControl();
+  state.map.addControl(legendControl);
 }
 
 export function saveMapOverlays() {

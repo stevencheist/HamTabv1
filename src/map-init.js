@@ -1,8 +1,10 @@
 import state from './state.js';
 import { latLonToGrid } from './geo.js';
 import { esc } from './utils.js';
-import { renderAllMapOverlays } from './map-overlays.js';
+import { renderAllMapOverlays, renderTropicsLines } from './map-overlays.js';
 import { BEACONS, getActiveBeacons } from './beacons.js';
+import { BREAKPOINT_MOBILE } from './constants.js';
+import { findCountryBounds } from './country-bounds.js';
 
 // --- Tile URL constants ---
 const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -12,13 +14,19 @@ export function initMap() {
   const hasLeaflet = typeof L !== 'undefined' && L.map;
   if (!hasLeaflet) return;
 
+  const isMobile = window.innerWidth < BREAKPOINT_MOBILE;
+
   try {
     state.map = L.map('map', {
       worldCopyJump: true,
       maxBoundsViscosity: 1.0,
       maxBounds: [[-90, -180], [90, 180]],
       minZoom: 1,
+      zoomControl: false, // added manually for position control
     }).setView([39.8, -98.5], 4);
+
+    // Zoom control: bottom-right on mobile for thumb reach, top-left on desktop
+    L.control.zoom({ position: isMobile ? 'bottomright' : 'topleft' }).addTo(state.map);
 
     state.tileLayer = L.tileLayer(TILE_DARK, {
       attribution: '&copy; OpenStreetMap &copy; CARTO',
@@ -68,6 +76,7 @@ export function initMap() {
         const { renderMaidenheadGrid } = require('./map-overlays.js');
         state.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid, 150);
       }
+      if (state.mapOverlays.tropicsLines) renderTropicsLines();
       if (state.hfPropOverlayBand && state.heatmapOverlayMode === 'heatmap') {
         clearTimeout(state.heatmapRenderTimer);
         const { renderHeatmapCanvas } = require('./rel-heatmap.js');
@@ -84,11 +93,17 @@ export function initMap() {
         const { renderMaidenheadGrid } = require('./map-overlays.js');
         state.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid, 150);
       }
+      if (state.mapOverlays.tropicsLines) renderTropicsLines();
       if (state.hfPropOverlayBand && state.heatmapOverlayMode === 'heatmap') {
         clearTimeout(state.heatmapRenderTimer);
         const { renderHeatmapCanvas } = require('./rel-heatmap.js');
         state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.hfPropOverlayBand), 200);
       }
+    });
+
+    // Recalculate map size after device orientation change (mobile/tablet rotate)
+    window.addEventListener('orientationchange', () => {
+      setTimeout(() => { if (state.map) state.map.invalidateSize(); }, 200); // 200 ms — wait for layout to settle after rotation
     });
 
     setTimeout(renderAllMapOverlays, 200);
@@ -106,6 +121,14 @@ export function centerMapOnUser() {
   } else if (state.mapCenterMode === 'qth') {
     if (state.myLat !== null && state.myLon !== null) {
       state.map.setView([state.myLat, state.myLon], state.map.getZoom());
+    }
+  } else if (state.mapCenterMode === 'cty') {
+    if (state.myLat !== null && state.myLon !== null) {
+      const bounds = findCountryBounds(state.myLat, state.myLon);
+      if (bounds) {
+        const [south, west, north, east] = bounds;
+        state.map.fitBounds([[south, west], [north, east]], { maxZoom: 10, padding: [20, 20] });
+      }
     }
   }
 }

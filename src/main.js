@@ -47,8 +47,14 @@ import { initSpaceWxListeners, fetchSpaceWxData } from './spacewx-graphs.js';
 import { initBeaconListeners, startBeaconTimer } from './beacons.js';
 import { initDxpeditionListeners, fetchDxpeditions } from './dxpeditions.js';
 import { initContestListeners, fetchContests } from './contests.js';
-import { initDedxListeners, renderDedxInfo } from './dedx-info.js';
+import { initDedxListeners, renderDedxInfo, startDedxTimer } from './dedx-info.js';
 import { initBigClock, updateBigClock } from './big-clock.js';
+import { initStopwatchListeners } from './stopwatch.js';
+import { initAnalogClock, updateAnalogClock } from './analog-clock.js';
+import { initClockConfigListeners } from './clock-config.js';
+import { initMobileMenu } from './menu.js';
+import { initTabs } from './tabs.js';
+import { initLayoutDropdown } from './layouts.js';
 
 // Initialize map
 initMap();
@@ -65,7 +71,7 @@ setInterval(() => { if (isWidgetVisible('widget-satellites')) fetchSatellitePosi
 
 // Clocks
 updateClocks();
-setInterval(() => { updateClocks(); updateBigClock(); }, 1000);
+setInterval(() => { updateClocks(); updateBigClock(); updateAnalogClock(); }, 1000);
 setInterval(renderSpots, 30000); // 30 s — re-render spot table to update age column
 
 // Set up all event listeners
@@ -94,6 +100,11 @@ initDxpeditionListeners();
 initContestListeners();
 initDedxListeners();
 initBigClock();
+initStopwatchListeners();
+initAnalogClock();
+initClockConfigListeners();
+initMobileMenu();
+initTabs();
 
 // Wire initApp into splash dismissal
 function initApp() {
@@ -112,7 +123,7 @@ function initApp() {
   if (isWidgetVisible('widget-beacons')) startBeaconTimer();
   if (isWidgetVisible('widget-dxpeditions') || state.mapOverlays.dxpedMarkers) fetchDxpeditions();
   if (isWidgetVisible('widget-contests')) fetchContests();
-  if (isWidgetVisible('widget-dedx')) renderDedxInfo();
+  if (isWidgetVisible('widget-dedx')) startDedxTimer();
   if (isWidgetVisible('widget-beacons')) updateBeaconMarkers();
 }
 
@@ -126,13 +137,15 @@ setInterval(() => { if (isWidgetVisible('widget-voacap') || state.hfPropOverlayB
 // Beacon map markers — refresh every 10s (same as beacon rotation)
 setInterval(() => { if (isWidgetVisible('widget-beacons')) updateBeaconMarkers(); }, 10000);
 
-// DE/DX countdown refresh — update sunrise/sunset countdowns every 60s
-setInterval(() => { if (isWidgetVisible('widget-dedx')) renderDedxInfo(); }, 60000);
+// DE/DX Info refresh — timer managed internally by dedx-info.js (1s for live clocks)
 
 setInitApp(initApp);
 
 // Initialize widgets
 initWidgets();
+
+// Initialize layout profiles dropdown
+initLayoutDropdown();
 
 // Restore saved source tab
 switchSource(state.currentSource);

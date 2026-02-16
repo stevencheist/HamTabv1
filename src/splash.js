@@ -9,10 +9,10 @@ import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
-import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, isWidgetVisible, saveUserLayout, clearUserLayout, hasUserLayout } from './widgets.js';
+import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, isWidgetVisible, saveUserLayout, clearUserLayout, hasUserLayout, getNamedLayouts, saveNamedLayout, loadNamedLayout, deleteNamedLayout } from './widgets.js';
 import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
 import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, DEFAULT_BAND_COLORS, getBandColor, getBandColorOverrides, saveBandColors } from './constants.js';
-import { activateGridMode, deactivateGridMode, saveGridAssignments, getGridPermutation } from './grid-layout.js';
+import { activateGridMode, deactivateGridMode, saveGridAssignments, applyGridAssignments, resetGridAssignments, getGridPermutation } from './grid-layout.js';
 import { startAutoRefresh, stopAutoRefresh } from './refresh.js';
 import { fetchSatellitePositions } from './satellites.js';
 import { startBeaconTimer, stopBeaconTimer } from './beacons.js';
@@ -25,6 +25,11 @@ import { fetchLunar } from './lunar.js';
 import { fetchSpaceWxData } from './spacewx-graphs.js';
 import { fetchDxpeditions } from './dxpeditions.js';
 import { fetchContests } from './contests.js';
+import { startDedxTimer, stopDedxTimer } from './dedx-info.js';
+
+// --- Staged grid assignments (working copy during config modal session) ---
+let stagedAssignments = {};
+let selectedCell = null; // currently selected cell name in preview
 
 export function updateOperatorDisplay() {
   const opCall = $('opCall');
@@ -196,11 +201,13 @@ function updateWidgetSlotEnforcement() {
     return;
   }
 
-  // Grid mode — enforce slot limit
+  // Grid mode — enforce slot limit (reduced by active spans)
   const permSelect = document.getElementById('gridPermSelect');
   const permId = permSelect ? permSelect.value : state.gridPermutation;
   const perm = getGridPermutation(permId);
-  const maxSlots = perm.slots;
+  const spans = state.gridSpans || {};
+  const absorbedCount = Object.values(spans).reduce((sum, s) => sum + (s - 1), 0); // each span absorbs (span - 1) cells
+  const maxSlots = perm.slots - absorbedCount;
 
   const checkboxes = widgetList.querySelectorAll('input[type="checkbox"]');
   let checkedNonMap = 0;
@@ -235,7 +242,8 @@ function updateWidgetSlotEnforcement() {
     counter.textContent = `${checkedNonMap} / ${maxSlots} slots \u2014 excess hidden in grid`;
     counter.classList.add('over-limit');
   } else {
-    counter.textContent = `${checkedNonMap} / ${maxSlots} slots`;
+    const spanNote = absorbedCount > 0 ? ` (${absorbedCount} spanned)` : '';
+    counter.textContent = `${checkedNonMap} / ${maxSlots} slots${spanNote}`;
     counter.classList.remove('over-limit');
   }
 }
@@ -243,6 +251,52 @@ function updateWidgetSlotEnforcement() {
 // initApp is passed in to avoid circular dependency
 let _initApp = null;
 export function setInitApp(fn) { _initApp = fn; }
+
+function renderSplashLayoutList() {
+  const list = document.getElementById('splashLayoutList');
+  if (!list) return;
+  list.innerHTML = '';
+
+  const layouts = getNamedLayouts();
+  const names = Object.keys(layouts);
+
+  if (names.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'splash-layout-empty';
+    empty.textContent = 'No saved layouts';
+    list.appendChild(empty);
+    return;
+  }
+
+  names.forEach(name => {
+    const row = document.createElement('div');
+    row.className = 'splash-layout-item';
+
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'splash-layout-item-name';
+    nameSpan.textContent = name;
+    nameSpan.addEventListener('click', () => {
+      loadNamedLayout(name);
+      $('splashLayoutStatus').textContent = `Loaded "${name}"`;
+    });
+    row.appendChild(nameSpan);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'splash-layout-item-del';
+    delBtn.textContent = '\u00D7';
+    delBtn.title = 'Delete';
+    delBtn.addEventListener('click', () => {
+      if (confirm(`Delete layout "${name}"?`)) {
+        deleteNamedLayout(name);
+        renderSplashLayoutList();
+        $('splashLayoutStatus').textContent = `Deleted "${name}"`;
+      }
+    });
+    row.appendChild(delBtn);
+
+    list.appendChild(row);
+  });
+}
 
 export function showSplash() {
   const splash = $('splash');
@@ -301,7 +355,10 @@ export function showSplash() {
     cb.type = 'checkbox';
     cb.dataset.widgetId = w.id;
     cb.checked = state.widgetVisibility[w.id] !== false;
-    cb.addEventListener('change', updateWidgetSlotEnforcement);
+    cb.addEventListener('change', () => {
+      updateWidgetSlotEnforcement();
+      onWidgetCheckboxChange(cb.dataset.widgetId, cb.checked);
+    });
     label.appendChild(cb);
     label.appendChild(document.createTextNode(w.name));
     widgetList.appendChild(label);
@@ -309,6 +366,7 @@ export function showSplash() {
 
   $('splashWxStation').value = state.wxStation;
   $('splashWxApiKey').value = state.wxApiKey;
+  $('splashOwmApiKey').value = state.owmApiKey;
   $('splashN2yoApiKey').value = state.n2yoApiKey;
 
   const intervalSelect = $('splashUpdateInterval');
@@ -381,6 +439,14 @@ export function showSplash() {
   const cfgSlimHeader = $('cfgSlimHeader');
   if (cfgSlimHeader) cfgSlimHeader.checked = state.slimHeader;
 
+  // Grayscale toggle
+  const cfgGrayscale = $('cfgGrayscale');
+  if (cfgGrayscale) cfgGrayscale.checked = state.grayscale;
+
+  // Disable weather backgrounds toggle
+  const cfgDisableWxBg = $('cfgDisableWxBg');
+  if (cfgDisableWxBg) cfgDisableWxBg.checked = state.disableWxBackgrounds;
+
   // Band color pickers
   populateBandColorPickers();
 
@@ -397,6 +463,14 @@ export function showSplash() {
     // Set radio buttons from state
     $('layoutModeFloat').checked = state.gridMode !== 'grid';
     $('layoutModeGrid').checked = state.gridMode === 'grid';
+
+    // Set float options from state
+    const snapCheck = document.getElementById('snapToGridCheck');
+    const overlapCheck = document.getElementById('allowOverlapCheck');
+    const floatOpts = document.getElementById('floatOptions');
+    if (snapCheck) snapCheck.checked = state.snapToGrid;
+    if (overlapCheck) overlapCheck.checked = state.allowOverlap;
+    if (floatOpts) floatOpts.style.display = state.gridMode === 'grid' ? 'none' : '';
 
     // Populate permutation select
     const permSelect = document.getElementById('gridPermSelect');
@@ -416,16 +490,27 @@ export function showSplash() {
       gridPermSection.style.display = state.gridMode === 'grid' ? '' : 'none';
     }
 
-    // Render preview
-    renderGridPreview(state.gridPermutation);
+    // Initialize staged assignments from current state or defaults
+    const currentPerm = permSelect ? permSelect.value : state.gridPermutation;
+    if (state.gridAssignments && Object.keys(state.gridAssignments).length > 0) {
+      stagedAssignments = { ...state.gridAssignments };
+    } else {
+      const defaults = GRID_DEFAULT_ASSIGNMENTS[currentPerm];
+      stagedAssignments = defaults ? { ...defaults } : {};
+    }
+    selectedCell = null;
+
+    // Render preview with assignments
+    renderGridPreview(currentPerm, stagedAssignments);
   }
 
   updateWidgetSlotEnforcement();
+  updateWidgetCellBadges(stagedAssignments);
 
   // --- Layout section state ---
-  const hasSaved = hasUserLayout();
-  $('splashClearLayout').disabled = !hasSaved;
-  $('splashLayoutStatus').textContent = hasSaved ? 'Custom layout saved' : '';
+  renderSplashLayoutList();
+  $('splashLayoutName').value = '';
+  $('splashLayoutStatus').textContent = '';
 
   $('splashCallsign').focus();
 }
@@ -452,14 +537,17 @@ function dismissSplash() {
 
   state.wxStation = ($('splashWxStation').value || '').trim().toUpperCase();
   state.wxApiKey = ($('splashWxApiKey').value || '').trim();
+  state.owmApiKey = ($('splashOwmApiKey').value || '').trim();
   state.n2yoApiKey = ($('splashN2yoApiKey').value || '').trim();
   localStorage.setItem('hamtab_wx_station', state.wxStation);
   localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
+  localStorage.setItem('hamtab_owm_apikey', state.owmApiKey);
   localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
 
   // Persist API keys to server .env so all clients share them
   const envUpdates = {};
   if (state.wxApiKey) envUpdates.WU_API_KEY = state.wxApiKey;
+  if (state.owmApiKey) envUpdates.OWM_API_KEY = state.owmApiKey;
   if (state.n2yoApiKey) envUpdates.N2YO_API_KEY = state.n2yoApiKey;
   if (Object.keys(envUpdates).length > 0) {
     fetch('/api/config/env', {
@@ -485,23 +573,18 @@ function dismissSplash() {
     const newMode = $('layoutModeGrid').checked ? 'grid' : 'float';
     const permSelect = document.getElementById('gridPermSelect');
     const newPerm = permSelect ? permSelect.value : state.gridPermutation;
+    const oldPerm = state.gridPermutation;
 
-    if (newMode === 'grid' && state.gridMode !== 'grid') {
-      // Switching from float to grid
+    if (newMode === 'grid') {
       state.gridPermutation = newPerm;
-      const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
-      state.gridAssignments = defaults ? { ...defaults } : {};
+      state.gridAssignments = { ...stagedAssignments };
       saveGridAssignments();
-      activateGridMode(newPerm);
-    } else if (newMode === 'grid' && newPerm !== state.gridPermutation) {
-      // Changing permutation while in grid mode — load fresh defaults
-      state.gridPermutation = newPerm;
-      const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
-      state.gridAssignments = defaults ? { ...defaults } : {};
-      saveGridAssignments();
-      activateGridMode(newPerm);
+      if (state.gridMode !== 'grid' || newPerm !== oldPerm) {
+        activateGridMode(newPerm);
+      } else {
+        applyGridAssignments(); // refresh layout with new assignments
+      }
     } else if (newMode === 'float' && state.gridMode === 'grid') {
-      // Switching from grid to float
       deactivateGridMode();
     }
   }
@@ -525,6 +608,10 @@ function dismissSplash() {
   // Beacon timer start/stop — avoid 1 Hz timer running for a hidden widget
   if (justShown('widget-beacons'))  { startBeaconTimer(); updateBeaconMarkers(); }
   if (justHidden('widget-beacons')) { stopBeaconTimer(); }
+
+  // DE/DX Info timer start/stop — avoid 1 Hz timer running for a hidden widget
+  if (justShown('widget-dedx'))  { startDedxTimer(); }
+  if (justHidden('widget-dedx')) { stopDedxTimer(); }
 
   // Update interval — lanmode only (element absent in hostedmode)
   const intervalSelect = $('splashUpdateInterval');
@@ -692,17 +779,71 @@ export function initSplashListeners() {
     }
   });
 
+  // --- Use Callsign location button ---
+  $('splashCallsignLocBtn').addEventListener('click', async () => {
+    const call = $('splashCallsign').value.trim().toUpperCase();
+    if (!call) {
+      updateLocStatus('Enter a callsign first', true);
+      return;
+    }
+
+    const btn = $('splashCallsignLocBtn');
+    btn.disabled = true;
+    updateLocStatus('Looking up ' + call + '...');
+
+    try {
+      const resp = await fetch('/api/callsign/' + encodeURIComponent(call));
+      const data = await resp.json();
+
+      if (data.status === 'VALID' && data.lat != null && data.lon != null) {
+        state.syncingFields = true;
+        $('splashLat').value = data.lat.toFixed(2);
+        $('splashLon').value = data.lon.toFixed(2);
+        if (data.grid) {
+          $('splashGrid').value = data.grid.substring(0, 4).toUpperCase();
+        } else {
+          $('splashGrid').value = latLonToGrid(data.lat, data.lon).substring(0, 4).toUpperCase();
+        }
+        state.myLat = data.lat;
+        state.myLon = data.lon;
+        state.syncingFields = false;
+        state.manualLoc = true;
+        $('splashGpsBtn').classList.remove('active');
+        updateLocStatus('Location set from callsign');
+      } else {
+        updateLocStatus('No location found for ' + call, true);
+      }
+    } catch {
+      updateLocStatus('Lookup failed — try again', true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   // --- Layout save / clear buttons ---
   $('splashSaveLayout').addEventListener('click', () => {
-    saveUserLayout();
-    $('splashLayoutStatus').textContent = 'Layout saved';
-    $('splashClearLayout').disabled = false;
+    const name = $('splashLayoutName').value.trim();
+    if (!name) {
+      $('splashLayoutStatus').textContent = 'Enter a layout name';
+      return;
+    }
+    const ok = saveNamedLayout(name);
+    if (!ok) {
+      $('splashLayoutStatus').textContent = 'Max 20 layouts. Delete one first.';
+      return;
+    }
+    $('splashLayoutName').value = '';
+    $('splashLayoutStatus').textContent = `Saved "${name}"`;
+    renderSplashLayoutList();
+  });
+
+  $('splashLayoutName').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') $('splashSaveLayout').click();
   });
 
   $('splashClearLayout').addEventListener('click', () => {
     clearUserLayout();
-    $('splashLayoutStatus').textContent = 'App default restored';
-    $('splashClearLayout').disabled = true;
+    $('splashLayoutStatus').textContent = 'Reset to app default';
   });
 
   // --- Grid mode listeners ---
@@ -711,20 +852,69 @@ export function initSplashListeners() {
   const gridPermSelect = document.getElementById('gridPermSelect');
   const gridPermSection = document.getElementById('gridPermSection');
 
+  const floatOptions = document.getElementById('floatOptions');
+
   if (layoutModeFloat && layoutModeGrid) {
     layoutModeFloat.addEventListener('change', () => {
       if (gridPermSection) gridPermSection.style.display = 'none';
+      if (floatOptions) floatOptions.style.display = '';
+      updateWidgetCellBadges(stagedAssignments); // hides badges in float mode
       updateWidgetSlotEnforcement();
     });
     layoutModeGrid.addEventListener('change', () => {
       if (gridPermSection) gridPermSection.style.display = '';
-      if (gridPermSelect) renderGridPreview(gridPermSelect.value);
+      if (floatOptions) floatOptions.style.display = 'none';
+      if (gridPermSelect) {
+        // Initialize staged assignments if switching to grid
+        if (!stagedAssignments || Object.keys(stagedAssignments).length === 0) {
+          const defaults = GRID_DEFAULT_ASSIGNMENTS[gridPermSelect.value];
+          stagedAssignments = defaults ? { ...defaults } : {};
+        }
+        selectedCell = null;
+        renderGridPreview(gridPermSelect.value, stagedAssignments);
+      }
+      updateWidgetCellBadges(stagedAssignments);
       updateWidgetSlotEnforcement();
+    });
+  }
+
+  // --- Free-float snap/overlap toggles ---
+  const snapToGridCheck = document.getElementById('snapToGridCheck');
+  const allowOverlapCheck = document.getElementById('allowOverlapCheck');
+  if (snapToGridCheck) {
+    snapToGridCheck.addEventListener('change', () => {
+      state.snapToGrid = snapToGridCheck.checked;
+      localStorage.setItem('hamtab_snap_grid', state.snapToGrid);
+    });
+  }
+  if (allowOverlapCheck) {
+    allowOverlapCheck.addEventListener('change', () => {
+      state.allowOverlap = allowOverlapCheck.checked;
+      localStorage.setItem('hamtab_allow_overlap', state.allowOverlap);
     });
   }
   if (gridPermSelect) {
     gridPermSelect.addEventListener('change', () => {
-      renderGridPreview(gridPermSelect.value);
+      const newPermId = gridPermSelect.value;
+      const defaults = GRID_DEFAULT_ASSIGNMENTS[newPermId];
+      stagedAssignments = defaults ? { ...defaults } : {};
+      selectedCell = null;
+      renderGridPreview(newPermId, stagedAssignments);
+      updateWidgetCellBadges(stagedAssignments);
+      updateWidgetSlotEnforcement();
+    });
+  }
+
+  // Reset Grid button — clears assignments, spans, and track sizes
+  const resetGridBtn = document.getElementById('resetGridBtn');
+  if (resetGridBtn) {
+    resetGridBtn.addEventListener('click', () => {
+      resetGridAssignments();
+      const defaults = GRID_DEFAULT_ASSIGNMENTS[state.gridPermutation];
+      stagedAssignments = defaults ? { ...defaults } : {};
+      selectedCell = null;
+      renderGridPreview(state.gridPermutation, stagedAssignments);
+      updateWidgetCellBadges(stagedAssignments);
       updateWidgetSlotEnforcement();
     });
   }
@@ -752,6 +942,34 @@ export function initSplashListeners() {
       state.slimHeader = cfgSlimHeaderCb.checked;
       localStorage.setItem('hamtab_slim_header', String(state.slimHeader));
       document.body.classList.toggle('slim-header', state.slimHeader);
+    });
+  }
+
+  // Grayscale toggle in Appearance tab
+  const cfgGrayscaleCb = $('cfgGrayscale');
+  if (cfgGrayscaleCb) {
+    cfgGrayscaleCb.addEventListener('change', () => {
+      state.grayscale = cfgGrayscaleCb.checked;
+      localStorage.setItem('hamtab_grayscale', String(state.grayscale));
+      document.body.classList.toggle('grayscale', state.grayscale);
+    });
+  }
+
+  // Disable weather backgrounds toggle in Appearance tab
+  const cfgDisableWxBgCb = $('cfgDisableWxBg');
+  if (cfgDisableWxBgCb) {
+    cfgDisableWxBgCb.addEventListener('change', () => {
+      state.disableWxBackgrounds = cfgDisableWxBgCb.checked;
+      localStorage.setItem('hamtab_disable_wx_bg', String(state.disableWxBackgrounds));
+      // Immediately strip or re-apply weather background classes
+      const hcl = document.getElementById('headerClockLocal');
+      if (hcl) {
+        const wxClasses = ['wx-clear-day','wx-clear-night','wx-partly-cloudy-day','wx-partly-cloudy-night','wx-cloudy','wx-rain','wx-thunderstorm','wx-snow','wx-fog'];
+        if (state.disableWxBackgrounds) {
+          wxClasses.forEach(c => hcl.classList.remove(c));
+        }
+        // If re-enabling, next weather fetch will re-apply the class
+      }
     });
   }
 
@@ -801,29 +1019,250 @@ function populateBandColorPickers() {
 }
 
 
-// Build a mini CSS Grid preview showing the permutation layout
-function renderGridPreview(permId) {
+// Build a mini CSS Grid preview showing the permutation layout with widget assignments
+function renderGridPreview(permId, assignments) {
   const container = document.getElementById('gridPermPreview');
   if (!container) return;
   const perm = getGridPermutation(permId);
   container.innerHTML = '';
-  container.style.gridTemplateAreas = perm.areas;
+
+  // Close any open picker
+  const picker = document.getElementById('gridAssignPicker');
+  if (picker) { picker.innerHTML = ''; picker.classList.remove('open'); }
+
+  const asgn = assignments || stagedAssignments || {};
+
+  // Build reverse map: widgetId → short abbreviation
+  const widgetShortMap = {};
+  WIDGET_DEFS.forEach(w => { widgetShortMap[w.id] = w.short || w.name.substring(0, 4); });
+
+  // Build areas string with spans applied — replace absorbed cell names
+  // with the spanning cell's name so CSS grid merges them visually
+  const spans = (permId === state.gridPermutation) ? (state.gridSpans || {}) : {};
+  let areas = perm.areas;
+  const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
+  const absorbed = new Set();
+  for (const wrapperCells of allWrappers) {
+    for (let i = 0; i < wrapperCells.length; i++) {
+      const span = spans[wrapperCells[i]] || 1;
+      for (let s = 1; s < span && i + s < wrapperCells.length; s++) {
+        const absCell = wrapperCells[i + s];
+        areas = areas.replace(new RegExp('\\b' + absCell + '\\b', 'g'), wrapperCells[i]);
+        absorbed.add(absCell);
+      }
+    }
+  }
+
+  container.style.gridTemplateAreas = areas;
   container.style.gridTemplateColumns = perm.columns;
   container.style.gridTemplateRows = perm.rows;
 
-  // Map cell
+  // Map cell (not assignable)
   const mapCell = document.createElement('div');
   mapCell.className = 'grid-preview-cell grid-preview-map';
   mapCell.style.gridArea = 'map';
   mapCell.textContent = 'MAP';
   container.appendChild(mapCell);
 
-  // Widget cells
+  // Widget cells — skip absorbed cells
   perm.cellNames.forEach(name => {
+    if (absorbed.has(name)) return;
     const cell = document.createElement('div');
-    cell.className = 'grid-preview-cell';
+    const span = spans[name] || 1;
+    const isSpanned = span > 1;
+    cell.className = 'grid-preview-cell grid-preview-assignable'
+      + (isSpanned ? ' grid-preview-spanned' : '')
+      + (selectedCell === name ? ' grid-preview-selected' : '');
     cell.style.gridArea = name;
-    cell.textContent = name;
+
+    // Cell name label (dim, small)
+    const nameEl = document.createElement('span');
+    nameEl.className = 'cell-name';
+    nameEl.textContent = isSpanned ? `${name} (+${span - 1})` : name;
+    cell.appendChild(nameEl);
+
+    // Widget abbreviation (bold)
+    const widgetEl = document.createElement('span');
+    widgetEl.className = 'cell-widget';
+    const widgetId = asgn[name];
+    widgetEl.textContent = widgetId ? (widgetShortMap[widgetId] || '\u2014') : '\u2014';
+    cell.appendChild(widgetEl);
+
+    // Click handler to select cell and open picker
+    cell.addEventListener('click', () => {
+      if (selectedCell === name) {
+        selectedCell = null;
+        renderGridPreview(permId, asgn);
+      } else {
+        selectedCell = name;
+        renderGridPreview(permId, asgn);
+        renderAssignmentPicker(name, asgn, permId);
+      }
+    });
+
     container.appendChild(cell);
   });
+}
+
+// Render the widget picker below the preview for a selected cell
+function renderAssignmentPicker(cellName, assignments, permId) {
+  const picker = document.getElementById('gridAssignPicker');
+  if (!picker) return;
+  picker.innerHTML = '';
+
+  const asgn = assignments || stagedAssignments;
+  const currentWidgetId = asgn[cellName] || null;
+
+  // Build list of enabled non-map widgets
+  const widgetList = document.getElementById('splashWidgetList');
+  const enabledWidgets = [];
+  if (widgetList) {
+    widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      if (cb.dataset.widgetId !== 'widget-map' && cb.checked) {
+        const def = WIDGET_DEFS.find(w => w.id === cb.dataset.widgetId);
+        if (def) enabledWidgets.push(def);
+      }
+    });
+  }
+
+  // Build reverse map: widgetId → cellName for hint display
+  const reverseMap = {};
+  for (const [cell, wid] of Object.entries(asgn)) {
+    if (wid) reverseMap[wid] = cell;
+  }
+
+  // "(Empty)" option
+  const emptyOpt = document.createElement('div');
+  emptyOpt.className = 'assign-option' + (!currentWidgetId ? ' assign-current' : '');
+  emptyOpt.textContent = '(Empty)';
+  emptyOpt.addEventListener('click', () => {
+    delete asgn[cellName];
+    selectedCell = null;
+    renderGridPreview(permId, asgn);
+    updateWidgetCellBadges(asgn);
+    picker.innerHTML = '';
+    picker.classList.remove('open');
+  });
+  picker.appendChild(emptyOpt);
+
+  // Widget options
+  enabledWidgets.forEach(w => {
+    const opt = document.createElement('div');
+    opt.className = 'assign-option' + (currentWidgetId === w.id ? ' assign-current' : '');
+
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = w.name;
+    opt.appendChild(nameSpan);
+
+    // Show current cell hint if assigned elsewhere
+    if (reverseMap[w.id] && reverseMap[w.id] !== cellName) {
+      const hint = document.createElement('span');
+      hint.className = 'assign-hint';
+      hint.textContent = reverseMap[w.id];
+      opt.appendChild(hint);
+    }
+
+    opt.addEventListener('click', () => {
+      // Swap logic: if target widget is assigned elsewhere, its old cell gets whatever was here
+      const oldCell = reverseMap[w.id] || null;
+      const displaced = asgn[cellName] || null;
+
+      asgn[cellName] = w.id;
+      if (oldCell && oldCell !== cellName) {
+        if (displaced) {
+          asgn[oldCell] = displaced;
+        } else {
+          delete asgn[oldCell];
+        }
+      }
+
+      selectedCell = null;
+      renderGridPreview(permId, asgn);
+      updateWidgetCellBadges(asgn);
+      picker.innerHTML = '';
+      picker.classList.remove('open');
+    });
+
+    picker.appendChild(opt);
+  });
+
+  picker.classList.add('open');
+}
+
+// Update cell badges next to widget checkboxes
+function updateWidgetCellBadges(assignments) {
+  const widgetList = document.getElementById('splashWidgetList');
+  if (!widgetList) return;
+
+  const floatRadio = document.getElementById('layoutModeFloat');
+  const isGrid = floatRadio ? !floatRadio.checked : false;
+
+  // Remove existing badges
+  widgetList.querySelectorAll('.widget-cell-badge').forEach(b => b.remove());
+
+  if (!isGrid) return;
+
+  // Build reverse map: widgetId → cellName
+  const asgn = assignments || stagedAssignments || {};
+  const reverseMap = {};
+  for (const [cell, wid] of Object.entries(asgn)) {
+    if (wid) reverseMap[wid] = cell;
+  }
+
+  widgetList.querySelectorAll('label').forEach(label => {
+    const cb = label.querySelector('input[type="checkbox"]');
+    if (!cb || cb.dataset.widgetId === 'widget-map') return;
+    const cell = reverseMap[cb.dataset.widgetId];
+    if (cell) {
+      const badge = document.createElement('span');
+      badge.className = 'widget-cell-badge';
+      badge.textContent = `[${cell}]`;
+      label.appendChild(badge);
+    }
+  });
+}
+
+// Handle widget checkbox change — auto-assign/unassign in staged assignments
+function onWidgetCheckboxChange(widgetId, checked) {
+  const floatRadio = document.getElementById('layoutModeFloat');
+  const isGrid = floatRadio ? !floatRadio.checked : false;
+  if (!isGrid || widgetId === 'widget-map') return;
+
+  const permSelect = document.getElementById('gridPermSelect');
+  const permId = permSelect ? permSelect.value : state.gridPermutation;
+  const perm = getGridPermutation(permId);
+
+  if (!checked) {
+    // Remove from staged assignments, free its cell
+    for (const [cell, wid] of Object.entries(stagedAssignments)) {
+      if (wid === widgetId) {
+        delete stagedAssignments[cell];
+        break;
+      }
+    }
+  } else {
+    // Auto-assign to first empty cell
+    const spans = (permId === state.gridPermutation) ? (state.gridSpans || {}) : {};
+    const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
+    const absorbed = new Set();
+    for (const wrapperCells of allWrappers) {
+      for (let i = 0; i < wrapperCells.length; i++) {
+        const span = spans[wrapperCells[i]] || 1;
+        for (let s = 1; s < span && i + s < wrapperCells.length; s++) {
+          absorbed.add(wrapperCells[i + s]);
+        }
+      }
+    }
+    for (const cellName of perm.cellNames) {
+      if (absorbed.has(cellName)) continue;
+      if (!stagedAssignments[cellName]) {
+        stagedAssignments[cellName] = widgetId;
+        break;
+      }
+    }
+  }
+
+  selectedCell = null;
+  renderGridPreview(permId, stagedAssignments);
+  updateWidgetCellBadges(stagedAssignments);
 }

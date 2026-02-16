@@ -1,6 +1,7 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
+import { findCountryBounds } from './country-bounds.js';
 
 // Color functions (exported for constants.js)
 export function aColor(val) {
@@ -328,6 +329,10 @@ export async function fetchPropagation() {
       });
       L.marker([mid[1], mid[0]], { icon, pane: 'propagation', interactive: false }).addTo(state.propLabelLayer);
     });
+
+    // Force SVG renderer to recalculate viewport bounds for the new layer —
+    // without this, contour lines can clip mid-map when data loads after initial layout
+    state.map.invalidateSize();
   } catch (err) {
     console.error('Failed to fetch propagation:', err);
   }
@@ -431,6 +436,14 @@ export function centerMap() {
         const lat = parseFloat(spot.latitude);
         const lon = parseFloat(spot.longitude);
         if (!isNaN(lat) && !isNaN(lon)) state.map.flyTo([lat, lon], 5, { duration: 0.8 });
+      }
+    }
+  } else if (state.mapCenterMode === 'cty') {
+    if (state.myLat !== null && state.myLon !== null) {
+      const bounds = findCountryBounds(state.myLat, state.myLon);
+      if (bounds) {
+        const [south, west, north, east] = bounds;
+        state.map.flyToBounds([[south, west], [north, east]], { maxZoom: 10, padding: [20, 20], duration: 0.8 });
       }
     }
   }

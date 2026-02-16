@@ -68,6 +68,8 @@
         countdownTimer: null,
         // Preferences
         slimHeader: localStorage.getItem("hamtab_slim_header") === "true",
+        grayscale: localStorage.getItem("hamtab_grayscale") === "true",
+        disableWxBackgrounds: localStorage.getItem("hamtab_disable_wx_bg") === "true",
         use24h: localStorage.getItem("hamtab_time24") !== "false",
         privilegeFilterEnabled: localStorage.getItem("hamtab_privilege_filter") === "true",
         licenseClass: localStorage.getItem("hamtab_license_class") || "",
@@ -81,7 +83,7 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false },
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
         // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
@@ -169,6 +171,7 @@
         // Weather
         wxStation: localStorage.getItem("hamtab_wx_station") || "",
         wxApiKey: localStorage.getItem("hamtab_wx_apikey") || "",
+        owmApiKey: localStorage.getItem("hamtab_owm_apikey") || "",
         nwsAlerts: [],
         weatherTimer: null,
         nwsCondTimer: null,
@@ -181,6 +184,11 @@
         // Widgets
         zCounter: 10,
         // next z-index to assign when a widget is focused (increments on each click)
+        // Free-float snap settings
+        snapToGrid: localStorage.getItem("hamtab_snap_grid") !== "false",
+        // snap widget positions to grid (default: on)
+        allowOverlap: localStorage.getItem("hamtab_allow_overlap") === "true",
+        // skip overlap resolution (default: off)
         // Grid layout mode
         gridMode: localStorage.getItem("hamtab_grid_mode") || "grid",
         // 'float' or 'grid'
@@ -188,6 +196,8 @@
         // active permutation ID
         gridAssignments: null,
         // loaded at grid activation — maps cell names to widget IDs
+        gridSpans: null,
+        // loaded at grid activation — per-permutation spans { cellName: spanCount }
         // Reference widget
         currentReferenceTab: "rst",
         // active reference tab (rst, phonetic, etc.)
@@ -199,6 +209,8 @@
           data: [],
           summary: {},
           lastFetch: null,
+          error: false,
+          // true when fetch fails — shows retry message instead of eternal "Loading..."
           displayMode: localStorage.getItem("hamtab_livespots_mode") || "count",
           // 'count' or 'distance'
           maxAge: parseInt(localStorage.getItem("hamtab_livespots_maxage"), 10) || 60,
@@ -227,6 +239,8 @@
         // 'overview' or 'spot'
         voacapAutoSpot: localStorage.getItem("hamtab_voacap_auto_spot") === "true",
         // auto-switch to SPOT on selection
+        voacapSensitivity: parseInt(localStorage.getItem("hamtab_voacap_sensitivity"), 10) || 3,
+        // 1-5 SNR sensitivity (3=default)
         voacapLastFetch: 0,
         // timestamp of last successful /api/voacap fetch
         // Heatmap overlay (REL mode for VOACAP)
@@ -236,13 +250,21 @@
         // L.imageOverlay instance
         heatmapRenderTimer: null,
         // debounce timer for pan/zoom re-render
+        voacapParamTimer: null,
+        // debounce timer for power/mode/TOA/path button clicks
         // Beacons / DXpeditions / Contests
         beaconTimer: null,
         // setInterval ID for 1-second beacon updates
+        dedxTimer: null,
+        // setInterval ID for 1-second DE/DX Info clock updates
+        stopwatchTimer: null,
+        // setInterval ID for 100ms stopwatch/countdown updates
         lastDxpeditionData: null,
         // cached /api/dxpeditions response
         lastContestData: null,
         // cached /api/contests response
+        // Mobile tab bar
+        activeTab: localStorage.getItem("hamtab_active_tab") || "widget-map",
         // Progressive scaling
         reflowActive: false,
         // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
@@ -267,6 +289,16 @@
         // L.circleMarker[] for DXpedition map markers
         dxPathLines: [],
         // L.polyline[] for band-colored DX contact paths
+        // Clock face config
+        clockFace: localStorage.getItem("hamtab_clock_face") || "classic",
+        clockComplications: (() => {
+          try {
+            const s = JSON.parse(localStorage.getItem("hamtab_clock_complications"));
+            if (s && typeof s === "object" && !Array.isArray(s)) return s;
+          } catch (e) {
+          }
+          return {};
+        })(),
         // Day/night
         lastLocalDay: null,
         lastUtcDay: null
@@ -381,11 +413,11 @@
   }
   function distanceMi(lat1, lon1, lat2, lon2) {
     const r = Math.PI / 180;
-    const R = 3958.8;
+    const R3 = 3958.8;
     const dLat = (lat2 - lat1) * r;
     const dLon = (lon2 - lon1) * r;
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R3 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
   function geodesicPoints(lat1, lon1, lat2, lon2, n) {
     const r = Math.PI / 180;
@@ -527,11 +559,15 @@
   var map_overlays_exports = {};
   __export(map_overlays_exports, {
     renderAllMapOverlays: () => renderAllMapOverlays,
+    renderCloudCover: () => renderCloudCover,
     renderDrapOverlay: () => renderDrapOverlay,
     renderLatLonGrid: () => renderLatLonGrid,
     renderMaidenheadGrid: () => renderMaidenheadGrid,
     renderMufImageOverlay: () => renderMufImageOverlay,
+    renderSymbolLegend: () => renderSymbolLegend,
     renderTimezoneGrid: () => renderTimezoneGrid,
+    renderTropicsLines: () => renderTropicsLines,
+    renderWeatherRadar: () => renderWeatherRadar,
     saveMapOverlays: () => saveMapOverlays
   });
   function renderAllMapOverlays() {
@@ -541,6 +577,10 @@
     renderTimezoneGrid();
     renderMufImageOverlay();
     renderDrapOverlay();
+    renderTropicsLines();
+    renderWeatherRadar();
+    renderCloudCover();
+    renderSymbolLegend();
   }
   function renderLatLonGrid() {
     if (state_default.latLonLayer) {
@@ -722,6 +762,39 @@
       mufImageLayer.setUrl(freshUrl);
     }, 15 * 60 * 1e3);
   }
+  function drapColor(mhz, maxVal) {
+    if (mhz <= 0) return { r: 0, g: 0, b: 0, a: 0 };
+    const ceil = Math.max(maxVal, 5);
+    const t = Math.min(mhz / ceil, 1);
+    let r, g, b;
+    if (t < 0.2) {
+      const s = t / 0.2;
+      r = Math.round(80 * (1 - s));
+      g = 0;
+      b = Math.round(128 + 127 * s);
+    } else if (t < 0.4) {
+      const s = (t - 0.2) / 0.2;
+      r = 0;
+      g = Math.round(255 * s);
+      b = 255;
+    } else if (t < 0.6) {
+      const s = (t - 0.4) / 0.2;
+      r = 0;
+      g = 255;
+      b = Math.round(255 * (1 - s));
+    } else if (t < 0.8) {
+      const s = (t - 0.6) / 0.2;
+      r = Math.round(255 * s);
+      g = 255;
+      b = 0;
+    } else {
+      const s = (t - 0.8) / 0.2;
+      r = 255;
+      g = Math.round(255 * (1 - s));
+      b = 0;
+    }
+    return { r, g, b, a: 180 };
+  }
   function renderDrapOverlay() {
     if (drapImageLayer) {
       state_default.map.removeLayer(drapImageLayer);
@@ -733,23 +806,179 @@
     }
     if (!state_default.mapOverlays.drapOverlay) return;
     const L2 = window.L;
-    const url = `/api/drap/image?_t=${Date.now()}`;
-    const bounds = [[-90, -180], [90, 180]];
-    drapImageLayer = L2.imageOverlay(url, bounds, {
-      opacity: 0.5,
-      pane: "propagation",
-      // same z-index as MUF overlay (300)
-      interactive: false
-    }).addTo(state_default.map);
+    async function fetchAndRender() {
+      try {
+        const resp = await fetch("/api/drap/data");
+        if (!resp.ok) return;
+        const { lons, rows } = await resp.json();
+        if (!lons || !rows || rows.length === 0) return;
+        const cols = lons.length;
+        const numRows = rows.length;
+        let maxVal = 0;
+        for (let r = 0; r < numRows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const v = rows[r].values[c] || 0;
+            if (v > maxVal) maxVal = v;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = cols;
+        canvas.height = numRows;
+        const ctx = canvas.getContext("2d");
+        const imageData = ctx.createImageData(cols, numRows);
+        const data = imageData.data;
+        for (let r = 0; r < numRows; r++) {
+          const values = rows[r].values;
+          for (let c = 0; c < cols; c++) {
+            const px = drapColor(values[c] || 0, maxVal);
+            const idx = (r * cols + c) * 4;
+            data[idx] = px.r;
+            data[idx + 1] = px.g;
+            data[idx + 2] = px.b;
+            data[idx + 3] = px.a;
+          }
+        }
+        ctx.putImageData(imageData, 0, 0);
+        const bounds = [[-90, -180], [90, 180]];
+        if (drapImageLayer) state_default.map.removeLayer(drapImageLayer);
+        drapImageLayer = L2.imageOverlay(canvas.toDataURL(), bounds, {
+          opacity: 0.55,
+          pane: "propagation",
+          interactive: false
+        }).addTo(state_default.map);
+      } catch (err) {
+        if (state_default.debug) console.error("D-RAP render error:", err);
+      }
+    }
+    fetchAndRender();
     drapImageRefreshTimer = setInterval(() => {
-      if (!state_default.mapOverlays.drapOverlay || !drapImageLayer) return;
-      drapImageLayer.setUrl(`/api/drap/image?_t=${Date.now()}`);
+      if (!state_default.mapOverlays.drapOverlay) return;
+      fetchAndRender();
     }, 15 * 60 * 1e3);
+  }
+  function renderTropicsLines() {
+    if (tropicsLayer) {
+      state_default.map.removeLayer(tropicsLayer);
+      tropicsLayer = null;
+    }
+    if (!state_default.mapOverlays.tropicsLines) return;
+    tropicsLayer = L.layerGroup().addTo(state_default.map);
+    const lines = [
+      { lat: 66.5634, name: "Arctic Circle", color: "#6ec6ff", dash: "8,6" },
+      { lat: 23.4362, name: "Tropic of Cancer", color: "#f0a050", dash: "8,6" },
+      { lat: 0, name: "Equator", color: "#f0d060", dash: null },
+      { lat: -23.4362, name: "Tropic of Capricorn", color: "#f0a050", dash: "8,6" },
+      { lat: -66.5634, name: "Antarctic Circle", color: "#6ec6ff", dash: "8,6" }
+    ];
+    const bounds = state_default.map.getBounds();
+    const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.02;
+    for (const ln of lines) {
+      const style = {
+        color: ln.color,
+        weight: ln.dash ? 1.5 : 2,
+        opacity: 0.6,
+        dashArray: ln.dash || void 0,
+        pane: "mapOverlays",
+        interactive: false
+      };
+      L.polyline([[ln.lat, -180], [ln.lat, 180]], style).addTo(tropicsLayer);
+      if (ln.lat >= bounds.getSouth() && ln.lat <= bounds.getNorth()) {
+        const isArctic = Math.abs(ln.lat) > 60;
+        L.marker([ln.lat, labelLon], {
+          icon: L.divIcon({
+            className: "grid-label tropics-label" + (isArctic ? " tropics-arctic" : ""),
+            html: ln.name,
+            iconSize: null
+          }),
+          pane: "mapOverlays",
+          interactive: false
+        }).addTo(tropicsLayer);
+      }
+    }
+  }
+  function renderWeatherRadar() {
+    if (weatherRadarLayer) {
+      state_default.map.removeLayer(weatherRadarLayer);
+      weatherRadarLayer = null;
+    }
+    if (weatherRadarTimer) {
+      clearInterval(weatherRadarTimer);
+      weatherRadarTimer = null;
+    }
+    if (!state_default.mapOverlays.weatherRadar) return;
+    fetchRadarAndShow();
+    weatherRadarTimer = setInterval(fetchRadarAndShow, 5 * 60 * 1e3);
+  }
+  async function fetchRadarAndShow() {
+    try {
+      const res = await fetch("/api/weather/radar");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.host || !data.path) return;
+      const tileUrl = `${data.host}${data.path}/256/{z}/{x}/{y}/2/1_1.png`;
+      if (weatherRadarLayer) state_default.map.removeLayer(weatherRadarLayer);
+      weatherRadarLayer = L.tileLayer(tileUrl, {
+        opacity: 0.35,
+        pane: "propagation",
+        // z-300, below mapOverlays (350)
+        interactive: false,
+        attribution: "&copy; RainViewer"
+      }).addTo(state_default.map);
+    } catch (e) {
+      if (state_default.debug) console.error("Weather radar fetch failed:", e);
+    }
+  }
+  function renderCloudCover() {
+    if (cloudCoverLayer) {
+      state_default.map.removeLayer(cloudCoverLayer);
+      cloudCoverLayer = null;
+    }
+    if (!state_default.mapOverlays.cloudCover) return;
+    cloudCoverLayer = L.tileLayer("/api/weather/clouds/{z}/{x}/{y}", {
+      opacity: 0.4,
+      pane: "propagation",
+      // z-300, below mapOverlays (350)
+      interactive: false,
+      attribution: "&copy; OpenWeatherMap"
+    }).addTo(state_default.map);
+  }
+  function renderSymbolLegend() {
+    if (legendControl) {
+      state_default.map.removeControl(legendControl);
+      legendControl = null;
+    }
+    if (!state_default.mapOverlays.symbolLegend) return;
+    const LegendControl = L.Control.extend({
+      options: { position: "bottomright" },
+      onAdd() {
+        const div = L.DomUtil.create("div", "map-legend");
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+        const items = [
+          { symbol: '<span class="legend-dot" style="background:#4CAF50"></span>', label: "POTA" },
+          { symbol: '<span class="legend-dot" style="background:#FF9800"></span>', label: "SOTA" },
+          { symbol: '<span class="legend-dot" style="background:#f44336"></span>', label: "DX Cluster" },
+          { symbol: '<span class="legend-dot" style="background:#009688"></span>', label: "WWFF" },
+          { symbol: '<span class="legend-dot" style="background:#9C27B0"></span>', label: "PSKReporter" },
+          { symbol: '<span class="legend-circle" style="border-color:#FF9800"></span>', label: "DXped (active)" },
+          { symbol: '<span class="legend-circle" style="border-color:#888"></span>', label: "DXped (upcoming)" },
+          { symbol: '<span class="legend-dot legend-sun"></span>', label: "Sun sub-point" },
+          { symbol: '<span class="legend-dot legend-moon"></span>', label: "Moon sub-point" },
+          { symbol: '<span class="legend-line" style="border-color:#666"></span>', label: "Gray line" },
+          { symbol: '<span class="legend-line" style="border-color:#4a90e2"></span>', label: "Geodesic path" },
+          { symbol: '<span class="legend-dot legend-beacon"></span>', label: "NCDXF beacon" }
+        ];
+        div.innerHTML = '<div class="legend-title">Legend</div>' + items.map((i) => `<div class="legend-row">${i.symbol}<span class="legend-label">${i.label}</span></div>`).join("");
+        return div;
+      }
+    });
+    legendControl = new LegendControl();
+    state_default.map.addControl(legendControl);
   }
   function saveMapOverlays() {
     localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
   }
-  var mufImageLayer, mufImageRefreshTimer, drapImageLayer, drapImageRefreshTimer;
+  var mufImageLayer, mufImageRefreshTimer, drapImageLayer, drapImageRefreshTimer, tropicsLayer, weatherRadarLayer, weatherRadarTimer, cloudCoverLayer, legendControl;
   var init_map_overlays = __esm({
     "src/map-overlays.js"() {
       init_state();
@@ -757,6 +986,11 @@
       mufImageRefreshTimer = null;
       drapImageLayer = null;
       drapImageRefreshTimer = null;
+      tropicsLayer = null;
+      weatherRadarLayer = null;
+      weatherRadarTimer = null;
+      cloudCoverLayer = null;
+      legendControl = null;
     }
   });
 
@@ -769,6 +1003,264 @@
   var init_dom = __esm({
     "src/dom.js"() {
       cache = {};
+    }
+  });
+
+  // src/country-bounds.js
+  function findCountryBounds(lat, lon) {
+    let best = null;
+    let bestArea = Infinity;
+    for (const [, south, west, north, east] of COUNTRY_BOUNDS) {
+      if (lat < south || lat > north) continue;
+      let lonInside;
+      if (west <= east) {
+        lonInside = lon >= west && lon <= east;
+      } else {
+        lonInside = lon >= west || lon <= east;
+      }
+      if (!lonInside) continue;
+      const latSpan = north - south;
+      const lonSpan = west <= east ? east - west : 360 - west + east;
+      const area = latSpan * lonSpan;
+      if (area < bestArea) {
+        bestArea = area;
+        best = [south, west, north, east];
+      }
+    }
+    return best;
+  }
+  var COUNTRY_BOUNDS;
+  var init_country_bounds = __esm({
+    "src/country-bounds.js"() {
+      COUNTRY_BOUNDS = [
+        // North America
+        ["United States", 24.52, -124.73, 49.38, -66.95],
+        // contiguous 48
+        ["United States (Alaska)", 51.21, -179.15, 71.39, -129.98],
+        ["United States (Hawaii)", 18.91, -160.24, 22.24, -154.81],
+        ["Canada", 41.68, -141, 83.11, -52.62],
+        ["Mexico", 14.53, -118.4, 32.72, -86.7],
+        ["Guatemala", 13.74, -92.23, 17.82, -88.22],
+        ["Belize", 15.89, -89.22, 18.5, -87.49],
+        ["Honduras", 12.98, -89.35, 16.51, -83.15],
+        ["El Salvador", 13.15, -90.13, 14.45, -87.69],
+        ["Nicaragua", 10.71, -87.69, 15.03, -83.15],
+        ["Costa Rica", 8.03, -85.95, 11.22, -82.55],
+        ["Panama", 7.2, -83.05, 9.65, -77.17],
+        // Caribbean
+        ["Cuba", 19.83, -84.95, 23.27, -74.13],
+        ["Jamaica", 17.7, -78.37, 18.52, -76.18],
+        ["Haiti", 18.02, -74.48, 20.09, -71.62],
+        ["Dominican Republic", 17.54, -72, 19.93, -68.32],
+        ["Puerto Rico", 17.93, -67.24, 18.52, -65.59],
+        ["Trinidad and Tobago", 10.04, -61.93, 11.36, -60.52],
+        ["Bahamas", 20.91, -80.47, 27.26, -72.71],
+        ["Barbados", 13.04, -59.65, 13.34, -59.43],
+        ["Saint Lucia", 13.71, -61.08, 14.11, -60.87],
+        ["Grenada", 11.99, -61.8, 12.53, -61.38],
+        ["Antigua and Barbuda", 16.99, -62.35, 17.73, -61.67],
+        ["Dominica", 15.2, -61.48, 15.65, -61.24],
+        ["Saint Vincent", 12.58, -61.46, 13.38, -61.11],
+        ["Saint Kitts and Nevis", 17.09, -62.87, 17.42, -62.54],
+        ["Cura\xE7ao", 12.04, -69.16, 12.39, -68.73],
+        ["Aruba", 12.41, -70.06, 12.63, -69.87],
+        // South America
+        ["Brazil", -33.75, -73.99, 5.27, -34.79],
+        ["Argentina", -55.06, -73.56, -21.78, -53.64],
+        ["Chile", -55.98, -75.64, -17.51, -66.96],
+        ["Colombia", -4.23, -79, 12.46, -66.87],
+        ["Peru", -18.35, -81.33, -0.04, -68.65],
+        ["Venezuela", 0.63, -73.35, 12.2, -59.8],
+        ["Ecuador", -5.01, -81.08, 1.68, -75.19],
+        ["Bolivia", -22.9, -69.64, -9.68, -57.45],
+        ["Paraguay", -27.59, -62.65, -19.29, -54.26],
+        ["Uruguay", -34.95, -58.43, -30.09, -53.07],
+        ["Guyana", 1.17, -61.4, 8.56, -56.48],
+        ["Suriname", 1.83, -58.07, 6, -53.98],
+        ["French Guiana", 2.11, -54.54, 5.78, -51.61],
+        ["Falkland Islands", -52.41, -61.32, -51.25, -57.71],
+        // Europe
+        ["Iceland", 63.3, -24.53, 66.56, -13.5],
+        ["Norway", 57.96, 4.65, 71.19, 31.08],
+        ["Sweden", 55.34, 11.11, 69.06, 24.17],
+        ["Finland", 59.81, 20.55, 70.09, 31.59],
+        ["Denmark", 54.56, 8.07, 57.75, 15.2],
+        ["United Kingdom", 49.96, -8.17, 60.86, 1.75],
+        ["Ireland", 51.42, -10.48, 55.38, -5.99],
+        ["France", 42.33, -5.14, 51.09, 8.23],
+        // metropolitan only
+        ["Spain", 35.95, -9.3, 43.79, 4.33],
+        ["Portugal", 36.96, -9.5, 42.15, -6.19],
+        ["Germany", 47.27, 5.87, 55.06, 15.04],
+        ["Netherlands", 50.75, 3.36, 53.47, 7.21],
+        ["Belgium", 49.5, 2.54, 51.5, 6.41],
+        ["Luxembourg", 49.45, 5.73, 50.18, 6.53],
+        ["Switzerland", 45.82, 5.96, 47.81, 10.49],
+        ["Austria", 46.37, 9.53, 49.02, 17.16],
+        ["Italy", 36.65, 6.63, 47.09, 18.52],
+        ["Vatican City", 41.9, 12.45, 41.91, 12.46],
+        ["San Marino", 43.89, 12.4, 43.99, 12.52],
+        ["Malta", 35.81, 14.18, 36.08, 14.57],
+        ["Greece", 34.8, 19.37, 41.75, 29.65],
+        ["Turkey", 35.82, 25.66, 42.11, 44.82],
+        ["Cyprus", 34.57, 32.27, 35.71, 34.6],
+        ["Poland", 49, 14.12, 54.84, 24.15],
+        ["Czech Republic", 48.55, 12.09, 51.06, 18.86],
+        ["Slovakia", 47.73, 16.83, 49.61, 22.57],
+        ["Hungary", 45.74, 16.11, 48.59, 22.9],
+        ["Romania", 43.62, 20.26, 48.27, 29.69],
+        ["Bulgaria", 41.24, 22.36, 44.22, 28.61],
+        ["Serbia", 42.23, 18.83, 46.19, 23],
+        ["Croatia", 42.39, 13.49, 46.55, 19.43],
+        ["Bosnia and Herzegovina", 42.56, 15.72, 45.28, 19.62],
+        ["Montenegro", 41.85, 18.46, 43.56, 20.36],
+        ["North Macedonia", 40.85, 20.45, 42.37, 23.04],
+        ["Albania", 39.64, 19.26, 42.66, 21.06],
+        ["Kosovo", 41.86, 20.01, 43.27, 21.79],
+        ["Slovenia", 45.42, 13.38, 46.88, 16.61],
+        ["Estonia", 57.52, 21.76, 59.68, 28.21],
+        ["Latvia", 55.67, 20.97, 58.08, 28.24],
+        ["Lithuania", 53.9, 20.93, 56.45, 26.84],
+        ["Belarus", 51.26, 23.18, 56.17, 32.78],
+        ["Ukraine", 44.39, 22.14, 52.38, 40.23],
+        ["Moldova", 46.35, 26.62, 48.49, 30.16],
+        ["Andorra", 42.43, 1.41, 42.66, 1.79],
+        ["Monaco", 43.72, 7.41, 43.75, 7.44],
+        ["Liechtenstein", 47.05, 9.47, 47.27, 9.64],
+        // Russia — split into European and Asian
+        ["Russia (European)", 41.19, 27.33, 69.95, 60],
+        ["Russia (Asian)", 42.3, 60, 81.86, 179.99],
+        // Middle East
+        ["Israel", 29.49, 34.27, 33.33, 35.88],
+        ["Palestine", 31.22, 34.22, 32.55, 35.57],
+        ["Lebanon", 33.05, 35.1, 34.69, 36.62],
+        ["Syria", 32.31, 35.73, 37.32, 42.35],
+        ["Jordan", 29.18, 34.96, 33.38, 39.3],
+        ["Iraq", 29.06, 38.79, 37.38, 48.57],
+        ["Iran", 25.06, 44.05, 39.78, 63.32],
+        ["Saudi Arabia", 16.38, 34.63, 32.15, 55.67],
+        ["Yemen", 12.11, 42.53, 19, 54.53],
+        ["Oman", 16.65, 51.88, 26.39, 59.84],
+        ["United Arab Emirates", 22.63, 51.58, 26.08, 56.38],
+        ["Qatar", 24.47, 50.75, 26.15, 51.64],
+        ["Bahrain", 25.79, 50.45, 26.29, 50.65],
+        ["Kuwait", 28.53, 46.55, 30.1, 48.42],
+        // Central Asia
+        ["Kazakhstan", 40.57, 46.49, 55.44, 87.36],
+        ["Uzbekistan", 37.18, 55.99, 45.59, 73.13],
+        ["Turkmenistan", 35.14, 52.5, 42.8, 66.68],
+        ["Kyrgyzstan", 39.17, 69.25, 43.27, 80.28],
+        ["Tajikistan", 36.67, 67.34, 41.04, 75.14],
+        ["Afghanistan", 29.38, 60.5, 38.49, 74.89],
+        // South Asia
+        ["India", 6.75, 68.16, 35.5, 97.4],
+        ["Pakistan", 23.69, 60.87, 37.09, 77.83],
+        ["Bangladesh", 20.74, 88.01, 26.63, 92.67],
+        ["Sri Lanka", 5.92, 79.65, 9.84, 81.88],
+        ["Nepal", 26.35, 80.06, 30.45, 88.2],
+        ["Bhutan", 26.71, 88.75, 28.33, 92.13],
+        ["Maldives", -0.69, 72.64, 7.1, 73.75],
+        // East Asia
+        ["China", 18.16, 73.5, 53.56, 134.77],
+        ["Japan", 24.25, 122.93, 45.52, 153.99],
+        ["South Korea", 33.11, 124.6, 38.61, 131.87],
+        ["North Korea", 37.67, 124.32, 43.01, 130.67],
+        ["Mongolia", 41.58, 87.75, 52.15, 119.93],
+        ["Taiwan", 21.9, 120.22, 25.3, 122],
+        // Southeast Asia
+        ["Thailand", 5.61, 97.35, 20.46, 105.64],
+        ["Vietnam", 8.56, 102.14, 23.39, 109.46],
+        ["Myanmar", 9.78, 92.17, 28.54, 101.17],
+        ["Cambodia", 10.41, 102.34, 14.69, 107.63],
+        ["Laos", 13.91, 100.09, 22.5, 107.64],
+        ["Malaysia", 0.85, 99.64, 7.36, 119.27],
+        ["Singapore", 1.26, 103.64, 1.47, 104.01],
+        ["Indonesia", -11, 95.01, 5.91, 141.02],
+        ["Philippines", 4.59, 116.93, 21.12, 126.6],
+        ["Brunei", 4.01, 114.08, 5.05, 115.36],
+        ["Timor-Leste", -9.5, 124.05, -8.13, 127.31],
+        // Africa
+        ["Egypt", 22, 24.7, 31.67, 36.9],
+        ["Libya", 19.51, 9.39, 33.17, 25.15],
+        ["Tunisia", 30.23, 7.52, 37.54, 11.6],
+        ["Algeria", 18.96, -8.67, 37.09, 11.98],
+        ["Morocco", 27.67, -13.17, 35.93, -1.01],
+        ["Western Sahara", 20.77, -17.1, 27.67, -8.67],
+        ["Mauritania", 14.72, -17.07, 27.3, -4.83],
+        ["Mali", 10.16, -12.24, 25, 4.27],
+        ["Niger", 11.69, 0.17, 23.53, 16],
+        ["Chad", 7.44, 13.47, 23.45, 24],
+        ["Sudan", 8.68, 21.84, 22.23, 38.58],
+        ["South Sudan", 3.49, 23.44, 12.24, 35.95],
+        ["Ethiopia", 3.4, 32.99, 14.89, 48],
+        ["Eritrea", 12.36, 36.44, 18, 43.13],
+        ["Djibouti", 10.93, 41.77, 12.71, 43.42],
+        ["Somalia", -1.67, 40.99, 11.99, 51.41],
+        ["Kenya", -4.68, 33.91, 5.03, 41.9],
+        ["Uganda", -1.48, 29.57, 4.23, 35.03],
+        ["Tanzania", -11.75, 29.33, -0.99, 40.44],
+        ["Rwanda", -2.84, 28.86, -1.05, 30.9],
+        ["Burundi", -4.47, 29, -2.31, 30.85],
+        ["Democratic Republic of the Congo", -13.46, 12.18, 5.39, 31.31],
+        ["Republic of the Congo", -5.03, 11.21, 3.7, 18.65],
+        ["Gabon", -3.98, 8.7, 2.32, 14.5],
+        ["Equatorial Guinea", 0.92, 9.35, 2.35, 11.34],
+        ["Cameroon", 1.65, 8.49, 13.08, 16.19],
+        ["Central African Republic", 2.22, 14.42, 11, 27.46],
+        ["Nigeria", 4.28, 2.69, 13.87, 14.68],
+        ["Benin", 6.23, 0.77, 12.42, 3.84],
+        ["Togo", 6.1, -0.15, 11.14, 1.81],
+        ["Ghana", 4.74, -3.26, 11.17, 1.19],
+        ["Ivory Coast", 4.36, -8.6, 10.74, -2.49],
+        ["Burkina Faso", 9.39, -5.52, 15.08, 2.4],
+        ["Liberia", 4.35, -11.49, 8.55, -7.37],
+        ["Sierra Leone", 6.93, -13.3, 10, -10.28],
+        ["Guinea", 7.19, -15.08, 12.68, -7.64],
+        ["Guinea-Bissau", 10.93, -16.71, 12.68, -13.64],
+        ["Senegal", 12.31, -17.54, 16.69, -11.36],
+        ["Gambia", 13.06, -16.81, 13.83, -13.8],
+        ["Cape Verde", 14.81, -25.36, 17.2, -22.66],
+        ["Mauritius", -20.52, 57.31, -19.97, 57.81],
+        ["Madagascar", -25.6, 43.22, -11.95, 50.48],
+        ["Mozambique", -26.87, 30.22, -10.47, 40.84],
+        ["Malawi", -17.13, 32.67, -9.37, 35.92],
+        ["Zambia", -18.08, 21.99, -8.22, 33.49],
+        ["Zimbabwe", -22.42, 25.24, -15.61, 33.07],
+        ["Botswana", -26.91, 19.99, -17.78, 29.37],
+        ["Namibia", -28.97, 11.72, -16.96, 25.26],
+        ["South Africa", -34.84, 16.45, -22.13, 32.89],
+        ["Eswatini", -27.32, 30.79, -25.72, 32.13],
+        ["Lesotho", -30.67, 27.01, -28.57, 29.46],
+        ["Angola", -18.04, 11.64, -4.37, 24.08],
+        ["Comoros", -12.42, 43.23, -11.36, 44.54],
+        ["Seychelles", -9.76, 46.2, -4.28, 56.3],
+        ["S\xE3o Tom\xE9 and Pr\xEDncipe", 0.02, 6.47, 1.7, 7.47],
+        ["R\xE9union", -21.39, 55.22, -20.87, 55.84],
+        // Oceania
+        ["Australia", -43.64, 113.16, -10.06, 153.64],
+        ["New Zealand", -47.29, 166.43, -34.39, 178.57],
+        ["Papua New Guinea", -10.69, 140.84, -1.35, 155.97],
+        ["Fiji", -20.68, 177, -12.48, -179.87],
+        // antimeridian
+        ["New Caledonia", -22.7, 163.56, -19.55, 168.13],
+        ["Solomon Islands", -11.85, 155.51, -6.59, 167.21],
+        ["Vanuatu", -20.25, 166.52, -13.07, 170.24],
+        ["Samoa", -14.06, -172.8, -13.43, -171.42],
+        ["Tonga", -21.46, -175.68, -15.56, -173.91],
+        ["Palau", 2.8, 131.12, 8.1, 134.73],
+        ["Micronesia", 1.03, 137.33, 10.09, 163.04],
+        ["Marshall Islands", 4.57, 160.8, 14.62, 172.03],
+        ["Kiribati", -11.44, 169.56, 4.72, -150.22],
+        // antimeridian
+        ["Tuvalu", -10.8, 176.06, -5.64, 179.87],
+        ["Nauru", -0.56, 166.9, -0.49, 166.96],
+        ["Guam", 13.24, 144.62, 13.65, 144.96],
+        ["American Samoa", -14.38, -170.83, -14.16, -169.42],
+        // North Asia / other
+        ["Georgia", 41.05, 40.01, 43.59, 46.72],
+        ["Armenia", 38.84, 43.45, 41.3, 46.63],
+        ["Azerbaijan", 38.39, 44.79, 41.91, 50.37]
+      ];
     }
   });
 
@@ -1175,11 +1667,11 @@
   }
   function distanceKm(lat1, lon1, lat2, lon2) {
     const r = Math.PI / 180;
-    const R = 6371;
+    const R3 = 6371;
     const dLat = (lat2 - lat1) * r;
     const dLon = (lon2 - lon1) * r;
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R3 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
   function distanceModifier(distKm) {
     if (distKm < 100) return 0.3;
@@ -1330,6 +1822,7 @@
     fetchVoacapMatrixThrottled: () => fetchVoacapMatrixThrottled,
     getVoacapOpts: () => getVoacapOpts,
     initVoacapListeners: () => initVoacapListeners,
+    onSpotDeselected: () => onSpotDeselected,
     onSpotSelected: () => onSpotSelected,
     renderVoacapMatrix: () => renderVoacapMatrix,
     toggleBandOverlay: () => toggleBandOverlay
@@ -1340,7 +1833,11 @@
     matrix.addEventListener("click", (e) => {
       const param = e.target.closest(".voacap-param");
       if (param && param.dataset.param) {
-        cycleParam(param.dataset.param);
+        if (param.dataset.param === "sensitivity" && e.shiftKey) {
+          cycleParam("sensitivity-reset");
+        } else {
+          cycleParam(param.dataset.param);
+        }
         return;
       }
       const row = e.target.closest(".voacap-row");
@@ -1370,6 +1867,24 @@
       state_default.voacapAutoSpot = !state_default.voacapAutoSpot;
       localStorage.setItem("hamtab_voacap_auto_spot", state_default.voacapAutoSpot);
       renderVoacapMatrix();
+      return;
+    }
+    if (name === "sensitivity-reset") {
+      state_default.voacapSensitivity = DEFAULT_SENSITIVITY;
+      localStorage.setItem("hamtab_voacap_sensitivity", DEFAULT_SENSITIVITY);
+      renderVoacapMatrix();
+      clearTimeout(state_default.voacapParamTimer);
+      state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
+      return;
+    }
+    if (name === "sensitivity") {
+      const current2 = state_default.voacapSensitivity;
+      const next2 = current2 >= MAX_SENSITIVITY ? 1 : current2 + 1;
+      state_default.voacapSensitivity = next2;
+      localStorage.setItem("hamtab_voacap_sensitivity", next2);
+      renderVoacapMatrix();
+      clearTimeout(state_default.voacapParamTimer);
+      state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
       return;
     }
     if (name === "target") {
@@ -1403,7 +1918,9 @@
     const next = options[(idx + 1) % options.length];
     state_default[stateKey] = next;
     localStorage.setItem(key, next);
-    fetchVoacapMatrix();
+    renderVoacapMatrix();
+    clearTimeout(state_default.voacapParamTimer);
+    state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
     if (state_default.hfPropOverlayBand) {
       clearBandOverlay();
       clearHeatmap();
@@ -1429,33 +1946,59 @@
       renderVoacapMatrix();
       return;
     }
+    console.log(`[VOACAP] fetchVoacapMatrix called, target=${state_default.voacapTarget}, selectedSpot=${state_default.selectedSpotId}, sensitivity=${state_default.voacapSensitivity}`);
+    if (activeFetchController) activeFetchController.abort();
+    const controller = new AbortController();
+    activeFetchController = controller;
+    const sensLevel = SENSITIVITY_LEVELS[state_default.voacapSensitivity] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
+    const currentSnr = sensLevel[state_default.voacapMode] ?? sensLevel.SSB;
     const params = new URLSearchParams({
       txLat: state_default.myLat,
       txLon: state_default.myLon,
       power: state_default.voacapPower,
       mode: state_default.voacapMode,
       toa: state_default.voacapToa,
-      path: state_default.voacapPath
+      path: state_default.voacapPath,
+      snr: currentSnr
     });
     if (state_default.voacapTarget === "spot" && state_default.selectedSpotId) {
-      const spot = findSelectedSpot();
-      if (spot && spot.lat != null && spot.lon != null) {
-        params.set("rxLat", spot.lat);
-        params.set("rxLon", spot.lon);
+      try {
+        const spot = findSelectedSpot();
+        const spotLat = parseFloat(spot?.latitude);
+        const spotLon = parseFloat(spot?.longitude);
+        console.log(`[VOACAP] Spot lookup: found=${!!spot}, lat=${spotLat}, lon=${spotLon}`);
+        if (!isNaN(spotLat) && !isNaN(spotLon)) {
+          params.set("rxLat", spotLat);
+          params.set("rxLon", spotLon);
+        }
+      } catch (err) {
+        console.warn("[VOACAP] Spot lookup error:", err);
       }
     }
     try {
-      const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 25e3);
       const resp = await fetch(`/api/voacap?${params}`, { signal: controller.signal });
       clearTimeout(timeout);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
-      state_default.voacapServerData = data;
-      state_default.voacapEngine = data.engine || "simplified";
-      state_default.voacapLastFetch = Date.now();
+      if (activeFetchController === controller) {
+        state_default.voacapServerData = data;
+        state_default.voacapEngine = data.engine || "simplified";
+        state_default.voacapLastFetch = Date.now();
+        if (state_default.voacapTarget === "spot") {
+          const hasSignal = matrixHasSignal(data.matrix);
+          const peakRel = Math.max(...data.matrix.flatMap(
+            (e) => Object.values(e.bands).map((b) => typeof b === "object" ? b.rel || 0 : b || 0)
+          ));
+          console.log(`[VOACAP] SPOT fetch: engine=${data.engine}, rxLat=${params.get("rxLat")}, rxLon=${params.get("rxLon")}, peakRel=${peakRel}%, hasSignal=${hasSignal}${data.fallbackReason ? ", fallback=" + data.fallbackReason : ""}`);
+        }
+      }
     } catch (err) {
-      if (state_default.debug) console.error("VOACAP fetch error:", err);
+      if (err.name === "AbortError") {
+        console.log("[VOACAP] Fetch aborted (superseded)");
+        return;
+      }
+      console.warn(`[VOACAP] Fetch error: ${err.message}`);
     }
     renderVoacapMatrix();
   }
@@ -1468,15 +2011,27 @@
     if (!state_default.selectedSpotId) return null;
     const source = state_default.currentSource;
     const spots = state_default.sourceData[source] || [];
-    return spots.find((s) => {
-      if (source === "pota") return s.spotId === state_default.selectedSpotId;
-      if (source === "sota") return s.id === state_default.selectedSpotId;
-      return s.id === state_default.selectedSpotId || s.spotId === state_default.selectedSpotId;
-    });
+    const def = SOURCE_DEFS[source];
+    if (!def || !def.spotId) return null;
+    return spots.find((s) => def.spotId(s) === state_default.selectedSpotId);
+  }
+  function matrixHasSignal(matrix) {
+    for (const entry of matrix) {
+      for (const val of Object.values(entry.bands)) {
+        const rel = typeof val === "object" ? val.rel || 0 : val || 0;
+        if (rel >= 5) return true;
+      }
+    }
+    return false;
   }
   function getActiveMatrix() {
     if (state_default.voacapServerData && state_default.voacapServerData.matrix) {
-      return state_default.voacapServerData.matrix;
+      const serverMatrix = state_default.voacapServerData.matrix;
+      if (state_default.voacapTarget === "spot" && !matrixHasSignal(serverMatrix)) {
+        const opts2 = getVoacapOpts();
+        return calculate24HourMatrix(opts2);
+      }
+      return serverMatrix;
     }
     const opts = getVoacapOpts();
     return calculate24HourMatrix(opts);
@@ -1496,6 +2051,7 @@
       container.innerHTML = '<div class="voacap-no-data">Waiting for solar data...</div>';
       return;
     }
+    const spotPathDead = state_default.voacapTarget === "spot" && state_default.voacapServerData?.matrix && !matrixHasSignal(state_default.voacapServerData.matrix);
     const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
     const hourOrder = [];
     for (let i = 0; i < 24; i++) {
@@ -1566,7 +2122,24 @@
     html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
     html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
     html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
+    const sensLvl = state_default.voacapSensitivity;
+    const sensInfo = SENSITIVITY_LEVELS[sensLvl] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
+    const sensDefault = sensLvl === DEFAULT_SENSITIVITY;
+    const sensActiveClass = !sensDefault ? " voacap-param-active" : "";
+    const sensTooltip = `SNR Sensitivity: ${sensInfo.label} (${sensLvl}/${MAX_SENSITIVITY})
+${sensInfo.desc}
+
+Required S/N for ${state_default.voacapMode}: ${sensInfo[state_default.voacapMode]}dB
+
+Higher = stricter (fewer paths workable)
+Lower = more lenient (more paths workable)
+
+Click to cycle \u2022 Shift+click to reset to Normal`;
+    html += `<span class="voacap-param${sensActiveClass}" data-param="sensitivity" title="${sensTooltip}">SN${sensLvl}</span>`;
     html += `</div>`;
+    if (spotPathDead) {
+      html += `<div class="voacap-no-prop">No HF path to this station \u2014 showing overview</div>`;
+    }
     html += `<div class="voacap-legend">`;
     html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(0)}"></span>Closed</span>`;
     html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(20)}"></span>Poor</span>`;
@@ -1664,14 +2237,25 @@
     }
     fetchVoacapMatrix();
   }
-  var bandOverlayCircles, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS;
+  function onSpotDeselected() {
+    if (!state_default.voacapAutoSpot) return;
+    if (state_default.voacapTarget === "spot") {
+      state_default.voacapTarget = "overview";
+      localStorage.setItem("hamtab_voacap_target", "overview");
+    }
+    state_default.voacapServerData = null;
+    fetchVoacapMatrix();
+  }
+  var bandOverlayCircles, activeFetchController, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS, SENSITIVITY_LEVELS, DEFAULT_SENSITIVITY, MAX_SENSITIVITY;
   var init_voacap = __esm({
     "src/voacap.js"() {
       init_state();
       init_dom();
+      init_constants();
       init_band_conditions();
       init_rel_heatmap();
       bandOverlayCircles = [];
+      activeFetchController = null;
       FETCH_THROTTLE_MS = 5 * 60 * 1e3;
       FETCH_RETRY_MS = 30 * 1e3;
       POWER_OPTIONS = ["5", "100", "1000"];
@@ -1679,12 +2263,24 @@
       MODE_OPTIONS = ["CW", "SSB", "FT8"];
       TOA_OPTIONS = ["3", "5", "10", "15"];
       PATH_OPTIONS = ["SP", "LP"];
+      SENSITIVITY_LEVELS = {
+        1: { SSB: 42, CW: 18, FT8: -4, label: "Optimistic", desc: "Beam antenna, low noise \u2014 most paths show as workable" },
+        2: { SSB: 48, CW: 24, FT8: 0, label: "Relaxed", desc: "Good antenna, reasonable noise floor" },
+        3: { SSB: 54, CW: 30, FT8: 2, label: "Normal", desc: "Typical amateur station (default)" },
+        4: { SSB: 60, CW: 36, FT8: 8, label: "Conservative", desc: "Compromise antenna, urban noise" },
+        5: { SSB: 66, CW: 42, FT8: 14, label: "Strict", desc: "Small antenna, high noise \u2014 only strong paths show" }
+      };
+      DEFAULT_SENSITIVITY = 3;
+      MAX_SENSITIVITY = 5;
     }
   });
 
   // src/spot-detail.js
   function weatherCacheKey(lat, lon) {
     return `${lat.toFixed(1)},${lon.toFixed(1)}`;
+  }
+  function isNwsCoverage(lat, lon) {
+    return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
   }
   async function fetchCallsignInfo(call) {
     if (!call) return null;
@@ -1723,9 +2319,9 @@
     }
   }
   function renderLocalTime(lon) {
-    const el = document.getElementById("spotDetailTime");
-    if (!el) return;
-    el.textContent = localTimeAtLon(lon, state_default.use24h);
+    const el2 = document.getElementById("spotDetailTime");
+    if (!el2) return;
+    el2.textContent = localTimeAtLon(lon, state_default.use24h);
   }
   function wxClass(shortForecast) {
     if (!shortForecast) return "";
@@ -1745,7 +2341,7 @@
     const displayCall = spot.callsign || spot.activator || "";
     const qrzUrl = `https://www.qrz.com/db/${encodeURIComponent(displayCall)}`;
     const freq = spot.frequency || "";
-    const mode = spot.mode || "";
+    const mode2 = spot.mode || "";
     const band = freqToBand(freq) || "";
     const ref = spot.reference || "";
     const spotter = spot.spotter || "";
@@ -1783,7 +2379,7 @@
     <div class="spot-detail-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${esc(displayCall)}</a></div>
     <div class="spot-detail-name" id="spotDetailName"></div>
     <div class="spot-detail-row"><span class="spot-detail-label">Freq:</span> ${esc(freq)} MHz</div>
-    <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode)}</div>
+    <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode2)}</div>
     ${band ? `<div class="spot-detail-row"><span class="spot-detail-label">Band:</span> ${esc(band)}</div>` : ""}
     ${refHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Ref:</span> ${refHtml}</div>` : ""}
     ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state_default.currentSource === "dxc" ? "Country:" : "Name:"}</span> ${esc(spot.name)}</div>` : ""}
@@ -1808,7 +2404,7 @@
       if (info.addr2) parts.push(`\xB7 ${info.addr2}`);
       nameEl.textContent = parts.join(" ");
     }
-    if (!isNaN(lat) && !isNaN(lon)) {
+    if (!isNaN(lat) && !isNaN(lon) && isNwsCoverage(lat, lon)) {
       const wxEl = document.getElementById("spotDetailWx");
       const wx = await fetchSpotWeather(lat, lon);
       if (wx && wxEl && currentSpot === spot) {
@@ -1862,15 +2458,37 @@
   }
   function setDedxSpot(spot) {
     selectedSpot = spot;
-    renderDedxDx();
+    renderDedxInfo();
   }
   function clearDedxSpot() {
     selectedSpot = null;
-    renderDedxDx();
+    renderDedxInfo();
   }
-  function renderDedxInfo() {
-    renderDedxDe();
-    renderDedxDx();
+  function startDedxTimer() {
+    renderDedxInfo();
+    if (state_default.dedxTimer) return;
+    state_default.dedxTimer = setInterval(renderDedxInfo, 1e3);
+  }
+  function stopDedxTimer() {
+    if (state_default.dedxTimer) {
+      clearInterval(state_default.dedxTimer);
+      state_default.dedxTimer = null;
+    }
+  }
+  function fmtTime2(date, use24h) {
+    const h = date.getHours();
+    const m = String(date.getMinutes()).padStart(2, "0");
+    const s = String(date.getSeconds()).padStart(2, "0");
+    if (use24h) return `${String(h).padStart(2, "0")}:${m}:${s}`;
+    const h12 = h % 12 || 12;
+    const ampm = h < 12 ? "AM" : "PM";
+    return `${h12}:${m}:${s} ${ampm}`;
+  }
+  function localTimeAtLonDate(lon) {
+    const now = /* @__PURE__ */ new Date();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 6e4;
+    const offsetMs = lon / 15 * 36e5;
+    return new Date(utcMs + offsetMs);
   }
   function fmtSunCountdown(target, now, prefix) {
     if (!target) return null;
@@ -1884,20 +2502,22 @@
     }
     return `${prefix} ${h}:${mm} ago`;
   }
+  function renderDedxInfo() {
+    if (!isWidgetVisible("widget-dedx")) return;
+    renderDedxDe();
+    renderDedxDx();
+  }
   function renderDedxDe() {
-    const el = $("dedxDeContent");
-    if (!el) return;
+    const timeEl = $("dedxDeTime");
+    const el2 = $("dedxDeContent");
+    if (!el2) return;
+    const now = /* @__PURE__ */ new Date();
+    if (timeEl) timeEl.textContent = fmtTime2(now, state_default.use24h);
     const call = state_default.myCallsign || "\u2014";
     const lat = state_default.myLat;
     const lon = state_default.myLon;
     let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
     if (lat !== null && lon !== null) {
-      const now = /* @__PURE__ */ new Date();
-      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const dayStr = days[now.getDay()];
-      const hh = String(now.getHours()).padStart(2, "0");
-      const mm = String(now.getMinutes()).padStart(2, "0");
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Time</span><span class="dedx-value">${dayStr} ${hh}:${mm}</span></div>`;
       const grid = latLonToGrid(lat, lon).substring(0, 6).toUpperCase();
       rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
       const cardinal = latLonToCardinal(lat, lon);
@@ -1914,30 +2534,46 @@
     } else {
       rows += `<div class="dedx-row dedx-empty">Set location in Config</div>`;
     }
-    el.innerHTML = rows;
+    el2.innerHTML = rows;
   }
   function renderDedxDx() {
-    const el = $("dedxDxContent");
-    if (!el) return;
+    const timeEl = $("dedxDxTime");
+    const el2 = $("dedxDxContent");
+    if (!el2) return;
     if (!selectedSpot) {
-      el.innerHTML = '<div class="dedx-row dedx-empty">Select a spot</div>';
+      if (timeEl) {
+        const now = /* @__PURE__ */ new Date();
+        const h = String(now.getUTCHours()).padStart(2, "0");
+        const m = String(now.getUTCMinutes()).padStart(2, "0");
+        const s = String(now.getUTCSeconds()).padStart(2, "0");
+        timeEl.textContent = `${h}:${m}:${s}`;
+      }
+      el2.innerHTML = '<div class="dedx-utc-label">UTC</div><div class="dedx-row dedx-empty">Select a spot</div>';
       return;
     }
     const spot = selectedSpot;
     const call = spot.callsign || spot.activator || "\u2014";
     const freq = spot.frequency || "";
-    const mode = spot.mode || "";
+    const mode2 = spot.mode || "";
     const band = freqToBand(freq) || "";
     const lat = parseFloat(spot.latitude);
     const lon = parseFloat(spot.longitude);
+    if (timeEl) {
+      if (!isNaN(lat) && !isNaN(lon)) {
+        const dxLocal = localTimeAtLonDate(lon);
+        timeEl.textContent = fmtTime2(dxLocal, state_default.use24h);
+      } else {
+        timeEl.textContent = "--:--:--";
+      }
+    }
     let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
     if (freq) {
       const parts = [freq];
       if (band) parts.push(`(${band})`);
-      if (mode) parts.push(mode);
+      if (mode2) parts.push(mode2);
       rows += `<div class="dedx-row"><span class="dedx-label-sm">Freq</span><span class="dedx-value">${esc(parts.join(" "))}</span></div>`;
-    } else if (mode) {
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode)}</span></div>`;
+    } else if (mode2) {
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode2)}</span></div>`;
     }
     if (!isNaN(lat) && !isNaN(lon)) {
       const grid = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
@@ -1965,13 +2601,14 @@
       const sign = offset >= 0 ? "+" : "";
       rows += `<div class="dedx-row"><span class="dedx-label-sm">TZ</span><span class="dedx-value dedx-utc-badge">UTC${sign}${offset}</span></div>`;
     }
-    el.innerHTML = rows;
+    el2.innerHTML = rows;
   }
   var selectedSpot;
   var init_dedx_info = __esm({
     "src/dedx-info.js"() {
       init_state();
       init_dom();
+      init_widgets();
       init_geo();
       init_utils();
       init_filters();
@@ -2163,12 +2800,13 @@
     ensureIcons();
     clearGeodesicLine();
     const oldSid = state_default.selectedSpotId;
+    const newSid = sid && sid === oldSid ? null : sid;
     if (oldSid && state_default.markers[oldSid]) {
       state_default.markers[oldSid].setIcon(defaultIcon);
     }
-    state_default.selectedSpotId = sid;
-    if (sid && state_default.markers[sid]) {
-      state_default.markers[sid].setIcon(selectedIcon);
+    state_default.selectedSpotId = newSid;
+    if (newSid && state_default.markers[newSid]) {
+      state_default.markers[newSid].setIcon(selectedIcon);
     }
     if (state_default.clusterGroup) {
       if (oldSid && state_default.markers[oldSid]) {
@@ -2177,23 +2815,25 @@
           oldParent._icon.classList.remove("marker-cluster-selected");
         }
       }
-      if (sid && state_default.markers[sid]) {
-        const newParent = state_default.clusterGroup.getVisibleParent(state_default.markers[sid]);
-        if (newParent && newParent !== state_default.markers[sid] && newParent._icon) {
+      if (newSid && state_default.markers[newSid]) {
+        const newParent = state_default.clusterGroup.getVisibleParent(state_default.markers[newSid]);
+        if (newParent && newParent !== state_default.markers[newSid] && newParent._icon) {
           newParent._icon.classList.add("marker-cluster-selected");
         }
       }
     }
     document.querySelectorAll("#spotsBody tr").forEach((tr) => {
-      tr.classList.toggle("selected", tr.dataset.spotId === sid);
+      tr.classList.toggle("selected", tr.dataset.spotId === newSid);
     });
-    const selectedRow = document.querySelector(`#spotsBody tr[data-spot-id="${CSS.escape(sid)}"]`);
-    if (selectedRow) {
-      selectedRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (newSid) {
+      const selectedRow = document.querySelector(`#spotsBody tr[data-spot-id="${CSS.escape(newSid)}"]`);
+      if (selectedRow) {
+        selectedRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
     }
-    if (sid) {
+    if (newSid) {
       const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
-      const spot = filtered.find((s) => spotId(s) === sid);
+      const spot = filtered.find((s) => spotId(s) === newSid);
       if (spot) {
         updateSpotDetail(spot);
         setDedxSpot(spot);
@@ -2206,15 +2846,15 @@
     } else {
       clearSpotDetail();
       clearDedxSpot();
+      onSpotDeselected();
     }
   }
   function flyToSpot(spot) {
-    if (!state_default.map) return;
-    const lat = parseFloat(spot.latitude);
-    const lon = parseFloat(spot.longitude);
-    if (isNaN(lat) || isNaN(lon)) return;
     const sid = spotId(spot);
     selectSpot(sid);
+    const lat = parseFloat(spot.latitude);
+    const lon = parseFloat(spot.longitude);
+    if (!state_default.map || isNaN(lat) || isNaN(lon)) return;
     if (state_default.mapCenterMode === "spot") {
       state_default.map.flyTo([lat, lon], 5, { duration: 0.8 });
     }
@@ -2397,6 +3037,7 @@
     getAvailableGrids: () => getAvailableGrids,
     getAvailableModes: () => getAvailableModes,
     getAvailableStates: () => getAvailableStates,
+    hasActiveFilters: () => hasActiveFilters,
     initFilterListeners: () => initFilterListeners,
     isUSCallsign: () => isUSCallsign,
     loadFiltersForSource: () => loadFiltersForSource,
@@ -2441,9 +3082,9 @@
     if (!call) return false;
     return /^[AKNW][A-Z]?\d/.test(call.toUpperCase());
   }
-  function normalizeMode(mode) {
-    if (!mode) return "phone";
-    const m = mode.toUpperCase();
+  function normalizeMode(mode2) {
+    if (!mode2) return "phone";
+    const m = mode2.toUpperCase();
     if (m === "CW") return "cw";
     if (m === "SSB" || m === "FM" || m === "AM" || m === "LSB" || m === "USB") return "phone";
     return "digital";
@@ -2618,12 +3259,12 @@
     addBtn.addEventListener("click", () => {
       const val = valueInput.value.trim().toUpperCase();
       if (!val) return;
-      const mode = form.querySelector(`input[name="${radioName}"]:checked`).value;
+      const mode2 = form.querySelector(`input[name="${radioName}"]:checked`).value;
       const type = typeSelect.value;
       const existing = state_default.watchLists[key] || [];
-      if (existing.some((r) => r.mode === mode && r.type === type && r.value === val)) return;
+      if (existing.some((r) => r.mode === mode2 && r.type === type && r.value === val)) return;
       if (!state_default.watchLists[key]) state_default.watchLists[key] = [];
-      state_default.watchLists[key].push({ mode, type, value: val });
+      state_default.watchLists[key].push({ mode: mode2, type, value: val });
       saveWatchLists();
       applyFilter();
       renderSpots();
@@ -2733,15 +3374,15 @@
       updateModeFilterButtons();
     });
     modeFilters.appendChild(allBtn);
-    modes.forEach((mode) => {
+    modes.forEach((mode2) => {
       const btn = document.createElement("button");
-      btn.textContent = mode;
-      btn.className = state_default.activeModes.has(mode) ? "active" : "";
+      btn.textContent = mode2;
+      btn.className = state_default.activeModes.has(mode2) ? "active" : "";
       btn.addEventListener("click", () => {
-        if (state_default.activeModes.has(mode)) {
-          state_default.activeModes.delete(mode);
+        if (state_default.activeModes.has(mode2)) {
+          state_default.activeModes.delete(mode2);
         } else {
-          state_default.activeModes.add(mode);
+          state_default.activeModes.add(mode2);
         }
         saveCurrentFilters();
         applyFilter();
@@ -3054,6 +3695,7 @@
       sortDirection: state_default.spotSortDirection
     };
     localStorage.setItem(`hamtab_filter_${source}`, JSON.stringify(filterState));
+    updateFilterIndicator();
   }
   function loadFiltersForSource(source) {
     try {
@@ -3088,6 +3730,30 @@
     state_default.spotSortColumn = null;
     state_default.spotSortDirection = "desc";
   }
+  function hasActiveFilters() {
+    return state_default.activeBands.size > 0 || state_default.activeModes.size > 0 || state_default.activeMaxDistance !== null || state_default.activeMaxAge !== null || state_default.activeCountry !== null || state_default.activeState !== null || state_default.activeGrid !== null || state_default.activeContinent !== null || state_default.privilegeFilterEnabled || state_default.propagationFilterEnabled;
+  }
+  function updateFilterIndicator() {
+    const active2 = hasActiveFilters();
+    const header = document.querySelector("#widget-filters .widget-header");
+    if (header) {
+      let badge = header.querySelector(".filter-active-badge");
+      if (active2) {
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "filter-active-badge";
+          badge.title = "Filters active \u2014 some spots may be hidden";
+          header.appendChild(badge);
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+    }
+    const clearBtn = $("clearFiltersBtn");
+    if (clearBtn) {
+      clearBtn.classList.toggle("filters-active", active2);
+    }
+  }
   function updateAllFilterUI() {
     updateBandFilterButtons();
     updateModeFilterButtons();
@@ -3115,6 +3781,7 @@
     if (propBtn) {
       propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
     }
+    updateFilterIndicator();
   }
   function clearAllFilters() {
     state_default.activeBands.clear();
@@ -3495,6 +4162,7 @@
         });
         L.marker([mid[1], mid[0]], { icon, pane: "propagation", interactive: false }).addTo(state_default.propLabelLayer);
       });
+      state_default.map.invalidateSize();
     } catch (err) {
       console.error("Failed to fetch propagation:", err);
     }
@@ -3585,6 +4253,14 @@
           if (!isNaN(lat) && !isNaN(lon)) state_default.map.flyTo([lat, lon], 5, { duration: 0.8 });
         }
       }
+    } else if (state_default.mapCenterMode === "cty") {
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        const bounds = findCountryBounds(state_default.myLat, state_default.myLon);
+        if (bounds) {
+          const [south, west, north, east] = bounds;
+          state_default.map.flyToBounds([[south, west], [north, east]], { maxZoom: 10, padding: [20, 20], duration: 0.8 });
+        }
+      }
     }
   }
   async function checkAutoStormOverlay(data) {
@@ -3606,6 +4282,7 @@
       init_state();
       init_dom();
       init_utils();
+      init_country_bounds();
       SOLAR_VIS_KEY = "hamtab_solar_fields";
       solarFrames = [];
       solarFrameNames = [];
@@ -3801,8 +4478,8 @@
   // src/constants.js
   var constants_exports = {};
   __export(constants_exports, {
+    ALLOW_OVERLAP_KEY: () => ALLOW_OVERLAP_KEY,
     BREAKPOINT_MOBILE: () => BREAKPOINT_MOBILE,
-    BREAKPOINT_TABLET: () => BREAKPOINT_TABLET,
     DEFAULT_BAND_COLORS: () => DEFAULT_BAND_COLORS,
     DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
     DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
@@ -3812,8 +4489,12 @@
     GRID_PERMUTATIONS: () => GRID_PERMUTATIONS,
     GRID_PERM_KEY: () => GRID_PERM_KEY,
     GRID_SIZES_KEY: () => GRID_SIZES_KEY,
+    GRID_SPANS_KEY: () => GRID_SPANS_KEY,
     HEADER_H: () => HEADER_H,
+    LAYOUTS_KEY: () => LAYOUTS_KEY,
     LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
+    MAX_LAYOUTS: () => MAX_LAYOUTS,
+    MOBILE_TAB_KEY: () => MOBILE_TAB_KEY,
     REFERENCE_TABS: () => REFERENCE_TABS,
     REFLOW_WIDGET_ORDER: () => REFLOW_WIDGET_ORDER,
     SAT_FREQUENCIES: () => SAT_FREQUENCIES,
@@ -3821,6 +4502,8 @@
     SCALE_REFERENCE_WIDTH: () => SCALE_REFERENCE_WIDTH,
     SCALE_REFLOW_WIDTH: () => SCALE_REFLOW_WIDTH,
     SNAP_DIST: () => SNAP_DIST,
+    SNAP_GRID: () => SNAP_GRID,
+    SNAP_GRID_KEY: () => SNAP_GRID_KEY,
     SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
     SOURCE_DEFS: () => SOURCE_DEFS,
     USER_LAYOUT_KEY: () => USER_LAYOUT_KEY,
@@ -3848,28 +4531,30 @@
   function getBandColorOverrides() {
     return { ...bandColorOverrides };
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, BREAKPOINT_TABLET, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, SNAP_DIST, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
       init_lunar();
       WIDGET_DEFS = [
-        { id: "widget-filters", name: "Filters" },
-        { id: "widget-activations", name: "On the Air" },
-        { id: "widget-map", name: "HamMap" },
-        { id: "widget-solar", name: "Solar" },
-        { id: "widget-spacewx", name: "Space Wx" },
-        { id: "widget-propagation", name: "Band Conditions" },
-        { id: "widget-voacap", name: "VOACAP DE\u2192DX" },
-        { id: "widget-live-spots", name: "Live Spots" },
-        { id: "widget-lunar", name: "Lunar / EME" },
-        { id: "widget-satellites", name: "Satellites" },
-        { id: "widget-rst", name: "Reference" },
-        { id: "widget-spot-detail", name: "DX Detail" },
-        { id: "widget-contests", name: "Contests" },
-        { id: "widget-dxpeditions", name: "DXpeditions" },
-        { id: "widget-beacons", name: "NCDXF Beacons" },
-        { id: "widget-dedx", name: "DE/DX Info" }
+        { id: "widget-filters", name: "Filters", short: "Filt" },
+        { id: "widget-activations", name: "On the Air", short: "OTA" },
+        { id: "widget-map", name: "HamMap", short: "MAP" },
+        { id: "widget-solar", name: "Solar", short: "Sol" },
+        { id: "widget-spacewx", name: "Space Wx", short: "SpWx" },
+        { id: "widget-propagation", name: "Band Conditions", short: "Band" },
+        { id: "widget-voacap", name: "VOACAP DE\u2192DX", short: "VOA" },
+        { id: "widget-live-spots", name: "Live Spots", short: "Live" },
+        { id: "widget-lunar", name: "Lunar / EME", short: "Moon" },
+        { id: "widget-satellites", name: "Satellites", short: "Sat" },
+        { id: "widget-rst", name: "Reference", short: "Ref" },
+        { id: "widget-spot-detail", name: "DX Detail", short: "DXDt" },
+        { id: "widget-contests", name: "Contests", short: "Cont" },
+        { id: "widget-dxpeditions", name: "DXpeditions", short: "DXpd" },
+        { id: "widget-beacons", name: "NCDXF Beacons", short: "Bcn" },
+        { id: "widget-dedx", name: "DE/DX Info", short: "DEDX" },
+        { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
+        { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" }
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -4169,9 +4854,10 @@
           description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
           sections: [
             { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
-            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), and DXpedition Markers (active/upcoming DXpeditions). D-RAP auto-enables when Kp reaches storm level (\u22655)." },
+            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), Cloud Cover (OpenWeatherMap \u2014 useful for satellite and EME ops), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (\u22655). Cloud Cover requires an OpenWeatherMap API key (enter in Config > Services)." },
             { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
-            { heading: "Center Mode", content: "In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot." }
+            { heading: "Center Mode", content: "Use the QTH/PM/DX/CTY buttons in the map header to control centering. QTH centers on your home location. PM (Prime Meridian) shows the whole world. DX follows the selected spot. CTY zooms to fit your country's boundaries, determined automatically from your location." },
+            { heading: "Fullscreen", content: "Click the \u26F6 button in the map header to expand the map to fill the entire screen. Click the \u2715 button or press Escape to return to the normal layout." }
           ]
         },
         "widget-solar": {
@@ -4343,12 +5029,31 @@
         },
         "widget-dedx": {
           title: "DE/DX Info",
-          description: "A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock layout, this widget gives you the key information you need at a glance when making contacts.",
+          description: "A side-by-side display of your station (DE) and the currently selected distant station (DX) with live clocks. Inspired by the classic HamClock dual-pane layout, this widget shows large local time displays at each location plus key contact information at a glance.",
           sections: [
-            { heading: "DE (Your Station)", content: "The left panel shows your callsign, Maidenhead grid square, latitude/longitude, and today's sunrise and sunset times at your location (in UTC). This requires your callsign and location to be set in Config." },
-            { heading: "DX (Selected Station)", content: "The right panel shows details for whichever station you've clicked in the On the Air table or on the map. It displays their callsign, frequency, mode, grid square, bearing (compass direction to point your antenna), distance, and sunrise/sunset times at their location." },
-            { heading: "Why Sunrise/Sunset?", content: 'HF radio propagation changes dramatically at sunrise and sunset. The "gray line" (the band of twilight circling the Earth) often produces enhanced propagation. Knowing sunrise/sunset at both ends of a path helps you predict when a band will open or close between your station and the DX.' },
+            { heading: "DE (Your Station)", content: "The left panel shows a large live clock for your local time, plus your callsign, grid square, and sunrise/sunset countdowns. Requires your callsign and location to be set in Config." },
+            { heading: "DX (Selected Station)", content: "The right panel shows the approximate local time at the selected DX station's location (calculated from longitude), plus their callsign, frequency, mode, grid square, bearing, distance, and sunrise/sunset. When no spot is selected, the DX side shows UTC." },
+            { heading: "Why Two Clocks?", content: "Knowing the local time at both ends of a path is essential for scheduling contacts and understanding propagation. A station in Japan is unlikely to be on the air at 3 AM their local time, and gray line propagation depends on sunrise/sunset at both locations." },
             { heading: "Bearing & Distance", content: "The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact." }
+          ]
+        },
+        "widget-analog-clock": {
+          title: "Analog Clock",
+          description: "A customizable round analog clock showing your local time at a glance. Choose from 6 clock face styles and add up to 4 complications (sub-dials) for UTC time, Solar Flux, stopwatch mirror, and sunrise/sunset countdown \u2014 inspired by luxury watch complications.",
+          sections: [
+            { heading: "Clock Faces", content: "Click the gear icon to choose from 6 face styles: Classic (Arabic numerals), Minimal (clean index bars), Roman (Roman numerals), Pilot (bold indices with luminous triangle at 12), Railroad (double concentric track ring), and Digital (analog hands plus a digital time readout). Your selection is saved and persists across sessions." },
+            { heading: "Complications", content: "Complications are optional sub-dials that embed useful data directly on the clock face. Enable them in the gear menu:\n\n\u2022 Sunrise/Sunset (12 o'clock) \u2014 countdown to next sunrise or sunset with color-coded icon\n\u2022 Solar SFI (3 o'clock) \u2014 arc gauge showing Solar Flux Index, colored green/yellow/red\n\u2022 Stopwatch (6 o'clock) \u2014 mirrors the Stopwatch widget's elapsed time with running indicator\n\u2022 UTC 24h (9 o'clock) \u2014 24-hour sub-dial showing current UTC time" },
+            { heading: "Sunrise/Sunset Arc", content: "When your location (QTH) is set in Config, a golden arc appears on the clock face showing the daylight hours. The arc spans from sunrise to sunset on the 12-hour dial. This helps you visualize how much daylight remains and when gray line propagation windows occur." },
+            { heading: "Theme Support", content: "The clock colors automatically adapt to your selected theme. All face styles, hands, complications, and numbers use your theme's color scheme." }
+          ]
+        },
+        "widget-stopwatch": {
+          title: "Stopwatch / Timer",
+          description: "A dual-mode timer for contest operations and general use. Switch between Stopwatch (count up with laps) and Countdown (preset timers including the 10-minute FCC station ID reminder).",
+          sections: [
+            { heading: "Stopwatch Mode", content: "Click Start to begin counting up. Use Lap to mark split times during a contest (e.g., tracking contacts per minute). Stop pauses the timer; Reset clears everything." },
+            { heading: "Countdown Mode", content: "Click the Countdown tab and select a preset duration. The 10m ID button is a quick shortcut for the FCC 10-minute station identification requirement. The display flashes when the countdown reaches zero." },
+            { heading: "Station ID Timer", content: "FCC Part 97.119 requires US hams to identify every 10 minutes during a contact and at the end. Use the 10m ID preset as a reminder \u2014 when it flashes, give your callsign!" }
           ]
         },
         "widget-live-spots": {
@@ -4490,11 +5195,10 @@
         }
       };
       DEFAULT_REFERENCE_TAB = "rst";
-      BREAKPOINT_MOBILE = 768;
-      BREAKPOINT_TABLET = 1024;
+      BREAKPOINT_MOBILE = 1200;
       SCALE_REFERENCE_WIDTH = 1200;
       SCALE_MIN_FACTOR = 0.55;
-      SCALE_REFLOW_WIDTH = 660;
+      SCALE_REFLOW_WIDTH = 1200;
       REFLOW_WIDGET_ORDER = [
         "widget-map",
         "widget-activations",
@@ -4511,7 +5215,9 @@
         "widget-contests",
         "widget-dxpeditions",
         "widget-beacons",
-        "widget-dedx"
+        "widget-dedx",
+        "widget-stopwatch",
+        "widget-analog-clock"
       ];
       DEFAULT_BAND_COLORS = {
         "160m": "#9c27b0",
@@ -4534,14 +5240,21 @@
         if (saved && typeof saved === "object") bandColorOverrides = saved;
       } catch (e) {
       }
+      MOBILE_TAB_KEY = "hamtab_active_tab";
       WIDGET_STORAGE_KEY = "hamtab_widgets";
       USER_LAYOUT_KEY = "hamtab_widgets_user";
+      LAYOUTS_KEY = "hamtab_layouts";
+      MAX_LAYOUTS = 20;
       SNAP_DIST = 20;
+      SNAP_GRID = 20;
+      SNAP_GRID_KEY = "hamtab_snap_grid";
+      ALLOW_OVERLAP_KEY = "hamtab_allow_overlap";
       HEADER_H = 30;
       GRID_MODE_KEY = "hamtab_grid_mode";
       GRID_PERM_KEY = "hamtab_grid_permutation";
       GRID_ASSIGN_KEY = "hamtab_grid_assignments";
       GRID_SIZES_KEY = "hamtab_grid_sizes";
+      GRID_SPANS_KEY = "hamtab_grid_spans";
       GRID_PERMUTATIONS = [
         {
           id: "2L-2R",
@@ -4693,6 +5406,69 @@
     }
     all[permId] = { columns, rows, ...flexRatios || {} };
     localStorage.setItem(GRID_SIZES_KEY, JSON.stringify(all));
+  }
+  function clearCustomTrackSizes(permId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(GRID_SIZES_KEY));
+      if (all && all[permId]) {
+        delete all[permId];
+        localStorage.setItem(GRID_SIZES_KEY, JSON.stringify(all));
+      }
+    } catch (e) {
+    }
+  }
+  function loadGridSpans(permId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
+      if (all && all[permId]) return all[permId];
+    } catch (e) {
+    }
+    return null;
+  }
+  function saveGridSpans() {
+    let all = {};
+    try {
+      const saved = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
+      if (saved && typeof saved === "object") all = saved;
+    } catch (e) {
+    }
+    all[state_default.gridPermutation] = state_default.gridSpans;
+    localStorage.setItem(GRID_SPANS_KEY, JSON.stringify(all));
+  }
+  function clearGridSpans(permId) {
+    try {
+      const all = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
+      if (all && all[permId]) {
+        delete all[permId];
+        localStorage.setItem(GRID_SPANS_KEY, JSON.stringify(all));
+      }
+    } catch (e) {
+    }
+  }
+  function isAbsorbed(cellName, cellNames, spans) {
+    const idx = cellNames.indexOf(cellName);
+    for (let i = 0; i < idx; i++) {
+      const span = spans[cellNames[i]] || 1;
+      if (i + span > idx) return true;
+    }
+    return false;
+  }
+  function sumFlexForSpan(cellName, span, cellNames, flexValues) {
+    const startIdx = cellNames.indexOf(cellName);
+    let total = 0;
+    for (let s = 0; s < span && startIdx + s < cellNames.length; s++) {
+      total += flexValues[startIdx + s];
+    }
+    return total;
+  }
+  function getSpanForVisibleChild(childIdx, cellNames, spans) {
+    let visibleCount = 0;
+    for (let i = 0; i < cellNames.length; i++) {
+      if (isAbsorbed(cellNames[i], cellNames, spans)) continue;
+      if (visibleCount === childIdx) return spans[cellNames[i]] || 1;
+      visibleCount++;
+    }
+    return 1;
   }
   function parseTracks(templateStr) {
     return templateStr.trim().split(/\s+/).map((t) => {
@@ -4906,7 +5682,7 @@
       if (!wrapper) return;
       const widgets = wrapper.querySelectorAll(".widget");
       widgets.forEach((w) => area.appendChild(w));
-      wrapper.querySelectorAll(".grid-flex-handle, .grid-cell-placeholder").forEach((el) => el.remove());
+      wrapper.querySelectorAll(".grid-flex-handle, .grid-cell-placeholder").forEach((el2) => el2.remove());
       wrapper.remove();
     });
   }
@@ -4947,11 +5723,23 @@
     const totalPx = beforePx + afterPx;
     const pxPerFlex = totalPx / totalFlex;
     const startPos = isColumn ? e.clientY : e.clientX;
+    const spanCtx = handle._spanCtx;
     function onMove(ev) {
       const delta = (isColumn ? ev.clientY : ev.clientX) - startPos;
       const deltaFlex = delta / pxPerFlex;
       let newBefore = beforeFlex + deltaFlex;
       let newAfter = afterFlex - deltaFlex;
+      if (spanCtx) {
+        const estAfterPx = afterPx - delta;
+        if (estAfterPx < SNAP_PX && delta > 0) {
+          document.removeEventListener("mousemove", onMove);
+          document.removeEventListener("mouseup", onUp);
+          beforeEl.style.flexGrow = beforeFlex;
+          afterEl.style.flexGrow = afterFlex;
+          toggleSpan(handle, wrapper, spanCtx.cellNames, isColumn, spanCtx.flexKey);
+          return;
+        }
+      }
       if (newBefore < MIN_FLEX) {
         newAfter -= MIN_FLEX - newBefore;
         newBefore = MIN_FLEX;
@@ -4985,21 +5773,33 @@
   }
   function readCurrentFlexRatios(perm) {
     const ratios = {};
+    const spans = state_default.gridSpans || {};
     const wrapperMap = {
-      leftFlex: "grid-col-left",
-      rightFlex: "grid-col-right",
-      topFlex: "grid-bar-top",
-      bottomFlex: "grid-bar-bottom"
+      leftFlex: { wrapperId: "grid-col-left", cellNames: perm.left },
+      rightFlex: { wrapperId: "grid-col-right", cellNames: perm.right },
+      topFlex: { wrapperId: "grid-bar-top", cellNames: perm.top },
+      bottomFlex: { wrapperId: "grid-bar-bottom", cellNames: perm.bottom }
     };
-    for (const [key, wrapperId] of Object.entries(wrapperMap)) {
+    for (const [key, { wrapperId, cellNames }] of Object.entries(wrapperMap)) {
       const wrapper = document.getElementById(wrapperId);
       if (!wrapper) continue;
       const children = Array.from(wrapper.children).filter(
         (c) => !c.classList.contains("grid-flex-handle")
       );
-      if (children.length > 0) {
-        ratios[key] = children.map((c) => parseFloat(c.style.flexGrow) || 1);
+      if (children.length === 0) continue;
+      const perCellRatios = [];
+      let childIdx = 0;
+      for (let i = 0; i < cellNames.length; i++) {
+        if (isAbsorbed(cellNames[i], cellNames, spans)) {
+          continue;
+        }
+        const span = getSpanForVisibleChild(childIdx, cellNames, spans);
+        const combinedFlex = childIdx < children.length ? parseFloat(children[childIdx].style.flexGrow) || 1 : 1;
+        const perCell = combinedFlex / span;
+        for (let s = 0; s < span; s++) perCellRatios.push(perCell);
+        childIdx++;
       }
+      ratios[key] = perCellRatios.length === cellNames.length ? perCellRatios : children.map((c) => parseFloat(c.style.flexGrow) || 1);
     }
     return ratios;
   }
@@ -5017,37 +5817,108 @@
     const savedFlex = customSizes && customSizes[flexKey];
     const defaultFlex = cellNames.map(() => 1);
     const flexValues = savedFlex && savedFlex.length === cellNames.length ? savedFlex : defaultFlex;
+    const spans = state_default.gridSpans || {};
+    let firstRendered = true;
     cellNames.forEach((cellName, idx) => {
-      if (idx > 0) {
+      if (isAbsorbed(cellName, cellNames, spans)) {
+        const absWidgetId = state_default.gridAssignments[cellName];
+        if (absWidgetId) {
+          const absEl = document.getElementById(absWidgetId);
+          if (absEl) absEl.style.display = "none";
+        }
+        return;
+      }
+      const span = spans[cellName] || 1;
+      if (!firstRendered) {
         const handle = document.createElement("div");
         handle.className = isColumn ? "grid-flex-handle grid-flex-handle--col" : "grid-flex-handle grid-flex-handle--row";
+        handle._spanCtx = { cellNames, flexKey };
         handle.addEventListener("mousedown", onFlexHandleMouseDown);
+        handle.addEventListener("dblclick", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleSpan(handle, wrapper, cellNames, isColumn, flexKey);
+        });
         wrapper.appendChild(handle);
       }
+      firstRendered = false;
       const widgetId = state_default.gridAssignments[cellName];
-      let el;
+      let el2;
       const isVisible = widgetId && state_default.widgetVisibility && state_default.widgetVisibility[widgetId] !== false;
       if (isVisible) {
-        el = document.getElementById(widgetId);
-        if (el) {
-          el.style.gridArea = "";
-          el.style.display = "";
-          wrapper.appendChild(el);
+        el2 = document.getElementById(widgetId);
+        if (el2) {
+          el2.style.gridArea = "";
+          el2.style.display = "";
+          wrapper.appendChild(el2);
         }
       } else if (widgetId) {
         const hiddenEl = document.getElementById(widgetId);
         if (hiddenEl) hiddenEl.style.display = "none";
       }
-      if (!el) {
-        el = document.createElement("div");
-        el.className = "grid-cell-placeholder";
-        el.dataset.gridCell = cellName;
-        wrapper.appendChild(el);
+      if (!el2) {
+        el2 = document.createElement("div");
+        el2.className = "grid-cell-placeholder";
+        el2.dataset.gridCell = cellName;
+        wrapper.appendChild(el2);
       }
-      el.style.flexGrow = flexValues[idx];
-      el.style.flexShrink = "1";
-      el.style.flexBasis = "0%";
+      const combinedFlex = span > 1 ? sumFlexForSpan(cellName, span, cellNames, flexValues) : flexValues[idx];
+      el2.style.flexGrow = combinedFlex;
+      el2.style.flexShrink = "1";
+      el2.style.flexBasis = "0%";
     });
+  }
+  function toggleSpan(handle, wrapper, cellNames, isColumn, flexKey) {
+    if (state_default.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return;
+    const children = Array.from(wrapper.children).filter(
+      (c) => !c.classList.contains("grid-flex-handle")
+    );
+    const handleIdx = Array.from(wrapper.children).indexOf(handle);
+    let beforeEl = null;
+    let afterEl = null;
+    for (let i = handleIdx - 1; i >= 0; i--) {
+      const c = wrapper.children[i];
+      if (!c.classList.contains("grid-flex-handle")) {
+        beforeEl = c;
+        break;
+      }
+    }
+    for (let i = handleIdx + 1; i < wrapper.children.length; i++) {
+      const c = wrapper.children[i];
+      if (!c.classList.contains("grid-flex-handle")) {
+        afterEl = c;
+        break;
+      }
+    }
+    if (!beforeEl || !afterEl) return;
+    const spans = state_default.gridSpans || {};
+    const visibleCells = cellNames.filter((c) => !isAbsorbed(c, cellNames, spans));
+    const beforeCellIdx = children.indexOf(beforeEl);
+    const afterCellIdx = children.indexOf(afterEl);
+    if (beforeCellIdx < 0 || afterCellIdx < 0) return;
+    const beforeCell = visibleCells[beforeCellIdx];
+    const afterCell = visibleCells[afterCellIdx];
+    if (!beforeCell || !afterCell) return;
+    const currentSpan = spans[beforeCell] || 1;
+    const afterCellPos = cellNames.indexOf(afterCell);
+    const beforeCellPos = cellNames.indexOf(beforeCell);
+    if (beforeCellPos + currentSpan > afterCellPos) {
+      const newSpan = afterCellPos - beforeCellPos;
+      if (newSpan <= 1) {
+        delete spans[beforeCell];
+      } else {
+        spans[beforeCell] = newSpan;
+      }
+    } else {
+      const afterSpan = spans[afterCell] || 1;
+      const newSpan = afterCellPos + afterSpan - beforeCellPos;
+      const maxSpan = cellNames.length - beforeCellPos;
+      spans[beforeCell] = Math.min(newSpan, maxSpan);
+      delete spans[afterCell];
+    }
+    state_default.gridSpans = spans;
+    saveGridSpans();
+    applyGridAssignments();
   }
   function isGridMode() {
     return state_default.gridMode === "grid";
@@ -5060,12 +5931,14 @@
       const saved = JSON.parse(localStorage.getItem(GRID_ASSIGN_KEY));
       if (saved && typeof saved === "object" && Object.keys(saved).length > 0) {
         state_default.gridAssignments = saved;
+        state_default.gridSpans = loadGridSpans(state_default.gridPermutation) || {};
         return saved;
       }
     } catch (e) {
     }
     const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
     state_default.gridAssignments = defaults ? { ...defaults } : {};
+    state_default.gridSpans = loadGridSpans(state_default.gridPermutation) || {};
     return state_default.gridAssignments;
   }
   function saveGridAssignments() {
@@ -5126,7 +5999,7 @@
         w.style.height = saved[w.id].height + "px";
       }
     });
-    area.querySelectorAll(".grid-cell-placeholder").forEach((el) => el.remove());
+    area.querySelectorAll(".grid-cell-placeholder").forEach((el2) => el2.remove());
     setTimeout(() => {
       if (state_default.map) state_default.map.invalidateSize();
     }, 100);
@@ -5146,12 +6019,15 @@
     const vis = state_default.widgetVisibility || {};
     const assignments = state_default.gridAssignments;
     let dirty = false;
+    const spans = state_default.gridSpans || {};
     for (const cell of Object.keys(assignments)) {
       if (vis[assignments[cell]] === false) {
         delete assignments[cell];
+        if (spans[cell]) delete spans[cell];
         dirty = true;
       }
     }
+    state_default.gridSpans = spans;
     const assignedSet = new Set(Object.values(assignments));
     const unassigned = WIDGET_DEFS.filter((w) => w.id !== "widget-map" && vis[w.id] !== false && !assignedSet.has(w.id)).map((w) => w.id);
     if (unassigned.length > 0) {
@@ -5176,15 +6052,32 @@
     const assignedWidgets = new Set(Object.values(state_default.gridAssignments));
     WIDGET_DEFS.forEach((def) => {
       if (def.id === "widget-map") return;
-      const el = document.getElementById(def.id);
-      if (!el) return;
+      const el2 = document.getElementById(def.id);
+      if (!el2) return;
       if (!assignedWidgets.has(def.id) || vis[def.id] === false) {
-        el.style.gridArea = "";
-        el.style.display = "none";
+        el2.style.gridArea = "";
+        el2.style.display = "none";
       } else {
-        el.style.display = "";
+        el2.style.display = "";
       }
     });
+  }
+  function resetGridAssignments() {
+    const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
+    state_default.gridAssignments = defaults ? { ...defaults } : {};
+    saveGridAssignments();
+    state_default.gridSpans = {};
+    clearGridSpans(state_default.gridPermutation);
+    clearCustomTrackSizes(state_default.gridPermutation);
+    const perm = getGridPermutation(state_default.gridPermutation);
+    const area = document.getElementById("widgetArea");
+    if (area) {
+      area.style.gridTemplateAreas = perm.outerAreas;
+      area.style.gridTemplateColumns = perm.outerColumns;
+      area.style.gridTemplateRows = perm.outerRows;
+    }
+    applyGridAssignments();
+    createTrackHandles();
   }
   function handleGridDragStart(widget, e) {
     if (widget.id === "widget-map") return;
@@ -5195,14 +6088,14 @@
     widget.classList.add("grid-dragging");
     function onMove(ev) {
       widget.style.pointerEvents = "none";
-      const el = document.elementFromPoint(ev.clientX, ev.clientY);
+      const el2 = document.elementFromPoint(ev.clientX, ev.clientY);
       widget.style.pointerEvents = "";
       if (currentTarget) {
         currentTarget.classList.remove("grid-drop-target");
         currentTarget = null;
       }
-      if (!el) return;
-      const target = el.closest(".widget, .grid-cell-placeholder");
+      if (!el2) return;
+      const target = el2.closest(".widget, .grid-cell-placeholder");
       if (target && target !== widget && target.id !== "widget-map") {
         target.classList.add("grid-drop-target");
         currentTarget = target;
@@ -5230,28 +6123,42 @@
       }
     }
     if (!sourceCell) return;
+    let targetCell = null;
     if (target.classList.contains("grid-cell-placeholder")) {
-      const targetCell = target.dataset.gridCell;
-      if (!targetCell) return;
-      delete state_default.gridAssignments[sourceCell];
-      state_default.gridAssignments[targetCell] = sourceWidgetId;
+      targetCell = target.dataset.gridCell;
     } else if (target.classList.contains("widget")) {
-      const targetWidgetId = target.id;
-      let targetCell = null;
       for (const [cell, wId] of Object.entries(state_default.gridAssignments)) {
-        if (wId === targetWidgetId) {
+        if (wId === target.id) {
           targetCell = cell;
           break;
         }
       }
-      if (!targetCell) return;
+    }
+    if (!targetCell) return;
+    const perm = getGridPermutation(state_default.gridPermutation);
+    const spans = state_default.gridSpans || {};
+    const wrapperCells = [perm.left, perm.right, perm.top, perm.bottom].find((cells) => cells.includes(targetCell)) || [];
+    if (isAbsorbed(targetCell, wrapperCells, spans)) return;
+    if (spans[sourceCell]) {
+      delete spans[sourceCell];
+    }
+    if (spans[targetCell]) {
+      delete spans[targetCell];
+    }
+    state_default.gridSpans = spans;
+    saveGridSpans();
+    if (target.classList.contains("grid-cell-placeholder")) {
+      delete state_default.gridAssignments[sourceCell];
+      state_default.gridAssignments[targetCell] = sourceWidgetId;
+    } else {
+      const targetWidgetId = target.id;
       state_default.gridAssignments[sourceCell] = targetWidgetId;
       state_default.gridAssignments[targetCell] = sourceWidgetId;
     }
     saveGridAssignments();
     applyGridAssignments();
   }
-  var trackHandles, MIN_FR, MIN_FLEX;
+  var trackHandles, MIN_FR, MIN_FLEX, SNAP_PX;
   var init_grid_layout = __esm({
     "src/grid-layout.js"() {
       init_state();
@@ -5259,6 +6166,224 @@
       trackHandles = [];
       MIN_FR = 0.3;
       MIN_FLEX = 0.15;
+      SNAP_PX = 40;
+    }
+  });
+
+  // src/tabs.js
+  function saveSecondary() {
+    localStorage.setItem(SECONDARY_KEY, JSON.stringify(secondaryWidgets));
+  }
+  function buildTabBar() {
+    const tabBar = document.getElementById("tabBar");
+    if (!tabBar) return;
+    tabBar.innerHTML = "";
+    const vis = state_default.widgetVisibility || {};
+    WIDGET_DEFS.forEach((def) => {
+      if (def.id === "widget-filters") return;
+      if (vis[def.id] === false) return;
+      const btn = document.createElement("button");
+      btn.className = "tab-bar-btn";
+      btn.dataset.tab = def.id;
+      btn.title = def.name;
+      if (def.id === "widget-map") {
+        btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${def.short}</span>`;
+      } else {
+        btn.innerHTML = `<span>${def.short}</span>`;
+      }
+      btn.addEventListener("click", () => {
+        if (def.id === state_default.activeTab) {
+          const area = document.getElementById("widgetArea");
+          if (area) area.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+        switchTab(def.id);
+      });
+      tabBar.appendChild(btn);
+    });
+    tabBar.querySelectorAll(".tab-bar-btn").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.tab === state_default.activeTab);
+    });
+  }
+  function dismantleGridForMobile() {
+    const area = document.getElementById("widgetArea");
+    if (!area) return;
+    const wrapperIds = ["grid-col-left", "grid-col-right", "grid-bar-top", "grid-bar-bottom"];
+    wrapperIds.forEach((id) => {
+      const wrapper = document.getElementById(id);
+      if (!wrapper) return;
+      const widgets = wrapper.querySelectorAll(".widget");
+      widgets.forEach((w) => area.appendChild(w));
+    });
+    area.querySelectorAll(".grid-col-wrapper, .grid-bar-wrapper, .grid-flex-handle, .grid-cell-placeholder, .grid-track-handle").forEach((el2) => {
+      el2.style.display = "none";
+    });
+    area.classList.remove("grid-active", "reflow-layout");
+    area.style.gridTemplateAreas = "";
+    area.style.gridTemplateColumns = "";
+    area.style.gridTemplateRows = "";
+  }
+  function buildSecondaryPicker(area, primaryId) {
+    const old = document.getElementById("mobileSecondaryPicker");
+    if (old) old.remove();
+    const vis = state_default.widgetVisibility || {};
+    const currentSecondary = secondaryWidgets[primaryId] || "";
+    const options = WIDGET_DEFS.filter(
+      (w) => w.id !== "widget-filters" && w.id !== primaryId && vis[w.id] !== false
+    );
+    if (options.length === 0) return;
+    const picker = document.createElement("div");
+    picker.id = "mobileSecondaryPicker";
+    picker.className = "mobile-secondary-picker";
+    const select = document.createElement("select");
+    select.className = "mobile-secondary-select";
+    const noneOpt = document.createElement("option");
+    noneOpt.value = "";
+    noneOpt.textContent = "+ Add widget below\u2026";
+    select.appendChild(noneOpt);
+    options.forEach((def) => {
+      const opt = document.createElement("option");
+      opt.value = def.id;
+      opt.textContent = def.name;
+      if (def.id === currentSecondary) opt.selected = true;
+      select.appendChild(opt);
+    });
+    select.addEventListener("change", () => {
+      const val = select.value;
+      if (val) {
+        secondaryWidgets[primaryId] = val;
+      } else {
+        delete secondaryWidgets[primaryId];
+      }
+      saveSecondary();
+      switchTab(primaryId);
+    });
+    picker.appendChild(select);
+    area.appendChild(picker);
+  }
+  function switchTab(widgetId) {
+    if (getLayoutMode() !== "mobile") return;
+    dismantleGridForMobile();
+    const vis = state_default.widgetVisibility || {};
+    const def = WIDGET_DEFS.find((w) => w.id === widgetId);
+    if (!def || vis[widgetId] === false) {
+      widgetId = "widget-map";
+    }
+    state_default.activeTab = widgetId;
+    localStorage.setItem(MOBILE_TAB_KEY, widgetId);
+    let secondaryId = secondaryWidgets[widgetId] || "";
+    if (secondaryId && (vis[secondaryId] === false || secondaryId === widgetId || secondaryId === "widget-filters")) {
+      secondaryId = "";
+      delete secondaryWidgets[widgetId];
+      saveSecondary();
+    }
+    const tabBar = document.getElementById("tabBar");
+    if (tabBar) {
+      tabBar.querySelectorAll(".tab-bar-btn").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.tab === widgetId);
+      });
+    }
+    document.body.classList.toggle("tab-map-active", widgetId === "widget-map" && !secondaryId);
+    const area = document.getElementById("widgetArea");
+    WIDGET_DEFS.forEach((w) => {
+      const el2 = document.getElementById(w.id);
+      if (!el2) return;
+      el2.style.gridArea = "";
+      el2.style.flex = "";
+      el2.style.flexGrow = "";
+      el2.style.flexShrink = "";
+      el2.style.flexBasis = "";
+      el2.classList.remove("mobile-active-widget");
+      el2.classList.remove("mobile-secondary-widget");
+      if (w.id === "widget-filters") {
+        el2.style.display = vis[w.id] !== false ? "" : "none";
+        if (el2.style.display !== "none") {
+          el2.style.order = "-1";
+          area.prepend(el2);
+          if (!el2.dataset.mobileCollapsed) {
+            el2.classList.add("collapsed");
+            el2.dataset.mobileCollapsed = "1";
+          }
+        }
+      } else if (w.id === widgetId) {
+        el2.style.display = vis[w.id] !== false ? "" : "none";
+        el2.classList.add("mobile-active-widget");
+        el2.classList.remove("collapsed");
+      } else if (w.id === secondaryId) {
+        el2.style.display = "";
+        el2.classList.add("mobile-secondary-widget");
+        el2.classList.remove("collapsed");
+      } else {
+        el2.style.display = "none";
+      }
+    });
+    buildSecondaryPicker(area, widgetId);
+    if ((widgetId === "widget-map" || secondaryId === "widget-map") && state_default.map) {
+      setTimeout(() => state_default.map.invalidateSize(), 50);
+    }
+  }
+  function rebuildTabs() {
+    if (getLayoutMode() !== "mobile") return;
+    buildTabBar();
+    const vis = state_default.widgetVisibility || {};
+    if (vis[state_default.activeTab] === false || !WIDGET_DEFS.find((w) => w.id === state_default.activeTab)) {
+      switchTab("widget-map");
+    } else {
+      switchTab(state_default.activeTab);
+    }
+  }
+  function initTabs() {
+    const tabBar = document.getElementById("tabBar");
+    if (!tabBar) return;
+    if (getLayoutMode() === "mobile") {
+      buildTabBar();
+      const saved = state_default.activeTab || "widget-map";
+      switchTab(saved);
+    }
+    let prevMode = getLayoutMode();
+    window.addEventListener("resize", () => {
+      const mode2 = getLayoutMode();
+      if (mode2 === prevMode) return;
+      prevMode = mode2;
+      if (mode2 === "mobile") {
+        buildTabBar();
+        switchTab(state_default.activeTab || "widget-map");
+      } else {
+        document.body.classList.remove("tab-map-active");
+        const picker = document.getElementById("mobileSecondaryPicker");
+        if (picker) picker.remove();
+        const area = document.getElementById("widgetArea");
+        if (area) {
+          area.querySelectorAll(".grid-col-wrapper, .grid-bar-wrapper, .grid-flex-handle, .grid-cell-placeholder, .grid-track-handle").forEach((el2) => {
+            el2.style.display = "";
+          });
+        }
+        WIDGET_DEFS.forEach((w) => {
+          const el2 = document.getElementById(w.id);
+          if (!el2) return;
+          el2.style.order = "";
+          el2.classList.remove("mobile-active-widget", "mobile-secondary-widget");
+          if (state_default.widgetVisibility[w.id] !== false) {
+            el2.style.display = "";
+          }
+        });
+      }
+    });
+    initialized = true;
+  }
+  var initialized, SECONDARY_KEY, secondaryWidgets;
+  var init_tabs = __esm({
+    "src/tabs.js"() {
+      init_state();
+      init_constants();
+      initialized = false;
+      SECONDARY_KEY = "hamtab_mobile_secondary";
+      secondaryWidgets = {};
+      try {
+        const s = JSON.parse(localStorage.getItem(SECONDARY_KEY));
+        if (s && typeof s === "object") secondaryWidgets = s;
+      } catch (e) {
+      }
     }
   });
 
@@ -5280,18 +6405,22 @@
     return state_default.widgetVisibility[id] !== false;
   }
   function applyWidgetVisibility() {
+    if (getLayoutMode() === "mobile") {
+      rebuildTabs();
+      return;
+    }
     if (isGridMode()) {
       applyGridAssignments();
       if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
       return;
     }
     WIDGET_DEFS.forEach((w) => {
-      const el = document.getElementById(w.id);
-      if (!el) return;
+      const el2 = document.getElementById(w.id);
+      if (!el2) return;
       if (state_default.widgetVisibility[w.id] === false) {
-        el.style.display = "none";
+        el2.style.display = "none";
       } else {
-        el.style.display = "";
+        el2.style.display = "";
       }
     });
     redistributeRightColumn();
@@ -5305,7 +6434,7 @@
     const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
     const rightX = parseInt(solarEl.style.left) || 0;
     const rightW = parseInt(solarEl.style.width) || 0;
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch", "widget-analog-clock"];
     const vis = state_default.widgetVisibility || {};
     const visible = rightBottomIds.filter((id) => vis[id] !== false);
     if (visible.length === 0) return;
@@ -5314,12 +6443,12 @@
     const slotH = Math.round((bottomSpace - gaps * pad) / visible.length);
     let curY = solarBottom + pad;
     visible.forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.style.left = rightX + "px";
-      el.style.top = curY + "px";
-      el.style.width = rightW + "px";
-      el.style.height = slotH + "px";
+      const el2 = document.getElementById(id);
+      if (!el2) return;
+      el2.style.left = rightX + "px";
+      el2.style.top = curY + "px";
+      el2.style.width = rightW + "px";
+      el2.style.height = slotH + "px";
       curY += slotH + pad;
     });
     saveWidgets();
@@ -5344,7 +6473,7 @@
       "widget-map": { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
       "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
     };
-    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx"];
+    const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch", "widget-analog-clock"];
     const vis = state_default.widgetVisibility || {};
     const visibleBottom = rightBottomIds.filter((id) => vis[id] !== false);
     const bottomSpace = H - rightHalf - pad * 2;
@@ -5367,7 +6496,10 @@
     return { left, top };
   }
   function snapPosition(left, top, wW, wH) {
+    if (!state_default.snapToGrid) return { left, top };
     const { width: aW, height: aH } = getWidgetArea();
+    left = Math.round(left / SNAP_GRID) * SNAP_GRID;
+    top = Math.round(top / SNAP_GRID) * SNAP_GRID;
     const right = left + wW;
     const bottom = top + wH;
     if (Math.abs(left) < SNAP_DIST) left = 0;
@@ -5495,23 +6627,78 @@
     });
     localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(layout));
   }
-  function saveUserLayout() {
-    const layout = {};
+  function clearUserLayout() {
+    localStorage.removeItem(USER_LAYOUT_KEY);
+  }
+  function getNamedLayouts() {
+    try {
+      const raw = localStorage.getItem(LAYOUTS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === "object") return parsed;
+      }
+    } catch (e) {
+    }
+    return {};
+  }
+  function captureCurrentLayout() {
+    const positions = {};
     document.querySelectorAll(".widget").forEach((w) => {
-      layout[w.id] = {
+      positions[w.id] = {
         left: parseInt(w.style.left) || 0,
         top: parseInt(w.style.top) || 0,
         width: parseInt(w.style.width) || 200,
         height: parseInt(w.style.height) || 150
       };
     });
-    localStorage.setItem(USER_LAYOUT_KEY, JSON.stringify(layout));
+    return {
+      positions,
+      visibility: { ...state_default.widgetVisibility },
+      gridMode: state_default.gridMode || "float",
+      gridPermutation: state_default.gridPermutation || "3L-3R",
+      gridAssignments: state_default.gridAssignments ? { ...state_default.gridAssignments } : {},
+      gridSpans: state_default.gridSpans ? { ...state_default.gridSpans } : {}
+    };
   }
-  function clearUserLayout() {
-    localStorage.removeItem(USER_LAYOUT_KEY);
+  function saveNamedLayout(name) {
+    if (!name || typeof name !== "string") return false;
+    const layouts = getNamedLayouts();
+    if (!layouts[name] && Object.keys(layouts).length >= MAX_LAYOUTS) return false;
+    layouts[name] = captureCurrentLayout();
+    localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+    return true;
   }
-  function hasUserLayout() {
-    return localStorage.getItem(USER_LAYOUT_KEY) !== null;
+  function loadNamedLayout(name) {
+    const layouts = getNamedLayouts();
+    const profile = layouts[name];
+    if (!profile) return false;
+    if (profile.visibility) {
+      state_default.widgetVisibility = { ...profile.visibility };
+      saveWidgetVisibility();
+    }
+    if (profile.gridMode === "grid") {
+      state_default.gridPermutation = profile.gridPermutation || "3L-3R";
+      state_default.gridAssignments = profile.gridAssignments ? { ...profile.gridAssignments } : {};
+      state_default.gridSpans = profile.gridSpans ? { ...profile.gridSpans } : {};
+      saveGridAssignments();
+      activateGridMode(state_default.gridPermutation);
+    } else {
+      if (isGridMode()) deactivateGridMode();
+      if (profile.positions) {
+        applyLayout(profile.positions);
+        localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(profile.positions));
+      }
+    }
+    applyWidgetVisibility();
+    if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 100);
+    return true;
+  }
+  function deleteNamedLayout(name) {
+    const layouts = getNamedLayouts();
+    if (!layouts[name]) return false;
+    delete layouts[name];
+    localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+    return true;
   }
   function bringToFront(widget) {
     state_default.zCounter++;
@@ -5532,6 +6719,9 @@
       startY = e.clientY;
       origLeft = parseInt(widget.style.left) || 0;
       origTop = parseInt(widget.style.top) || 0;
+      if (state_default.snapToGrid) {
+        document.getElementById("widgetArea").classList.add("snap-grid-visible");
+      }
       function onMove(ev) {
         let newLeft = origLeft + (ev.clientX - startX);
         let newTop = origTop + (ev.clientY - startY);
@@ -5545,7 +6735,8 @@
       function onUp() {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
-        resolveOverlaps(widget);
+        document.getElementById("widgetArea").classList.remove("snap-grid-visible");
+        if (!state_default.allowOverlap) resolveOverlaps(widget);
         saveWidgets();
       }
       document.addEventListener("mousemove", onMove);
@@ -5567,9 +6758,16 @@
       origH = widget.offsetHeight;
       origLeft = parseInt(widget.style.left) || 0;
       origTop = parseInt(widget.style.top) || 0;
+      if (state_default.snapToGrid) {
+        document.getElementById("widgetArea").classList.add("snap-grid-visible");
+      }
       function onMove(ev) {
         let newW = origW + (ev.clientX - startX);
         let newH = origH + (ev.clientY - startY);
+        if (state_default.snapToGrid) {
+          newW = Math.round(newW / SNAP_GRID) * SNAP_GRID;
+          newH = Math.round(newH / SNAP_GRID) * SNAP_GRID;
+        }
         ({ w: newW, h: newH } = clampSize(origLeft, origTop, newW, newH));
         widget.style.width = newW + "px";
         widget.style.height = newH + "px";
@@ -5580,7 +6778,8 @@
       function onUp() {
         document.removeEventListener("mousemove", onMove);
         document.removeEventListener("mouseup", onUp);
-        resolveOverlaps(widget);
+        document.getElementById("widgetArea").classList.remove("snap-grid-visible");
+        if (!state_default.allowOverlap) resolveOverlaps(widget);
         saveWidgets();
         if (state_default.map && widget.id === "widget-map") {
           state_default.map.invalidateSize();
@@ -5682,17 +6881,23 @@
     area.style.width = "";
     area.style.transformOrigin = "";
     area.classList.remove("scaling-active");
+    if (getLayoutMode() === "mobile") {
+      area.classList.remove("reflow-layout");
+      rebuildTabs();
+      if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 100);
+      return;
+    }
     area.classList.add("reflow-layout");
     const vis = state_default.widgetVisibility || {};
     REFLOW_WIDGET_ORDER.forEach((id) => {
-      const el = document.getElementById(id);
-      if (!el) return;
+      const el2 = document.getElementById(id);
+      if (!el2) return;
       if (vis[id] === false) {
-        el.style.display = "none";
+        el2.style.display = "none";
         return;
       }
-      el.style.display = "";
-      area.appendChild(el);
+      el2.style.display = "";
+      area.appendChild(el2);
     });
     if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 100);
   }
@@ -5767,6 +6972,30 @@
           applyWidgetVisibility();
         });
         header.insertBefore(closeBtn, header.firstChild);
+        if (!isDesktop) {
+          const expandedByDefault = /* @__PURE__ */ new Set(["widget-map", "widget-activations"]);
+          const collapseKey = "hamtab_collapsed";
+          let collapsed;
+          try {
+            collapsed = new Set(JSON.parse(localStorage.getItem(collapseKey) || "[]"));
+          } catch {
+            collapsed = /* @__PURE__ */ new Set();
+          }
+          const wid = widget.id;
+          if (collapsed.has(wid) || !collapsed.size && !expandedByDefault.has(wid)) {
+            widget.classList.add("collapsed");
+          }
+          header.addEventListener("click", (e) => {
+            if (e.target.closest("button") || e.target.closest("select") || e.target.closest("a")) return;
+            widget.classList.toggle("collapsed");
+            const allCollapsed = [];
+            document.querySelectorAll(".widget.collapsed").forEach((w) => allCollapsed.push(w.id));
+            localStorage.setItem(collapseKey, JSON.stringify(allCollapsed));
+            if (wid === "widget-map" && !widget.classList.contains("collapsed") && state_default.map) {
+              setTimeout(() => state_default.map.invalidateSize(), 50);
+            }
+          });
+        }
       }
       if (resizer && isDesktop) setupResize(widget, resizer);
       if (isDesktop) widget.addEventListener("mousedown", () => bringToFront(widget));
@@ -5774,6 +7003,36 @@
     const mapWidget = document.getElementById("widget-map");
     if (state_default.map && mapWidget && window.ResizeObserver) {
       new ResizeObserver(() => state_default.map.invalidateSize()).observe(mapWidget);
+    }
+    if (mapWidget) {
+      const mapHeader = mapWidget.querySelector(".widget-header");
+      if (mapHeader) {
+        const maxBtn = document.createElement("button");
+        maxBtn.className = "map-fullscreen-btn";
+        maxBtn.title = "Toggle fullscreen map";
+        maxBtn.textContent = "\u26F6";
+        maxBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+        const enterFS = () => {
+          mapWidget.classList.add("map-fullscreen");
+          document.body.classList.add("map-fullscreen-active");
+          maxBtn.textContent = "\u2715";
+          if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
+        };
+        const exitFS = () => {
+          mapWidget.classList.remove("map-fullscreen");
+          document.body.classList.remove("map-fullscreen-active");
+          maxBtn.textContent = "\u26F6";
+          if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
+        };
+        maxBtn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          mapWidget.classList.contains("map-fullscreen") ? exitFS() : enterFS();
+        });
+        mapHeader.appendChild(maxBtn);
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && mapWidget.classList.contains("map-fullscreen")) exitFS();
+        });
+      }
     }
     if (window.ResizeObserver) {
       let reflowTimer;
@@ -5798,6 +7057,7 @@
       init_state();
       init_constants();
       init_grid_layout();
+      init_tabs();
       WIDGET_VIS_KEY = "hamtab_widget_vis";
       prevAreaW = 0;
       prevAreaH = 0;
@@ -5809,12 +7069,12 @@
     const now = /* @__PURE__ */ new Date();
     const T = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
     const slot = Math.floor(T % CYCLE / SLOT);
-    const elapsed = T % SLOT;
+    const elapsed2 = T % SLOT;
     return FREQUENCIES.map((freq, f) => ({
       freq,
       beacon: BEACONS[(slot - f + 18) % 18],
       // each freq is offset by one beacon in the rotation
-      secondsLeft: SLOT - elapsed
+      secondsLeft: SLOT - elapsed2
     }));
   }
   function renderBeacons() {
@@ -5910,13 +7170,17 @@
   function initMap() {
     const hasLeaflet = typeof L !== "undefined" && L.map;
     if (!hasLeaflet) return;
+    const isMobile = window.innerWidth < BREAKPOINT_MOBILE;
     try {
       state_default.map = L.map("map", {
         worldCopyJump: true,
         maxBoundsViscosity: 1,
         maxBounds: [[-90, -180], [90, 180]],
-        minZoom: 1
+        minZoom: 1,
+        zoomControl: false
+        // added manually for position control
       }).setView([39.8, -98.5], 4);
+      L.control.zoom({ position: isMobile ? "bottomright" : "topleft" }).addTo(state_default.map);
       state_default.tileLayer = L.tileLayer(TILE_DARK, {
         attribution: "&copy; OpenStreetMap &copy; CARTO",
         maxZoom: 19
@@ -5961,6 +7225,7 @@
           const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
           state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
         }
+        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
         if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
           clearTimeout(state_default.heatmapRenderTimer);
           const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
@@ -5977,11 +7242,17 @@
           const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
           state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
         }
+        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
         if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
           clearTimeout(state_default.heatmapRenderTimer);
           const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
           state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
         }
+      });
+      window.addEventListener("orientationchange", () => {
+        setTimeout(() => {
+          if (state_default.map) state_default.map.invalidateSize();
+        }, 200);
       });
       setTimeout(renderAllMapOverlays, 200);
     } catch (e) {
@@ -5997,6 +7268,14 @@
     } else if (state_default.mapCenterMode === "qth") {
       if (state_default.myLat !== null && state_default.myLon !== null) {
         state_default.map.setView([state_default.myLat, state_default.myLon], state_default.map.getZoom());
+      }
+    } else if (state_default.mapCenterMode === "cty") {
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        const bounds = findCountryBounds(state_default.myLat, state_default.myLon);
+        if (bounds) {
+          const [south, west, north, east] = bounds;
+          state_default.map.fitBounds([[south, west], [north, east]], { maxZoom: 10, padding: [20, 20] });
+        }
       }
     }
   }
@@ -6114,6 +7393,8 @@ ${beacon.location}`);
       init_utils();
       init_map_overlays();
       init_beacons();
+      init_constants();
+      init_country_bounds();
       TILE_DARK = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
       TILE_VOYAGER = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
       BEACON_COLORS = {
@@ -6477,6 +7758,9 @@ ${beacon.location}`);
     if (localStorage.getItem("hamtab_slim_header") === "true") {
       document.body.classList.add("slim-header");
     }
+    if (localStorage.getItem("hamtab_grayscale") === "true") {
+      document.body.classList.add("grayscale");
+    }
   }
   function currentThemeSupportsGrid() {
     const theme = THEMES[activeThemeId];
@@ -6723,6 +8007,9 @@ ${beacon.location}`);
   function useWU() {
     return state_default.wxStation && state_default.wxApiKey;
   }
+  function isNwsCoverage2(lat, lon) {
+    return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
+  }
   function setWxSource(src) {
     const wxSourceLogo = $("wxSourceLogo");
     wxSourceLogo.classList.remove("hidden", "wx-src-wu", "wx-src-nws");
@@ -6764,6 +8051,7 @@ ${beacon.location}`);
   }
   function fetchNwsConditions() {
     if (state_default.myLat === null || state_default.myLon === null) return;
+    if (!isNwsCoverage2(state_default.myLat, state_default.myLon)) return;
     const url = "/api/weather/conditions?lat=" + state_default.myLat + "&lon=" + state_default.myLon;
     fetch(url).then((r) => r.ok ? r.json() : Promise.reject()).then((data) => {
       applyWeatherBackground(data.shortForecast, data.isDaytime);
@@ -6820,12 +8108,13 @@ ${beacon.location}`);
       else cls = "wx-cloudy";
     } else if (/sunny|clear/.test(fc)) cls = isDaytime2 ? "wx-clear-day" : "wx-clear-night";
     if (cls) {
-      headerClock.classList.add(cls);
+      if (!state_default.disableWxBackgrounds) headerClock.classList.add(cls);
       if (wxIcon) wxIcon.textContent = wxIcons[cls] || "";
     }
   }
   function fetchNwsAlerts() {
     if (state_default.myLat === null || state_default.myLon === null) return;
+    if (!isNwsCoverage2(state_default.myLat, state_default.myLon)) return;
     const url = "/api/weather/alerts?lat=" + state_default.myLat + "&lon=" + state_default.myLon;
     fetch(url).then((r) => r.ok ? r.json() : Promise.reject()).then((alerts) => {
       state_default.nwsAlerts = alerts;
@@ -7476,6 +8765,22 @@ ${beacon.location}`);
       if (state_default.debug) console.error("Failed to fetch contests:", err);
     }
   }
+  var SHORT_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  var SHORT_DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  function fmtContestRange(startISO, endISO) {
+    const s = new Date(startISO);
+    const e = new Date(endISO);
+    if (isNaN(s) || isNaN(e)) return "";
+    const fmt = (d) => {
+      const day = SHORT_DAYS[d.getUTCDay()];
+      const mon = SHORT_MONTHS[d.getUTCMonth()];
+      const date = d.getUTCDate();
+      const hh = String(d.getUTCHours()).padStart(2, "0");
+      const mm = String(d.getUTCMinutes()).padStart(2, "0");
+      return `${day} ${mon} ${date}, ${hh}:${mm}z`;
+    };
+    return `${fmt(s)} \u2013 ${fmt(e)}`;
+  }
   function renderContests() {
     const list = $("contestList");
     const countEl = $("contestCount");
@@ -7542,7 +8847,11 @@ ${beacon.location}`);
       card.appendChild(header);
       const detail = document.createElement("div");
       detail.className = "contest-detail";
-      detail.textContent = c.dateStr || "";
+      if (c.startDate && c.endDate) {
+        detail.textContent = fmtContestRange(c.startDate, c.endDate);
+      } else {
+        detail.textContent = c.dateStr || "";
+      }
       card.appendChild(detail);
       list.appendChild(card);
     }
@@ -7805,7 +9114,10 @@ ${beacon.location}`);
       const radiusMeters = footprintRadiusKm * 1e3;
       const isISS = satId === "25544" || satId === 25544;
       if (state_default.satellites.markers[satId]) {
-        state_default.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
+        const prev = state_default.satellites.markers[satId].getLatLng();
+        if (Math.abs(prev.lat - pos.lat) > 0.01 || Math.abs(prev.lng - pos.lon) > 0.01) {
+          state_default.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
+        }
       } else {
         let iconClass;
         if (isISS) {
@@ -7835,8 +9147,11 @@ ${beacon.location}`);
         }
       }
       if (state_default.satellites.circles[satId]) {
-        state_default.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
-        state_default.satellites.circles[satId].setRadius(radiusMeters);
+        const prevC = state_default.satellites.circles[satId].getLatLng();
+        if (Math.abs(prevC.lat - pos.lat) > 0.01 || Math.abs(prevC.lng - pos.lon) > 0.01) {
+          state_default.satellites.circles[satId].setLatLng([pos.lat, pos.lon]);
+          state_default.satellites.circles[satId].setRadius(radiusMeters);
+        }
       } else {
         const color = satId === "25544" ? "#00bcd4" : "#4caf50";
         state_default.satellites.circles[satId] = L.circle([pos.lat, pos.lon], {
@@ -8172,9 +9487,11 @@ ${beacon.location}`);
       state_default.liveSpots.data = data.spots || [];
       state_default.liveSpots.summary = data.summary || {};
       state_default.liveSpots.lastFetch = Date.now();
+      state_default.liveSpots.error = false;
       renderLiveSpots();
     } catch (err) {
       if (state_default.debug) console.error("Failed to fetch Live Spots:", err);
+      state_default.liveSpots.error = true;
       renderLiveSpots();
     }
   }
@@ -8193,7 +9510,10 @@ ${beacon.location}`);
       return;
     }
     if (status) {
-      if (state_default.liveSpots.data.length === 0 && state_default.liveSpots.lastFetch) {
+      if (state_default.liveSpots.error && !state_default.liveSpots.lastFetch) {
+        status.textContent = "PSKReporter unavailable \u2014 retrying";
+        status.classList.add("visible");
+      } else if (state_default.liveSpots.data.length === 0 && state_default.liveSpots.lastFetch) {
         status.textContent = "No spots in last hour";
         status.classList.add("visible");
       } else if (!state_default.liveSpots.lastFetch) {
@@ -8340,6 +9660,9 @@ ${beacon.location}`);
   init_dedx_info();
   init_solar();
   init_lunar();
+  init_dedx_info();
+  var stagedAssignments = {};
+  var selectedCell = null;
   function updateOperatorDisplay2() {
     const opCall = $("opCall");
     const opLoc = $("opLoc");
@@ -8460,9 +9783,9 @@ ${beacon.location}`);
     }
   }
   function updateLocStatus(msg, isError) {
-    const el = $("splashLocStatus");
-    el.textContent = msg || "";
-    el.classList.toggle("error", !!isError);
+    const el2 = $("splashLocStatus");
+    el2.textContent = msg || "";
+    el2.classList.toggle("error", !!isError);
   }
   function updateGridHighlight() {
     const options = $("splashGridDropdown").querySelectorAll(".grid-option");
@@ -8493,7 +9816,9 @@ ${beacon.location}`);
     const permSelect = document.getElementById("gridPermSelect");
     const permId = permSelect ? permSelect.value : state_default.gridPermutation;
     const perm = getGridPermutation(permId);
-    const maxSlots = perm.slots;
+    const spans = state_default.gridSpans || {};
+    const absorbedCount = Object.values(spans).reduce((sum, s) => sum + (s - 1), 0);
+    const maxSlots = perm.slots - absorbedCount;
     const checkboxes = widgetList.querySelectorAll('input[type="checkbox"]');
     let checkedNonMap = 0;
     checkboxes.forEach((cb) => {
@@ -8520,13 +9845,53 @@ ${beacon.location}`);
       counter.textContent = `${checkedNonMap} / ${maxSlots} slots \u2014 excess hidden in grid`;
       counter.classList.add("over-limit");
     } else {
-      counter.textContent = `${checkedNonMap} / ${maxSlots} slots`;
+      const spanNote = absorbedCount > 0 ? ` (${absorbedCount} spanned)` : "";
+      counter.textContent = `${checkedNonMap} / ${maxSlots} slots${spanNote}`;
       counter.classList.remove("over-limit");
     }
   }
   var _initApp = null;
   function setInitApp(fn) {
     _initApp = fn;
+  }
+  function renderSplashLayoutList() {
+    const list = document.getElementById("splashLayoutList");
+    if (!list) return;
+    list.innerHTML = "";
+    const layouts = getNamedLayouts();
+    const names = Object.keys(layouts);
+    if (names.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "splash-layout-empty";
+      empty.textContent = "No saved layouts";
+      list.appendChild(empty);
+      return;
+    }
+    names.forEach((name) => {
+      const row = document.createElement("div");
+      row.className = "splash-layout-item";
+      const nameSpan = document.createElement("span");
+      nameSpan.className = "splash-layout-item-name";
+      nameSpan.textContent = name;
+      nameSpan.addEventListener("click", () => {
+        loadNamedLayout(name);
+        $("splashLayoutStatus").textContent = `Loaded "${name}"`;
+      });
+      row.appendChild(nameSpan);
+      const delBtn = document.createElement("button");
+      delBtn.className = "splash-layout-item-del";
+      delBtn.textContent = "\xD7";
+      delBtn.title = "Delete";
+      delBtn.addEventListener("click", () => {
+        if (confirm(`Delete layout "${name}"?`)) {
+          deleteNamedLayout(name);
+          renderSplashLayoutList();
+          $("splashLayoutStatus").textContent = `Deleted "${name}"`;
+        }
+      });
+      row.appendChild(delBtn);
+      list.appendChild(row);
+    });
   }
   function showSplash() {
     const splash = $("splash");
@@ -8573,13 +9938,17 @@ ${beacon.location}`);
       cb.type = "checkbox";
       cb.dataset.widgetId = w.id;
       cb.checked = state_default.widgetVisibility[w.id] !== false;
-      cb.addEventListener("change", updateWidgetSlotEnforcement);
+      cb.addEventListener("change", () => {
+        updateWidgetSlotEnforcement();
+        onWidgetCheckboxChange(cb.dataset.widgetId, cb.checked);
+      });
       label.appendChild(cb);
       label.appendChild(document.createTextNode(w.name));
       widgetList.appendChild(label);
     });
     $("splashWxStation").value = state_default.wxStation;
     $("splashWxApiKey").value = state_default.wxApiKey;
+    $("splashOwmApiKey").value = state_default.owmApiKey;
     $("splashN2yoApiKey").value = state_default.n2yoApiKey;
     const intervalSelect = $("splashUpdateInterval");
     if (intervalSelect) {
@@ -8637,15 +10006,25 @@ ${beacon.location}`);
     }
     const cfgSlimHeader = $("cfgSlimHeader");
     if (cfgSlimHeader) cfgSlimHeader.checked = state_default.slimHeader;
+    const cfgGrayscale = $("cfgGrayscale");
+    if (cfgGrayscale) cfgGrayscale.checked = state_default.grayscale;
+    const cfgDisableWxBg = $("cfgDisableWxBg");
+    if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.43.0";
-    $("aboutVersion").textContent = "0.43.0";
+    $("splashVersion").textContent = "0.53.5";
+    $("aboutVersion").textContent = "0.53.5";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
       gridSection.style.display = currentThemeSupportsGrid() ? "" : "none";
       $("layoutModeFloat").checked = state_default.gridMode !== "grid";
       $("layoutModeGrid").checked = state_default.gridMode === "grid";
+      const snapCheck = document.getElementById("snapToGridCheck");
+      const overlapCheck = document.getElementById("allowOverlapCheck");
+      const floatOpts = document.getElementById("floatOptions");
+      if (snapCheck) snapCheck.checked = state_default.snapToGrid;
+      if (overlapCheck) overlapCheck.checked = state_default.allowOverlap;
+      if (floatOpts) floatOpts.style.display = state_default.gridMode === "grid" ? "none" : "";
       const permSelect = document.getElementById("gridPermSelect");
       if (permSelect) {
         permSelect.innerHTML = "";
@@ -8660,12 +10039,21 @@ ${beacon.location}`);
       if (gridPermSection) {
         gridPermSection.style.display = state_default.gridMode === "grid" ? "" : "none";
       }
-      renderGridPreview(state_default.gridPermutation);
+      const currentPerm = permSelect ? permSelect.value : state_default.gridPermutation;
+      if (state_default.gridAssignments && Object.keys(state_default.gridAssignments).length > 0) {
+        stagedAssignments = { ...state_default.gridAssignments };
+      } else {
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[currentPerm];
+        stagedAssignments = defaults ? { ...defaults } : {};
+      }
+      selectedCell = null;
+      renderGridPreview(currentPerm, stagedAssignments);
     }
     updateWidgetSlotEnforcement();
-    const hasSaved = hasUserLayout();
-    $("splashClearLayout").disabled = !hasSaved;
-    $("splashLayoutStatus").textContent = hasSaved ? "Custom layout saved" : "";
+    updateWidgetCellBadges(stagedAssignments);
+    renderSplashLayoutList();
+    $("splashLayoutName").value = "";
+    $("splashLayoutStatus").textContent = "";
     $("splashCallsign").focus();
   }
   function dismissSplash() {
@@ -8685,12 +10073,15 @@ ${beacon.location}`);
     localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
     state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
     state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
+    state_default.owmApiKey = ($("splashOwmApiKey").value || "").trim();
     state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
     localStorage.setItem("hamtab_wx_station", state_default.wxStation);
     localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
+    localStorage.setItem("hamtab_owm_apikey", state_default.owmApiKey);
     localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
     const envUpdates = {};
     if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
+    if (state_default.owmApiKey) envUpdates.OWM_API_KEY = state_default.owmApiKey;
     if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
     if (Object.keys(envUpdates).length > 0) {
       fetch("/api/config/env", {
@@ -8711,18 +10102,16 @@ ${beacon.location}`);
       const newMode = $("layoutModeGrid").checked ? "grid" : "float";
       const permSelect = document.getElementById("gridPermSelect");
       const newPerm = permSelect ? permSelect.value : state_default.gridPermutation;
-      if (newMode === "grid" && state_default.gridMode !== "grid") {
+      const oldPerm = state_default.gridPermutation;
+      if (newMode === "grid") {
         state_default.gridPermutation = newPerm;
-        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
-        state_default.gridAssignments = defaults ? { ...defaults } : {};
+        state_default.gridAssignments = { ...stagedAssignments };
         saveGridAssignments();
-        activateGridMode(newPerm);
-      } else if (newMode === "grid" && newPerm !== state_default.gridPermutation) {
-        state_default.gridPermutation = newPerm;
-        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPerm];
-        state_default.gridAssignments = defaults ? { ...defaults } : {};
-        saveGridAssignments();
-        activateGridMode(newPerm);
+        if (state_default.gridMode !== "grid" || newPerm !== oldPerm) {
+          activateGridMode(newPerm);
+        } else {
+          applyGridAssignments();
+        }
       } else if (newMode === "float" && state_default.gridMode === "grid") {
         deactivateGridMode();
       }
@@ -8745,6 +10134,12 @@ ${beacon.location}`);
     }
     if (justHidden("widget-beacons")) {
       stopBeaconTimer();
+    }
+    if (justShown("widget-dedx")) {
+      startDedxTimer();
+    }
+    if (justHidden("widget-dedx")) {
+      stopDedxTimer();
     }
     const intervalSelect = $("splashUpdateInterval");
     if (intervalSelect) {
@@ -8897,34 +10292,125 @@ ${beacon.location}`);
         updateLocStatus("Geolocation unavailable", true);
       }
     });
+    $("splashCallsignLocBtn").addEventListener("click", async () => {
+      const call = $("splashCallsign").value.trim().toUpperCase();
+      if (!call) {
+        updateLocStatus("Enter a callsign first", true);
+        return;
+      }
+      const btn = $("splashCallsignLocBtn");
+      btn.disabled = true;
+      updateLocStatus("Looking up " + call + "...");
+      try {
+        const resp = await fetch("/api/callsign/" + encodeURIComponent(call));
+        const data = await resp.json();
+        if (data.status === "VALID" && data.lat != null && data.lon != null) {
+          state_default.syncingFields = true;
+          $("splashLat").value = data.lat.toFixed(2);
+          $("splashLon").value = data.lon.toFixed(2);
+          if (data.grid) {
+            $("splashGrid").value = data.grid.substring(0, 4).toUpperCase();
+          } else {
+            $("splashGrid").value = latLonToGrid(data.lat, data.lon).substring(0, 4).toUpperCase();
+          }
+          state_default.myLat = data.lat;
+          state_default.myLon = data.lon;
+          state_default.syncingFields = false;
+          state_default.manualLoc = true;
+          $("splashGpsBtn").classList.remove("active");
+          updateLocStatus("Location set from callsign");
+        } else {
+          updateLocStatus("No location found for " + call, true);
+        }
+      } catch {
+        updateLocStatus("Lookup failed \u2014 try again", true);
+      } finally {
+        btn.disabled = false;
+      }
+    });
     $("splashSaveLayout").addEventListener("click", () => {
-      saveUserLayout();
-      $("splashLayoutStatus").textContent = "Layout saved";
-      $("splashClearLayout").disabled = false;
+      const name = $("splashLayoutName").value.trim();
+      if (!name) {
+        $("splashLayoutStatus").textContent = "Enter a layout name";
+        return;
+      }
+      const ok = saveNamedLayout(name);
+      if (!ok) {
+        $("splashLayoutStatus").textContent = "Max 20 layouts. Delete one first.";
+        return;
+      }
+      $("splashLayoutName").value = "";
+      $("splashLayoutStatus").textContent = `Saved "${name}"`;
+      renderSplashLayoutList();
+    });
+    $("splashLayoutName").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") $("splashSaveLayout").click();
     });
     $("splashClearLayout").addEventListener("click", () => {
       clearUserLayout();
-      $("splashLayoutStatus").textContent = "App default restored";
-      $("splashClearLayout").disabled = true;
+      $("splashLayoutStatus").textContent = "Reset to app default";
     });
     const layoutModeFloat = document.getElementById("layoutModeFloat");
     const layoutModeGrid = document.getElementById("layoutModeGrid");
     const gridPermSelect = document.getElementById("gridPermSelect");
     const gridPermSection = document.getElementById("gridPermSection");
+    const floatOptions = document.getElementById("floatOptions");
     if (layoutModeFloat && layoutModeGrid) {
       layoutModeFloat.addEventListener("change", () => {
         if (gridPermSection) gridPermSection.style.display = "none";
+        if (floatOptions) floatOptions.style.display = "";
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
       layoutModeGrid.addEventListener("change", () => {
         if (gridPermSection) gridPermSection.style.display = "";
-        if (gridPermSelect) renderGridPreview(gridPermSelect.value);
+        if (floatOptions) floatOptions.style.display = "none";
+        if (gridPermSelect) {
+          if (!stagedAssignments || Object.keys(stagedAssignments).length === 0) {
+            const defaults = GRID_DEFAULT_ASSIGNMENTS[gridPermSelect.value];
+            stagedAssignments = defaults ? { ...defaults } : {};
+          }
+          selectedCell = null;
+          renderGridPreview(gridPermSelect.value, stagedAssignments);
+        }
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
+      });
+    }
+    const snapToGridCheck = document.getElementById("snapToGridCheck");
+    const allowOverlapCheck = document.getElementById("allowOverlapCheck");
+    if (snapToGridCheck) {
+      snapToGridCheck.addEventListener("change", () => {
+        state_default.snapToGrid = snapToGridCheck.checked;
+        localStorage.setItem("hamtab_snap_grid", state_default.snapToGrid);
+      });
+    }
+    if (allowOverlapCheck) {
+      allowOverlapCheck.addEventListener("change", () => {
+        state_default.allowOverlap = allowOverlapCheck.checked;
+        localStorage.setItem("hamtab_allow_overlap", state_default.allowOverlap);
       });
     }
     if (gridPermSelect) {
       gridPermSelect.addEventListener("change", () => {
-        renderGridPreview(gridPermSelect.value);
+        const newPermId = gridPermSelect.value;
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[newPermId];
+        stagedAssignments = defaults ? { ...defaults } : {};
+        selectedCell = null;
+        renderGridPreview(newPermId, stagedAssignments);
+        updateWidgetCellBadges(stagedAssignments);
+        updateWidgetSlotEnforcement();
+      });
+    }
+    const resetGridBtn = document.getElementById("resetGridBtn");
+    if (resetGridBtn) {
+      resetGridBtn.addEventListener("click", () => {
+        resetGridAssignments();
+        const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
+        stagedAssignments = defaults ? { ...defaults } : {};
+        selectedCell = null;
+        renderGridPreview(state_default.gridPermutation, stagedAssignments);
+        updateWidgetCellBadges(stagedAssignments);
         updateWidgetSlotEnforcement();
       });
     }
@@ -8947,6 +10433,28 @@ ${beacon.location}`);
         state_default.slimHeader = cfgSlimHeaderCb.checked;
         localStorage.setItem("hamtab_slim_header", String(state_default.slimHeader));
         document.body.classList.toggle("slim-header", state_default.slimHeader);
+      });
+    }
+    const cfgGrayscaleCb = $("cfgGrayscale");
+    if (cfgGrayscaleCb) {
+      cfgGrayscaleCb.addEventListener("change", () => {
+        state_default.grayscale = cfgGrayscaleCb.checked;
+        localStorage.setItem("hamtab_grayscale", String(state_default.grayscale));
+        document.body.classList.toggle("grayscale", state_default.grayscale);
+      });
+    }
+    const cfgDisableWxBgCb = $("cfgDisableWxBg");
+    if (cfgDisableWxBgCb) {
+      cfgDisableWxBgCb.addEventListener("change", () => {
+        state_default.disableWxBackgrounds = cfgDisableWxBgCb.checked;
+        localStorage.setItem("hamtab_disable_wx_bg", String(state_default.disableWxBackgrounds));
+        const hcl = document.getElementById("headerClockLocal");
+        if (hcl) {
+          const wxClasses = ["wx-clear-day", "wx-clear-night", "wx-partly-cloudy-day", "wx-partly-cloudy-night", "wx-cloudy", "wx-rain", "wx-thunderstorm", "wx-snow", "wx-fog"];
+          if (state_default.disableWxBackgrounds) {
+            wxClasses.forEach((c) => hcl.classList.remove(c));
+          }
+        }
       });
     }
     const bandColorResetBtn = document.getElementById("bandColorResetBtn");
@@ -8985,12 +10493,36 @@ ${beacon.location}`);
       container.appendChild(row);
     });
   }
-  function renderGridPreview(permId) {
+  function renderGridPreview(permId, assignments) {
     const container = document.getElementById("gridPermPreview");
     if (!container) return;
     const perm = getGridPermutation(permId);
     container.innerHTML = "";
-    container.style.gridTemplateAreas = perm.areas;
+    const picker = document.getElementById("gridAssignPicker");
+    if (picker) {
+      picker.innerHTML = "";
+      picker.classList.remove("open");
+    }
+    const asgn = assignments || stagedAssignments || {};
+    const widgetShortMap = {};
+    WIDGET_DEFS.forEach((w) => {
+      widgetShortMap[w.id] = w.short || w.name.substring(0, 4);
+    });
+    const spans = permId === state_default.gridPermutation ? state_default.gridSpans || {} : {};
+    let areas = perm.areas;
+    const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
+    const absorbed = /* @__PURE__ */ new Set();
+    for (const wrapperCells of allWrappers) {
+      for (let i = 0; i < wrapperCells.length; i++) {
+        const span = spans[wrapperCells[i]] || 1;
+        for (let s = 1; s < span && i + s < wrapperCells.length; s++) {
+          const absCell = wrapperCells[i + s];
+          areas = areas.replace(new RegExp("\\b" + absCell + "\\b", "g"), wrapperCells[i]);
+          absorbed.add(absCell);
+        }
+      }
+    }
+    container.style.gridTemplateAreas = areas;
     container.style.gridTemplateColumns = perm.columns;
     container.style.gridTemplateRows = perm.rows;
     const mapCell = document.createElement("div");
@@ -8999,12 +10531,160 @@ ${beacon.location}`);
     mapCell.textContent = "MAP";
     container.appendChild(mapCell);
     perm.cellNames.forEach((name) => {
+      if (absorbed.has(name)) return;
       const cell = document.createElement("div");
-      cell.className = "grid-preview-cell";
+      const span = spans[name] || 1;
+      const isSpanned = span > 1;
+      cell.className = "grid-preview-cell grid-preview-assignable" + (isSpanned ? " grid-preview-spanned" : "") + (selectedCell === name ? " grid-preview-selected" : "");
       cell.style.gridArea = name;
-      cell.textContent = name;
+      const nameEl = document.createElement("span");
+      nameEl.className = "cell-name";
+      nameEl.textContent = isSpanned ? `${name} (+${span - 1})` : name;
+      cell.appendChild(nameEl);
+      const widgetEl = document.createElement("span");
+      widgetEl.className = "cell-widget";
+      const widgetId = asgn[name];
+      widgetEl.textContent = widgetId ? widgetShortMap[widgetId] || "\u2014" : "\u2014";
+      cell.appendChild(widgetEl);
+      cell.addEventListener("click", () => {
+        if (selectedCell === name) {
+          selectedCell = null;
+          renderGridPreview(permId, asgn);
+        } else {
+          selectedCell = name;
+          renderGridPreview(permId, asgn);
+          renderAssignmentPicker(name, asgn, permId);
+        }
+      });
       container.appendChild(cell);
     });
+  }
+  function renderAssignmentPicker(cellName, assignments, permId) {
+    const picker = document.getElementById("gridAssignPicker");
+    if (!picker) return;
+    picker.innerHTML = "";
+    const asgn = assignments || stagedAssignments;
+    const currentWidgetId = asgn[cellName] || null;
+    const widgetList = document.getElementById("splashWidgetList");
+    const enabledWidgets = [];
+    if (widgetList) {
+      widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+        if (cb.dataset.widgetId !== "widget-map" && cb.checked) {
+          const def = WIDGET_DEFS.find((w) => w.id === cb.dataset.widgetId);
+          if (def) enabledWidgets.push(def);
+        }
+      });
+    }
+    const reverseMap = {};
+    for (const [cell, wid] of Object.entries(asgn)) {
+      if (wid) reverseMap[wid] = cell;
+    }
+    const emptyOpt = document.createElement("div");
+    emptyOpt.className = "assign-option" + (!currentWidgetId ? " assign-current" : "");
+    emptyOpt.textContent = "(Empty)";
+    emptyOpt.addEventListener("click", () => {
+      delete asgn[cellName];
+      selectedCell = null;
+      renderGridPreview(permId, asgn);
+      updateWidgetCellBadges(asgn);
+      picker.innerHTML = "";
+      picker.classList.remove("open");
+    });
+    picker.appendChild(emptyOpt);
+    enabledWidgets.forEach((w) => {
+      const opt = document.createElement("div");
+      opt.className = "assign-option" + (currentWidgetId === w.id ? " assign-current" : "");
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = w.name;
+      opt.appendChild(nameSpan);
+      if (reverseMap[w.id] && reverseMap[w.id] !== cellName) {
+        const hint = document.createElement("span");
+        hint.className = "assign-hint";
+        hint.textContent = reverseMap[w.id];
+        opt.appendChild(hint);
+      }
+      opt.addEventListener("click", () => {
+        const oldCell = reverseMap[w.id] || null;
+        const displaced = asgn[cellName] || null;
+        asgn[cellName] = w.id;
+        if (oldCell && oldCell !== cellName) {
+          if (displaced) {
+            asgn[oldCell] = displaced;
+          } else {
+            delete asgn[oldCell];
+          }
+        }
+        selectedCell = null;
+        renderGridPreview(permId, asgn);
+        updateWidgetCellBadges(asgn);
+        picker.innerHTML = "";
+        picker.classList.remove("open");
+      });
+      picker.appendChild(opt);
+    });
+    picker.classList.add("open");
+  }
+  function updateWidgetCellBadges(assignments) {
+    const widgetList = document.getElementById("splashWidgetList");
+    if (!widgetList) return;
+    const floatRadio = document.getElementById("layoutModeFloat");
+    const isGrid = floatRadio ? !floatRadio.checked : false;
+    widgetList.querySelectorAll(".widget-cell-badge").forEach((b) => b.remove());
+    if (!isGrid) return;
+    const asgn = assignments || stagedAssignments || {};
+    const reverseMap = {};
+    for (const [cell, wid] of Object.entries(asgn)) {
+      if (wid) reverseMap[wid] = cell;
+    }
+    widgetList.querySelectorAll("label").forEach((label) => {
+      const cb = label.querySelector('input[type="checkbox"]');
+      if (!cb || cb.dataset.widgetId === "widget-map") return;
+      const cell = reverseMap[cb.dataset.widgetId];
+      if (cell) {
+        const badge = document.createElement("span");
+        badge.className = "widget-cell-badge";
+        badge.textContent = `[${cell}]`;
+        label.appendChild(badge);
+      }
+    });
+  }
+  function onWidgetCheckboxChange(widgetId, checked) {
+    const floatRadio = document.getElementById("layoutModeFloat");
+    const isGrid = floatRadio ? !floatRadio.checked : false;
+    if (!isGrid || widgetId === "widget-map") return;
+    const permSelect = document.getElementById("gridPermSelect");
+    const permId = permSelect ? permSelect.value : state_default.gridPermutation;
+    const perm = getGridPermutation(permId);
+    if (!checked) {
+      for (const [cell, wid] of Object.entries(stagedAssignments)) {
+        if (wid === widgetId) {
+          delete stagedAssignments[cell];
+          break;
+        }
+      }
+    } else {
+      const spans = permId === state_default.gridPermutation ? state_default.gridSpans || {} : {};
+      const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
+      const absorbed = /* @__PURE__ */ new Set();
+      for (const wrapperCells of allWrappers) {
+        for (let i = 0; i < wrapperCells.length; i++) {
+          const span = spans[wrapperCells[i]] || 1;
+          for (let s = 1; s < span && i + s < wrapperCells.length; s++) {
+            absorbed.add(wrapperCells[i + s]);
+          }
+        }
+      }
+      for (const cellName of perm.cellNames) {
+        if (absorbed.has(cellName)) continue;
+        if (!stagedAssignments[cellName]) {
+          stagedAssignments[cellName] = widgetId;
+          break;
+        }
+      }
+    }
+    selectedCell = null;
+    renderGridPreview(permId, stagedAssignments);
+    updateWidgetCellBadges(stagedAssignments);
   }
 
   // src/config.js
@@ -9084,6 +10764,10 @@ ${beacon.location}`);
         $("mapOvDrap").checked = state_default.mapOverlays.drapOverlay;
         $("mapOvBandPaths").checked = state_default.mapOverlays.bandPaths;
         $("mapOvDxpedMarkers").checked = state_default.mapOverlays.dxpedMarkers;
+        $("mapOvTropics").checked = state_default.mapOverlays.tropicsLines;
+        $("mapOvWeatherRadar").checked = state_default.mapOverlays.weatherRadar;
+        $("mapOvCloudCover").checked = state_default.mapOverlays.cloudCover;
+        $("mapOvLegend").checked = state_default.mapOverlays.symbolLegend;
         mapOverlayCfgSplash.classList.remove("hidden");
       });
     }
@@ -9096,6 +10780,10 @@ ${beacon.location}`);
         state_default.mapOverlays.drapOverlay = $("mapOvDrap").checked;
         state_default.mapOverlays.bandPaths = $("mapOvBandPaths").checked;
         state_default.mapOverlays.dxpedMarkers = $("mapOvDxpedMarkers").checked;
+        state_default.mapOverlays.tropicsLines = $("mapOvTropics").checked;
+        state_default.mapOverlays.weatherRadar = $("mapOvWeatherRadar").checked;
+        state_default.mapOverlays.cloudCover = $("mapOvCloudCover").checked;
+        state_default.mapOverlays.symbolLegend = $("mapOvLegend").checked;
         saveMapOverlays();
         mapOverlayCfgSplash.classList.add("hidden");
         renderAllMapOverlays();
@@ -9615,7 +11303,1174 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     });
   }
 
+  // src/stopwatch.js
+  init_state();
+  init_dom();
+  init_widgets();
+  var mode = "stopwatch";
+  var running = false;
+  var startTime = 0;
+  var elapsed = 0;
+  var countdownTotal = 0;
+  var laps = [];
+  var alertFired = false;
+  function initStopwatchListeners() {
+    const tabSw = $("swTabStopwatch");
+    const tabCd = $("swTabCountdown");
+    const startBtn = $("swStart");
+    const stopBtn = $("swStop");
+    const resetBtn = $("swReset");
+    const lapBtn = $("swLap");
+    if (!tabSw) return;
+    tabSw.addEventListener("click", () => switchMode("stopwatch"));
+    tabCd.addEventListener("click", () => switchMode("countdown"));
+    startBtn.addEventListener("click", startTimer);
+    stopBtn.addEventListener("click", stopTimer);
+    resetBtn.addEventListener("click", resetTimer);
+    lapBtn.addEventListener("click", recordLap);
+    const presets = document.querySelectorAll(".sw-preset");
+    presets.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const min = parseInt(btn.dataset.minutes, 10);
+        if (!isNaN(min) && min > 0) {
+          countdownTotal = min * 60 * 1e3;
+          elapsed = countdownTotal;
+          renderDisplay();
+        }
+      });
+    });
+  }
+  function switchMode(newMode) {
+    if (running) stopTimer();
+    mode = newMode;
+    elapsed = 0;
+    countdownTotal = 0;
+    laps = [];
+    alertFired = false;
+    const tabSw = $("swTabStopwatch");
+    const tabCd = $("swTabCountdown");
+    const cdSet = $("swCountdownSet");
+    const lapBtn = $("swLap");
+    tabSw.classList.toggle("active", mode === "stopwatch");
+    tabCd.classList.toggle("active", mode === "countdown");
+    cdSet.classList.toggle("hidden", mode !== "countdown");
+    lapBtn.classList.toggle("hidden", mode !== "stopwatch");
+    renderDisplay();
+    renderLaps();
+  }
+  function startTimer() {
+    if (running) return;
+    if (mode === "countdown" && countdownTotal === 0) return;
+    running = true;
+    alertFired = false;
+    if (mode === "stopwatch") {
+      startTime = Date.now() - elapsed;
+    } else {
+      startTime = Date.now();
+    }
+    state_default.stopwatchTimer = setInterval(tick, 100);
+  }
+  function stopTimer() {
+    running = false;
+    if (state_default.stopwatchTimer) {
+      clearInterval(state_default.stopwatchTimer);
+      state_default.stopwatchTimer = null;
+    }
+  }
+  function resetTimer() {
+    stopTimer();
+    elapsed = mode === "countdown" ? countdownTotal : 0;
+    laps = [];
+    alertFired = false;
+    renderDisplay();
+    renderLaps();
+  }
+  function recordLap() {
+    if (!running || mode !== "stopwatch") return;
+    laps.push(elapsed);
+    renderLaps();
+  }
+  function tick() {
+    if (!isWidgetVisible("widget-stopwatch")) return;
+    if (mode === "stopwatch") {
+      elapsed = Date.now() - startTime;
+    } else {
+      const elapsedSince = Date.now() - startTime;
+      elapsed = Math.max(0, countdownTotal - elapsedSince);
+      if (elapsed === 0 && !alertFired) {
+        alertFired = true;
+        stopTimer();
+        flashDisplay();
+      }
+    }
+    renderDisplay();
+  }
+  function flashDisplay() {
+    const display = $("swDisplay");
+    if (!display) return;
+    display.classList.add("sw-flash");
+    setTimeout(() => display.classList.remove("sw-flash"), 3e3);
+  }
+  function renderDisplay() {
+    const display = $("swDisplay");
+    if (!display) return;
+    const ms = Math.abs(elapsed);
+    const totalSec = Math.floor(ms / 1e3);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor(totalSec % 3600 / 60);
+    const s = totalSec % 60;
+    const tenths = Math.floor(ms % 1e3 / 100);
+    if (h > 0) {
+      display.textContent = `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${tenths}`;
+    } else {
+      display.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${tenths}`;
+    }
+  }
+  function renderLaps() {
+    const container = $("swLaps");
+    if (!container) return;
+    if (laps.length === 0) {
+      container.innerHTML = "";
+      return;
+    }
+    let html = "";
+    for (let i = laps.length - 1; i >= 0; i--) {
+      const lapMs = i === 0 ? laps[0] : laps[i] - laps[i - 1];
+      const lapSec = Math.floor(lapMs / 1e3);
+      const lapM = Math.floor(lapSec / 60);
+      const lapS = lapSec % 60;
+      const lapT = Math.floor(lapMs % 1e3 / 100);
+      html += `<div class="sw-lap-row"><span class="sw-lap-num">${i + 1}</span><span class="sw-lap-time">${String(lapM).padStart(2, "0")}:${String(lapS).padStart(2, "0")}.${lapT}</span></div>`;
+    }
+    container.innerHTML = html;
+  }
+  function getStopwatchElapsed() {
+    return elapsed;
+  }
+  function getStopwatchRunning() {
+    return running;
+  }
+  function getStopwatchMode() {
+    return mode;
+  }
+
+  // src/analog-clock.js
+  init_state();
+  init_widgets();
+  init_geo();
+
+  // src/clock-faces.js
+  var NS = "http://www.w3.org/2000/svg";
+  var CX = 100;
+  var CY = 100;
+  var R = 88;
+  var ROMAN = ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"];
+  var CLOCK_FACES = {
+    classic: {
+      id: "classic",
+      name: "Classic",
+      ticks: { minor: true, major: true, majorWidth: 2, minorWidth: 1, majorLength: 10, minorLength: 5 },
+      labels: { type: "arabic", fontSize: 12, radius: R - 18 },
+      hands: {
+        hour: { length: 50, width: 4, tail: 0 },
+        minute: { length: 70, width: 2.5, tail: 0 },
+        second: { length: 78, width: 1, tail: 12, color: "var(--accent)" }
+      },
+      centerDot: { radius: 3.5, color: "var(--accent)" },
+      dateWindow: { show: true, y: 130, fontSize: 11 },
+      extras: null
+    },
+    minimal: {
+      id: "minimal",
+      name: "Minimal",
+      ticks: { minor: false, major: false },
+      labels: { type: "indices", fontSize: 0, radius: R - 10 },
+      hands: {
+        hour: { length: 48, width: 5, tail: 0 },
+        minute: { length: 68, width: 2, tail: 0 },
+        second: { length: 76, width: 0.8, tail: 10, color: "var(--accent)" }
+      },
+      centerDot: { radius: 3, color: "var(--accent)" },
+      dateWindow: { show: false },
+      extras: null
+    },
+    roman: {
+      id: "roman",
+      name: "Roman",
+      ticks: { minor: true, major: true, majorWidth: 2, minorWidth: 1, majorLength: 8, minorLength: 4 },
+      labels: { type: "roman", fontSize: 11, radius: R - 18 },
+      hands: {
+        hour: { length: 48, width: 4, tail: 0 },
+        minute: { length: 68, width: 2.5, tail: 0 },
+        second: { length: 76, width: 1, tail: 12, color: "var(--accent)" }
+      },
+      centerDot: { radius: 3.5, color: "var(--accent)" },
+      dateWindow: { show: true, y: 130, fontSize: 10 },
+      extras: null
+    },
+    pilot: {
+      id: "pilot",
+      name: "Pilot",
+      ticks: { minor: true, major: true, majorWidth: 3, minorWidth: 1, majorLength: 10, minorLength: 5 },
+      labels: { type: "indices", fontSize: 0, radius: R - 10 },
+      hands: {
+        hour: { length: 46, width: 5, tail: 0 },
+        minute: { length: 68, width: 3, tail: 0 },
+        second: { length: 76, width: 1, tail: 14, color: "var(--accent)" }
+      },
+      centerDot: { radius: 4, color: "var(--accent)" },
+      dateWindow: { show: true, y: 130, fontSize: 10 },
+      extras: "pilotTriangle"
+    },
+    railroad: {
+      id: "railroad",
+      name: "Railroad",
+      ticks: { minor: true, major: true, majorWidth: 2.5, minorWidth: 1, majorLength: 10, minorLength: 6 },
+      labels: { type: "arabic", fontSize: 11, radius: R - 20 },
+      hands: {
+        hour: { length: 46, width: 4, tail: 0 },
+        minute: { length: 66, width: 2.5, tail: 0 },
+        second: { length: 74, width: 1, tail: 12, color: "var(--accent)" }
+      },
+      centerDot: { radius: 3.5, color: "var(--accent)" },
+      dateWindow: { show: true, y: 130, fontSize: 10 },
+      extras: "doubleTrack"
+    },
+    digitalHybrid: {
+      id: "digitalHybrid",
+      name: "Digital",
+      ticks: { minor: false, major: true, majorWidth: 2, minorWidth: 0, majorLength: 8, minorLength: 0 },
+      labels: { type: "arabic", fontSize: 10, radius: R - 16 },
+      hands: {
+        hour: { length: 48, width: 4, tail: 0 },
+        minute: { length: 68, width: 2.5, tail: 0 },
+        second: { length: 76, width: 1, tail: 12, color: "var(--accent)" }
+      },
+      centerDot: { radius: 3, color: "var(--accent)" },
+      dateWindow: { show: false },
+      extras: "digitalReadout"
+    }
+  };
+  function makeSvg(tag, attrs) {
+    const node = document.createElementNS(NS, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    return node;
+  }
+  function buildFaceSvg(svg, faceId, complications) {
+    const face = CLOCK_FACES[faceId] || CLOCK_FACES.classic;
+    svg.innerHTML = "";
+    svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R, fill: "var(--surface)", stroke: "var(--border)", "stroke-width": 2 }));
+    if (face.extras === "doubleTrack") {
+      svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R - 2, fill: "none", stroke: "var(--text-dim)", "stroke-width": 0.5 }));
+      svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R - 12, fill: "none", stroke: "var(--text-dim)", "stroke-width": 0.5 }));
+    }
+    const arc = makeSvg("path", { d: "", fill: "rgba(255,193,7,0.25)", stroke: "none" });
+    svg.appendChild(arc);
+    if (face.ticks.major || face.ticks.minor) {
+      for (let i = 0; i < 60; i++) {
+        const isMajor = i % 5 === 0;
+        if (!isMajor && !face.ticks.minor) continue;
+        if (isMajor && !face.ticks.major) continue;
+        const angle = (i * 6 - 90) * Math.PI / 180;
+        const outerR = R - 2;
+        const innerR = outerR - (isMajor ? face.ticks.majorLength : face.ticks.minorLength);
+        svg.appendChild(makeSvg("line", {
+          x1: CX + Math.cos(angle) * innerR,
+          y1: CY + Math.sin(angle) * innerR,
+          x2: CX + Math.cos(angle) * outerR,
+          y2: CY + Math.sin(angle) * outerR,
+          stroke: "var(--text-dim)",
+          "stroke-width": isMajor ? face.ticks.majorWidth : face.ticks.minorWidth
+        }));
+      }
+    }
+    if (face.labels.type === "arabic") {
+      for (let h = 1; h <= 12; h++) {
+        const angle = (h * 30 - 90) * Math.PI / 180;
+        const txt = makeSvg("text", {
+          x: CX + Math.cos(angle) * face.labels.radius,
+          y: CY + Math.sin(angle) * face.labels.radius + 4,
+          "text-anchor": "middle",
+          fill: "var(--text-dim)",
+          "font-size": face.labels.fontSize,
+          "font-family": "inherit"
+        });
+        txt.textContent = h;
+        svg.appendChild(txt);
+      }
+    } else if (face.labels.type === "roman") {
+      for (let h = 1; h <= 12; h++) {
+        const angle = (h * 30 - 90) * Math.PI / 180;
+        const txt = makeSvg("text", {
+          x: CX + Math.cos(angle) * face.labels.radius,
+          y: CY + Math.sin(angle) * face.labels.radius + 4,
+          "text-anchor": "middle",
+          fill: "var(--text-dim)",
+          "font-size": face.labels.fontSize,
+          "font-family": "inherit"
+        });
+        txt.textContent = ROMAN[h];
+        svg.appendChild(txt);
+      }
+    } else if (face.labels.type === "indices") {
+      const positions = [
+        { h: 12, angle: -90 },
+        { h: 3, angle: 0 },
+        { h: 6, angle: 90 },
+        { h: 9, angle: 180 }
+      ];
+      for (const pos of positions) {
+        const rad = pos.angle * Math.PI / 180;
+        const outerR = R - 4;
+        const innerR = R - 16;
+        svg.appendChild(makeSvg("line", {
+          x1: CX + Math.cos(rad) * innerR,
+          y1: CY + Math.sin(rad) * innerR,
+          x2: CX + Math.cos(rad) * outerR,
+          y2: CY + Math.sin(rad) * outerR,
+          stroke: "var(--text)",
+          "stroke-width": 4,
+          "stroke-linecap": "round"
+        }));
+      }
+    }
+    if (face.extras === "pilotTriangle") {
+      const triSize = 8;
+      const triY = CY - R + 6;
+      svg.appendChild(makeSvg("polygon", {
+        points: `${CX},${triY} ${CX - triSize / 2},${triY + triSize} ${CX + triSize / 2},${triY + triSize}`,
+        fill: "var(--accent)",
+        stroke: "none"
+      }));
+    }
+    let digitalText = null;
+    if (face.extras === "digitalReadout") {
+      const hasBottomComp = complications && complications.stopwatch;
+      const dY = hasBottomComp ? 118 : 125;
+      digitalText = makeSvg("text", {
+        x: CX,
+        y: dY,
+        "text-anchor": "middle",
+        fill: "var(--text)",
+        "font-size": "10",
+        "font-family": "monospace, inherit"
+      });
+      digitalText.textContent = "--:--:--";
+      svg.appendChild(digitalText);
+    }
+    let dateText = null;
+    if (face.dateWindow && face.dateWindow.show) {
+      const hasBottomComp = complications && complications.stopwatch;
+      const dY = hasBottomComp ? 118 : face.dateWindow.y;
+      dateText = makeSvg("text", {
+        x: CX,
+        y: dY,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": face.dateWindow.fontSize,
+        "font-family": "inherit"
+      });
+      svg.appendChild(dateText);
+    }
+    return { arc, dateText, digitalText, face };
+  }
+  function buildFacePreview(faceId) {
+    const face = CLOCK_FACES[faceId] || CLOCK_FACES.classic;
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 200 200");
+    svg.setAttribute("width", "48");
+    svg.setAttribute("height", "48");
+    svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R, fill: "var(--surface)", stroke: "var(--border)", "stroke-width": 3 }));
+    if (face.extras === "doubleTrack") {
+      svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R - 2, fill: "none", stroke: "var(--text-dim)", "stroke-width": 1 }));
+      svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: R - 12, fill: "none", stroke: "var(--text-dim)", "stroke-width": 1 }));
+    }
+    if (face.ticks.major) {
+      for (let i = 0; i < 12; i++) {
+        const angle = (i * 30 - 90) * Math.PI / 180;
+        const outerR = R - 2;
+        const innerR = outerR - face.ticks.majorLength;
+        svg.appendChild(makeSvg("line", {
+          x1: CX + Math.cos(angle) * innerR,
+          y1: CY + Math.sin(angle) * innerR,
+          x2: CX + Math.cos(angle) * outerR,
+          y2: CY + Math.sin(angle) * outerR,
+          stroke: "var(--text-dim)",
+          "stroke-width": face.ticks.majorWidth
+        }));
+      }
+    }
+    if (face.labels.type === "indices") {
+      for (const a of [-90, 0, 90, 180]) {
+        const rad = a * Math.PI / 180;
+        svg.appendChild(makeSvg("line", {
+          x1: CX + Math.cos(rad) * (R - 16),
+          y1: CY + Math.sin(rad) * (R - 16),
+          x2: CX + Math.cos(rad) * (R - 4),
+          y2: CY + Math.sin(rad) * (R - 4),
+          stroke: "var(--text)",
+          "stroke-width": 5,
+          "stroke-linecap": "round"
+        }));
+      }
+    }
+    if (face.extras === "pilotTriangle") {
+      const triY = CY - R + 6;
+      svg.appendChild(makeSvg("polygon", {
+        points: `${CX},${triY} ${CX - 5},${triY + 10} ${CX + 5},${triY + 10}`,
+        fill: "var(--accent)"
+      }));
+    }
+    const hourAngle = (10 + 10 / 60) * 30;
+    const minuteAngle = 10 * 6;
+    const hRad = (hourAngle - 90) * Math.PI / 180;
+    const mRad = (minuteAngle - 90) * Math.PI / 180;
+    svg.appendChild(makeSvg("line", {
+      x1: CX,
+      y1: CY,
+      x2: CX + Math.cos(hRad) * face.hands.hour.length,
+      y2: CY + Math.sin(hRad) * face.hands.hour.length,
+      stroke: "var(--text)",
+      "stroke-width": face.hands.hour.width,
+      "stroke-linecap": "round"
+    }));
+    svg.appendChild(makeSvg("line", {
+      x1: CX,
+      y1: CY,
+      x2: CX + Math.cos(mRad) * face.hands.minute.length,
+      y2: CY + Math.sin(mRad) * face.hands.minute.length,
+      stroke: "var(--text)",
+      "stroke-width": face.hands.minute.width,
+      "stroke-linecap": "round"
+    }));
+    svg.appendChild(makeSvg("circle", { cx: CX, cy: CY, r: face.centerDot.radius, fill: face.centerDot.color }));
+    return svg;
+  }
+
+  // src/clock-complications.js
+  init_state();
+  init_geo();
+  var NS2 = "http://www.w3.org/2000/svg";
+  function makeSvg2(tag, attrs) {
+    const node = document.createElementNS(NS2, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    return node;
+  }
+  var COMPLICATION_DEFS = [
+    { id: "sunrise", name: "Sunrise / Sunset", cx: 100, cy: 62, radius: 16, description: "Next sunrise or sunset countdown" },
+    { id: "solar", name: "Solar (SFI)", cx: 138, cy: 100, radius: 16, description: "Solar Flux Index gauge" },
+    { id: "stopwatch", name: "Stopwatch", cx: 100, cy: 138, radius: 16, description: "Mirrors Stopwatch widget elapsed time" },
+    { id: "utc", name: "UTC 24h", cx: 62, cy: 100, radius: 16, description: "24-hour UTC sub-dial" }
+  ];
+  function mountComplication(svg, compId) {
+    const def = COMPLICATION_DEFS.find((c) => c.id === compId);
+    if (!def) return null;
+    const g = document.createElementNS(NS2, "g");
+    g.setAttribute("class", `comp-${compId}`);
+    g.appendChild(makeSvg2("circle", {
+      cx: def.cx,
+      cy: def.cy,
+      r: def.radius,
+      fill: "var(--surface)",
+      stroke: "var(--border)",
+      "stroke-width": 1
+    }));
+    const refs = { g, def };
+    if (compId === "utc") {
+      for (let i = 0; i < 4; i++) {
+        const angle = (i * 90 - 90) * Math.PI / 180;
+        const outerR = def.radius - 1;
+        const innerR = def.radius - 4;
+        g.appendChild(makeSvg2("line", {
+          x1: def.cx + Math.cos(angle) * innerR,
+          y1: def.cy + Math.sin(angle) * innerR,
+          x2: def.cx + Math.cos(angle) * outerR,
+          y2: def.cy + Math.sin(angle) * outerR,
+          stroke: "var(--text-dim)",
+          "stroke-width": 1
+        }));
+      }
+      refs.hand = makeSvg2("line", {
+        x1: def.cx,
+        y1: def.cy,
+        x2: def.cx,
+        y2: def.cy - 12,
+        stroke: "var(--text)",
+        "stroke-width": 1.5,
+        "stroke-linecap": "round"
+      });
+      g.appendChild(refs.hand);
+      g.appendChild(makeSvg2("circle", { cx: def.cx, cy: def.cy, r: 1.5, fill: "var(--text)" }));
+      refs.label = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 8,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "5",
+        "font-family": "inherit"
+      });
+      refs.label.textContent = "UTC";
+      g.appendChild(refs.label);
+    } else if (compId === "stopwatch") {
+      refs.timeText = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 1,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "7",
+        "font-family": "monospace, inherit"
+      });
+      refs.timeText.textContent = "00:00";
+      g.appendChild(refs.timeText);
+      refs.statusDot = makeSvg2("circle", {
+        cx: def.cx,
+        cy: def.cy - 8,
+        r: 2,
+        fill: "var(--text-dim)",
+        opacity: "0.3"
+      });
+      g.appendChild(refs.statusDot);
+      refs.modeLabel = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 9,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "4",
+        "font-family": "inherit"
+      });
+      refs.modeLabel.textContent = "STOP";
+      g.appendChild(refs.modeLabel);
+    } else if (compId === "solar") {
+      const arcPath = describeArc(def.cx, def.cy, def.radius - 3, -135, 135);
+      g.appendChild(makeSvg2("path", {
+        d: arcPath,
+        fill: "none",
+        stroke: "var(--border)",
+        "stroke-width": 2,
+        "stroke-linecap": "round"
+      }));
+      refs.arcFill = makeSvg2("path", {
+        d: arcPath,
+        fill: "none",
+        stroke: "var(--text-dim)",
+        "stroke-width": 2,
+        "stroke-linecap": "round"
+      });
+      g.appendChild(refs.arcFill);
+      refs.needle = makeSvg2("line", {
+        x1: def.cx,
+        y1: def.cy,
+        x2: def.cx,
+        y2: def.cy - 11,
+        stroke: "var(--text)",
+        "stroke-width": 1,
+        "stroke-linecap": "round"
+      });
+      g.appendChild(refs.needle);
+      g.appendChild(makeSvg2("circle", { cx: def.cx, cy: def.cy, r: 1.5, fill: "var(--text)" }));
+      refs.label = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 8,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "5",
+        "font-family": "inherit"
+      });
+      refs.label.textContent = "SFI";
+      g.appendChild(refs.label);
+      refs.valueText = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 14,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "5",
+        "font-family": "inherit"
+      });
+      refs.valueText.textContent = "---";
+      g.appendChild(refs.valueText);
+    } else if (compId === "sunrise") {
+      refs.icon = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy - 3,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "8"
+      });
+      refs.icon.textContent = "\u2600";
+      g.appendChild(refs.icon);
+      refs.countdownText = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 7,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "6",
+        "font-family": "monospace, inherit"
+      });
+      refs.countdownText.textContent = "--:--";
+      g.appendChild(refs.countdownText);
+      refs.eventLabel = makeSvg2("text", {
+        x: def.cx,
+        y: def.cy + 13,
+        "text-anchor": "middle",
+        fill: "var(--text-dim)",
+        "font-size": "4",
+        "font-family": "inherit"
+      });
+      refs.eventLabel.textContent = "";
+      g.appendChild(refs.eventLabel);
+    }
+    svg.appendChild(g);
+    return refs;
+  }
+  function updateComplication(compId, refs) {
+    if (!refs) return;
+    if (compId === "utc") {
+      const now = /* @__PURE__ */ new Date();
+      const h = now.getUTCHours();
+      const m = now.getUTCMinutes();
+      const angle = (h + m / 60) / 24 * 360;
+      refs.hand.setAttribute("transform", `rotate(${angle} ${refs.def.cx} ${refs.def.cy})`);
+    } else if (compId === "stopwatch") {
+      const elapsed2 = getStopwatchElapsed();
+      const running2 = getStopwatchRunning();
+      const swMode = getStopwatchMode();
+      const ms = Math.abs(elapsed2);
+      const totalSec = Math.floor(ms / 1e3);
+      const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
+      const ss = String(totalSec % 60).padStart(2, "0");
+      refs.timeText.textContent = `${mm}:${ss}`;
+      refs.timeText.setAttribute("fill", running2 ? "var(--text)" : "var(--text-dim)");
+      refs.statusDot.setAttribute("fill", running2 ? "#4caf50" : "var(--text-dim)");
+      refs.statusDot.setAttribute("opacity", running2 ? "1" : "0.3");
+      refs.modeLabel.textContent = swMode === "countdown" ? "CNTDN" : "STOP";
+    } else if (compId === "solar") {
+      const data = state_default.lastSolarData;
+      if (data && data.sfi != null) {
+        const sfi = parseInt(data.sfi, 10);
+        if (!isNaN(sfi)) {
+          const clamped = Math.max(50, Math.min(200, sfi));
+          const ratio = (clamped - 50) / 150;
+          const angle = -135 + ratio * 270;
+          refs.needle.setAttribute("transform", `rotate(${angle} ${refs.def.cx} ${refs.def.cy})`);
+          let color = "#4caf50";
+          if (sfi < 70) color = "#f44336";
+          else if (sfi <= 100) color = "#ff9800";
+          const fillPath = describeArc(refs.def.cx, refs.def.cy, refs.def.radius - 3, -135, angle);
+          refs.arcFill.setAttribute("d", fillPath);
+          refs.arcFill.setAttribute("stroke", color);
+          refs.valueText.textContent = sfi;
+          refs.valueText.setAttribute("fill", color);
+          return;
+        }
+      }
+      refs.valueText.textContent = "---";
+      refs.valueText.setAttribute("fill", "var(--text-dim)");
+      refs.arcFill.setAttribute("d", "");
+      refs.needle.setAttribute("transform", `rotate(-135 ${refs.def.cx} ${refs.def.cy})`);
+    } else if (compId === "sunrise") {
+      if (state_default.myLat == null || state_default.myLon == null) {
+        refs.countdownText.textContent = "--:--";
+        refs.icon.textContent = "\u2600";
+        refs.icon.setAttribute("fill", "var(--text-dim)");
+        refs.eventLabel.textContent = "";
+        return;
+      }
+      const now = /* @__PURE__ */ new Date();
+      const times = getSunTimes(state_default.myLat, state_default.myLon, now);
+      if (!times.sunrise || !times.sunset) {
+        refs.countdownText.textContent = "--:--";
+        return;
+      }
+      let nextEvent, nextTime, isRise;
+      if (now < times.sunrise) {
+        nextEvent = "RISE";
+        nextTime = times.sunrise;
+        isRise = true;
+      } else if (now < times.sunset) {
+        nextEvent = "SET";
+        nextTime = times.sunset;
+        isRise = false;
+      } else {
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tTimes = getSunTimes(state_default.myLat, state_default.myLon, tomorrow);
+        nextEvent = "RISE";
+        nextTime = tTimes.sunrise || times.sunrise;
+        isRise = true;
+      }
+      const diffMs = nextTime - now;
+      const diffMin = Math.floor(diffMs / 6e4);
+      const h = Math.floor(diffMin / 60);
+      const m = diffMin % 60;
+      refs.countdownText.textContent = `${h}h${String(m).padStart(2, "0")}`;
+      refs.countdownText.setAttribute("fill", isRise ? "#42a5f5" : "#ff9800");
+      refs.icon.textContent = isRise ? "\u2600" : "\u263D";
+      refs.icon.setAttribute("fill", isRise ? "#42a5f5" : "#ff9800");
+      refs.eventLabel.textContent = nextEvent;
+      refs.eventLabel.setAttribute("fill", isRise ? "#42a5f5" : "#ff9800");
+    }
+  }
+  function describeArc(cx, cy, r, startAngle, endAngle) {
+    const start = polarToCartesian(cx, cy, r, endAngle);
+    const end = polarToCartesian(cx, cy, r, startAngle);
+    const largeArc = endAngle - startAngle <= 180 ? "0" : "1";
+    return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y}`;
+  }
+  function polarToCartesian(cx, cy, r, angleDeg) {
+    const rad = (angleDeg - 90) * Math.PI / 180;
+    return { x: cx + Math.cos(rad) * r, y: cy + Math.sin(rad) * r };
+  }
+
+  // src/analog-clock.js
+  var NS3 = "http://www.w3.org/2000/svg";
+  var CX2 = 100;
+  var CY2 = 100;
+  var R2 = 88;
+  var svgBuilt = false;
+  var lastDateStr = "";
+  var lastArcDay = -1;
+  var lastFaceId = null;
+  var el = {};
+  var compRefs = {};
+  function makeSvg3(tag, attrs) {
+    const node = document.createElementNS(NS3, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+    return node;
+  }
+  function buildSvg() {
+    const svg = document.getElementById("analogClockSvg");
+    if (!svg) return;
+    const faceId = state_default.clockFace || "classic";
+    const comps = state_default.clockComplications || {};
+    const result = buildFaceSvg(svg, faceId, comps);
+    el.arc = result.arc;
+    el.dateText = result.dateText;
+    el.digitalText = result.digitalText;
+    compRefs = {};
+    for (const def of COMPLICATION_DEFS) {
+      if (comps[def.id]) {
+        compRefs[def.id] = mountComplication(svg, def.id);
+      }
+    }
+    const face = CLOCK_FACES[faceId] || CLOCK_FACES.classic;
+    const hc = face.hands;
+    el.hour = makeSvg3("line", {
+      x1: CX2,
+      y1: CY2 + (hc.hour.tail || 0),
+      x2: CX2,
+      y2: CY2 - hc.hour.length,
+      stroke: "var(--text)",
+      "stroke-width": hc.hour.width,
+      "stroke-linecap": "round"
+    });
+    el.minute = makeSvg3("line", {
+      x1: CX2,
+      y1: CY2 + (hc.minute.tail || 0),
+      x2: CX2,
+      y2: CY2 - hc.minute.length,
+      stroke: "var(--text)",
+      "stroke-width": hc.minute.width,
+      "stroke-linecap": "round"
+    });
+    el.second = makeSvg3("line", {
+      x1: CX2,
+      y1: CY2 + (hc.second.tail || 0),
+      x2: CX2,
+      y2: CY2 - hc.second.length,
+      stroke: hc.second.color || "var(--accent)",
+      "stroke-width": hc.second.width,
+      "stroke-linecap": "round"
+    });
+    svg.appendChild(el.hour);
+    svg.appendChild(el.minute);
+    svg.appendChild(el.second);
+    svg.appendChild(makeSvg3("circle", {
+      cx: CX2,
+      cy: CY2,
+      r: face.centerDot.radius,
+      fill: face.centerDot.color
+    }));
+    lastFaceId = faceId;
+    lastDateStr = "";
+    lastArcDay = -1;
+    svgBuilt = true;
+  }
+  function setHand(line, angleDeg) {
+    line.setAttribute("transform", `rotate(${angleDeg} ${CX2} ${CY2})`);
+  }
+  function updateArc(now) {
+    if (!el.arc) return;
+    if (state_default.myLat == null || state_default.myLon == null) {
+      el.arc.setAttribute("d", "");
+      return;
+    }
+    const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 864e5);
+    if (dayOfYear === lastArcDay) return;
+    lastArcDay = dayOfYear;
+    const times = getSunTimes(state_default.myLat, state_default.myLon, now);
+    if (!times.sunrise || !times.sunset) {
+      el.arc.setAttribute("d", "");
+      return;
+    }
+    const riseAngle = timeToAngle(times.sunrise);
+    const setAngle = timeToAngle(times.sunset);
+    const arcR = R2 - 12;
+    const riseRad = (riseAngle - 90) * Math.PI / 180;
+    const setRad = (setAngle - 90) * Math.PI / 180;
+    const x1 = CX2 + Math.cos(riseRad) * arcR;
+    const y1 = CY2 + Math.sin(riseRad) * arcR;
+    const x2 = CX2 + Math.cos(setRad) * arcR;
+    const y2 = CY2 + Math.sin(setRad) * arcR;
+    let sweep = setAngle - riseAngle;
+    if (sweep < 0) sweep += 360;
+    const largeArc = sweep > 180 ? 1 : 0;
+    const d = `M ${CX2} ${CY2} L ${x1} ${y1} A ${arcR} ${arcR} 0 ${largeArc} 1 ${x2} ${y2} Z`;
+    el.arc.setAttribute("d", d);
+  }
+  function timeToAngle(date) {
+    const h = date.getHours() % 12;
+    const m = date.getMinutes();
+    return (h + m / 60) * 30;
+  }
+  function initAnalogClock() {
+    buildSvg();
+  }
+  function rebuildClock() {
+    svgBuilt = false;
+    buildSvg();
+    updateAnalogClock();
+  }
+  function updateAnalogClock() {
+    if (!svgBuilt) return;
+    if (!isWidgetVisible("widget-analog-clock")) return;
+    const currentFace = state_default.clockFace || "classic";
+    if (currentFace !== lastFaceId) {
+      rebuildClock();
+      return;
+    }
+    const now = /* @__PURE__ */ new Date();
+    const h = now.getHours() % 12;
+    const m = now.getMinutes();
+    const s = now.getSeconds();
+    const hourAngle = (h + m / 60) * 30;
+    const minuteAngle = (m + s / 60) * 6;
+    const secondAngle = s * 6;
+    setHand(el.hour, hourAngle);
+    setHand(el.minute, minuteAngle);
+    setHand(el.second, secondAngle);
+    if (el.dateText) {
+      const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const dateStr = `${days[now.getDay()]} ${now.getDate()}`;
+      if (dateStr !== lastDateStr) {
+        lastDateStr = dateStr;
+        el.dateText.textContent = dateStr;
+      }
+    }
+    if (el.digitalText) {
+      const dh = String(now.getHours()).padStart(2, "0");
+      const dm = String(m).padStart(2, "0");
+      const ds = String(s).padStart(2, "0");
+      el.digitalText.textContent = `${dh}:${dm}:${ds}`;
+    }
+    for (const [id, refs] of Object.entries(compRefs)) {
+      updateComplication(id, refs);
+    }
+    updateArc(now);
+  }
+
+  // src/clock-config.js
+  init_state();
+  init_dom();
+  function initClockConfigListeners() {
+    const btn = $("clockCfgBtn");
+    if (!btn) return;
+    btn.addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+    });
+    btn.addEventListener("click", () => {
+      const picker = $("clockFacePicker");
+      const compList = $("clockCompList");
+      if (!picker || !compList) return;
+      picker.innerHTML = "";
+      for (const face of Object.values(CLOCK_FACES)) {
+        const wrapper = document.createElement("div");
+        wrapper.className = "clock-face-item";
+        const thumb = document.createElement("div");
+        thumb.className = "clock-face-thumb";
+        if (state_default.clockFace === face.id) thumb.classList.add("active");
+        thumb.appendChild(buildFacePreview(face.id));
+        thumb.dataset.faceId = face.id;
+        thumb.addEventListener("click", () => {
+          picker.querySelectorAll(".clock-face-thumb").forEach((t) => t.classList.remove("active"));
+          thumb.classList.add("active");
+        });
+        wrapper.appendChild(thumb);
+        const label = document.createElement("div");
+        label.className = "clock-face-label";
+        label.textContent = face.name;
+        wrapper.appendChild(label);
+        picker.appendChild(wrapper);
+      }
+      compList.innerHTML = "";
+      for (const comp of COMPLICATION_DEFS) {
+        const label = document.createElement("label");
+        label.className = "splash-widget-item";
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.compId = comp.id;
+        cb.checked = !!(state_default.clockComplications && state_default.clockComplications[comp.id]);
+        label.appendChild(cb);
+        label.appendChild(document.createTextNode(` ${comp.name}`));
+        const desc = document.createElement("span");
+        desc.className = "comp-desc";
+        desc.textContent = ` \u2014 ${comp.description}`;
+        label.appendChild(desc);
+        compList.appendChild(label);
+      }
+      $("clockCfgSplash").classList.remove("hidden");
+    });
+    const okBtn = $("clockCfgOk");
+    if (okBtn) {
+      okBtn.addEventListener("click", () => {
+        const activeThumb = document.querySelector(".clock-face-thumb.active");
+        if (activeThumb) {
+          state_default.clockFace = activeThumb.dataset.faceId;
+          localStorage.setItem("hamtab_clock_face", state_default.clockFace);
+        }
+        const comps = {};
+        document.querySelectorAll('#clockCompList input[type="checkbox"]').forEach((cb) => {
+          if (cb.checked) comps[cb.dataset.compId] = true;
+        });
+        state_default.clockComplications = comps;
+        localStorage.setItem("hamtab_clock_complications", JSON.stringify(comps));
+        $("clockCfgSplash").classList.add("hidden");
+        rebuildClock();
+      });
+    }
+  }
+
+  // src/menu.js
+  init_dom();
+
+  // src/layouts.js
+  init_dom();
+  init_constants();
+  init_widgets();
+  var menuOpen = false;
+  function renderMenu() {
+    const menu = $("layoutMenu");
+    if (!menu) return;
+    menu.innerHTML = "";
+    const layouts = getNamedLayouts();
+    const names = Object.keys(layouts);
+    names.forEach((name) => {
+      const item = document.createElement("div");
+      item.className = "layout-menu-item";
+      const nameSpan = document.createElement("span");
+      nameSpan.textContent = name;
+      nameSpan.style.cursor = "pointer";
+      nameSpan.style.flex = "1";
+      nameSpan.addEventListener("click", () => {
+        loadNamedLayout(name);
+        closeMenu();
+      });
+      item.appendChild(nameSpan);
+      const delBtn = document.createElement("button");
+      delBtn.className = "layout-delete-btn";
+      delBtn.textContent = "\xD7";
+      delBtn.title = "Delete layout";
+      delBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (confirm(`Delete layout "${name}"?`)) {
+          deleteNamedLayout(name);
+          renderMenu();
+        }
+      });
+      item.appendChild(delBtn);
+      menu.appendChild(item);
+    });
+    if (names.length > 0) {
+      const divider = document.createElement("div");
+      divider.className = "layout-menu-divider";
+      menu.appendChild(divider);
+    }
+    const saveAction = document.createElement("div");
+    saveAction.className = "layout-menu-action";
+    saveAction.textContent = "Save Current\u2026";
+    saveAction.addEventListener("click", (e) => {
+      e.stopPropagation();
+      showSaveInput(menu);
+    });
+    menu.appendChild(saveAction);
+  }
+  function showSaveInput(menu) {
+    const existing = menu.querySelector(".layout-save-row");
+    if (existing) {
+      existing.querySelector("input")?.focus();
+      return;
+    }
+    const action = menu.querySelector(".layout-menu-action");
+    if (action) action.remove();
+    const row = document.createElement("div");
+    row.className = "layout-save-row";
+    const input = document.createElement("input");
+    input.type = "text";
+    input.placeholder = "Layout name";
+    input.maxLength = 40;
+    const saveBtn = document.createElement("button");
+    saveBtn.textContent = "Save";
+    saveBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      doSave(input.value.trim());
+    });
+    input.addEventListener("click", (e) => e.stopPropagation());
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") doSave(input.value.trim());
+      if (e.key === "Escape") closeMenu();
+    });
+    function doSave(name) {
+      if (!name) return;
+      const ok = saveNamedLayout(name);
+      if (!ok) {
+        alert("Maximum 20 layouts reached. Delete one first.");
+        return;
+      }
+      renderMenu();
+    }
+    row.appendChild(input);
+    row.appendChild(saveBtn);
+    menu.appendChild(row);
+    requestAnimationFrame(() => input.focus());
+  }
+  function openMenu() {
+    const menu = $("layoutMenu");
+    if (!menu) return;
+    renderMenu();
+    menu.classList.add("open");
+    menuOpen = true;
+  }
+  function closeMenu() {
+    const menu = $("layoutMenu");
+    if (!menu) return;
+    menu.classList.remove("open");
+    menuOpen = false;
+  }
+  function toggleMenu() {
+    if (menuOpen) closeMenu();
+    else openMenu();
+  }
+  function migrateOldLayout() {
+    const hasOld = localStorage.getItem(USER_LAYOUT_KEY);
+    const hasNew = localStorage.getItem(LAYOUTS_KEY);
+    if (hasOld && !hasNew) {
+      try {
+        const oldPositions = JSON.parse(hasOld);
+        if (oldPositions && typeof oldPositions === "object") {
+          const layouts = {
+            "My Default": {
+              positions: oldPositions,
+              visibility: {},
+              gridMode: "float",
+              gridPermutation: "3L-3R",
+              gridAssignments: {},
+              gridSpans: {}
+            }
+          };
+          localStorage.setItem(LAYOUTS_KEY, JSON.stringify(layouts));
+          localStorage.removeItem(USER_LAYOUT_KEY);
+        }
+      } catch (e) {
+      }
+    }
+  }
+  function initLayoutDropdown() {
+    migrateOldLayout();
+    const btn = $("layoutBtn");
+    if (btn) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        toggleMenu();
+      });
+    }
+    document.addEventListener("click", (e) => {
+      if (!menuOpen) return;
+      const dropdown = $("layoutDropdown");
+      if (dropdown && !dropdown.contains(e.target)) {
+        closeMenu();
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && menuOpen) closeMenu();
+    });
+  }
+  function openLayoutMenu() {
+    openMenu();
+  }
+
+  // src/menu.js
+  var isOpen = false;
+  function openMenu2() {
+    const drawer = $("mobileMenuDrawer");
+    const backdrop = $("mobileMenuBackdrop");
+    if (!drawer || !backdrop) return;
+    drawer.classList.add("open");
+    backdrop.classList.add("open");
+    isOpen = true;
+    const updateEl = $("updateIndicator");
+    const menuUpdate = $("mobileMenuUpdate");
+    if (updateEl && menuUpdate) {
+      menuUpdate.innerHTML = updateEl.innerHTML;
+    }
+  }
+  function closeMenu2() {
+    const drawer = $("mobileMenuDrawer");
+    const backdrop = $("mobileMenuBackdrop");
+    if (!drawer || !backdrop) return;
+    drawer.classList.remove("open");
+    backdrop.classList.remove("open");
+    isOpen = false;
+  }
+  function initMobileMenu() {
+    const menuBtn = $("mobileMenuBtn");
+    const backdrop = $("mobileMenuBackdrop");
+    const drawer = $("mobileMenuDrawer");
+    if (!menuBtn || !backdrop || !drawer) return;
+    menuBtn.addEventListener("click", () => {
+      if (isOpen) closeMenu2();
+      else openMenu2();
+    });
+    backdrop.addEventListener("click", closeMenu2);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && isOpen) closeMenu2();
+    });
+    drawer.addEventListener("click", (e) => {
+      const item = e.target.closest(".mobile-menu-item");
+      if (!item) return;
+      const action = item.dataset.action;
+      if (!action) {
+        closeMenu2();
+        return;
+      }
+      closeMenu2();
+      switch (action) {
+        case "layouts":
+          openLayoutMenu();
+          break;
+        case "config":
+          document.getElementById("editCallBtn")?.click();
+          break;
+        case "refresh":
+          document.getElementById("refreshBtn")?.click();
+          break;
+        case "feedback":
+          document.getElementById("feedbackBtn")?.click();
+          break;
+      }
+    });
+  }
+
   // src/main.js
+  init_tabs();
   migrate();
   migrateV2();
   initTheme();
@@ -9641,6 +12496,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   setInterval(() => {
     updateClocks();
     updateBigClock();
+    updateAnalogClock();
   }, 1e3);
   setInterval(renderSpots, 3e4);
   initSourceListeners();
@@ -9668,6 +12524,11 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initContestListeners();
   initDedxListeners();
   initBigClock();
+  initStopwatchListeners();
+  initAnalogClock();
+  initClockConfigListeners();
+  initMobileMenu();
+  initTabs();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;
@@ -9684,7 +12545,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (isWidgetVisible("widget-beacons")) startBeaconTimer();
     if (isWidgetVisible("widget-dxpeditions") || state_default.mapOverlays.dxpedMarkers) fetchDxpeditions();
     if (isWidgetVisible("widget-contests")) fetchContests();
-    if (isWidgetVisible("widget-dedx")) renderDedxInfo();
+    if (isWidgetVisible("widget-dedx")) startDedxTimer();
     if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
   }
   setInterval(() => {
@@ -9699,11 +12560,9 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   setInterval(() => {
     if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
   }, 1e4);
-  setInterval(() => {
-    if (isWidgetVisible("widget-dedx")) renderDedxInfo();
-  }, 6e4);
   setInitApp(initApp);
   initWidgets();
+  initLayoutDropdown();
   switchSource(state_default.currentSource);
   if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 100);
   if (state_default.myCallsign) {

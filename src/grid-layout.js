@@ -6,11 +6,12 @@
 // Track handles on outer grid boundaries allow column width adjustment.
 
 import state from './state.js';
-import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, WIDGET_DEFS, SCALE_REFERENCE_WIDTH } from './constants.js';
+import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, WIDGET_DEFS, SCALE_REFERENCE_WIDTH } from './constants.js';
 
 let trackHandles = []; // currently active outer grid handle elements
 const MIN_FR = 0.3;    // minimum fr value to prevent outer grid track collapse
 const MIN_FLEX = 0.15; // minimum flex-grow to prevent widget collapse inside wrappers
+const SNAP_PX = 40;    // px — when dragged cell shrinks below this, snap-to-span triggers
 
 // --- Track Size Persistence ---
 
@@ -40,6 +41,69 @@ function clearCustomTrackSizes(permId) {
       localStorage.setItem(GRID_SIZES_KEY, JSON.stringify(all));
     }
   } catch (e) {}
+}
+
+// --- Span Persistence ---
+
+function loadGridSpans(permId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
+    if (all && all[permId]) return all[permId]; // { cellName: spanCount }
+  } catch (e) {}
+  return null;
+}
+
+function saveGridSpans() {
+  let all = {};
+  try {
+    const saved = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
+    if (saved && typeof saved === 'object') all = saved;
+  } catch (e) {}
+  all[state.gridPermutation] = state.gridSpans;
+  localStorage.setItem(GRID_SPANS_KEY, JSON.stringify(all));
+}
+
+function clearGridSpans(permId) {
+  try {
+    const all = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
+    if (all && all[permId]) {
+      delete all[permId];
+      localStorage.setItem(GRID_SPANS_KEY, JSON.stringify(all));
+    }
+  } catch (e) {}
+}
+
+// --- Span Helpers ---
+
+// Check if a cell is absorbed by an earlier spanning cell
+function isAbsorbed(cellName, cellNames, spans) {
+  const idx = cellNames.indexOf(cellName);
+  for (let i = 0; i < idx; i++) {
+    const span = spans[cellNames[i]] || 1;
+    if (i + span > idx) return true; // cell i spans past this cell's position
+  }
+  return false;
+}
+
+// Sum flex values for a spanning cell (its own flex + absorbed cells' flex)
+function sumFlexForSpan(cellName, span, cellNames, flexValues) {
+  const startIdx = cellNames.indexOf(cellName);
+  let total = 0;
+  for (let s = 0; s < span && startIdx + s < cellNames.length; s++) {
+    total += flexValues[startIdx + s];
+  }
+  return total;
+}
+
+// Find which cell a given child element represents (for readCurrentFlexRatios)
+function getSpanForVisibleChild(childIdx, cellNames, spans) {
+  let visibleCount = 0;
+  for (let i = 0; i < cellNames.length; i++) {
+    if (isAbsorbed(cellNames[i], cellNames, spans)) continue;
+    if (visibleCount === childIdx) return spans[cellNames[i]] || 1;
+    visibleCount++;
+  }
+  return 1;
 }
 
 // --- Track Parsing ---
@@ -367,12 +431,28 @@ function onFlexHandleMouseDown(e) {
 
   const startPos = isColumn ? e.clientY : e.clientX;
 
+  const spanCtx = handle._spanCtx; // { cellNames, flexKey } from populateWrapper
+
   function onMove(ev) {
     const delta = (isColumn ? ev.clientY : ev.clientX) - startPos;
     const deltaFlex = delta / pxPerFlex;
 
     let newBefore = beforeFlex + deltaFlex;
     let newAfter = afterFlex - deltaFlex;
+
+    // Drag-to-snap: if the squeezed cell would shrink below SNAP_PX, trigger span
+    if (spanCtx) {
+      const estAfterPx = afterPx - delta;
+      if (estAfterPx < SNAP_PX && delta > 0) {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+        // Reset flex to pre-drag values before toggleSpan rebuilds layout
+        beforeEl.style.flexGrow = beforeFlex;
+        afterEl.style.flexGrow = afterFlex;
+        toggleSpan(handle, wrapper, spanCtx.cellNames, isColumn, spanCtx.flexKey);
+        return;
+      }
+    }
 
     // Clamp
     if (newBefore < MIN_FLEX) {
@@ -417,23 +497,43 @@ function onFlexHandleMouseDown(e) {
 
 function readCurrentFlexRatios(perm) {
   const ratios = {};
+  const spans = state.gridSpans || {};
 
   const wrapperMap = {
-    leftFlex: 'grid-col-left',
-    rightFlex: 'grid-col-right',
-    topFlex: 'grid-bar-top',
-    bottomFlex: 'grid-bar-bottom',
+    leftFlex: { wrapperId: 'grid-col-left', cellNames: perm.left },
+    rightFlex: { wrapperId: 'grid-col-right', cellNames: perm.right },
+    topFlex: { wrapperId: 'grid-bar-top', cellNames: perm.top },
+    bottomFlex: { wrapperId: 'grid-bar-bottom', cellNames: perm.bottom },
   };
 
-  for (const [key, wrapperId] of Object.entries(wrapperMap)) {
+  for (const [key, { wrapperId, cellNames }] of Object.entries(wrapperMap)) {
     const wrapper = document.getElementById(wrapperId);
     if (!wrapper) continue;
     const children = Array.from(wrapper.children).filter(
       c => !c.classList.contains('grid-flex-handle')
     );
-    if (children.length > 0) {
-      ratios[key] = children.map(c => parseFloat(c.style.flexGrow) || 1);
+    if (children.length === 0) continue;
+
+    // Expand spanning widgets back to per-cell ratios
+    const perCellRatios = [];
+    let childIdx = 0;
+    for (let i = 0; i < cellNames.length; i++) {
+      if (isAbsorbed(cellNames[i], cellNames, spans)) {
+        // Absorbed cells share the spanning widget's flex evenly
+        continue; // filled by the spanning cell's loop below
+      }
+      const span = getSpanForVisibleChild(childIdx, cellNames, spans);
+      const combinedFlex = childIdx < children.length
+        ? (parseFloat(children[childIdx].style.flexGrow) || 1)
+        : 1;
+      const perCell = combinedFlex / span;
+      for (let s = 0; s < span; s++) perCellRatios.push(perCell);
+      childIdx++;
     }
+
+    ratios[key] = perCellRatios.length === cellNames.length
+      ? perCellRatios
+      : children.map(c => parseFloat(c.style.flexGrow) || 1); // fallback
   }
 
   return ratios;
@@ -461,16 +561,39 @@ function populateWrapper(wrapperId, cellNames, flexKey, isColumn, customSizes) {
   const defaultFlex = cellNames.map(() => 1);
   const flexValues = savedFlex && savedFlex.length === cellNames.length ? savedFlex : defaultFlex;
 
+  const spans = state.gridSpans || {};
+  let firstRendered = true;
+
   cellNames.forEach((cellName, idx) => {
-    // Insert flex handle between items (not before the first)
-    if (idx > 0) {
+    // Skip cells absorbed by a spanning widget above
+    if (isAbsorbed(cellName, cellNames, spans)) {
+      // Hide absorbed cell's widget
+      const absWidgetId = state.gridAssignments[cellName];
+      if (absWidgetId) {
+        const absEl = document.getElementById(absWidgetId);
+        if (absEl) absEl.style.display = 'none';
+      }
+      return;
+    }
+
+    const span = spans[cellName] || 1;
+
+    // Insert flex handle between visible items (not before the first)
+    if (!firstRendered) {
       const handle = document.createElement('div');
       handle.className = isColumn
         ? 'grid-flex-handle grid-flex-handle--col'
         : 'grid-flex-handle grid-flex-handle--row';
+      handle._spanCtx = { cellNames, flexKey }; // context for drag-to-snap
       handle.addEventListener('mousedown', onFlexHandleMouseDown);
+      handle.addEventListener('dblclick', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleSpan(handle, wrapper, cellNames, isColumn, flexKey);
+      });
       wrapper.appendChild(handle);
     }
+    firstRendered = false;
 
     const widgetId = state.gridAssignments[cellName];
     let el;
@@ -499,10 +622,79 @@ function populateWrapper(wrapperId, cellNames, flexKey, isColumn, customSizes) {
       wrapper.appendChild(el);
     }
 
-    el.style.flexGrow = flexValues[idx];
+    // Spanning widget gets combined flex-grow of all its cells
+    const combinedFlex = span > 1
+      ? sumFlexForSpan(cellName, span, cellNames, flexValues)
+      : flexValues[idx];
+    el.style.flexGrow = combinedFlex;
     el.style.flexShrink = '1';
     el.style.flexBasis = '0%';
   });
+}
+
+// --- Span Toggle (double-click flex handle) ---
+
+function toggleSpan(handle, wrapper, cellNames, isColumn, flexKey) {
+  if (state.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return; // no span in Zone B/C
+
+  // Find the visible cells before and after this handle
+  const children = Array.from(wrapper.children).filter(
+    c => !c.classList.contains('grid-flex-handle')
+  );
+  const handleIdx = Array.from(wrapper.children).indexOf(handle);
+
+  let beforeEl = null;
+  let afterEl = null;
+  for (let i = handleIdx - 1; i >= 0; i--) {
+    const c = wrapper.children[i];
+    if (!c.classList.contains('grid-flex-handle')) { beforeEl = c; break; }
+  }
+  for (let i = handleIdx + 1; i < wrapper.children.length; i++) {
+    const c = wrapper.children[i];
+    if (!c.classList.contains('grid-flex-handle')) { afterEl = c; break; }
+  }
+  if (!beforeEl || !afterEl) return;
+
+  // Map DOM elements back to cell names
+  const spans = state.gridSpans || {};
+  const visibleCells = cellNames.filter(c => !isAbsorbed(c, cellNames, spans));
+  const beforeCellIdx = children.indexOf(beforeEl);
+  const afterCellIdx = children.indexOf(afterEl);
+  if (beforeCellIdx < 0 || afterCellIdx < 0) return;
+
+  const beforeCell = visibleCells[beforeCellIdx];
+  const afterCell = visibleCells[afterCellIdx];
+  if (!beforeCell || !afterCell) return;
+
+  const currentSpan = spans[beforeCell] || 1;
+  const afterCellPos = cellNames.indexOf(afterCell);
+  const beforeCellPos = cellNames.indexOf(beforeCell);
+
+  // Check if beforeCell currently spans over afterCell
+  if (beforeCellPos + currentSpan > afterCellPos) {
+    // Unspan — reduce span to stop before afterCell
+    const newSpan = afterCellPos - beforeCellPos;
+    if (newSpan <= 1) {
+      delete spans[beforeCell];
+    } else {
+      spans[beforeCell] = newSpan;
+    }
+  } else {
+    // Span — extend beforeCell to absorb afterCell
+    const afterSpan = spans[afterCell] || 1;
+    const newSpan = (afterCellPos + afterSpan) - beforeCellPos;
+    // Clamp to available cells
+    const maxSpan = cellNames.length - beforeCellPos;
+    spans[beforeCell] = Math.min(newSpan, maxSpan);
+    // Clear any span the absorbed cell had
+    delete spans[afterCell];
+  }
+
+  state.gridSpans = spans;
+  saveGridSpans();
+
+  // Rebuild layout
+  applyGridAssignments();
 }
 
 // --- Public API ---
@@ -520,11 +712,13 @@ export function loadGridAssignments() {
     const saved = JSON.parse(localStorage.getItem(GRID_ASSIGN_KEY));
     if (saved && typeof saved === 'object' && Object.keys(saved).length > 0) {
       state.gridAssignments = saved;
+      state.gridSpans = loadGridSpans(state.gridPermutation) || {};
       return saved;
     }
   } catch (e) {}
   const defaults = GRID_DEFAULT_ASSIGNMENTS[state.gridPermutation];
   state.gridAssignments = defaults ? { ...defaults } : {};
+  state.gridSpans = loadGridSpans(state.gridPermutation) || {};
   return state.gridAssignments;
 }
 
@@ -636,12 +830,16 @@ export function applyGridAssignments(customSizes) {
   const assignments = state.gridAssignments;
   let dirty = false;
 
+  const spans = state.gridSpans || {};
   for (const cell of Object.keys(assignments)) {
     if (vis[assignments[cell]] === false) {
       delete assignments[cell];
+      // Clear span if hidden widget was spanning
+      if (spans[cell]) delete spans[cell];
       dirty = true;
     }
   }
+  state.gridSpans = spans;
 
   const assignedSet = new Set(Object.values(assignments));
   const unassigned = WIDGET_DEFS
@@ -697,6 +895,10 @@ export function resetGridAssignments() {
   const defaults = GRID_DEFAULT_ASSIGNMENTS[state.gridPermutation];
   state.gridAssignments = defaults ? { ...defaults } : {};
   saveGridAssignments();
+
+  // Clear spans
+  state.gridSpans = {};
+  clearGridSpans(state.gridPermutation);
 
   // Restore default track sizes (including clearing flex ratios)
   clearCustomTrackSizes(state.gridPermutation);
@@ -771,21 +973,38 @@ function performSwap(sourceWidgetId, target) {
   }
   if (!sourceCell) return;
 
+  // Determine target cell
+  let targetCell = null;
   if (target.classList.contains('grid-cell-placeholder')) {
-    // Dragged onto an empty cell — move widget there
-    const targetCell = target.dataset.gridCell;
-    if (!targetCell) return;
+    targetCell = target.dataset.gridCell;
+  } else if (target.classList.contains('widget')) {
+    for (const [cell, wId] of Object.entries(state.gridAssignments)) {
+      if (wId === target.id) { targetCell = cell; break; }
+    }
+  }
+  if (!targetCell) return;
+
+  // Prevent swap onto absorbed cells — absorbed cells are hidden, so this
+  // shouldn't normally trigger, but guard against edge cases
+  const perm = getGridPermutation(state.gridPermutation);
+  const spans = state.gridSpans || {};
+  // Find the wrapper that contains the target cell
+  const wrapperCells = [perm.left, perm.right, perm.top, perm.bottom]
+    .find(cells => cells.includes(targetCell)) || [];
+  if (isAbsorbed(targetCell, wrapperCells, spans)) return;
+
+  // Clear spans on both cells involved in the swap
+  if (spans[sourceCell]) { delete spans[sourceCell]; }
+  if (spans[targetCell]) { delete spans[targetCell]; }
+  state.gridSpans = spans;
+  saveGridSpans();
+
+  // Perform the swap
+  if (target.classList.contains('grid-cell-placeholder')) {
     delete state.gridAssignments[sourceCell];
     state.gridAssignments[targetCell] = sourceWidgetId;
-  } else if (target.classList.contains('widget')) {
-    // Dragged onto another widget — swap their cells
+  } else {
     const targetWidgetId = target.id;
-    let targetCell = null;
-    for (const [cell, wId] of Object.entries(state.gridAssignments)) {
-      if (wId === targetWidgetId) { targetCell = cell; break; }
-    }
-    if (!targetCell) return;
-
     state.gridAssignments[sourceCell] = targetWidgetId;
     state.gridAssignments[targetCell] = sourceWidgetId;
   }

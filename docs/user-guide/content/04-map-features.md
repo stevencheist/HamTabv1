@@ -8,6 +8,7 @@ The default base map uses OpenStreetMap tiles. The map supports standard interac
 - **Zoom** — Mouse wheel, pinch gesture, or +/- buttons
 - **Pan** — Click and drag
 - **Double-click** — Zoom in on clicked location
+- **Fullscreen** — Click the ⛶ button in the map header to expand the map to fill the entire viewport. Click ✕ or press Escape to exit fullscreen.
 
 ## Marker Types
 
@@ -77,6 +78,36 @@ A full-map image overlay showing real-time Maximum Usable Frequency conditions f
 
 <div class="tip">The MUF image overlay complements the contour lines. Contours show precise MHz values along lines; the MUF image overlay fills the entire map with color so you can see regional patterns at a glance.</div>
 
+### Tropics & Arctic Lines
+Draws five major latitude circles on the map with colored, labeled lines:
+- **Arctic Circle** (66.5°N) — light blue dashed line
+- **Tropic of Cancer** (23.4°N) — warm orange dashed line
+- **Equator** (0°) — yellow solid line
+- **Tropic of Capricorn** (23.4°S) — warm orange dashed line
+- **Antarctic Circle** (66.5°S) — light blue dashed line
+
+Labels automatically reposition as you pan the map. These lines are useful for understanding propagation paths relative to the sun's declination range.
+
+### Weather Radar
+A global precipitation overlay using data from [RainViewer](https://www.rainviewer.com/). Shows current radar returns as a semi-transparent tile layer over the map.
+
+- **Toggle:** Map gear icon → "Weather Radar" checkbox
+- **Auto-refresh:** Updates every 5 minutes with the latest radar frame
+- **Semi-transparent:** Overlaid at 35% opacity so map details remain visible
+- **Free service:** No API key required
+
+<div class="tip">Weather radar can help you anticipate local noise levels and plan around storms that affect VHF/UHF propagation.</div>
+
+### Map Legend
+A compact panel in the bottom-right corner showing what each marker and line color represents on the map. Includes:
+- Spot source markers (POTA, SOTA, DX Cluster, WWFF, PSKReporter)
+- DXpedition markers (active and upcoming)
+- Sun and moon sub-points
+- Gray line and geodesic path lines
+- NCDXF beacon markers
+
+Toggle via the map gear icon → "Map Legend" checkbox.
+
 ### Gray Line (Day/Night Terminator)
 Shows the current position of the day/night boundary on Earth. The gray line is the region transitioning between day and night.
 
@@ -124,7 +155,7 @@ These circles represent:
 
 ## Map Center Modes
 
-Configure how the map centers via Config:
+Use the buttons in the map header (QTH / PM / DX / CTY) to control centering:
 
 ### QTH Mode
 Map centers on your home location. Best for:
@@ -132,11 +163,24 @@ Map centers on your home location. Best for:
 - Planning which spots are in easy reach
 - Seeing your local propagation environment
 
-### Spot Mode
+### PM Mode
+Map centers on the Prime Meridian at zoom level 2, showing the whole world. Best for:
+- Getting a global overview of activity
+- Seeing worldwide propagation patterns
+
+### DX (Spot) Mode
 Map centers on the currently selected spot. Best for:
 - Examining spot details
 - Seeing the spot's geographic context
 - Planning antenna headings
+
+### CTY (Country) Mode
+Map zooms to fit your country's boundaries. Your country is determined automatically from your QTH location. Best for:
+- Seeing all activity within your country at a glance
+- Focusing on domestic activations
+- Quick overview of nearby parks and summits
+
+For large countries like the USA, the map intelligently selects the right sub-region — contiguous 48 states, Alaska, or Hawaii — based on where you are. Small countries are capped at zoom level 10 to prevent over-zoom.
 
 ## Performance Tips
 

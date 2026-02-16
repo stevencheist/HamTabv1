@@ -2,22 +2,24 @@ import { aColor, kColor, solarWindColor, bzColor, auroraColor, geomagColor } fro
 import { lunarDecColor, lunarPlColor, lunarElColor } from './lunar.js';
 
 export const WIDGET_DEFS = [
-  { id: 'widget-filters',     name: 'Filters' },
-  { id: 'widget-activations', name: 'On the Air' },
-  { id: 'widget-map',         name: 'HamMap' },
-  { id: 'widget-solar',       name: 'Solar' },
-  { id: 'widget-spacewx',     name: 'Space Wx' },
-  { id: 'widget-propagation', name: 'Band Conditions' },
-  { id: 'widget-voacap',      name: 'VOACAP DE\u2192DX' },
-  { id: 'widget-live-spots',  name: 'Live Spots' },
-  { id: 'widget-lunar',       name: 'Lunar / EME' },
-  { id: 'widget-satellites',  name: 'Satellites' },
-  { id: 'widget-rst',          name: 'Reference' },
-  { id: 'widget-spot-detail', name: 'DX Detail' },
-  { id: 'widget-contests',     name: 'Contests' },
-  { id: 'widget-dxpeditions',  name: 'DXpeditions' },
-  { id: 'widget-beacons',      name: 'NCDXF Beacons' },
-  { id: 'widget-dedx',         name: 'DE/DX Info' },
+  { id: 'widget-filters',     name: 'Filters',           short: 'Filt' },
+  { id: 'widget-activations', name: 'On the Air',        short: 'OTA' },
+  { id: 'widget-map',         name: 'HamMap',            short: 'MAP' },
+  { id: 'widget-solar',       name: 'Solar',             short: 'Sol' },
+  { id: 'widget-spacewx',     name: 'Space Wx',          short: 'SpWx' },
+  { id: 'widget-propagation', name: 'Band Conditions',   short: 'Band' },
+  { id: 'widget-voacap',      name: 'VOACAP DE\u2192DX', short: 'VOA' },
+  { id: 'widget-live-spots',  name: 'Live Spots',        short: 'Live' },
+  { id: 'widget-lunar',       name: 'Lunar / EME',       short: 'Moon' },
+  { id: 'widget-satellites',  name: 'Satellites',        short: 'Sat' },
+  { id: 'widget-rst',          name: 'Reference',        short: 'Ref' },
+  { id: 'widget-spot-detail', name: 'DX Detail',         short: 'DXDt' },
+  { id: 'widget-contests',     name: 'Contests',         short: 'Cont' },
+  { id: 'widget-dxpeditions',  name: 'DXpeditions',      short: 'DXpd' },
+  { id: 'widget-beacons',      name: 'NCDXF Beacons',    short: 'Bcn' },
+  { id: 'widget-dedx',         name: 'DE/DX Info',       short: 'DEDX' },
+  { id: 'widget-stopwatch',    name: 'Stopwatch / Timer', short: 'Tmr' },
+  { id: 'widget-analog-clock', name: 'Analog Clock',     short: 'Clk' },
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)
@@ -305,9 +307,10 @@ export const WIDGET_HELP = {
     description: 'An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who\'s on the air and where.',
     sections: [
       { heading: 'Spot Markers', content: 'Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station.' },
-      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC — shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), and DXpedition Markers (active/upcoming DXpeditions). D-RAP auto-enables when Kp reaches storm level (≥5).' },
+      { heading: 'Map Overlays', content: 'Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC — shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), Cloud Cover (OpenWeatherMap — useful for satellite and EME ops), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (≥5). Cloud Cover requires an OpenWeatherMap API key (enter in Config > Services).' },
       { heading: 'Geodesic Paths', content: 'The curved line between you and a selected station is called a geodesic (great-circle) path — this is the shortest route over the Earth\'s surface and the direction to point your antenna.' },
-      { heading: 'Center Mode', content: 'In Config, choose whether the map stays centered on your location (QTH) or follows the selected spot.' },
+      { heading: 'Center Mode', content: 'Use the QTH/PM/DX/CTY buttons in the map header to control centering. QTH centers on your home location. PM (Prime Meridian) shows the whole world. DX follows the selected spot. CTY zooms to fit your country\'s boundaries, determined automatically from your location.' },
+      { heading: 'Fullscreen', content: 'Click the ⛶ button in the map header to expand the map to fill the entire screen. Click the ✕ button or press Escape to return to the normal layout.' },
     ],
   },
   'widget-solar': {
@@ -479,12 +482,31 @@ export const WIDGET_HELP = {
   },
   'widget-dedx': {
     title: 'DE/DX Info',
-    description: 'A side-by-side display of your station (DE) and the currently selected distant station (DX). Inspired by the classic HamClock layout, this widget gives you the key information you need at a glance when making contacts.',
+    description: 'A side-by-side display of your station (DE) and the currently selected distant station (DX) with live clocks. Inspired by the classic HamClock dual-pane layout, this widget shows large local time displays at each location plus key contact information at a glance.',
     sections: [
-      { heading: 'DE (Your Station)', content: 'The left panel shows your callsign, Maidenhead grid square, latitude/longitude, and today\'s sunrise and sunset times at your location (in UTC). This requires your callsign and location to be set in Config.' },
-      { heading: 'DX (Selected Station)', content: 'The right panel shows details for whichever station you\'ve clicked in the On the Air table or on the map. It displays their callsign, frequency, mode, grid square, bearing (compass direction to point your antenna), distance, and sunrise/sunset times at their location.' },
-      { heading: 'Why Sunrise/Sunset?', content: 'HF radio propagation changes dramatically at sunrise and sunset. The "gray line" (the band of twilight circling the Earth) often produces enhanced propagation. Knowing sunrise/sunset at both ends of a path helps you predict when a band will open or close between your station and the DX.' },
+      { heading: 'DE (Your Station)', content: 'The left panel shows a large live clock for your local time, plus your callsign, grid square, and sunrise/sunset countdowns. Requires your callsign and location to be set in Config.' },
+      { heading: 'DX (Selected Station)', content: 'The right panel shows the approximate local time at the selected DX station\'s location (calculated from longitude), plus their callsign, frequency, mode, grid square, bearing, distance, and sunrise/sunset. When no spot is selected, the DX side shows UTC.' },
+      { heading: 'Why Two Clocks?', content: 'Knowing the local time at both ends of a path is essential for scheduling contacts and understanding propagation. A station in Japan is unlikely to be on the air at 3 AM their local time, and gray line propagation depends on sunrise/sunset at both locations.' },
       { heading: 'Bearing & Distance', content: 'The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact.' },
+    ],
+  },
+  'widget-analog-clock': {
+    title: 'Analog Clock',
+    description: 'A customizable round analog clock showing your local time at a glance. Choose from 6 clock face styles and add up to 4 complications (sub-dials) for UTC time, Solar Flux, stopwatch mirror, and sunrise/sunset countdown — inspired by luxury watch complications.',
+    sections: [
+      { heading: 'Clock Faces', content: 'Click the gear icon to choose from 6 face styles: Classic (Arabic numerals), Minimal (clean index bars), Roman (Roman numerals), Pilot (bold indices with luminous triangle at 12), Railroad (double concentric track ring), and Digital (analog hands plus a digital time readout). Your selection is saved and persists across sessions.' },
+      { heading: 'Complications', content: 'Complications are optional sub-dials that embed useful data directly on the clock face. Enable them in the gear menu:\n\n\u2022 Sunrise/Sunset (12 o\'clock) — countdown to next sunrise or sunset with color-coded icon\n\u2022 Solar SFI (3 o\'clock) — arc gauge showing Solar Flux Index, colored green/yellow/red\n\u2022 Stopwatch (6 o\'clock) — mirrors the Stopwatch widget\'s elapsed time with running indicator\n\u2022 UTC 24h (9 o\'clock) — 24-hour sub-dial showing current UTC time' },
+      { heading: 'Sunrise/Sunset Arc', content: 'When your location (QTH) is set in Config, a golden arc appears on the clock face showing the daylight hours. The arc spans from sunrise to sunset on the 12-hour dial. This helps you visualize how much daylight remains and when gray line propagation windows occur.' },
+      { heading: 'Theme Support', content: 'The clock colors automatically adapt to your selected theme. All face styles, hands, complications, and numbers use your theme\'s color scheme.' },
+    ],
+  },
+  'widget-stopwatch': {
+    title: 'Stopwatch / Timer',
+    description: 'A dual-mode timer for contest operations and general use. Switch between Stopwatch (count up with laps) and Countdown (preset timers including the 10-minute FCC station ID reminder).',
+    sections: [
+      { heading: 'Stopwatch Mode', content: 'Click Start to begin counting up. Use Lap to mark split times during a contest (e.g., tracking contacts per minute). Stop pauses the timer; Reset clears everything.' },
+      { heading: 'Countdown Mode', content: 'Click the Countdown tab and select a preset duration. The 10m ID button is a quick shortcut for the FCC 10-minute station identification requirement. The display flashes when the countdown reaches zero.' },
+      { heading: 'Station ID Timer', content: 'FCC Part 97.119 requires US hams to identify every 10 minutes during a contact and at the end. Use the 10m ID preset as a reminder — when it flashes, give your callsign!' },
     ],
   },
   'widget-live-spots': {
@@ -625,13 +647,12 @@ export const REFERENCE_TABS = {
 export const DEFAULT_REFERENCE_TAB = 'rst';
 
 // --- Responsive breakpoints ---
-export const BREAKPOINT_MOBILE = 768;  // legacy — kept for existing @media rules
-export const BREAKPOINT_TABLET = 1024; // legacy — kept for existing @media rules
+export const BREAKPOINT_MOBILE = 1200;  // matches @media (max-width: 1199px) — phones + tablets
 
 // --- Progressive Responsive Scaling ---
-export const SCALE_REFERENCE_WIDTH = 1200; // px — viewport width where scale = 1.0 (Zone A starts)
-export const SCALE_MIN_FACTOR = 0.55;      // minimum scale factor before reflow triggers
-export const SCALE_REFLOW_WIDTH = 660;     // px — below this, switch to reflow layout (Zone C)
+export const SCALE_REFERENCE_WIDTH = 1200; // px — viewport width where scale = 1.0 (desktop starts)
+export const SCALE_MIN_FACTOR = 0.55;      // minimum scale factor (unused — Zone B eliminated)
+export const SCALE_REFLOW_WIDTH = 1200;    // px — below this, switch to mobile layout (stacked widgets)
 
 // Priority order for reflow layout — most important widgets first
 export const REFLOW_WIDGET_ORDER = [
@@ -651,6 +672,8 @@ export const REFLOW_WIDGET_ORDER = [
   'widget-dxpeditions',
   'widget-beacons',
   'widget-dedx',
+  'widget-stopwatch',
+  'widget-analog-clock',
 ];
 
 export function getLayoutMode() {
@@ -700,9 +723,17 @@ export function getBandColorOverrides() {
   return { ...bandColorOverrides };
 }
 
+// --- Mobile Tab Bar ---
+export const MOBILE_TAB_KEY = 'hamtab_active_tab';
+
 export const WIDGET_STORAGE_KEY = 'hamtab_widgets';
 export const USER_LAYOUT_KEY = 'hamtab_widgets_user';
+export const LAYOUTS_KEY = 'hamtab_layouts'; // named layout profiles
+export const MAX_LAYOUTS = 20; // prevent localStorage bloat
 export const SNAP_DIST = 20; // px — edge-snap threshold for widget dragging
+export const SNAP_GRID = 20; // px — grid increment for snap-to-grid in free-float mode
+export const SNAP_GRID_KEY = 'hamtab_snap_grid'; // localStorage key for snap-to-grid toggle
+export const ALLOW_OVERLAP_KEY = 'hamtab_allow_overlap'; // localStorage key for overlap toggle
 export const HEADER_H = 30; // px — widget header/title-bar height used in snap calculations
 
 // --- Grid Layout Mode ---
@@ -711,6 +742,7 @@ export const GRID_MODE_KEY = 'hamtab_grid_mode';
 export const GRID_PERM_KEY = 'hamtab_grid_permutation';
 export const GRID_ASSIGN_KEY = 'hamtab_grid_assignments';
 export const GRID_SIZES_KEY = 'hamtab_grid_sizes';
+export const GRID_SPANS_KEY = 'hamtab_grid_spans';
 
 // Grid permutation definitions — each defines a CSS Grid template with a fixed center map cell.
 // `areas` is the grid-template-areas string, `columns`/`rows` are the track sizes,

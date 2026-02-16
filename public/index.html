@@ -125,6 +125,7 @@
         <button type="button" class="config-tab" data-tab="appearance">Appearance</button>
         <button type="button" class="config-tab" data-tab="services">Services</button>
         <button type="button" class="config-tab" data-tab="about">About</button>
+        <button type="button" class="config-tab" data-tab="thanks">Thanks</button>
       </div>
 
       <div class="config-panels">
@@ -137,7 +138,10 @@
 
           <div class="splash-loc-header">
             <span class="splash-loc-title">Location Override</span>
-            <button type="button" class="splash-gps-btn" id="splashGpsBtn">Use GPS</button>
+            <div class="splash-loc-btns">
+              <button type="button" class="splash-gps-btn" id="splashCallsignLocBtn">Use Callsign</button>
+              <button type="button" class="splash-gps-btn" id="splashGpsBtn">Use GPS</button>
+            </div>
           </div>
 
           <div class="splash-loc-fields">
@@ -205,10 +209,16 @@
               <label><input type="radio" name="layoutMode" value="float" id="layoutModeFloat"> Free Float</label>
               <label><input type="radio" name="layoutMode" value="grid" id="layoutModeGrid"> Grid</label>
             </div>
+            <div class="splash-float-options" id="floatOptions">
+              <label><input type="checkbox" id="snapToGridCheck" checked> Snap to grid</label>
+              <label><input type="checkbox" id="allowOverlapCheck"> Allow overlapping</label>
+            </div>
             <div class="splash-grid-perm-section" id="gridPermSection" style="display:none;">
               <label for="gridPermSelect">Grid Layout</label>
               <select id="gridPermSelect"></select>
               <div class="grid-perm-preview" id="gridPermPreview"></div>
+              <div class="grid-assign-picker" id="gridAssignPicker"></div>
+              <button type="button" class="splash-reset-grid-btn" id="resetGridBtn">Reset Grid</button>
             </div>
           </div>
 
@@ -222,10 +232,14 @@
 
           <div class="splash-divider"></div>
           <div class="splash-layout-section">
-            <span class="splash-loc-title">Layout</span>
+            <span class="splash-loc-title">Layout Profiles</span>
+            <div class="splash-layout-list" id="splashLayoutList"></div>
+            <div class="splash-layout-save-row" id="splashLayoutSaveRow">
+              <input type="text" id="splashLayoutName" placeholder="Layout name" maxlength="40" />
+              <button type="button" class="splash-layout-btn" id="splashSaveLayout">Save</button>
+            </div>
             <div class="splash-layout-actions">
-              <button type="button" class="splash-layout-btn" id="splashSaveLayout">Save as My Default</button>
-              <button type="button" class="splash-layout-btn" id="splashClearLayout">Reset to App Default</button>
+              <button type="button" class="splash-layout-btn" id="splashClearLayout">Reset to Default</button>
             </div>
             <div class="splash-layout-status" id="splashLayoutStatus"></div>
           </div>
@@ -244,6 +258,14 @@
             <label class="config-toggle">
               <input type="checkbox" id="cfgSlimHeader" />
               Compact header (hides weather &amp; name, shrinks clocks)
+            </label>
+            <label class="config-toggle">
+              <input type="checkbox" id="cfgGrayscale" />
+              Grayscale mode (desaturates all colors for e-ink or reduced distraction)
+            </label>
+            <label class="config-toggle">
+              <input type="checkbox" id="cfgDisableWxBg" />
+              Disable weather backgrounds (removes gradient overlays from local clock for better readability)
             </label>
           </div>
 
@@ -264,6 +286,14 @@
             <label for="splashWxApiKey">WU API Key</label>
             <input type="text" id="splashWxApiKey" placeholder="Weather Underground API key" autocomplete="off" spellcheck="false" style="text-transform:none;" />
             <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;"><a href="https://www.wunderground.com/member/api-keys" target="_blank" style="color:var(--accent);">Get a free API key</a></div>
+          </div>
+
+          <div class="splash-divider"></div>
+          <div class="splash-owm-section">
+            <span class="splash-loc-title">OpenWeatherMap (optional)</span>
+            <label for="splashOwmApiKey">OWM API Key</label>
+            <input type="text" id="splashOwmApiKey" placeholder="OpenWeatherMap API key" autocomplete="off" spellcheck="false" style="text-transform:none;" />
+            <div style="font-size:0.7rem;color:var(--text-dim);margin-top:-10px;margin-bottom:8px;text-align:left;"><a href="https://home.openweathermap.org/api_keys" target="_blank" style="color:var(--accent);">Get a free API key (1000 req/day)</a></div>
           </div>
 
           <div class="splash-divider"></div>
@@ -316,6 +346,17 @@
 
             <h4>Open Source</h4>
             <p><a href="https://github.com/stevencheist/HamTabv1" target="_blank" rel="noopener">View on GitHub</a></p>
+          </div>
+        </div>
+
+        <!-- Tab 6: Thanks -->
+        <div class="config-panel" data-panel="thanks">
+          <div class="about-content">
+            <h3>Thank You</h3>
+            <p>HamTab is built by hams, for hams. We'd like to thank the community members who have helped improve HamTab through bug reports, testing, and feedback.</p>
+            <div id="thanksList">
+              <!-- Community contributors will be listed here -->
+            </div>
           </div>
         </div>
       </div>
@@ -377,18 +418,34 @@
         <div class="header-clock-time" id="clockUtcTime"></div>
       </div>
     </div>
+    <button class="mobile-menu-btn" id="mobileMenuBtn" title="Menu">&#9776;</button>
     <div class="header-right">
+      <div class="layout-dropdown" id="layoutDropdown">
+        <button class="layout-btn" id="layoutBtn" title="Layout profiles">Layouts &#9662;</button>
+        <div class="layout-menu" id="layoutMenu"></div>
+      </div>
       <button id="refreshBtn" title="Click to refresh now">Refresh</button>
       <button id="fullscreenBtn" title="Toggle fullscreen">Fullscreen</button>
       <button id="feedbackBtn" class="feedback-btn" title="Send feedback">Feedback</button>
       <a href="https://buymeacoffee.com/stevencheist" target="_blank" rel="noopener" class="coffee-btn" title="Support HamTab development">&#9749; Coffee</a>
-      <a href="https://discord.gg/GcX9cHtT" target="_blank" rel="noopener" class="discord-btn" title="Join the HamTab Discord community"><svg class="discord-icon" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2.03a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2.03a68.68 68.68 0 0 1-10.87 5.19 77.22 77.22 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53.05s5-12.68 11.45-12.68S53.99 46 53.92 53.05c0 6.95-5.11 12.64-11.47 12.64Zm42.24 0C78.41 65.69 73.25 60 73.25 53.05s5-12.68 11.44-12.68S96.23 46 96.16 53.05c0 6.95-5.08 12.64-11.47 12.64Z"/></svg></a>
+      <a href="https://discord.gg/Ru3ydQY75U" target="_blank" rel="noopener" class="discord-btn" title="Join the HamTab Discord community"><svg class="discord-icon" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2.03a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2.03a68.68 68.68 0 0 1-10.87 5.19 77.22 77.22 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53.05s5-12.68 11.45-12.68S53.99 46 53.92 53.05c0 6.95-5.11 12.64-11.47 12.64Zm42.24 0C78.41 65.69 73.25 60 73.25 53.05s5-12.68 11.44-12.68S96.23 46 96.16 53.05c0 6.95-5.08 12.64-11.47 12.64Z"/></svg></a>
       <div class="update-indicator" id="updateIndicator" title="Update status">
         <span class="update-dot gray" id="updateDot"></span>
         <span class="update-label" id="updateLabel">Checking...</span>
         <button class="restart-btn hidden" id="restartBtn">Restart</button>
       </div>
     </div>
+    <div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
+    <nav class="mobile-menu-drawer" id="mobileMenuDrawer">
+      <div class="mobile-menu-header">Menu</div>
+      <button class="mobile-menu-item" data-action="layouts">Layouts</button>
+      <button class="mobile-menu-item" data-action="config">Config</button>
+      <button class="mobile-menu-item" data-action="refresh">Refresh</button>
+      <button class="mobile-menu-item" data-action="feedback">Feedback</button>
+      <a href="https://buymeacoffee.com/stevencheist" target="_blank" rel="noopener" class="mobile-menu-item">&#9749; Support</a>
+      <a href="https://discord.gg/Ru3ydQY75U" target="_blank" rel="noopener" class="mobile-menu-item">Discord</a>
+      <div class="mobile-menu-update" id="mobileMenuUpdate"></div>
+    </nav>
   </header>
 
   <div class="widget-area" id="widgetArea">
@@ -497,6 +554,7 @@
           <button class="map-center-btn active" data-center="qth">QTH</button>
           <button class="map-center-btn" data-center="pm">PM</button>
           <button class="map-center-btn" data-center="spot">DX</button>
+          <button class="map-center-btn" data-center="cty">CTY</button>
         </div>
       </div>
       <div class="widget-body">
@@ -709,10 +767,12 @@
         <div class="dedx-container" id="dedxContainer">
           <div class="dedx-panel dedx-de">
             <div class="dedx-title">DE</div>
+            <div class="dedx-clock" id="dedxDeTime">--:--:--</div>
             <div class="dedx-content" id="dedxDeContent"></div>
           </div>
           <div class="dedx-panel dedx-dx">
             <div class="dedx-title">DX</div>
+            <div class="dedx-clock" id="dedxDxTime">--:--:--</div>
             <div class="dedx-content" id="dedxDxContent"></div>
           </div>
         </div>
@@ -720,6 +780,52 @@
       <div class="widget-resize"></div>
     </div>
   </div>
+
+    <!-- Stopwatch / Timer -->
+    <div class="widget" id="widget-stopwatch">
+      <div class="widget-header">Stopwatch / Timer
+        <button class="widget-help-btn" data-widget="widget-stopwatch" title="Help">?</button>
+      </div>
+      <div class="widget-body">
+        <div class="sw-container" id="swContainer">
+          <div class="sw-mode-tabs">
+            <button class="sw-tab active" id="swTabStopwatch">Stopwatch</button>
+            <button class="sw-tab" id="swTabCountdown">Countdown</button>
+          </div>
+          <div class="sw-display" id="swDisplay">00:00.0</div>
+          <div class="sw-controls">
+            <button class="sw-btn sw-btn-start" id="swStart">Start</button>
+            <button class="sw-btn sw-btn-stop" id="swStop">Stop</button>
+            <button class="sw-btn sw-btn-reset" id="swReset">Reset</button>
+            <button class="sw-btn sw-btn-lap" id="swLap">Lap</button>
+          </div>
+          <div class="sw-countdown-set hidden" id="swCountdownSet">
+            <button class="sw-preset" data-minutes="10">10m ID</button>
+            <button class="sw-preset" data-minutes="15">15m</button>
+            <button class="sw-preset" data-minutes="30">30m</button>
+            <button class="sw-preset" data-minutes="60">60m</button>
+          </div>
+          <div class="sw-laps" id="swLaps"></div>
+        </div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Analog Clock -->
+    <div class="widget" id="widget-analog-clock">
+      <div class="widget-header">Analog Clock
+        <button class="widget-help-btn" data-widget="widget-analog-clock" title="Help">?</button>
+        <button class="widget-cfg-btn" id="clockCfgBtn" title="Configure clock face">&#9881;</button>
+      </div>
+      <div class="widget-body">
+        <svg id="analogClockSvg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+  </div>
+
+  <!-- Mobile tab bar (populated dynamically by tabs.js) -->
+  <nav class="tab-bar" id="tabBar"></nav>
 
   <!-- Map overlay config overlay -->
   <div class="splash-overlay hidden" id="mapOverlayCfgSplash">
@@ -733,6 +839,10 @@
         <label><input type="checkbox" id="mapOvDrap" /> D-RAP Absorption (NOAA SWPC)</label>
         <label><input type="checkbox" id="mapOvBandPaths" /> DX Paths (band-colored)</label>
         <label><input type="checkbox" id="mapOvDxpedMarkers" /> DXpedition Markers</label>
+        <label><input type="checkbox" id="mapOvTropics" /> Tropics &amp; Arctic Lines</label>
+        <label><input type="checkbox" id="mapOvWeatherRadar" /> Weather Radar</label>
+        <label><input type="checkbox" id="mapOvCloudCover" /> Cloud Cover (OpenWeatherMap)</label>
+        <label><input type="checkbox" id="mapOvLegend" /> Map Legend</label>
       </div>
       <button id="mapOverlayCfgOk">OK</button>
     </div>
@@ -774,6 +884,17 @@
     </div>
   </div>
 
+  <!-- Clock face config overlay -->
+  <div class="splash-overlay hidden" id="clockCfgSplash">
+    <div class="splash-box clock-cfg-box">
+      <h2>Clock Face</h2>
+      <div class="clock-face-picker" id="clockFacePicker"></div>
+      <h3>Complications</h3>
+      <div class="splash-widget-list" id="clockCompList"></div>
+      <button id="clockCfgOk">OK</button>
+    </div>
+  </div>
+
   <!-- Weather alert popup -->
   <div class="splash-overlay hidden wx-alert-splash" id="wxAlertSplash">
     <div class="splash-box">
@@ -797,7 +918,7 @@
     <div class="splash-box feedback-box">
       <h2>Send Feedback</h2>
       <p class="feedback-description">Help us improve HamTab! Your feedback is valuable to us.</p>
-      <p class="feedback-discord"><a href="https://discord.gg/GcX9cHtT" target="_blank" rel="noopener"><svg class="discord-icon" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2.03a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2.03a68.68 68.68 0 0 1-10.87 5.19 77.22 77.22 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53.05s5-12.68 11.45-12.68S53.99 46 53.92 53.05c0 6.95-5.11 12.64-11.47 12.64Zm42.24 0C78.41 65.69 73.25 60 73.25 53.05s5-12.68 11.44-12.68S96.23 46 96.16 53.05c0 6.95-5.08 12.64-11.47 12.64Z"/></svg> Join our Discord</a> for release notes and community discussion about features, bugs, or other general HamTab and amateur radio topics.</p>
+      <p class="feedback-discord"><a href="https://discord.gg/Ru3ydQY75U" target="_blank" rel="noopener"><svg class="discord-icon" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2.03a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2.03a68.68 68.68 0 0 1-10.87 5.19 77.22 77.22 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53.05s5-12.68 11.45-12.68S53.99 46 53.92 53.05c0 6.95-5.11 12.64-11.47 12.64Zm42.24 0C78.41 65.69 73.25 60 73.25 53.05s5-12.68 11.44-12.68S96.23 46 96.16 53.05c0 6.95-5.08 12.64-11.47 12.64Z"/></svg> Join our Discord</a> for release notes and community discussion about features, bugs, or other general HamTab and amateur radio topics.</p>
       <form id="feedbackForm">
         <div class="feedback-field">
           <label for="feedbackName">Name (optional)</label>

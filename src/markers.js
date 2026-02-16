@@ -5,7 +5,7 @@ import { bearingTo, bearingToCardinal, distanceMi, localTimeAtLon, geodesicPoint
 import { spotId, freqToBand } from './filters.js';
 import { updateSpotDetail, clearSpotDetail } from './spot-detail.js';
 import { setDedxSpot, clearDedxSpot } from './dedx-info.js';
-import { onSpotSelected } from './voacap.js';
+import { onSpotSelected, onSpotDeselected } from './voacap.js';
 
 let defaultIcon = null;
 let selectedIcon = null;
@@ -233,14 +233,17 @@ export function selectSpot(sid) {
   clearGeodesicLine();
   const oldSid = state.selectedSpotId;
 
+  // Toggle: clicking the already-selected spot deselects it
+  const newSid = (sid && sid === oldSid) ? null : sid;
+
   if (oldSid && state.markers[oldSid]) {
     state.markers[oldSid].setIcon(defaultIcon);
   }
 
-  state.selectedSpotId = sid;
+  state.selectedSpotId = newSid;
 
-  if (sid && state.markers[sid]) {
-    state.markers[sid].setIcon(selectedIcon);
+  if (newSid && state.markers[newSid]) {
+    state.markers[newSid].setIcon(selectedIcon);
   }
 
   if (state.clusterGroup) {
@@ -250,27 +253,29 @@ export function selectSpot(sid) {
         oldParent._icon.classList.remove('marker-cluster-selected');
       }
     }
-    if (sid && state.markers[sid]) {
-      const newParent = state.clusterGroup.getVisibleParent(state.markers[sid]);
-      if (newParent && newParent !== state.markers[sid] && newParent._icon) {
+    if (newSid && state.markers[newSid]) {
+      const newParent = state.clusterGroup.getVisibleParent(state.markers[newSid]);
+      if (newParent && newParent !== state.markers[newSid] && newParent._icon) {
         newParent._icon.classList.add('marker-cluster-selected');
       }
     }
   }
 
   document.querySelectorAll('#spotsBody tr').forEach(tr => {
-    tr.classList.toggle('selected', tr.dataset.spotId === sid);
+    tr.classList.toggle('selected', tr.dataset.spotId === newSid);
   });
 
-  const selectedRow = document.querySelector(`#spotsBody tr[data-spot-id="${CSS.escape(sid)}"]`);
-  if (selectedRow) {
-    selectedRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  if (newSid) {
+    const selectedRow = document.querySelector(`#spotsBody tr[data-spot-id="${CSS.escape(newSid)}"]`);
+    if (selectedRow) {
+      selectedRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
   }
 
   // Update spot detail and DE/DX widgets
-  if (sid) {
+  if (newSid) {
     const filtered = state.sourceFiltered[state.currentSource] || [];
-    const spot = filtered.find(s => spotId(s) === sid);
+    const spot = filtered.find(s => spotId(s) === newSid);
     if (spot) {
       updateSpotDetail(spot);
       setDedxSpot(spot);
@@ -283,17 +288,17 @@ export function selectSpot(sid) {
   } else {
     clearSpotDetail();
     clearDedxSpot();
+    onSpotDeselected();
   }
 }
 
 export function flyToSpot(spot) {
-  if (!state.map) return;
-  const lat = parseFloat(spot.latitude);
-  const lon = parseFloat(spot.longitude);
-  if (isNaN(lat) || isNaN(lon)) return;
-
   const sid = spotId(spot);
   selectSpot(sid);
+
+  const lat = parseFloat(spot.latitude);
+  const lon = parseFloat(spot.longitude);
+  if (!state.map || isNaN(lat) || isNaN(lon)) return;
 
   if (state.mapCenterMode === 'spot') {
     state.map.flyTo([lat, lon], 5, { duration: 0.8 });

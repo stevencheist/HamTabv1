@@ -11,7 +11,7 @@ jobs:
       - name: Post release to Discord
         uses: actions/github-script@v7
         env:
-          WEBHOOK_URL: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
+          WEBHOOK_URL: ${{ secrets.DISCORD_RELEASE_WEBHOOK }}
         with:
           script: |
             const release = context.payload.release;

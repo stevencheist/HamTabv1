@@ -367,6 +367,8 @@ export function showSplash() {
   $('splashWxApiKey').value = state.wxApiKey;
   $('splashOwmApiKey').value = state.owmApiKey;
   $('splashN2yoApiKey').value = state.n2yoApiKey;
+  $('splashHamqthUser').value = state.hamqthUser;
+  $('splashHamqthPass').value = state.hamqthPass;
 
   const intervalSelect = $('splashUpdateInterval');
   if (intervalSelect) {
@@ -552,14 +554,35 @@ function dismissSplash() {
     const wxApiKeyEl = $('splashWxApiKey');
     const owmApiKeyEl = $('splashOwmApiKey');
     const n2yoApiKeyEl = $('splashN2yoApiKey');
+    const hamqthUserEl = $('splashHamqthUser');
+    const hamqthPassEl = $('splashHamqthPass');
     state.wxStation = wxStationEl ? wxStationEl.value.trim().toUpperCase() : state.wxStation;
     state.wxApiKey = wxApiKeyEl ? wxApiKeyEl.value.trim() : state.wxApiKey;
     state.owmApiKey = owmApiKeyEl ? owmApiKeyEl.value.trim() : state.owmApiKey;
     state.n2yoApiKey = n2yoApiKeyEl ? n2yoApiKeyEl.value.trim() : state.n2yoApiKey;
+    state.hamqthUser = hamqthUserEl ? hamqthUserEl.value.trim() : state.hamqthUser;
+    state.hamqthPass = hamqthPassEl ? hamqthPassEl.value.trim() : state.hamqthPass;
     localStorage.setItem('hamtab_wx_station', state.wxStation);
     localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
     localStorage.setItem('hamtab_owm_apikey', state.owmApiKey);
     localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
+    localStorage.setItem('hamtab_hamqth_user', state.hamqthUser);
+    localStorage.setItem('hamtab_hamqth_pass', state.hamqthPass);
+
+    // Persist API keys to server .env so all clients share them
+    const envUpdates = {};
+    if (state.wxApiKey) envUpdates.WU_API_KEY = state.wxApiKey;
+    if (state.owmApiKey) envUpdates.OWM_API_KEY = state.owmApiKey;
+    if (state.n2yoApiKey) envUpdates.N2YO_API_KEY = state.n2yoApiKey;
+    if (state.hamqthUser) envUpdates.HAMQTH_USER = state.hamqthUser;
+    if (state.hamqthPass) envUpdates.HAMQTH_PASS = state.hamqthPass;
+    if (Object.keys(envUpdates).length > 0) {
+      fetch('/api/config/env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(envUpdates),
+      }).catch(() => {});
+    }
 
     fetchWeather();
 

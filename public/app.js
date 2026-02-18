@@ -172,6 +172,8 @@
         wxStation: localStorage.getItem("hamtab_wx_station") || "",
         wxApiKey: localStorage.getItem("hamtab_wx_apikey") || "",
         owmApiKey: localStorage.getItem("hamtab_owm_apikey") || "",
+        hamqthUser: localStorage.getItem("hamtab_hamqth_user") || "",
+        hamqthPass: localStorage.getItem("hamtab_hamqth_pass") || "",
         nwsAlerts: [],
         weatherTimer: null,
         nwsCondTimer: null,
@@ -2312,15 +2314,29 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   async function fetchSpotWeather(lat, lon) {
     const key = weatherCacheKey(lat, lon);
     if (spotDetailWeatherCache[key]) return spotDetailWeatherCache[key];
-    try {
-      const resp = await fetch(`/api/weather/conditions?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`);
-      if (!resp.ok) return null;
-      const data = await resp.json();
-      spotDetailWeatherCache[key] = data;
-      return data;
-    } catch {
-      return null;
+    if (isNwsCoverage(lat, lon)) {
+      try {
+        const resp = await fetch(`/api/weather/conditions?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          spotDetailWeatherCache[key] = data;
+          return data;
+        }
+      } catch {
+      }
     }
+    if (state_default.owmApiKey) {
+      try {
+        const resp = await fetch(`/api/weather/owm?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&apikey=${encodeURIComponent(state_default.owmApiKey)}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          spotDetailWeatherCache[key] = data;
+          return data;
+        }
+      } catch {
+      }
+    }
+    return null;
   }
   function renderLocalTime(lon) {
     const el2 = document.getElementById("spotDetailTime");
@@ -2408,7 +2424,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       if (info.addr2) parts.push(`\xB7 ${info.addr2}`);
       nameEl.textContent = parts.join(" ");
     }
-    if (!isNaN(lat) && !isNaN(lon) && isNwsCoverage(lat, lon)) {
+    if (!isNaN(lat) && !isNaN(lon)) {
       const wxEl = document.getElementById("spotDetailWx");
       const wx = await fetchSpotWeather(lat, lon);
       if (wx && wxEl && currentSpot === spot) {
@@ -4987,10 +5003,10 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
           title: "DX Detail",
           description: "Shows detailed information about whichever station you've selected. Click any row in the On the Air table or any marker on the map to see that station's details here.",
           sections: [
-            { heading: "Station Info", content: "Displays the operator's name, location, license class, and grid square (looked up from their callsign). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown. This helps you know who you're about to contact." },
+            { heading: "Station Info", content: "Displays the operator's name, location, license class, and grid square (looked up from their callsign). US callsigns are looked up via the FCC database; non-US callsigns use HamQTH.com (configure credentials in Config > Services). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown." },
             { heading: "Distance & Bearing", content: "Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config." },
             { heading: "Frequency & Mode", content: "The frequency and mode the station is operating on, so you know exactly where to tune your radio." },
-            { heading: "Weather", content: "Shows current weather conditions at the station's location, if available." }
+            { heading: "Weather", content: "Shows current weather conditions at the station's location. US stations use NWS data; stations worldwide use OpenWeatherMap (configure your OWM API key in Config > Services)." }
           ]
         },
         "widget-contests": {
@@ -8052,7 +8068,7 @@ ${beacon.location}`);
   }
   function setWxSource(src) {
     const wxSourceLogo = $("wxSourceLogo");
-    wxSourceLogo.classList.remove("hidden", "wx-src-wu", "wx-src-nws");
+    wxSourceLogo.classList.remove("hidden", "wx-src-wu", "wx-src-nws", "wx-src-owm");
     if (src === "wu") {
       wxSourceLogo.textContent = "WU";
       wxSourceLogo.title = "Weather Underground";
@@ -8061,6 +8077,10 @@ ${beacon.location}`);
       wxSourceLogo.textContent = "NWS";
       wxSourceLogo.title = "National Weather Service";
       wxSourceLogo.classList.add("wx-src-nws");
+    } else if (src === "owm") {
+      wxSourceLogo.textContent = "OWM";
+      wxSourceLogo.title = "OpenWeatherMap";
+      wxSourceLogo.classList.add("wx-src-owm");
     } else {
       wxSourceLogo.classList.add("hidden");
     }
@@ -8089,32 +8109,49 @@ ${beacon.location}`);
     doFetchWeather();
     state_default.weatherTimer = setInterval(doFetchWeather, 5 * 60 * 1e3);
   }
+  function displayConditions(data, source) {
+    applyWeatherBackground(data.shortForecast, data.isDaytime);
+    if (!useWU()) {
+      let tempStr = "";
+      if (data.temperature != null) {
+        const apiUnit = data.temperatureUnit || "F";
+        let temp = data.temperature;
+        if (apiUnit !== state_default.temperatureUnit) {
+          temp = apiUnit === "F" ? Math.round((temp - 32) * 5 / 9) : Math.round(temp * 9 / 5 + 32);
+        }
+        tempStr = temp + "\xB0" + state_default.temperatureUnit;
+      }
+      const cond = data.shortForecast || "";
+      const wind = data.windDirection && data.windSpeed ? data.windDirection + " " + data.windSpeed : "";
+      const hum = data.relativeHumidity != null ? data.relativeHumidity + "%" : "";
+      let line1 = [tempStr, cond].filter(Boolean).join("  ");
+      let line2 = [wind ? "W: " + wind : "", hum ? "H: " + hum : ""].filter(Boolean).join("  ");
+      $("clockLocalWeather").innerHTML = esc(line1) + (line2 ? "<br>" + esc(line2) : "");
+      setWxSource(source);
+    }
+  }
+  function fetchOwmConditions() {
+    if (state_default.myLat === null || state_default.myLon === null) return;
+    if (!state_default.owmApiKey) return;
+    const url = "/api/weather/owm?lat=" + state_default.myLat + "&lon=" + state_default.myLon + "&apikey=" + encodeURIComponent(state_default.owmApiKey);
+    fetch(url).then((r) => r.ok ? r.json() : Promise.reject()).then((data) => {
+      displayConditions(data, "owm");
+    }).catch((err) => {
+      console.warn("OWM conditions fetch failed:", err);
+    });
+  }
   function fetchNwsConditions() {
     if (state_default.myLat === null || state_default.myLon === null) return;
-    if (!isNwsCoverage2(state_default.myLat, state_default.myLon)) return;
+    if (!isNwsCoverage2(state_default.myLat, state_default.myLon)) {
+      fetchOwmConditions();
+      return;
+    }
     const url = "/api/weather/conditions?lat=" + state_default.myLat + "&lon=" + state_default.myLon;
     fetch(url).then((r) => r.ok ? r.json() : Promise.reject()).then((data) => {
-      applyWeatherBackground(data.shortForecast, data.isDaytime);
-      if (!useWU()) {
-        let tempStr = "";
-        if (data.temperature != null) {
-          const apiUnit = data.temperatureUnit || "F";
-          let temp = data.temperature;
-          if (apiUnit !== state_default.temperatureUnit) {
-            temp = apiUnit === "F" ? Math.round((temp - 32) * 5 / 9) : Math.round(temp * 9 / 5 + 32);
-          }
-          tempStr = temp + "\xB0" + state_default.temperatureUnit;
-        }
-        const cond = data.shortForecast || "";
-        const wind = data.windDirection && data.windSpeed ? data.windDirection + " " + data.windSpeed : "";
-        const hum = data.relativeHumidity != null ? data.relativeHumidity + "%" : "";
-        let line1 = [tempStr, cond].filter(Boolean).join("  ");
-        let line2 = [wind ? "W: " + wind : "", hum ? "H: " + hum : ""].filter(Boolean).join("  ");
-        $("clockLocalWeather").innerHTML = esc(line1) + (line2 ? "<br>" + esc(line2) : "");
-        setWxSource("nws");
-      }
+      displayConditions(data, "nws");
     }).catch((err) => {
       console.warn("NWS conditions fetch failed:", err);
+      fetchOwmConditions();
     });
   }
   var wxIcons = {
@@ -9990,6 +10027,8 @@ ${beacon.location}`);
     $("splashWxApiKey").value = state_default.wxApiKey;
     $("splashOwmApiKey").value = state_default.owmApiKey;
     $("splashN2yoApiKey").value = state_default.n2yoApiKey;
+    $("splashHamqthUser").value = state_default.hamqthUser;
+    $("splashHamqthPass").value = state_default.hamqthPass;
     const intervalSelect = $("splashUpdateInterval");
     if (intervalSelect) {
       const savedInterval = localStorage.getItem("hamtab_update_interval") || "60";
@@ -10115,14 +10154,20 @@ ${beacon.location}`);
     state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
     state_default.owmApiKey = ($("splashOwmApiKey").value || "").trim();
     state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
+    state_default.hamqthUser = ($("splashHamqthUser").value || "").trim();
+    state_default.hamqthPass = ($("splashHamqthPass").value || "").trim();
     localStorage.setItem("hamtab_wx_station", state_default.wxStation);
     localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
     localStorage.setItem("hamtab_owm_apikey", state_default.owmApiKey);
     localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
+    localStorage.setItem("hamtab_hamqth_user", state_default.hamqthUser);
+    localStorage.setItem("hamtab_hamqth_pass", state_default.hamqthPass);
     const envUpdates = {};
     if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
     if (state_default.owmApiKey) envUpdates.OWM_API_KEY = state_default.owmApiKey;
     if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
+    if (state_default.hamqthUser) envUpdates.HAMQTH_USER = state_default.hamqthUser;
+    if (state_default.hamqthPass) envUpdates.HAMQTH_PASS = state_default.hamqthPass;
     if (Object.keys(envUpdates).length > 0) {
       fetch("/api/config/env", {
         method: "POST",

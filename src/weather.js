@@ -13,7 +13,7 @@ function isNwsCoverage(lat, lon) {
 
 function setWxSource(src) {
   const wxSourceLogo = $('wxSourceLogo');
-  wxSourceLogo.classList.remove('hidden', 'wx-src-wu', 'wx-src-nws');
+  wxSourceLogo.classList.remove('hidden', 'wx-src-wu', 'wx-src-nws', 'wx-src-owm');
   if (src === 'wu') {
     wxSourceLogo.textContent = 'WU';
     wxSourceLogo.title = 'Weather Underground';
@@ -22,6 +22,10 @@ function setWxSource(src) {
     wxSourceLogo.textContent = 'NWS';
     wxSourceLogo.title = 'National Weather Service';
     wxSourceLogo.classList.add('wx-src-nws');
+  } else if (src === 'owm') {
+    wxSourceLogo.textContent = 'OWM';
+    wxSourceLogo.title = 'OpenWeatherMap';
+    wxSourceLogo.classList.add('wx-src-owm');
   } else {
     wxSourceLogo.classList.add('hidden');
   }
@@ -53,33 +57,55 @@ export function fetchWeather() {
   state.weatherTimer = setInterval(doFetchWeather, 5 * 60 * 1000);
 }
 
+// Display weather conditions data in the local clock widget (shared by NWS and OWM)
+function displayConditions(data, source) {
+  applyWeatherBackground(data.shortForecast, data.isDaytime);
+  if (!useWU()) {
+    let tempStr = '';
+    if (data.temperature != null) {
+      const apiUnit = data.temperatureUnit || 'F';
+      let temp = data.temperature;
+      // Convert to user's preferred unit if different from API
+      if (apiUnit !== state.temperatureUnit) {
+        temp = apiUnit === 'F' ? Math.round((temp - 32) * 5 / 9) : Math.round(temp * 9 / 5 + 32);
+      }
+      tempStr = temp + '\u00B0' + state.temperatureUnit;
+    }
+    const cond = data.shortForecast || '';
+    const wind = data.windDirection && data.windSpeed ? data.windDirection + ' ' + data.windSpeed : '';
+    const hum = data.relativeHumidity != null ? data.relativeHumidity + '%' : '';
+    let line1 = [tempStr, cond].filter(Boolean).join('  ');
+    let line2 = [wind ? 'W: ' + wind : '', hum ? 'H: ' + hum : ''].filter(Boolean).join('  ');
+    $('clockLocalWeather').innerHTML = esc(line1) + (line2 ? '<br>' + esc(line2) : '');
+    setWxSource(source);
+  }
+}
+
+export function fetchOwmConditions() {
+  if (state.myLat === null || state.myLon === null) return;
+  if (!state.owmApiKey) return;
+  const url = '/api/weather/owm?lat=' + state.myLat + '&lon=' + state.myLon + '&apikey=' + encodeURIComponent(state.owmApiKey);
+  fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+    displayConditions(data, 'owm');
+  }).catch(err => {
+    console.warn('OWM conditions fetch failed:', err);
+  });
+}
+
 export function fetchNwsConditions() {
   if (state.myLat === null || state.myLon === null) return;
-  if (!isNwsCoverage(state.myLat, state.myLon)) return;
+  if (!isNwsCoverage(state.myLat, state.myLon)) {
+    // Outside US — try OWM as global fallback
+    fetchOwmConditions();
+    return;
+  }
   const url = '/api/weather/conditions?lat=' + state.myLat + '&lon=' + state.myLon;
   fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
-    applyWeatherBackground(data.shortForecast, data.isDaytime);
-    if (!useWU()) {
-      let tempStr = '';
-      if (data.temperature != null) {
-        const apiUnit = data.temperatureUnit || 'F';
-        let temp = data.temperature;
-        // Convert to user's preferred unit if different from API
-        if (apiUnit !== state.temperatureUnit) {
-          temp = apiUnit === 'F' ? Math.round((temp - 32) * 5 / 9) : Math.round(temp * 9 / 5 + 32);
-        }
-        tempStr = temp + '\u00B0' + state.temperatureUnit;
-      }
-      const cond = data.shortForecast || '';
-      const wind = data.windDirection && data.windSpeed ? data.windDirection + ' ' + data.windSpeed : '';
-      const hum = data.relativeHumidity != null ? data.relativeHumidity + '%' : '';
-      let line1 = [tempStr, cond].filter(Boolean).join('  ');
-      let line2 = [wind ? 'W: ' + wind : '', hum ? 'H: ' + hum : ''].filter(Boolean).join('  ');
-      $('clockLocalWeather').innerHTML = esc(line1) + (line2 ? '<br>' + esc(line2) : '');
-      setWxSource('nws');
-    }
+    displayConditions(data, 'nws');
   }).catch(err => {
     console.warn('NWS conditions fetch failed:', err);
+    // NWS failed — fall back to OWM
+    fetchOwmConditions();
   });
 }
 

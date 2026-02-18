@@ -2213,6 +2213,10 @@ header {
   color: #4a90e2;
 }
 
+.wx-source-logo.wx-src-owm {
+  color: #e96e50;
+}
+
 /* ---- Band condition color classes (used in propagation widget) ---- */
 
 .cond-good { color: var(--green); font-weight: 600; }
@@ -2597,6 +2601,11 @@ header {
 
 .wx-source-logo.wx-src-nws {
   background: #003366;
+  color: #fff;
+}
+
+.wx-source-logo.wx-src-owm {
+  background: #e96e50;
   color: #fff;
 }
 

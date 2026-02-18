@@ -14,9 +14,14 @@ let bandOverlayCircles = [];
 // Abort controller — cancel in-flight fetch when a new one starts
 let activeFetchController = null;
 
+// Retry state for transient server errors (500, network hiccups, cold starts)
+let retryTimer = null;
+let retryCount = 0;
+const MAX_RETRIES = 3;
+
 // Minimum interval between server fetches
 const FETCH_THROTTLE_MS = 5 * 60 * 1000;      // 5 min when we have real VOACAP data
-const FETCH_RETRY_MS = 30 * 1000;              // 30s retry when server returned simplified
+const FETCH_RETRY_MS = 30 * 1000;              // 30s retry when server returned simplified or error
 
 // --- Parameter cycling constants ---
 
@@ -191,6 +196,7 @@ export async function fetchVoacapMatrix() {
 
   // Cancel any in-flight fetch to prevent stale responses overwriting newer data
   if (activeFetchController) activeFetchController.abort();
+  if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
   const controller = new AbortController();
   activeFetchController = controller;
 
@@ -236,6 +242,7 @@ export async function fetchVoacapMatrix() {
       state.voacapServerData = data;
       state.voacapEngine = data.engine || 'simplified';
       state.voacapLastFetch = Date.now();
+      retryCount = 0; // reset on success
 
       // Diagnostic: log what the server returned for spot mode debugging
       if (state.voacapTarget === 'spot') {
@@ -250,6 +257,16 @@ export async function fetchVoacapMatrix() {
     // Ignore aborts from superseded requests
     if (err.name === 'AbortError') { console.log('[VOACAP] Fetch aborted (superseded)'); return; }
     console.warn(`[VOACAP] Fetch error: ${err.message}`);
+
+    // Schedule retry for transient errors (HTTP 500, cold starts, network hiccups)
+    if (retryCount < MAX_RETRIES && activeFetchController === controller) {
+      retryCount++;
+      console.log(`[VOACAP] Retry ${retryCount}/${MAX_RETRIES} in ${FETCH_RETRY_MS / 1000}s`);
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        fetchVoacapMatrix();
+      }, FETCH_RETRY_MS);
+    }
     // Keep existing data or fall back to client-side model
   }
 

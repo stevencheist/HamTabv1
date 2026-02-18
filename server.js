@@ -14,7 +14,7 @@ const cors = require('cors');
 const voacap = require('./voacap-bridge.js');
 const satellite = require('satellite.js');
 const swaggerUi = require('swagger-ui-express');
-const YAML = require('yamljs');
+const YAML = require('js-yaml');
 const { getConfig } = require('./server-config.js');
 const { startListeners } = require('./server-startup.js');
 
@@ -129,7 +129,7 @@ app.use((req, res, next) => {
 app.use(express.static('public'));
 
 // --- API Documentation (Swagger UI) ---
-const openapiSpec = YAML.load(path.join(__dirname, 'openapi.yaml'));
+const openapiSpec = YAML.load(fs.readFileSync(path.join(__dirname, 'openapi.yaml'), 'utf8'));
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
   customCss: '.swagger-ui .topbar { display: none }',
   customSiteTitle: 'HamTab API Documentation',

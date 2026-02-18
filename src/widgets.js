@@ -51,6 +51,7 @@ export function applyWidgetVisibility() {
 }
 
 function redistributeRightColumn() {
+  if (state.customLayout) return; // don't override user-customized positions
   const { height: H } = getWidgetArea();
   const pad = 6;
   const solarEl = document.getElementById('widget-solar');
@@ -334,6 +335,11 @@ export function saveUserLayout() {
 
 export function clearUserLayout() {
   localStorage.removeItem(USER_LAYOUT_KEY);
+  localStorage.removeItem(WIDGET_STORAGE_KEY);
+  state.customLayout = false; // allow redistributeRightColumn() again
+  const layout = getDefaultLayout();
+  applyLayout(layout);
+  applyWidgetVisibility();
 }
 
 export function hasUserLayout() {
@@ -406,6 +412,7 @@ export function loadNamedLayout(name) {
     if (profile.positions) {
       applyLayout(profile.positions);
       localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(profile.positions));
+      state.customLayout = true; // restored layout — don't redistribute
     }
   }
 
@@ -467,6 +474,7 @@ function setupDrag(widget, handle) {
       document.removeEventListener('mouseup', onUp);
       document.getElementById('widgetArea').classList.remove('snap-grid-visible');
       if (!state.allowOverlap) resolveOverlaps(widget);
+      state.customLayout = true; // user dragged a widget — don't redistribute
       saveWidgets();
     }
 
@@ -518,6 +526,7 @@ function setupResize(widget, handle) {
       document.removeEventListener('mouseup', onUp);
       document.getElementById('widgetArea').classList.remove('snap-grid-visible');
       if (!state.allowOverlap) resolveOverlaps(widget);
+      state.customLayout = true; // user resized a widget — don't redistribute
       saveWidgets();
       if (state.map && widget.id === 'widget-map') {
         state.map.invalidateSize();
@@ -744,6 +753,8 @@ export function initWidgets() {
 
   if (!layout) {
     layout = getDefaultLayout();
+  } else {
+    state.customLayout = true; // user has saved positions — don't redistribute
   }
 
   applyLayout(layout);
@@ -829,15 +840,44 @@ export function initWidgets() {
       maxBtn.textContent = '\u26F6'; // ⛶
       maxBtn.addEventListener('mousedown', e => e.stopPropagation());
 
+      // Widget visibility toggle button (only visible in fullscreen)
+      const widgetToggle = document.createElement('button');
+      widgetToggle.className = 'fs-widget-toggle';
+      widgetToggle.title = 'Toggle widgets on fullscreen map';
+      widgetToggle.textContent = 'W';
+      widgetToggle.addEventListener('mousedown', e => e.stopPropagation());
+
+      const fsHideKey = 'hamtab_fs_hide_widgets';
+      const updateToggleLabel = () => {
+        const hidden = document.body.classList.contains('fs-widgets-hidden');
+        widgetToggle.textContent = hidden ? 'W' : 'W';
+        widgetToggle.style.opacity = hidden ? '0.5' : '1';
+        widgetToggle.title = hidden ? 'Show widgets' : 'Hide widgets';
+      };
+
+      widgetToggle.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.body.classList.toggle('fs-widgets-hidden');
+        const hidden = document.body.classList.contains('fs-widgets-hidden');
+        localStorage.setItem(fsHideKey, hidden ? 'true' : 'false');
+        updateToggleLabel();
+      });
+
       const enterFS = () => {
         mapWidget.classList.add('map-fullscreen');
         document.body.classList.add('map-fullscreen-active'); // neutralize parent transform + overflow
+        // Restore saved widget visibility preference
+        if (localStorage.getItem(fsHideKey) === 'true') {
+          document.body.classList.add('fs-widgets-hidden');
+        }
+        updateToggleLabel();
         maxBtn.textContent = '\u2715'; // ✕
         if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
       };
       const exitFS = () => {
         mapWidget.classList.remove('map-fullscreen');
         document.body.classList.remove('map-fullscreen-active');
+        document.body.classList.remove('fs-widgets-hidden');
         maxBtn.textContent = '\u26F6'; // ⛶
         if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
       };
@@ -846,6 +886,7 @@ export function initWidgets() {
         e.stopPropagation(); // don't trigger collapse
         mapWidget.classList.contains('map-fullscreen') ? exitFS() : enterFS();
       });
+      mapHeader.appendChild(widgetToggle);
       mapHeader.appendChild(maxBtn);
 
       // Escape key closes fullscreen map (matches Big Clock pattern)

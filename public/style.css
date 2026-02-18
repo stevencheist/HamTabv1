@@ -5940,6 +5940,36 @@ header {
   display: none;
 }
 
+/* Widgets float on top of fullscreen map with transparent backgrounds */
+body.map-fullscreen-active .widget:not(#widget-map) {
+  z-index: 5001 !important;
+  background: color-mix(in srgb, var(--surface) 82%, transparent) !important;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* When widgets are toggled off in fullscreen mode */
+body.map-fullscreen-active.fs-widgets-hidden .widget:not(#widget-map) {
+  display: none !important;
+}
+
+/* Toggle button for widgets in fullscreen map */
+.fs-widget-toggle {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-color);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 4px;
+  display: none;
+}
+
+body.map-fullscreen-active .fs-widget-toggle {
+  display: inline-block;
+}
+
 /* Neutralize parent transform + overflow so position:fixed reaches the viewport */
 body.map-fullscreen-active .widget-area {
   overflow: visible !important;

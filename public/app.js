@@ -10045,8 +10045,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.53.6";
-    $("aboutVersion").textContent = "0.53.6";
+    $("splashVersion").textContent = "0.53.7";
+    $("aboutVersion").textContent = "0.53.7";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

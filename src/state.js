@@ -134,6 +134,8 @@ const state = {
   wxStation: localStorage.getItem('hamtab_wx_station') || '',
   wxApiKey: localStorage.getItem('hamtab_wx_apikey') || '',
   owmApiKey: localStorage.getItem('hamtab_owm_apikey') || '',
+  hamqthUser: localStorage.getItem('hamtab_hamqth_user') || '',
+  hamqthPass: localStorage.getItem('hamtab_hamqth_pass') || '',
   nwsAlerts: [],
   weatherTimer: null,
   nwsCondTimer: null,

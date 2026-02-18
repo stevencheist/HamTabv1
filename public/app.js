@@ -189,6 +189,8 @@
         // snap widget positions to grid (default: on)
         allowOverlap: localStorage.getItem("hamtab_allow_overlap") === "true",
         // skip overlap resolution (default: off)
+        customLayout: false,
+        // true when user has customized widget positions — prevents redistributeRightColumn() from overwriting
         // Grid layout mode
         gridMode: localStorage.getItem("hamtab_grid_mode") || "grid",
         // 'float' or 'grid'
@@ -6427,6 +6429,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
   }
   function redistributeRightColumn() {
+    if (state_default.customLayout) return;
     const { height: H } = getWidgetArea();
     const pad = 6;
     const solarEl = document.getElementById("widget-solar");
@@ -6629,6 +6632,11 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   }
   function clearUserLayout() {
     localStorage.removeItem(USER_LAYOUT_KEY);
+    localStorage.removeItem(WIDGET_STORAGE_KEY);
+    state_default.customLayout = false;
+    const layout = getDefaultLayout();
+    applyLayout(layout);
+    applyWidgetVisibility();
   }
   function getNamedLayouts() {
     try {
@@ -6687,6 +6695,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       if (profile.positions) {
         applyLayout(profile.positions);
         localStorage.setItem(WIDGET_STORAGE_KEY, JSON.stringify(profile.positions));
+        state_default.customLayout = true;
       }
     }
     applyWidgetVisibility();
@@ -6737,6 +6746,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         document.removeEventListener("mouseup", onUp);
         document.getElementById("widgetArea").classList.remove("snap-grid-visible");
         if (!state_default.allowOverlap) resolveOverlaps(widget);
+        state_default.customLayout = true;
         saveWidgets();
       }
       document.addEventListener("mousemove", onMove);
@@ -6780,6 +6790,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         document.removeEventListener("mouseup", onUp);
         document.getElementById("widgetArea").classList.remove("snap-grid-visible");
         if (!state_default.allowOverlap) resolveOverlaps(widget);
+        state_default.customLayout = true;
         saveWidgets();
         if (state_default.map && widget.id === "widget-map") {
           state_default.map.invalidateSize();
@@ -6948,6 +6959,8 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     }
     if (!layout) {
       layout = getDefaultLayout();
+    } else {
+      state_default.customLayout = true;
     }
     applyLayout(layout);
     applyWidgetVisibility();
@@ -7012,15 +7025,39 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         maxBtn.title = "Toggle fullscreen map";
         maxBtn.textContent = "\u26F6";
         maxBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+        const widgetToggle = document.createElement("button");
+        widgetToggle.className = "fs-widget-toggle";
+        widgetToggle.title = "Toggle widgets on fullscreen map";
+        widgetToggle.textContent = "W";
+        widgetToggle.addEventListener("mousedown", (e) => e.stopPropagation());
+        const fsHideKey = "hamtab_fs_hide_widgets";
+        const updateToggleLabel = () => {
+          const hidden = document.body.classList.contains("fs-widgets-hidden");
+          widgetToggle.textContent = hidden ? "W" : "W";
+          widgetToggle.style.opacity = hidden ? "0.5" : "1";
+          widgetToggle.title = hidden ? "Show widgets" : "Hide widgets";
+        };
+        widgetToggle.addEventListener("click", (e) => {
+          e.stopPropagation();
+          document.body.classList.toggle("fs-widgets-hidden");
+          const hidden = document.body.classList.contains("fs-widgets-hidden");
+          localStorage.setItem(fsHideKey, hidden ? "true" : "false");
+          updateToggleLabel();
+        });
         const enterFS = () => {
           mapWidget.classList.add("map-fullscreen");
           document.body.classList.add("map-fullscreen-active");
+          if (localStorage.getItem(fsHideKey) === "true") {
+            document.body.classList.add("fs-widgets-hidden");
+          }
+          updateToggleLabel();
           maxBtn.textContent = "\u2715";
           if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
         };
         const exitFS = () => {
           mapWidget.classList.remove("map-fullscreen");
           document.body.classList.remove("map-fullscreen-active");
+          document.body.classList.remove("fs-widgets-hidden");
           maxBtn.textContent = "\u26F6";
           if (state_default.map) setTimeout(() => state_default.map.invalidateSize(), 50);
         };
@@ -7028,6 +7065,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
           e.stopPropagation();
           mapWidget.classList.contains("map-fullscreen") ? exitFS() : enterFS();
         });
+        mapHeader.appendChild(widgetToggle);
         mapHeader.appendChild(maxBtn);
         document.addEventListener("keydown", (e) => {
           if (e.key === "Escape" && mapWidget.classList.contains("map-fullscreen")) exitFS();
@@ -10011,8 +10049,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.53.5";
-    $("aboutVersion").textContent = "0.53.5";
+    $("splashVersion").textContent = "0.53.6";
+    $("aboutVersion").textContent = "0.53.6";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

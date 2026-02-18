@@ -112,6 +112,7 @@ const CACHE_RULES = [
   { prefix: '/api/iss/position',       cc: 'public, max-age=5, s-maxage=10' },         // real-time; client polls 10s
   { prefix: '/api/weather/clouds',     cc: 'public, max-age=1800, s-maxage=3600' },     // OWM cloud tiles; browser 30m, edge 1h
   { prefix: '/api/weather/radar',      cc: 'public, max-age=120, s-maxage=300' },      // RainViewer; browser 2m, edge 5m
+  { prefix: '/api/weather/owm',        cc: 'public, max-age=300, s-maxage=900' },      // OWM 15m refresh; browser 5m, edge 15m
   { prefix: '/api/weather/conditions', cc: 'public, max-age=300, s-maxage=900' },      // NWS 15m refresh; browser 5m, edge 15m
   { prefix: '/api/weather/alerts',     cc: 'public, max-age=120, s-maxage=300' },      // safety-critical; browser 2m, edge 5m
   { prefix: '/api/weather',            cc: 'public, max-age=120, s-maxage=300' },      // WU data; browser 2m, edge 5m
@@ -159,13 +160,26 @@ async function fetchCallCoords(callsign) {
   const cached = dxcCallCache[key];
   if (cached && Date.now() < cached.expires) return cached;
   try {
-    const data = await fetchJSON(`https://callook.info/${encodeURIComponent(key)}/json`);
-    if (data.status === 'VALID' && data.location) {
-      const entry = {
-        lat: parseFloat(data.location.latitude) || null,
-        lon: parseFloat(data.location.longitude) || null,
-        expires: Date.now() + DXC_CALL_TTL_OK,
-      };
+    let lat = null, lon = null;
+
+    if (isUSCallsign(key)) {
+      // US calls — callook.info (FCC database, richest data)
+      const data = await fetchJSON(`https://callook.info/${encodeURIComponent(key)}/json`);
+      if (data.status === 'VALID' && data.location) {
+        lat = parseFloat(data.location.latitude) || null;
+        lon = parseFloat(data.location.longitude) || null;
+      }
+    } else {
+      // Non-US calls — HamQTH global database
+      const data = await lookupHamqth(key);
+      if (data && data.lat != null && data.lon != null) {
+        lat = data.lat;
+        lon = data.lon;
+      }
+    }
+
+    if (lat !== null && lon !== null) {
+      const entry = { lat, lon, expires: Date.now() + DXC_CALL_TTL_OK };
       dxcCallCache[key] = entry;
       return entry;
     }
@@ -242,6 +256,105 @@ function gridToLatLon(grid) {
   const lon = (grid.charCodeAt(0) - A) * 20 + (grid.charCodeAt(2) - ZERO) * 2 + 1 - 180;
   const lat = (grid.charCodeAt(1) - A) * 10 + (grid.charCodeAt(3) - ZERO) + 0.5 - 90;
   return { lat, lon };
+}
+
+// --- HamQTH Callsign Lookup (global, non-US) ---
+
+// US callsign prefix detection — routes to callook.info (FCC data)
+function isUSCallsign(call) {
+  if (!call) return false;
+  return /^([KNW][A-Z]?\d|A[A-L]\d)/i.test(call);
+}
+
+// HamQTH session cache — XML API uses session-based auth with ~1h TTL
+let hamqthSession = { id: null, expires: 0 };
+
+async function getHamqthSessionId() {
+  const user = process.env.HAMQTH_USER;
+  const pass = process.env.HAMQTH_PASS;
+  if (!user || !pass) return null;
+
+  // Return cached session if still valid
+  if (hamqthSession.id && Date.now() < hamqthSession.expires) {
+    return hamqthSession.id;
+  }
+
+  try {
+    const url = `https://www.hamqth.com/xml.php?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}`;
+    const xml = await fetchText(url);
+    const match = xml.match(/<session_id>([^<]+)<\/session_id>/);
+    if (match) {
+      hamqthSession = { id: match[1], expires: Date.now() + 55 * 60 * 1000 }; // 55 min TTL (server expires at 60)
+      return match[1];
+    }
+    console.error('HamQTH auth failed:', xml.substring(0, 200));
+    return null;
+  } catch (err) {
+    console.error('HamQTH session error:', err.message);
+    return null;
+  }
+}
+
+function parseHamqthResponse(xml) {
+  // Extract fields from HamQTH XML response via regex
+  const field = (name) => {
+    const m = xml.match(new RegExp(`<${name}>([^<]*)</${name}>`));
+    return m ? m[1].trim() : '';
+  };
+
+  const callsign = field('callsign');
+  if (!callsign) return null;
+
+  const name = [field('nick'), field('adr_name')].filter(Boolean).join(' ').trim() || callsign;
+  const city = field('adr_city');
+  const country = field('country');
+  const addr2 = [city, country].filter(Boolean).join(', ');
+  const grid = field('grid');
+  let lat = parseFloat(field('latitude')) || null;
+  let lon = parseFloat(field('longitude')) || null;
+
+  // Fallback: derive lat/lon from grid square if HamQTH didn't provide coordinates
+  if (lat === null && lon === null && grid) {
+    const ll = gridToLatLon(grid);
+    if (ll) { lat = ll.lat; lon = ll.lon; }
+  }
+
+  return {
+    status: 'VALID',
+    class: '',
+    name,
+    addr1: field('adr_street1'),
+    addr2,
+    grid,
+    lat,
+    lon,
+    country,
+    source: 'hamqth',
+  };
+}
+
+async function lookupHamqth(call, retried) {
+  const sid = await getHamqthSessionId();
+  if (!sid) return null;
+
+  try {
+    const url = `https://www.hamqth.com/xml.php?id=${encodeURIComponent(sid)}&callsign=${encodeURIComponent(call)}&prg=HamTab`;
+    const xml = await fetchText(url);
+
+    // Session expired — clear and retry once
+    if (!retried && xml.includes('Session does not exist')) {
+      hamqthSession = { id: null, expires: 0 };
+      return lookupHamqth(call, true);
+    }
+
+    // Check for error (not found, etc.)
+    if (xml.includes('<error>')) return null;
+
+    return parseHamqthResponse(xml);
+  } catch (err) {
+    console.error('HamQTH lookup error:', err.message);
+    return null;
+  }
 }
 
 // Proxy HamQTH DX Cluster spots
@@ -1226,6 +1339,46 @@ app.get('/api/weather/alerts', async (req, res) => {
   }
 });
 
+// OWM Current Weather (global coverage — fallback when NWS unavailable)
+app.get('/api/weather/owm', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat);
+    const lon = parseFloat(req.query.lon);
+    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
+      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+    }
+    const apiKey = req.query.apikey || process.env.OWM_API_KEY;
+    if (!apiKey) {
+      return res.status(400).json({ error: 'OWM API key required' });
+    }
+    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&appid=${encodeURIComponent(apiKey)}&units=imperial`;
+    const raw = await fetchText(url);
+    const data = JSON.parse(raw);
+
+    // Map OWM response to same shape as NWS conditions endpoint
+    const weather = data.weather && data.weather[0] ? data.weather[0].main : '';
+    const temp = data.main ? Math.round(data.main.temp) : null;
+    const humidity = data.main ? data.main.humidity : null;
+    const windSpeedMph = data.wind ? Math.round(data.wind.speed) : null;
+    const windDeg = data.wind ? data.wind.deg : null;
+    const isDaytime = data.sys ? (Date.now() / 1000 > data.sys.sunrise && Date.now() / 1000 < data.sys.sunset) : true;
+
+    res.json({
+      shortForecast: weather,
+      temperature: temp,
+      temperatureUnit: 'F',
+      isDaytime,
+      windSpeed: windSpeedMph != null ? windSpeedMph + ' mph' : null,
+      windDirection: windDeg != null ? degToCompass(windDeg) : '',
+      relativeHumidity: humidity,
+      source: 'owm',
+    });
+  } catch (err) {
+    console.error('Error fetching OWM conditions:', err.message);
+    res.status(502).json({ error: 'Failed to fetch OWM weather data' });
+  }
+});
+
 function nwsFetchOnce(url, redirectCount = 0) {
   return new Promise((resolve, reject) => {
     if (redirectCount > MAX_REDIRECTS) {
@@ -1304,46 +1457,61 @@ async function nwsFetch(url, retries = 2) {
   }
 }
 
-// Proxy callook.info license lookup
+// Callsign lookup — US calls via callook.info (FCC), non-US via HamQTH (global)
 app.get('/api/callsign/:call', async (req, res) => {
   try {
     const rawCall = req.params.call;
     if (!/^[A-Z0-9]{1,10}$/i.test(rawCall)) {
       return res.status(400).json({ error: 'Invalid callsign format' });
     }
-    const call = encodeURIComponent(rawCall.toUpperCase());
-    const data = await fetchJSON(`https://callook.info/${call}/json`);
-    const addr = data.address || {};
-    const loc = data.location || {};
-    let lat = loc.latitude ? parseFloat(loc.latitude) : null;
-    let lon = loc.longitude ? parseFloat(loc.longitude) : null;
+    const callUpper = rawCall.toUpperCase();
 
-    // Fallback: geocode via Nominatim when callook.info has address but no coordinates
-    if (lat === null && lon === null && addr.line2) {
-      try {
-        const q = encodeURIComponent(addr.line2);
-        const geoUrl = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=us`;
-        const geoText = await secureFetch(geoUrl);
-        const geoResults = JSON.parse(geoText);
-        if (geoResults.length > 0) {
-          lat = parseFloat(geoResults[0].lat);
-          lon = parseFloat(geoResults[0].lon);
+    if (isUSCallsign(callUpper)) {
+      // US calls — callook.info (FCC database)
+      const call = encodeURIComponent(callUpper);
+      const data = await fetchJSON(`https://callook.info/${call}/json`);
+      const addr = data.address || {};
+      const loc = data.location || {};
+      let lat = loc.latitude ? parseFloat(loc.latitude) : null;
+      let lon = loc.longitude ? parseFloat(loc.longitude) : null;
+
+      // Fallback: geocode via Nominatim when callook.info has address but no coordinates
+      if (lat === null && lon === null && addr.line2) {
+        try {
+          const q = encodeURIComponent(addr.line2);
+          const geoUrl = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=us`;
+          const geoText = await secureFetch(geoUrl);
+          const geoResults = JSON.parse(geoText);
+          if (geoResults.length > 0) {
+            lat = parseFloat(geoResults[0].lat);
+            lon = parseFloat(geoResults[0].lon);
+          }
+        } catch {
+          // Geocode is best-effort — silently fall through with null coordinates
         }
-      } catch {
-        // Geocode is best-effort — silently fall through with null coordinates
+      }
+
+      res.json({
+        status: data.status || 'INVALID',
+        class: (data.current && data.current.operClass) || '',
+        name: (data.name || ''),
+        addr1: addr.line1 || '',
+        addr2: addr.line2 || '',
+        grid: loc.gridsquare || '',
+        lat,
+        lon,
+        country: 'United States',
+        source: 'callook',
+      });
+    } else {
+      // Non-US calls — HamQTH global database
+      const data = await lookupHamqth(callUpper);
+      if (data) {
+        res.json(data);
+      } else {
+        res.json({ status: 'NOT_FOUND', class: '', name: '', addr1: '', addr2: '', grid: '', lat: null, lon: null, country: '', source: 'hamqth' });
       }
     }
-
-    res.json({
-      status: data.status || 'INVALID',
-      class: (data.current && data.current.operClass) || '',
-      name: (data.name || ''),
-      addr1: addr.line1 || '',
-      addr2: addr.line2 || '',
-      grid: loc.gridsquare || '',
-      lat,
-      lon,
-    });
   } catch (err) {
     console.error('Error fetching callsign data:', err.message);
     res.status(502).json({ error: 'Failed to fetch callsign data' });
@@ -1371,7 +1539,7 @@ app.post('/api/config/env', (req, res) => {
     }
 
     // Update or append each key
-    const allowedKeys = ['WU_API_KEY', 'OWM_API_KEY', 'N2YO_API_KEY'];
+    const allowedKeys = ['WU_API_KEY', 'OWM_API_KEY', 'N2YO_API_KEY', 'HAMQTH_USER', 'HAMQTH_PASS'];
     for (const [key, value] of Object.entries(updates)) {
       // Only allow known env keys
       if (!allowedKeys.includes(key)) continue;

@@ -1949,6 +1949,10 @@
     }
     console.log(`[VOACAP] fetchVoacapMatrix called, target=${state_default.voacapTarget}, selectedSpot=${state_default.selectedSpotId}, sensitivity=${state_default.voacapSensitivity}`);
     if (activeFetchController) activeFetchController.abort();
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
     const controller = new AbortController();
     activeFetchController = controller;
     const sensLevel = SENSITIVITY_LEVELS[state_default.voacapSensitivity] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
@@ -1986,6 +1990,7 @@
         state_default.voacapServerData = data;
         state_default.voacapEngine = data.engine || "simplified";
         state_default.voacapLastFetch = Date.now();
+        retryCount = 0;
         if (state_default.voacapTarget === "spot") {
           const hasSignal = matrixHasSignal(data.matrix);
           const peakRel = Math.max(...data.matrix.flatMap(
@@ -2000,6 +2005,14 @@
         return;
       }
       console.warn(`[VOACAP] Fetch error: ${err.message}`);
+      if (retryCount < MAX_RETRIES && activeFetchController === controller) {
+        retryCount++;
+        console.log(`[VOACAP] Retry ${retryCount}/${MAX_RETRIES} in ${FETCH_RETRY_MS / 1e3}s`);
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          fetchVoacapMatrix();
+        }, FETCH_RETRY_MS);
+      }
     }
     renderVoacapMatrix();
   }
@@ -2247,7 +2260,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     state_default.voacapServerData = null;
     fetchVoacapMatrix();
   }
-  var bandOverlayCircles, activeFetchController, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS, SENSITIVITY_LEVELS, DEFAULT_SENSITIVITY, MAX_SENSITIVITY;
+  var bandOverlayCircles, activeFetchController, retryTimer, retryCount, MAX_RETRIES, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS, SENSITIVITY_LEVELS, DEFAULT_SENSITIVITY, MAX_SENSITIVITY;
   var init_voacap = __esm({
     "src/voacap.js"() {
       init_state();
@@ -2257,6 +2270,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       init_rel_heatmap();
       bandOverlayCircles = [];
       activeFetchController = null;
+      retryTimer = null;
+      retryCount = 0;
+      MAX_RETRIES = 3;
       FETCH_THROTTLE_MS = 5 * 60 * 1e3;
       FETCH_RETRY_MS = 30 * 1e3;
       POWER_OPTIONS = ["5", "100", "1000"];
@@ -10084,8 +10100,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.53.7";
-    $("aboutVersion").textContent = "0.53.7";
+    $("splashVersion").textContent = "0.53.8";
+    $("aboutVersion").textContent = "0.53.8";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

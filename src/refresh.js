@@ -16,7 +16,8 @@ export async function fetchSourceData(source) {
   const def = SOURCE_DEFS[source];
   if (!def) return;
   try {
-    const resp = await fetch(def.endpoint);
+    const bustUrl = def.endpoint + (def.endpoint.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    const resp = await fetch(bustUrl);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     let data = await resp.json();
     if (source === 'pota') {

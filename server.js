@@ -2062,6 +2062,73 @@ app.post('/api/config/env', (req, res) => {
   }
 });
 
+// --- Config Sync Endpoints (lanmode only) ---
+// Stores per-callsign config JSON files for cross-browser sync on the LAN.
+// Hostedmode has no /api/sync routes — client checkSyncCapability() will get 404.
+
+const SYNC_DIR = path.join(__dirname, 'data', 'configs');
+fs.mkdirSync(SYNC_DIR, { recursive: true });
+
+// Probe endpoint — client uses this to detect sync capability
+app.head('/api/sync/probe', (_req, res) => res.sendStatus(200));
+
+// GET /api/sync/:callsign — read stored config
+app.get('/api/sync/:callsign', (req, res) => {
+  const call = req.params.callsign.toUpperCase();
+  if (!/^[A-Z0-9]{1,10}$/.test(call)) {
+    return res.status(400).json({ error: 'Invalid callsign' });
+  }
+  const filePath = path.join(SYNC_DIR, `${call}.json`);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'No config found' });
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
+    res.json(data);
+  } catch (err) {
+    console.error('Sync read error:', err.message);
+    res.status(500).json({ error: 'Failed to read config' });
+  }
+});
+
+// PUT /api/sync/:callsign — store config
+app.put('/api/sync/:callsign', (req, res) => {
+  const call = req.params.callsign.toUpperCase();
+  if (!/^[A-Z0-9]{1,10}$/.test(call)) {
+    return res.status(400).json({ error: 'Invalid callsign' });
+  }
+  const body = req.body;
+  if (!body || typeof body !== 'object' || !body.config) {
+    return res.status(400).json({ error: 'Invalid body' });
+  }
+  // Enforce size limit (100KB)
+  const json = JSON.stringify(body);
+  if (json.length > 100 * 1024) {
+    return res.status(413).json({ error: 'Config too large' });
+  }
+  body.updatedAt = new Date().toISOString();
+  try {
+    fs.writeFileSync(path.join(SYNC_DIR, `${call}.json`), JSON.stringify(body, null, 2));
+    res.json({ ok: true, updatedAt: body.updatedAt });
+  } catch (err) {
+    console.error('Sync write error:', err.message);
+    res.status(500).json({ error: 'Failed to save config' });
+  }
+});
+
+// DELETE /api/sync/:callsign — remove stored config
+app.delete('/api/sync/:callsign', (req, res) => {
+  const call = req.params.callsign.toUpperCase();
+  if (!/^[A-Z0-9]{1,10}$/.test(call)) {
+    return res.status(400).json({ error: 'Invalid callsign' });
+  }
+  const filePath = path.join(SYNC_DIR, `${call}.json`);
+  if (fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
+  res.json({ ok: true });
+});
+
 // --- Feedback endpoint (creates GitHub issue) ---
 app.post('/api/feedback', feedbackLimiter, async (req, res) => {
   try {

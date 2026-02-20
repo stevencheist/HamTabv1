@@ -22,6 +22,7 @@ wrangler.jsonc
 .github
 docs
 ESPHamClock
+data
 feedback-private-key.pem
 server.pid
 __pycache__

@@ -6,6 +6,7 @@ services:
       - "3443:3443"
     volumes:
       - hamtab-certs:/app/certs
+      - hamtab-data:/app/data
     environment:
       - PORT=3000
       - HTTPS_PORT=3443
@@ -15,3 +16,4 @@ services:
 
 volumes:
   hamtab-certs:
+  hamtab-data:

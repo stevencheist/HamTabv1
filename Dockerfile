@@ -39,8 +39,9 @@ COPY --from=builder /app/public ./public
 ENV PORT=3000
 EXPOSE 3000 3443
 
-# Persist self-signed TLS certs across container restarts
+# Persist self-signed TLS certs and config sync data across container restarts
 VOLUME /app/certs
+VOLUME /app/data
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD node -e "const http = require('http'); http.get('http://localhost:3000/api/health', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"

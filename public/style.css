@@ -6750,3 +6750,106 @@ body.grayscale {
   .big-clock-label { font-size: 0.9rem; }
 }
 
+/* ---- Config Sync / Data Tab ---- */
+
+.data-desc {
+  color: var(--text-dim);
+  font-size: 0.85rem;
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+
+.data-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.data-btn {
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.data-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.data-btn-sm {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  border-radius: 4px;
+  margin-top: 6px;
+}
+
+.data-btn-sm:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.data-section {
+  margin-bottom: 12px;
+}
+
+.data-section label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+.data-section textarea {
+  width: 100%;
+  padding: 8px;
+  font-size: 0.75rem;
+  font-family: monospace;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-sizing: border-box;
+  resize: vertical;
+  word-break: break-all;
+}
+
+.data-section textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.data-status {
+  font-size: 0.8rem;
+  min-height: 1.2em;
+  margin: 4px 0 8px;
+}
+
+.data-status.success { color: var(--accent); }
+.data-status.error { color: #e74c3c; }
+
+.data-toggle-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.data-toggle-label input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.data-sync-status {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  min-height: 1.2em;
+}
+

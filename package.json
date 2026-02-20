@@ -35,6 +35,7 @@
     "fast-xml-parser": "^5.3.4",
     "helmet": "^8.1.0",
     "js-yaml": "^4.1.1",
+    "pako": "^2.1.0",
     "satellite.js": "^6.0.2",
     "selfsigned": "^2.4.1",
     "swagger-ui-express": "^5.0.1"

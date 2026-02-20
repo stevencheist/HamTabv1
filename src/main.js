@@ -55,6 +55,7 @@ import { initClockConfigListeners } from './clock-config.js';
 import { initMobileMenu } from './menu.js';
 import { initTabs } from './tabs.js';
 import { initLayoutDropdown } from './layouts.js';
+import { pullConfig, isSyncEnabled } from './config-sync.js';
 
 // Initialize map
 initMap();
@@ -152,6 +153,13 @@ switchSource(state.currentSource);
 
 // Fix map size after layout settles
 if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
+
+// Pull config from LAN sync server if enabled (async — reload if newer config found)
+if (isSyncEnabled() && state.myCallsign) {
+  pullConfig(state.myCallsign).then(applied => {
+    if (applied) window.location.reload();
+  }).catch(() => {});
+}
 
 // Show splash if no saved callsign, otherwise start immediately
 if (state.myCallsign) {

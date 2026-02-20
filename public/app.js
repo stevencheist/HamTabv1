@@ -8951,7 +8951,8 @@ ${beacon.location}`);
     const def = SOURCE_DEFS[source];
     if (!def) return;
     try {
-      const resp = await fetch(def.endpoint);
+      const bustUrl = def.endpoint + (def.endpoint.includes("?") ? "&" : "?") + "_t=" + Date.now();
+      const resp = await fetch(bustUrl);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       let data = await resp.json();
       if (source === "pota") {
@@ -9567,7 +9568,7 @@ ${beacon.location}`);
       return;
     }
     try {
-      const url = `/api/spots/psk/heard?callsign=${encodeURIComponent(state_default.myCallsign)}`;
+      const url = `/api/spots/psk/heard?callsign=${encodeURIComponent(state_default.myCallsign)}&_t=${Date.now()}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();

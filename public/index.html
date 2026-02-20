@@ -124,6 +124,7 @@
         <button type="button" class="config-tab" data-tab="display">Display</button>
         <button type="button" class="config-tab" data-tab="appearance">Appearance</button>
         <button type="button" class="config-tab" data-tab="services">Services</button>
+        <button type="button" class="config-tab" data-tab="data">Data</button>
         <button type="button" class="config-tab" data-tab="about">About</button>
         <button type="button" class="config-tab" data-tab="thanks">Thanks</button>
       </div>
@@ -359,13 +360,53 @@
           </div>
         </div>
 
-        <!-- Tab 6: Thanks -->
+        <!-- Tab 6: Data -->
+        <div class="config-panel" data-panel="data">
+          <h3>Export / Import</h3>
+          <p class="data-desc">Transfer your HamTab settings between browsers. Export produces a text code you can paste into another browser's import field.</p>
+
+          <div class="data-actions">
+            <button type="button" id="dataExportBtn" class="data-btn">Export Config</button>
+            <button type="button" id="dataImportToggle" class="data-btn">Import Config</button>
+          </div>
+
+          <div id="dataExportSection" class="data-section hidden">
+            <label for="dataExportCode">Config code (copy this):</label>
+            <textarea id="dataExportCode" readonly rows="5" spellcheck="false"></textarea>
+            <button type="button" id="dataExportCopy" class="data-btn-sm">Copy to Clipboard</button>
+          </div>
+
+          <div id="dataImportSection" class="data-section hidden">
+            <label for="dataImportCode">Paste config code:</label>
+            <textarea id="dataImportCode" rows="5" spellcheck="false" placeholder="Paste exported config code here..."></textarea>
+            <button type="button" id="dataImportApply" class="data-btn-sm">Apply Import</button>
+          </div>
+
+          <div id="dataStatus" class="data-status"></div>
+
+          <div class="splash-divider"></div>
+
+          <div id="dataSyncSection" class="hidden">
+            <h3>LAN Sync</h3>
+            <p class="data-desc">Automatically keep settings in sync across all browsers on your local network.</p>
+            <label class="data-toggle-label">
+              <input type="checkbox" id="dataSyncToggle">
+              <span>Sync across devices</span>
+            </label>
+            <div id="dataSyncStatus" class="data-sync-status"></div>
+          </div>
+        </div>
+
+        <!-- Tab 7: Thanks -->
         <div class="config-panel" data-panel="thanks">
           <div class="about-content">
             <h3>Thank You</h3>
             <p>HamTab is built by hams, for hams. We'd like to thank the community members who have helped improve HamTab through bug reports, testing, and feedback.</p>
             <div id="thanksList">
-              <!-- Community contributors will be listed here -->
+              <h4>Community Contributors</h4>
+              <ul class="about-links">
+                <li><strong>Chris Anderson (KE9END)</strong> — Dedicated beta tester, bug reports, and feature feedback</li>
+              </ul>
             </div>
           </div>
         </div>

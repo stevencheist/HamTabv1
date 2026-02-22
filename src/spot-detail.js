@@ -16,7 +16,7 @@ function weatherCacheKey(lat, lon) {
   return `${lat.toFixed(1)},${lon.toFixed(1)}`;
 }
 
-// NWS API only covers the US and territories — skip requests outside this bounding box
+// NWS API only covers the US and territories
 function isNwsCoverage(lat, lon) {
   return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
 }
@@ -42,15 +42,32 @@ async function fetchCallsignInfo(call) {
 async function fetchSpotWeather(lat, lon) {
   const key = weatherCacheKey(lat, lon);
   if (spotDetailWeatherCache[key]) return spotDetailWeatherCache[key];
-  try {
-    const resp = await fetch(`/api/weather/conditions?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`);
-    if (!resp.ok) return null;
-    const data = await resp.json();
-    spotDetailWeatherCache[key] = data;
-    return data;
-  } catch {
-    return null;
+
+  // Try NWS first (US coverage only), then fall back to OWM (global)
+  if (isNwsCoverage(lat, lon)) {
+    try {
+      const resp = await fetch(`/api/weather/conditions?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        spotDetailWeatherCache[key] = data;
+        return data;
+      }
+    } catch { /* fall through to OWM */ }
   }
+
+  // OWM fallback — global coverage, requires user-supplied API key
+  if (state.owmApiKey) {
+    try {
+      const resp = await fetch(`/api/weather/owm?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&apikey=${encodeURIComponent(state.owmApiKey)}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        spotDetailWeatherCache[key] = data;
+        return data;
+      }
+    } catch { /* no weather available */ }
+  }
+
+  return null;
 }
 
 function renderLocalTime(lon) {
@@ -162,8 +179,8 @@ export async function updateSpotDetail(spot) {
     nameEl.textContent = parts.join(' ');
   }
 
-  // Fetch NWS weather async (US spots only)
-  if (!isNaN(lat) && !isNaN(lon) && isNwsCoverage(lat, lon)) {
+  // Fetch weather async (NWS for US, OWM fallback for global)
+  if (!isNaN(lat) && !isNaN(lon)) {
     const wxEl = document.getElementById('spotDetailWx');
     const wx = await fetchSpotWeather(lat, lon);
     if (wx && wxEl && currentSpot === spot) {

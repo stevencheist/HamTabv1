@@ -62,7 +62,8 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 ### System
 - **Operator Identity** — Callsign prompt at startup with geolocation and Maidenhead grid square display
 - **Feedback System** — In-app feedback with encrypted email submission and privacy notice
-- **Configuration Export/Import** — Export and import all settings for backup or migration
+- **Configuration Export/Import** — Export and import all settings as compressed text codes for backup or cross-browser migration
+- **LAN Config Sync** — (Lanmode) Automatically sync settings across all browsers on your local network
 - **Auto-Update** — (Lanmode) Server checks for updates at a configurable interval and can apply them with one click
 - **Help System** — Every widget has a help button (?) with description, usage guide, and tips
 
@@ -812,6 +813,7 @@ Color coded: **Good** (green), **Fair** (yellow), **Poor** (red).
 | [yamljs](https://github.com/jeremyfa/yaml.js) | ^0.3.x | OpenAPI spec parsing for Swagger |
 | [cors](https://github.com/expressjs/cors) | ^2.x | CORS middleware (lanmode only) |
 | [selfsigned](https://github.com/jfromaniello/selfsigned) | ^2.x | Self-signed TLS certificate generation (lanmode only) |
+| [pako](https://github.com/nodeca/pako) | ^2.x | Deflate/inflate for config export/import |
 | [esbuild](https://esbuild.github.io/) | ^0.27.x | Client JS bundler (dev dependency) |
 
 Leaflet maps and marker clustering are bundled locally in the `public/vendor/` directory.

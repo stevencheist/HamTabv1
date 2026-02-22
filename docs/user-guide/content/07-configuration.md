@@ -223,26 +223,52 @@ To reset to default layout:
 
 ## Config Export/Import
 
+Transfer your HamTab settings between browsers using compressed text codes. This works in both lanmode and hostedmode — no server required.
+
 ### Exporting Configuration
-1. Open Config
+1. Open Config → **Data** tab
 2. Click **Export Config**
-3. Save the JSON file
+3. A text code appears — click **Copy to Clipboard**
+4. Paste the code into the other browser's import field
 
 Exported data includes:
 - Callsign and location
-- API keys
-- All preferences
-- Filter presets
-- Widget visibility
-- Layout positions
+- All preferences and filter presets
+- Widget visibility and layout positions
+- Theme, band colors, and watch lists
+
+**Not included:** API keys (shared via server `.env`), GPS coordinates, migration flags, and mobile tab state. These are device-specific or already shared through other means.
 
 ### Importing Configuration
-1. Open Config
+1. Open Config → **Data** tab
 2. Click **Import Config**
-3. Select a previously exported JSON file
-4. Settings are applied immediately
+3. Paste the text code from another browser
+4. Click **Apply Import** and confirm
+5. The page reloads with the imported settings
 
-<div class="important">Exported configs contain your API keys. Store them securely and don't share publicly.</div>
+<div class="important">Importing replaces all your settings including your callsign. A confirmation dialog appears before applying.</div>
+
+## LAN Config Sync
+
+In lanmode (self-hosted), HamTab can automatically keep settings in sync across all browsers on your local network. This gives you the same "open any browser, same dashboard" experience that HamClock provided.
+
+### Enabling Sync
+1. Open Config → **Data** tab
+2. The **LAN Sync** section appears automatically if your server supports it
+3. Check **Sync across devices**
+4. Your settings are pushed to the server whenever you save config
+
+### How It Works
+- **Push:** Every time you save settings (click OK in Config), your config is saved to the server under your callsign
+- **Pull:** When any browser loads HamTab, it checks for a newer config on the server and applies it automatically
+- **Conflict resolution:** Last-write-wins — the most recently saved config takes precedence
+
+### Requirements
+- Only available in lanmode (self-hosted installations)
+- All browsers must use the same callsign to share settings
+- The server stores configs in `data/configs/` as JSON files
+
+<div class="tip">LAN Sync is optional and disabled by default. Your settings continue to work in localStorage even without sync enabled.</div>
 
 ---
 

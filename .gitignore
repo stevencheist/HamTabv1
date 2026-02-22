@@ -13,3 +13,4 @@ server.pid
 __pycache__/
 *.pyc
 ESPHamClock/
+data/

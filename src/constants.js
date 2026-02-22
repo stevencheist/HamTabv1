@@ -436,10 +436,10 @@ export const WIDGET_HELP = {
     title: 'DX Detail',
     description: 'Shows detailed information about whichever station you\'ve selected. Click any row in the On the Air table or any marker on the map to see that station\'s details here.',
     sections: [
-      { heading: 'Station Info', content: 'Displays the operator\'s name, location, license class, and grid square (looked up from their callsign). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown. This helps you know who you\'re about to contact.' },
+      { heading: 'Station Info', content: 'Displays the operator\'s name, location, license class, and grid square (looked up from their callsign). US callsigns are looked up via the FCC database; non-US callsigns use HamQTH.com (configure credentials in Config > Services). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown.' },
       { heading: 'Distance & Bearing', content: 'Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config.' },
       { heading: 'Frequency & Mode', content: 'The frequency and mode the station is operating on, so you know exactly where to tune your radio.' },
-      { heading: 'Weather', content: 'Shows current weather conditions at the station\'s location, if available.' },
+      { heading: 'Weather', content: 'Shows current weather conditions at the station\'s location. US stations use NWS data; stations worldwide use OpenWeatherMap (configure your OWM API key in Config > Services).' },
     ],
   },
   'widget-contests': {

@@ -134,6 +134,8 @@ const state = {
   wxStation: localStorage.getItem('hamtab_wx_station') || '',
   wxApiKey: localStorage.getItem('hamtab_wx_apikey') || '',
   owmApiKey: localStorage.getItem('hamtab_owm_apikey') || '',
+  hamqthUser: localStorage.getItem('hamtab_hamqth_user') || '',
+  hamqthPass: localStorage.getItem('hamtab_hamqth_pass') || '',
   nwsAlerts: [],
   weatherTimer: null,
   nwsCondTimer: null,
@@ -152,6 +154,7 @@ const state = {
   // Free-float snap settings
   snapToGrid: localStorage.getItem('hamtab_snap_grid') !== 'false', // snap widget positions to grid (default: on)
   allowOverlap: localStorage.getItem('hamtab_allow_overlap') === 'true', // skip overlap resolution (default: off)
+  customLayout: false, // true when user has customized widget positions — prevents redistributeRightColumn() from overwriting
 
   // Grid layout mode
   gridMode: localStorage.getItem('hamtab_grid_mode') || 'grid', // 'float' or 'grid'

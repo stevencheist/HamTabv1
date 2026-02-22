@@ -26,6 +26,7 @@ import { fetchSpaceWxData } from './spacewx-graphs.js';
 import { fetchDxpeditions } from './dxpeditions.js';
 import { fetchContests } from './contests.js';
 import { startDedxTimer, stopDedxTimer } from './dedx-info.js';
+import { exportConfig, importConfig, checkSyncCapability, pushConfig, isSyncEnabled, setSyncEnabled } from './config-sync.js';
 
 // --- Staged grid assignments (working copy during config modal session) ---
 let stagedAssignments = {};
@@ -161,6 +162,13 @@ function selectGridSuggestion(grid) {
     $('splashGpsBtn').classList.remove('active');
     updateLocStatus('Manual location set');
   }
+}
+
+function setDataStatus(msg, isError) {
+  const el = document.getElementById('dataStatus');
+  if (!el) return;
+  el.textContent = msg || '';
+  el.className = 'data-status' + (isError ? ' error' : msg ? ' success' : '');
 }
 
 function updateLocStatus(msg, isError) {
@@ -368,6 +376,8 @@ export function showSplash() {
   $('splashWxApiKey').value = state.wxApiKey;
   $('splashOwmApiKey').value = state.owmApiKey;
   $('splashN2yoApiKey').value = state.n2yoApiKey;
+  $('splashHamqthUser').value = state.hamqthUser;
+  $('splashHamqthPass').value = state.hamqthPass;
 
   const intervalSelect = $('splashUpdateInterval');
   if (intervalSelect) {
@@ -512,6 +522,33 @@ export function showSplash() {
   $('splashLayoutName').value = '';
   $('splashLayoutStatus').textContent = '';
 
+  // --- Data tab state ---
+  const dataExportSection = document.getElementById('dataExportSection');
+  const dataImportSection = document.getElementById('dataImportSection');
+  const dataStatus = document.getElementById('dataStatus');
+  if (dataExportSection) dataExportSection.classList.add('hidden');
+  if (dataImportSection) dataImportSection.classList.add('hidden');
+  if (dataStatus) { dataStatus.textContent = ''; dataStatus.className = 'data-status'; }
+
+  const dataSyncToggle = document.getElementById('dataSyncToggle');
+  if (dataSyncToggle) dataSyncToggle.checked = isSyncEnabled();
+
+  // Show LAN sync section only if server supports it
+  const dataSyncSection = document.getElementById('dataSyncSection');
+  if (dataSyncSection) {
+    dataSyncSection.classList.add('hidden');
+    checkSyncCapability().then(capable => {
+      if (capable) {
+        dataSyncSection.classList.remove('hidden');
+        const syncStatus = document.getElementById('dataSyncStatus');
+        const lastPush = localStorage.getItem('hamtab_sync_last_push');
+        if (syncStatus && lastPush) {
+          syncStatus.textContent = 'Last synced: ' + new Date(lastPush).toLocaleString();
+        }
+      }
+    });
+  }
+
   $('splashCallsign').focus();
 }
 
@@ -539,16 +576,22 @@ function dismissSplash() {
   state.wxApiKey = ($('splashWxApiKey').value || '').trim();
   state.owmApiKey = ($('splashOwmApiKey').value || '').trim();
   state.n2yoApiKey = ($('splashN2yoApiKey').value || '').trim();
+  state.hamqthUser = ($('splashHamqthUser').value || '').trim();
+  state.hamqthPass = ($('splashHamqthPass').value || '').trim();
   localStorage.setItem('hamtab_wx_station', state.wxStation);
   localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
   localStorage.setItem('hamtab_owm_apikey', state.owmApiKey);
   localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
+  localStorage.setItem('hamtab_hamqth_user', state.hamqthUser);
+  localStorage.setItem('hamtab_hamqth_pass', state.hamqthPass);
 
   // Persist API keys to server .env so all clients share them
   const envUpdates = {};
   if (state.wxApiKey) envUpdates.WU_API_KEY = state.wxApiKey;
   if (state.owmApiKey) envUpdates.OWM_API_KEY = state.owmApiKey;
   if (state.n2yoApiKey) envUpdates.N2YO_API_KEY = state.n2yoApiKey;
+  if (state.hamqthUser) envUpdates.HAMQTH_USER = state.hamqthUser;
+  if (state.hamqthPass) envUpdates.HAMQTH_PASS = state.hamqthPass;
   if (Object.keys(envUpdates).length > 0) {
     fetch('/api/config/env', {
       method: 'POST',
@@ -634,6 +677,11 @@ function dismissSplash() {
   renderSpots();
   if (_initApp) _initApp();
   fetchLicenseClass(state.myCallsign);
+
+  // Push config to LAN sync server (async, non-blocking)
+  if (isSyncEnabled() && state.myCallsign) {
+    pushConfig(state.myCallsign).catch(() => {});
+  }
 }
 
 export function initSplashListeners() {
@@ -916,6 +964,89 @@ export function initSplashListeners() {
       renderGridPreview(state.gridPermutation, stagedAssignments);
       updateWidgetCellBadges(stagedAssignments);
       updateWidgetSlotEnforcement();
+    });
+  }
+
+  // --- Data tab listeners ---
+  const dataExportBtn = document.getElementById('dataExportBtn');
+  const dataImportToggle = document.getElementById('dataImportToggle');
+  const dataExportCopy = document.getElementById('dataExportCopy');
+  const dataImportApply = document.getElementById('dataImportApply');
+  const dataSyncToggleCb = document.getElementById('dataSyncToggle');
+
+  if (dataExportBtn) {
+    dataExportBtn.addEventListener('click', () => {
+      const code = exportConfig();
+      const section = document.getElementById('dataExportSection');
+      const textarea = document.getElementById('dataExportCode');
+      const importSec = document.getElementById('dataImportSection');
+      if (importSec) importSec.classList.add('hidden');
+      if (section && textarea) {
+        textarea.value = code;
+        section.classList.remove('hidden');
+        textarea.select();
+      }
+      setDataStatus('Config exported', false);
+    });
+  }
+
+  if (dataImportToggle) {
+    dataImportToggle.addEventListener('click', () => {
+      const section = document.getElementById('dataImportSection');
+      const exportSec = document.getElementById('dataExportSection');
+      if (exportSec) exportSec.classList.add('hidden');
+      if (section) {
+        section.classList.toggle('hidden');
+        if (!section.classList.contains('hidden')) {
+          const ta = document.getElementById('dataImportCode');
+          if (ta) { ta.value = ''; ta.focus(); }
+        }
+      }
+      setDataStatus('', false);
+    });
+  }
+
+  if (dataExportCopy) {
+    dataExportCopy.addEventListener('click', () => {
+      const textarea = document.getElementById('dataExportCode');
+      if (textarea && textarea.value) {
+        navigator.clipboard.writeText(textarea.value).then(() => {
+          setDataStatus('Copied to clipboard', false);
+        }).catch(() => {
+          textarea.select();
+          setDataStatus('Select and copy manually', true);
+        });
+      }
+    });
+  }
+
+  if (dataImportApply) {
+    dataImportApply.addEventListener('click', () => {
+      const textarea = document.getElementById('dataImportCode');
+      if (!textarea || !textarea.value.trim()) {
+        setDataStatus('Paste a config code first', true);
+        return;
+      }
+      if (!confirm('This will replace all your settings including your callsign. Continue?')) return;
+      const result = importConfig(textarea.value);
+      if (result.ok) {
+        setDataStatus(`Imported config from ${result.callsign || 'unknown'} — reloading...`, false);
+        setTimeout(() => window.location.reload(), 500);
+      } else {
+        setDataStatus(result.error, true);
+      }
+    });
+  }
+
+  if (dataSyncToggleCb) {
+    dataSyncToggleCb.addEventListener('change', () => {
+      setSyncEnabled(dataSyncToggleCb.checked);
+      if (dataSyncToggleCb.checked && state.myCallsign) {
+        pushConfig(state.myCallsign).then(ok => {
+          const el = document.getElementById('dataSyncStatus');
+          if (el) el.textContent = ok ? 'Synced now' : 'Sync failed — will retry on next save';
+        });
+      }
     });
   }
 

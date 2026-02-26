@@ -56,6 +56,7 @@ import { initMobileMenu } from './menu.js';
 import { initTabs } from './tabs.js';
 import { initLayoutDropdown } from './layouts.js';
 import { pullConfig, isSyncEnabled } from './config-sync.js';
+import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
 
 // Initialize map
 initMap();
@@ -106,6 +107,7 @@ initAnalogClock();
 initClockConfigListeners();
 initMobileMenu();
 initTabs();
+initOnAirRig(); // only activates if widget is visible (checked inside)
 
 // Wire initApp into splash dismissal
 function initApp() {

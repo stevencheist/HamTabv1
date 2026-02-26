@@ -5034,101 +5034,446 @@ header {
 /* Stopwatch in HamClock theme */
 .theme-hamclock .sw-display { color: var(--accent); }
 
-/* ---- Theme: Neon (digital grid glow) ---- */
-/* Glow effects on widgets and interactive elements */
+/* ---- Theme: Radio Face (Modern Transceiver LCD) ---- */
+/* Inspired by Icom IC-7300, Yaesu FT-DX10, Kenwood TS-890S front panels */
+/* Dark LCD inset panels, LED bar-graph meters, metallic chassis, glowing indicators */
 
-.theme-neon .widget {
-  border-color: rgba(0, 229, 255, 0.3);
-  box-shadow: 0 0 8px rgba(0, 229, 255, 0.15), inset 0 0 8px rgba(0, 229, 255, 0.05);
+/* ── Scrollbar ── */
+.theme-radioface ::-webkit-scrollbar { width: 6px; height: 6px; }
+.theme-radioface ::-webkit-scrollbar-track { background: #040810; }
+.theme-radioface ::-webkit-scrollbar-thumb { background: #1a2a44; border-radius: 3px; }
+.theme-radioface ::-webkit-scrollbar-thumb:hover { background: #2a3a5e; }
+
+/* ── Widget: LCD Panels ── */
+.theme-radioface .widget {
+  border-color: #1e2e4e;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  background: linear-gradient(180deg, #0e1628 0%, #080e1c 100%);
+}
+.theme-radioface .widget:hover {
+  border-color: rgba(0, 229, 255, 0.2);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.6), 0 0 8px rgba(0, 229, 255, 0.06);
+}
+.theme-radioface .widget-header {
+  background: linear-gradient(180deg, #141e34 0%, #0a1220 100%);
+  border-bottom: 1px solid #1a2a44;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-size: 0.7rem;
+  color: #5a7090;
+  font-family: 'Segoe UI', Tahoma, sans-serif;
+}
+.theme-radioface .widget-body {
+  background-color: #040810;
+  background-image: repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(0,0,0,0.05) 2px, rgba(0,0,0,0.05) 4px);
+}
+.theme-radioface .widget-header .widget-help-btn,
+.theme-radioface .widget-header .widget-cfg-btn,
+.theme-radioface .widget-header .spot-count {
+  color: #3a5070;
+}
+.theme-radioface .widget-header .widget-help-btn:hover,
+.theme-radioface .widget-header .widget-cfg-btn:hover {
+  color: #00e5ff;
 }
 
-.theme-neon .widget-header {
+/* ── Main Header: Metallic Chassis ── */
+.theme-radioface header {
+  background: linear-gradient(180deg, #0e1628 0%, #080e1c 100%);
+  border-bottom: 1px solid #1a2a44;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+.theme-radioface .op-call a {
+  color: #00e5ff;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.3);
+}
+.theme-radioface .op-class {
+  color: #ffd600;
+  text-shadow: 0 0 4px rgba(255, 214, 0, 0.2);
+}
+.theme-radioface .header-clock-time {
+  font-family: 'Consolas', 'Courier New', monospace;
+  color: #00e5ff;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.25);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Operator Buttons: Physical 3D Buttons ── */
+.theme-radioface .op-btn,
+.theme-radioface #refreshBtn,
+.theme-radioface #fullscreenBtn,
+.theme-radioface .layout-btn {
+  background: linear-gradient(180deg, #1e2e4e 0%, #141e30 50%, #0a1220 100%);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 3px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.68rem;
+  color: #8a9ab0;
+  transition: all 0.15s ease;
+}
+.theme-radioface .op-btn:hover,
+.theme-radioface #refreshBtn:hover,
+.theme-radioface #fullscreenBtn:hover,
+.theme-radioface .layout-btn:hover {
+  background: linear-gradient(180deg, #2a3a5a 0%, #1e2e48 50%, #141e30 100%);
+  border-color: rgba(0, 229, 255, 0.2);
+  color: #c0d0e0;
+}
+.theme-radioface .op-btn:active,
+.theme-radioface #refreshBtn:active,
+.theme-radioface #fullscreenBtn:active {
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);
+  transform: translateY(1px);
+}
+
+/* ── Source Tabs: LED Indicator Style ── */
+.theme-radioface .source-tab {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.72rem;
+  border-bottom: 2px solid transparent;
+  transition: all 0.15s ease;
+}
+.theme-radioface .source-tab:hover {
+  background: rgba(0, 229, 255, 0.04);
+}
+.theme-radioface .source-tab.active {
+  color: #00e5ff;
+  border-bottom-color: #00e5ff;
+  box-shadow: 0 2px 6px rgba(0, 229, 255, 0.15);
+  background: rgba(0, 229, 255, 0.04);
+}
+
+/* ── Filter Buttons: Illuminated LED Toggles ── */
+.theme-radioface .band-filters button,
+.theme-radioface .mode-filters button {
+  background: #080e18;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 2px;
+  color: #5a7090;
+  font-size: 0.68rem;
+  letter-spacing: 0.3px;
+  transition: all 0.15s ease;
+}
+.theme-radioface .band-filters button:hover,
+.theme-radioface .mode-filters button:hover {
+  background: rgba(0, 229, 255, 0.06);
+  border-color: rgba(0, 229, 255, 0.15);
+  color: #8aa0b8;
+}
+.theme-radioface .band-filters button.active,
+.theme-radioface .mode-filters button.active {
+  background: rgba(0, 229, 255, 0.12);
+  border-color: rgba(0, 229, 255, 0.35);
+  color: #00e5ff;
+  box-shadow: 0 0 6px rgba(0, 229, 255, 0.2), inset 0 0 4px rgba(0, 229, 255, 0.06);
+  text-shadow: 0 0 4px rgba(0, 229, 255, 0.3);
+}
+
+/* ── Spots Table: Dark LCD Grid ── */
+.theme-radioface #spotsTable th {
+  background: linear-gradient(180deg, #10182a 0%, #0a1018 100%);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.66rem;
+  color: #4a6a8a;
+  border-bottom: 1px solid rgba(0, 229, 255, 0.1);
+}
+.theme-radioface #spotsTable th.sortable:hover {
+  background: linear-gradient(180deg, #141e34 0%, #0e1624 100%);
+  color: #00e5ff;
+}
+.theme-radioface #spotsTable td {
+  border-bottom-color: rgba(255,255,255,0.025);
+  font-size: 0.74rem;
+}
+.theme-radioface #spotsTable tbody tr:hover {
+  background: rgba(0, 229, 255, 0.04);
+}
+.theme-radioface #spotsTable tbody tr.selected {
+  background: rgba(0, 229, 255, 0.06);
+  border-left-color: #00e5ff;
+}
+.theme-radioface #spotsTable tbody tr.my-spot {
+  background: rgba(255, 214, 0, 0.06);
+}
+.theme-radioface #spotsTable td .freq {
+  font-family: 'Consolas', 'Courier New', monospace;
+  color: #00e5ff;
+}
+
+/* ── Solar/Propagation Cards: Instrument Panels ── */
+.theme-radioface .solar-card {
+  background: #040810;
+  border: 1px solid rgba(0, 229, 255, 0.08);
+  border-radius: 3px;
+  box-shadow: inset 0 1px 4px rgba(0,0,0,0.4);
+}
+.theme-radioface .solar-card .value {
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.2);
+}
+.theme-radioface .prop-summary-value {
+  font-family: 'Consolas', 'Courier New', monospace;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.2);
+}
+.theme-radioface .prop-summary-label {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.55rem;
+}
+
+/* ── Clock Widgets: LCD Display ── */
+.theme-radioface .clock-time {
+  font-family: 'Consolas', 'Courier New', monospace;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+}
+.theme-radioface .clock-day-date {
+  letter-spacing: 0.5px;
+}
+
+/* ── Toggle Buttons & Misc Controls ── */
+.theme-radioface .toggle-btn,
+.theme-radioface .prop-metric-btn,
+.theme-radioface .map-center-btn {
+  background: #080e18;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 2px;
+  color: #5a7090;
+  transition: all 0.15s ease;
+}
+.theme-radioface .toggle-btn:hover,
+.theme-radioface .prop-metric-btn:hover,
+.theme-radioface .map-center-btn:hover {
+  border-color: rgba(0, 229, 255, 0.2);
+  color: #8aa0b8;
+}
+.theme-radioface .toggle-btn.active {
+  background: rgba(0, 229, 255, 0.1);
+  border-color: rgba(0, 229, 255, 0.3);
+  color: #00e5ff;
+  box-shadow: 0 0 4px rgba(0, 229, 255, 0.15);
+}
+
+/* ── Contest/DXpedition/Beacon Cards: LCD Panels ── */
+.theme-radioface .contest-card,
+.theme-radioface .dxped-card {
+  background: #060a12;
+  border-color: rgba(0, 229, 255, 0.06);
+  border-left: 3px solid rgba(0, 229, 255, 0.12);
+  border-radius: 2px;
+}
+.theme-radioface .contest-card:hover,
+.theme-radioface .dxped-card:hover {
+  background: rgba(0, 229, 255, 0.03);
+}
+.theme-radioface .contest-active-card,
+.theme-radioface .dxped-active-card {
+  border-left-color: #00c853;
+  box-shadow: inset 2px 0 4px rgba(0, 200, 83, 0.1);
+}
+.theme-radioface .contest-name,
+.theme-radioface .dxped-call {
+  color: #c0d8f0;
+}
+.theme-radioface .contest-now-badge,
+.theme-radioface .dxped-badge {
+  background: #00c853;
+  color: #000;
+  box-shadow: 0 0 4px rgba(0, 200, 83, 0.25);
+}
+.theme-radioface .beacon-call {
+  color: #00e5ff;
+  text-shadow: 0 0 4px rgba(0, 229, 255, 0.2);
+}
+
+/* ── Forms & Inputs: Recessed Dark Fields ── */
+.theme-radioface select,
+.theme-radioface input[type="text"],
+.theme-radioface input[type="number"],
+.theme-radioface input[type="search"],
+.theme-radioface textarea {
+  background: #040810;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 2px;
+  color: #c0d0e0;
+}
+.theme-radioface select:focus,
+.theme-radioface input[type="text"]:focus,
+.theme-radioface input[type="number"]:focus,
+.theme-radioface input[type="search"]:focus {
+  border-color: rgba(0, 229, 255, 0.3);
+  box-shadow: 0 0 4px rgba(0, 229, 255, 0.1);
+  outline: none;
+}
+
+/* ── Splash / Config Modal: Metallic Frame ── */
+.theme-radioface .splash-box {
+  background: linear-gradient(180deg, #0e1628 0%, #080e1c 100%);
+  border: 1px solid #1e2e4e;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.6), 0 0 60px rgba(0,0,0,0.3);
+}
+.theme-radioface .splash-box h2 {
+  color: #00e5ff;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
   text-transform: uppercase;
   letter-spacing: 1px;
-  text-shadow: 0 0 6px rgba(0, 229, 255, 0.5);
+}
+.theme-radioface .splash-box button {
+  background: linear-gradient(180deg, #1e2e4e 0%, #141e30 50%, #0a1220 100%);
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  color: #00e5ff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.04);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.theme-radioface .splash-box button:hover {
+  background: linear-gradient(180deg, #2a3a5a 0%, #1e2e48 50%, #141e30 100%);
+  border-color: rgba(0, 229, 255, 0.4);
+}
+.theme-radioface .config-tab {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.72rem;
+}
+.theme-radioface .config-tab.active {
+  color: #00e5ff;
+  border-bottom-color: #00e5ff;
 }
 
-.theme-neon .widget:hover {
-  box-shadow: 0 0 14px rgba(0, 229, 255, 0.25), inset 0 0 10px rgba(0, 229, 255, 0.08);
-}
-
-.theme-neon header {
-  border-bottom: 1px solid rgba(0, 229, 255, 0.2);
-  box-shadow: 0 2px 12px rgba(0, 229, 255, 0.1);
-}
-
-.theme-neon .header-clock-time {
-  text-shadow: 0 0 8px rgba(0, 229, 255, 0.6);
-}
-
-.theme-neon .op-call a {
-  text-shadow: 0 0 6px rgba(0, 229, 255, 0.4);
-}
-
-.theme-neon .source-tab.active {
-  box-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
-}
-
-.theme-neon .band-btn.active,
-.theme-neon .mode-btn.active {
-  box-shadow: 0 0 6px rgba(0, 229, 255, 0.3);
-}
-
-.theme-neon .toggle-btn,
-.theme-neon .prop-metric-btn,
-.theme-neon .map-center-btn {
-  border-color: rgba(0, 229, 255, 0.3);
-}
-
-.theme-neon .solar-card {
-  box-shadow: 0 0 6px rgba(0, 229, 255, 0.1);
-}
-
-/* ---- Theme: Steampunk (brass & gaslight) ---- */
-/* Warm metallic borders and aged styling */
-
-.theme-steampunk .widget {
-  border-color: rgba(212, 160, 74, 0.4);
-  border-width: 2px;
-  border-radius: 2px;
-}
-
-.theme-steampunk .widget-header {
-  font-variant: small-caps;
+/* ── DE/DX Info: Instrument Panel ── */
+.theme-radioface .dedx-section-label {
+  text-transform: uppercase;
   letter-spacing: 1px;
+  font-size: 0.6rem;
+}
+.theme-radioface .dedx-call {
+  color: #00e5ff;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.2);
+}
+.theme-radioface .dedx-utc-badge {
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.15);
 }
 
-.theme-steampunk .widget:hover {
-  border-color: rgba(212, 160, 74, 0.6);
+/* ── Band Conditions / Propagation Widget ── */
+.theme-radioface .band-row {
+  border-bottom-color: rgba(255,255,255,0.025);
+}
+.theme-radioface .band-name {
+  font-family: 'Consolas', 'Courier New', monospace;
+  color: #00e5ff;
+  font-size: 0.7rem;
 }
 
-.theme-steampunk header {
-  border-bottom: 2px solid rgba(212, 160, 74, 0.3);
+/* ── VOACAP Matrix ── */
+.theme-radioface .voacap-matrix th {
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-size: 0.58rem;
 }
 
-.theme-steampunk .source-tab.active {
-  border-bottom: 2px solid var(--accent);
+/* ── Spot Detail Panel ── */
+.theme-radioface .spot-detail-call {
+  color: #00e5ff;
+  text-shadow: 0 0 6px rgba(0, 229, 255, 0.2);
 }
 
-.theme-steampunk .band-btn.active,
-.theme-steampunk .mode-btn.active {
-  border: 1px solid rgba(212, 160, 74, 0.5);
+/* ── Satellite Widget ── */
+.theme-radioface .sat-name {
+  color: #00e5ff;
 }
 
-.theme-steampunk .toggle-btn,
-.theme-steampunk .prop-metric-btn,
-.theme-steampunk .map-center-btn {
-  border-color: rgba(212, 160, 74, 0.4);
-  border-radius: 2px;
+/* ── Live Spots ── */
+.theme-radioface .live-spots-band-label {
+  font-family: 'Consolas', 'Courier New', monospace;
 }
 
-.theme-steampunk .solar-card {
-  border: 1px solid rgba(212, 160, 74, 0.2);
-  border-radius: 2px;
+/* ── Space Weather Graph Tabs ── */
+.theme-radioface .spacewx-tab {
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 0.62rem;
+}
+.theme-radioface .spacewx-tab.active {
+  color: #00e5ff;
+  border-bottom-color: #00e5ff;
+  box-shadow: 0 2px 4px rgba(0, 229, 255, 0.1);
 }
 
-.theme-steampunk .header-clock-time {
-  font-variant-numeric: tabular-nums;
+/* ── Big Clock ── */
+.theme-radioface .big-clock-time {
+  font-family: 'Consolas', 'Courier New', monospace;
+  text-shadow: 0 0 12px rgba(0, 229, 255, 0.2);
+}
+
+/* ── Stopwatch ── */
+.theme-radioface .stopwatch-display {
+  font-family: 'Consolas', 'Courier New', monospace;
+  text-shadow: 0 0 8px rgba(0, 229, 255, 0.2);
+}
+
+/* ── Generic Btn Override ── */
+.theme-radioface .btn,
+.theme-radioface .btn-sm {
+  background: linear-gradient(180deg, #1e2e4e 0%, #141e30 50%, #0a1220 100%);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 3px;
+  color: #8a9ab0;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.03);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-size: 0.68rem;
+}
+.theme-radioface .btn:hover,
+.theme-radioface .btn-sm:hover {
+  background: linear-gradient(180deg, #2a3a5a 0%, #1e2e48 50%, #141e30 100%);
+  border-color: rgba(0, 229, 255, 0.2);
+  color: #c0d0e0;
+}
+
+/* ── Weather Widget ── */
+.theme-radioface .wx-temp {
+  font-family: 'Consolas', 'Courier New', monospace;
+}
+
+/* ── Widget Resize Handle ── */
+.theme-radioface .widget-resize {
+  background: linear-gradient(135deg, transparent 40%, rgba(0, 229, 255, 0.15) 40%, rgba(0, 229, 255, 0.15) 45%, transparent 45%, transparent 55%, rgba(0, 229, 255, 0.15) 55%, rgba(0, 229, 255, 0.15) 60%, transparent 60%);
+}
+
+/* ── Checkbox/Radio accent (WebKit) ── */
+.theme-radioface input[type="checkbox"],
+.theme-radioface input[type="radio"] {
+  accent-color: #00e5ff;
+}
+
+/* ── Tab Bar (mobile) ── */
+.theme-radioface .tab-bar {
+  background: linear-gradient(180deg, #0e1628 0%, #080e1c 100%);
+  border-top: 1px solid #1a2a44;
+}
+.theme-radioface .tab-bar button.active {
+  color: #00e5ff;
+  text-shadow: 0 0 4px rgba(0, 229, 255, 0.3);
+}
+
+/* ── Map Legend & Overlays ── */
+.theme-radioface .map-legend {
+  background: rgba(4, 8, 16, 0.9);
+  border: 1px solid rgba(0, 229, 255, 0.1);
+}
+
+/* ── Help Modal ── */
+.theme-radioface .help-content {
+  background: #060a12;
+}
+.theme-radioface .help-content h3 {
+  color: #00e5ff;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 /* ---- Theme Selector (Config Modal Appearance Tab) ---- */
@@ -6724,6 +7069,453 @@ body.grayscale {
   max-width: 300px;
   max-height: 300px;
 }
+
+/* ---- Spot Detail: Tune Rig Button ---- */
+.spot-detail-tune { margin: 6px 0; }
+.spot-detail-tune-btn {
+  width: 100%;
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.spot-detail-tune-btn:hover { opacity: 0.85; }
+.spot-detail-tune-btn:disabled { opacity: 0.5; cursor: default; }
+.spot-detail-tune-warn {
+  font-size: 0.68rem;
+  color: var(--yellow, #ffc107);
+  margin-top: 3px;
+}
+
+/* ---- On-Air Rig Widget: Modern Radio Face ---- */
+/* Design inspired by Icom IC-7300, Yaesu FT-DX10, Kenwood TS-890S */
+
+/* Chassis — subtle metallic feel */
+#widget-on-air-rig { background: linear-gradient(180deg, #1a2440 0%, #0e1628 100%); border-color: #2e3e5e; }
+#widget-on-air-rig .widget-header {
+  background: linear-gradient(180deg, #182238 0%, #0d1524 100%);
+  border-bottom: 1px solid #1e2e4e;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-size: 0.7rem;
+  color: #6a7a9a;
+}
+
+.rig-container { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+
+/* ── LCD Display Panel ── */
+.rig-lcd {
+  background: #040810;
+  border: 1px solid #1a2540;
+  border-radius: 4px;
+  padding: 8px 12px 6px;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.03);
+  position: relative;
+  overflow: hidden;
+}
+/* Subtle scan-line overlay — authentic LCD feel */
+.rig-lcd::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg, transparent 0, transparent 2px, rgba(0,0,0,0.06) 2px, rgba(0,0,0,0.06) 4px);
+  pointer-events: none;
+  z-index: 1;
+  border-radius: inherit;
+}
+
+/* LCD top row: VFO label + TX/RX indicator */
+.rig-lcd-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2px;
+  position: relative;
+  z-index: 2;
+}
+.rig-vfo-label {
+  font-size: 0.58rem;
+  font-weight: 700;
+  color: rgba(0, 229, 255, 0.45);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+/* TX/RX indicator — LED pill */
+.rig-tx-state {
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 2px 10px;
+  border-radius: 2px;
+  letter-spacing: 1px;
+  transition: all 0.15s ease;
+  color: #00c853;
+  background: rgba(0, 200, 83, 0.12);
+  border: 1px solid rgba(0, 200, 83, 0.25);
+  box-shadow: 0 0 4px rgba(0, 200, 83, 0.15);
+}
+.rig-tx-active {
+  color: #fff;
+  background: rgba(255, 23, 68, 0.75);
+  border: 1px solid rgba(255, 23, 68, 0.9);
+  box-shadow: 0 0 8px rgba(255, 23, 68, 0.5), 0 0 16px rgba(255, 23, 68, 0.2);
+  animation: rig-tx-pulse 0.8s ease-in-out infinite;
+}
+@keyframes rig-tx-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.65; }
+}
+
+/* Frequency display — large glowing digits */
+.rig-confidence {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 4px;
+  padding: 4px 0 2px;
+  transition: box-shadow 0.3s ease;
+  position: relative;
+  z-index: 2;
+}
+.rig-confidence-good { box-shadow: 0 0 12px 2px rgba(0, 200, 83, 0.25); }
+.rig-confidence-caution { box-shadow: 0 0 12px 2px rgba(255, 214, 0, 0.25); }
+.rig-confidence-unsafe { box-shadow: 0 0 14px 3px rgba(255, 23, 68, 0.35); }
+
+.rig-frequency {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: #00e5ff;
+  text-shadow: 0 0 10px rgba(0, 229, 255, 0.35), 0 0 20px rgba(0, 229, 255, 0.12);
+  letter-spacing: 2px;
+  text-align: center;
+  line-height: 1.1;
+}
+.rig-freq-unit {
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: rgba(0, 229, 255, 0.35);
+  letter-spacing: 1px;
+  align-self: flex-end;
+  padding-bottom: 4px;
+}
+
+/* TX active: LCD turns red */
+.rig-lcd-tx .rig-frequency {
+  color: #ff1744;
+  text-shadow: 0 0 10px rgba(255, 23, 68, 0.45), 0 0 20px rgba(255, 23, 68, 0.15);
+}
+.rig-lcd-tx .rig-vfo-label,
+.rig-lcd-tx .rig-freq-unit { color: rgba(255, 23, 68, 0.4); }
+.rig-lcd-tx .rig-band { color: #ff8a80; background: rgba(255, 23, 68, 0.1); border-color: rgba(255, 23, 68, 0.2); }
+.rig-lcd-tx .rig-mode { color: #ff8a80; background: rgba(255, 23, 68, 0.1); border-color: rgba(255, 23, 68, 0.2); }
+.rig-lcd-tx { box-shadow: inset 0 2px 6px rgba(0,0,0,0.7), inset 0 0 20px rgba(255, 23, 68, 0.05); }
+
+/* Info row: band, mode, RST, power badges */
+.rig-info-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  position: relative;
+  z-index: 2;
+}
+.rig-band {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #00e5ff;
+  background: rgba(0, 229, 255, 0.08);
+  border: 1px solid rgba(0, 229, 255, 0.18);
+  padding: 1px 8px;
+  border-radius: 2px;
+  letter-spacing: 0.5px;
+}
+.rig-mode {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #ffd600;
+  background: rgba(255, 214, 0, 0.08);
+  border: 1px solid rgba(255, 214, 0, 0.18);
+  padding: 1px 8px;
+  border-radius: 2px;
+}
+.rig-rst {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #00c853;
+  background: rgba(0, 200, 83, 0.08);
+  border: 1px solid rgba(0, 200, 83, 0.18);
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+.rig-power {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #ff9100;
+  background: rgba(255, 145, 0, 0.08);
+  border: 1px solid rgba(255, 145, 0, 0.18);
+  padding: 1px 6px;
+  border-radius: 2px;
+}
+
+/* ── S-Meter: LED bar-graph ── */
+.rig-meter-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.rig-meter-row label { min-width: 10px; font-weight: 700; margin-top: 2px; color: rgba(0, 229, 255, 0.5); font-size: 0.68rem; }
+.rig-meter-wrap { flex: 1; }
+.rig-meter-bar {
+  height: 12px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.rig-meter-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #00c853 0%, #00c853 50%, #a0d800 58%, #ffd600 66%, #ff9100 74%, #ff1744 85%, #ff1744 100%);
+  border-radius: 1px;
+  transition: width 0.15s ease;
+}
+/* Segment gaps — creates LED bar-graph look */
+.rig-meter-bar::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / 15 - 1.5px), rgba(4, 8, 16, 0.82) calc(100% / 15 - 1.5px), rgba(4, 8, 16, 0.82) calc(100% / 15));
+  pointer-events: none;
+  z-index: 1;
+}
+.rig-meter-over {
+  background: linear-gradient(90deg, #00c853 0%, #00c853 50%, #a0d800 58%, #ffd600 66%, #ff9100 74%, #ff1744 85%, #ff1744 100%);
+}
+.rig-meter-scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.48rem;
+  font-weight: 600;
+  color: rgba(255,255,255,0.25);
+  padding: 2px 1px 0;
+}
+.rig-meter-over-label { color: rgba(255, 23, 68, 0.45); }
+.rig-swr-label { min-width: 60px; text-align: right; font-weight: 700; font-size: 0.68rem; }
+.rig-swr-caution { color: #ffd600; text-shadow: 0 0 4px rgba(255, 214, 0, 0.25); }
+.rig-swr-danger { color: #ff1744; text-shadow: 0 0 4px rgba(255, 23, 68, 0.25); }
+
+/* ── Band Overlay ── */
+.rig-band-overlay {
+  position: relative;
+  height: 16px;
+  border-radius: 2px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.rig-overlay-seg {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.28;
+}
+.rig-overlay-seg span {
+  font-size: 0.48rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.rig-overlay-cw { background: #ffd600; color: #000; }
+.rig-overlay-digi { background: #00e5ff; color: #000; }
+.rig-overlay-phone { background: #00c853; color: #000; }
+.rig-overlay-needle {
+  position: absolute;
+  top: -1px;
+  width: 2px;
+  height: calc(100% + 2px);
+  background: #fff;
+  box-shadow: 0 0 6px rgba(255,255,255,0.5);
+  transition: left 0.15s ease;
+  z-index: 2;
+}
+
+/* ── Power Slider ── */
+.rig-power-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: var(--text-dim);
+}
+.rig-power-row label { min-width: 24px; font-weight: 700; color: rgba(0, 229, 255, 0.5); font-size: 0.62rem; }
+.rig-power-slider {
+  flex: 1;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(90deg, rgba(0, 200, 83, 0.25) 0%, rgba(255, 145, 0, 0.25) 50%, rgba(255, 23, 68, 0.25) 100%);
+  border-radius: 3px;
+  outline: none;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.rig-power-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #4a5a7a, #1a2a4a);
+  border: 1px solid rgba(255,255,255,0.12);
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+.rig-power-value { min-width: 40px; text-align: right; font-weight: 700; color: #ff9100; font-size: 0.68rem; }
+
+/* ── Connect Controls ── */
+.rig-connect-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+.rig-profile-select {
+  flex: 1;
+  background: #080c14;
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.rig-connect-btn {
+  background: linear-gradient(180deg, #2a3a5a 0%, #1a2640 50%, #0f1a2e 100%);
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 3px;
+  padding: 5px 14px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.05);
+  transition: all 0.15s ease;
+}
+.rig-connect-btn:hover {
+  background: linear-gradient(180deg, #3a4a6a 0%, #2a3650 50%, #1a2640 100%);
+  border-color: rgba(0, 229, 255, 0.25);
+}
+.rig-connect-btn:active {
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);
+  transform: translateY(1px);
+}
+.rig-connect-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+/* Status */
+.rig-status {
+  font-size: 0.65rem;
+  color: rgba(0, 229, 255, 0.45);
+  text-align: center;
+  min-height: 1em;
+  letter-spacing: 0.3px;
+}
+.rig-status-warn { color: #ffd600; font-weight: 700; text-shadow: 0 0 4px rgba(255, 214, 0, 0.25); }
+
+/* Demo badge */
+.rig-demo-badge {
+  font-size: 0.52rem;
+  font-weight: 800;
+  color: #000;
+  background: #ffd600;
+  padding: 1px 5px;
+  border-radius: 2px;
+  margin-left: 6px;
+  vertical-align: middle;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 4px rgba(255, 214, 0, 0.25);
+}
+
+/* ---- Radio Config Panel ---- */
+.radio-cfg-section { margin-bottom: 4px; }
+.radio-cfg-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 6px 0;
+  font-size: 0.8rem;
+}
+.radio-cfg-row label { display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.radio-cfg-sublabel { color: var(--text-dim); font-size: 0.75rem; }
+.radio-cfg-number {
+  width: 70px;
+  padding: 3px 6px;
+  background: var(--bg, #0a0a1a);
+  color: var(--text);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  text-align: center;
+}
+.radio-cfg-text {
+  width: 60px;
+  padding: 3px 6px;
+  background: var(--bg, #0a0a1a);
+  color: var(--text);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  font-size: 0.8rem;
+  text-align: center;
+}
+.radio-cfg-select {
+  flex: 1;
+  padding: 4px 6px;
+  background: var(--bg, #0a0a1a);
+  color: var(--text);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+.radio-cfg-section .config-toggle { font-size: 0.8rem; }
+.radio-cfg-narrow {
+  flex: 0 0 auto;
+  width: 70px;
+  padding: 4px 6px;
+  background: var(--bg, #0a0a1a);
+  color: var(--text);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+.radio-cfg-refresh-btn {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  background: var(--surface, #1a1a2e);
+  color: var(--text);
+  border: 1px solid var(--border, #333);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  line-height: 1;
+}
+.radio-cfg-refresh-btn:hover { background: var(--border, #333); }
 
 /* ---- Clock Config Panel ---- */
 .clock-cfg-box { max-width: 420px; }

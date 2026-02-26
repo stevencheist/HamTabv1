@@ -3,6 +3,9 @@ import { $ } from './dom.js';
 import { esc, cacheCallsign } from './utils.js';
 import { freqToBand } from './filters.js';
 import { bearingTo, bearingToCardinal, distanceMi, localTimeAtLon } from './geo.js';
+import { sendRigCommand, isRigConnected } from './cat/index.js';
+import { resolveRigMode, spotFreqToHz } from './cat/profiles/band-auto-profile.js';
+import { validateFrequency } from './cat/safety/band-plan-validator.js';
 
 // --- DX Detail Widget ---
 
@@ -158,8 +161,15 @@ export async function updateSpotDetail(spot) {
     ${bearingHtml}
     ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ''}
     ${spot.comments ? `<div class="spot-detail-row spot-detail-comments">${esc(spot.comments)}</div>` : ''}
+    <div class="spot-detail-tune" id="spotDetailTune"></div>
     <div class="spot-detail-wx" id="spotDetailWx"></div>
   `;
+
+  // Render tune button and auto-tune if rig is connected
+  renderTuneButton(spot);
+  if (isRigConnected() && spot.frequency) {
+    tuneToSpot(spot);
+  }
 
   // Start ticking local time
   if (clockInterval) clearInterval(clockInterval);
@@ -202,6 +212,65 @@ export async function updateSpotDetail(spot) {
         ${wx.windSpeed ? `· Wind ${esc(wx.windSpeed)} ${esc(wx.windDirection || '')}` : ''}
       `;
     }
+  }
+}
+
+// --- Tune Rig Button ---
+function renderTuneButton(spot) {
+  const container = document.getElementById('spotDetailTune');
+  if (!container) return;
+
+  if (!isRigConnected()) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const freqHz = spotFreqToHz(spot.frequency);
+  const rigMode = resolveRigMode(spot.mode, freqHz);
+  const validation = validateFrequency(freqHz);
+
+  let label = 'Tune Rig';
+  if (rigMode) label += ` → ${rigMode}`;
+
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-sm spot-detail-tune-btn';
+  btn.textContent = label;
+  btn.addEventListener('click', () => tuneToSpot(spot));
+
+  container.innerHTML = '';
+  container.appendChild(btn);
+
+  // Show band plan warning if applicable
+  if (validation.warning) {
+    const warn = document.createElement('div');
+    warn.className = 'spot-detail-tune-warn';
+    warn.textContent = validation.warning;
+    container.appendChild(warn);
+  }
+}
+
+function tuneToSpot(spot) {
+  if (!isRigConnected() || !spot.frequency) return;
+
+  const freqHz = spotFreqToHz(spot.frequency);
+  if (freqHz <= 0) return;
+
+  // Set frequency (high priority)
+  sendRigCommand('setFrequency', freqHz, 2);
+
+  // Set mode if we can resolve it
+  const rigMode = resolveRigMode(spot.mode, freqHz);
+  if (rigMode) {
+    sendRigCommand('setMode', rigMode, 1);
+  }
+
+  // Visual feedback
+  const btn = document.querySelector('.spot-detail-tune-btn');
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = 'Tuned!';
+    btn.disabled = true;
+    setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 1500);
   }
 }
 

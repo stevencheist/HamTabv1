@@ -862,7 +862,7 @@ const SAT_TLE_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
 // Fetch amateur radio satellite list (N2YO category 18)
 app.get('/api/satellites/list', async (req, res) => {
-  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.N2YO_API_KEY;
   if (!apiKey) {
     return res.status(503).json({ error: 'No N2YO API key configured' });
   }
@@ -893,7 +893,7 @@ app.get('/api/satellites/list', async (req, res) => {
 
 // Fetch positions for multiple satellites (batched)
 app.get('/api/satellites/positions', async (req, res) => {
-  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.N2YO_API_KEY;
   if (!apiKey) {
     return res.status(503).json({ error: 'No N2YO API key configured' });
   }
@@ -962,7 +962,7 @@ app.get('/api/satellites/positions', async (req, res) => {
 
 // Fetch pass predictions for a single satellite
 app.get('/api/satellites/passes', async (req, res) => {
-  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.N2YO_API_KEY;
   if (!apiKey) {
     return res.status(503).json({ error: 'No N2YO API key configured' });
   }
@@ -1022,7 +1022,7 @@ app.get('/api/satellites/passes', async (req, res) => {
 
 // Fetch TLE data for a satellite (used for Doppler calculations)
 app.get('/api/satellites/tle', async (req, res) => {
-  const apiKey = req.query.apikey || process.env.N2YO_API_KEY;
+  const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.N2YO_API_KEY;
   if (!apiKey) {
     return res.status(503).json({ error: 'No N2YO API key configured' });
   }
@@ -1211,7 +1211,7 @@ app.get('/api/lunar', (req, res) => {
 
 // Proxy Weather Underground API
 app.get('/api/weather', async (req, res) => {
-  const apiKey = req.query.apikey || process.env.WU_API_KEY;
+  const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.WU_API_KEY;
   if (!apiKey) {
     return res.status(503).json({ error: 'No weather API key configured' });
   }
@@ -1352,7 +1352,7 @@ app.get('/api/weather/owm', async (req, res) => {
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
       return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
     }
-    const apiKey = req.query.apikey || process.env.OWM_API_KEY;
+    const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.OWM_API_KEY;
     if (!apiKey) {
       return res.status(400).json({ error: 'OWM API key required' });
     }
@@ -2018,6 +2018,19 @@ app.post('/api/restart', (req, res) => {
 // --- Configuration Endpoints ---
 app.post('/api/config/env', (req, res) => {
   try {
+    // Security gate: require loopback/private IP, or a CONFIG_ADMIN_TOKEN if set
+    const rawIp = (req.ip || req.connection.remoteAddress || '').replace(/^::ffff:/, '');
+    const adminToken = process.env.CONFIG_ADMIN_TOKEN;
+    if (adminToken) {
+      if (req.headers['x-admin-token'] !== adminToken) {
+        console.warn(`Blocked /api/config/env from ${rawIp} — invalid admin token`);
+        return res.status(403).json({ error: 'Forbidden' });
+      }
+    } else if (!isPrivateIP(rawIp)) {
+      console.warn(`Blocked /api/config/env from non-private IP: ${rawIp}`);
+      return res.status(403).json({ error: 'Forbidden — config endpoint restricted to local network' });
+    }
+
     const envPath = path.join(__dirname, '.env');
     const updates = req.body; // { key: value, ... }
     if (!updates || typeof updates !== 'object') {
@@ -2166,11 +2179,19 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
     const nameSafe = (name || '').trim().substring(0, 100);
     const emailSafe = (email || '').trim().substring(0, 100);
 
-    // 5. Check for GitHub token — if not configured, relay to hamtab.net
+    // 5. Check for GitHub token — if not configured, optionally relay to hamtab.net
     const githubToken = process.env.GITHUB_FEEDBACK_TOKEN;
     if (!githubToken) {
-      // Relay to hamtab.net (lanmode without local token)
-      console.log('No local GITHUB_FEEDBACK_TOKEN — relaying to hamtab.net');
+      // Relay requires explicit opt-in via FEEDBACK_RELAY_ENABLED=1
+      const relayEnabled = process.env.FEEDBACK_RELAY_ENABLED === '1';
+      if (!relayEnabled) {
+        console.warn('Feedback rejected — no GITHUB_FEEDBACK_TOKEN and FEEDBACK_RELAY_ENABLED not set');
+        return res.status(503).json({
+          error: 'Feedback not configured. Set GITHUB_FEEDBACK_TOKEN or FEEDBACK_RELAY_ENABLED=1 in .env. You can also submit feedback at https://github.com/stevencheist/HamTabv1/issues'
+        });
+      }
+
+      console.log('No local GITHUB_FEEDBACK_TOKEN — relaying to hamtab.net (opt-in enabled)');
       try {
         const relayData = JSON.stringify({ name, email, feedback, website });
         const relayReq = https.request({
@@ -2193,6 +2214,10 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
               res.status(relayRes.statusCode).json({ error: 'Relay response parse error' });
             }
           });
+        });
+
+        relayReq.setTimeout(15000, () => { // 15s timeout
+          relayReq.destroy(new Error('Relay request timed out'));
         });
 
         relayReq.on('error', (err) => {
@@ -2254,6 +2279,10 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
           res.status(500).json({ error: 'Failed to submit feedback. Please try again later.' });
         }
       });
+    });
+
+    githubReq.setTimeout(15000, () => { // 15s timeout
+      githubReq.destroy(new Error('GitHub API request timed out'));
     });
 
     githubReq.on('error', (err) => {
@@ -3733,12 +3762,16 @@ function isPrivateIP(ip) {
   const parts = ip.split('.').map(Number);
   if (parts.length === 4 && parts.every(p => !isNaN(p) && p >= 0 && p <= 255)) {
     const [a, b] = parts;
-    if (a === 0) return true;
-    if (a === 10) return true;
-    if (a === 127) return true;
-    if (a === 169 && b === 254) return true;
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
+    if (a === 0) return true;                         // 0.0.0.0/8 — current network
+    if (a === 10) return true;                        // 10.0.0.0/8 — RFC 1918
+    if (a === 127) return true;                       // 127.0.0.0/8 — loopback
+    if (a === 169 && b === 254) return true;          // 169.254.0.0/16 — link-local
+    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12 — RFC 1918
+    if (a === 192 && b === 168) return true;          // 192.168.0.0/16 — RFC 1918
+    if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 — CGNAT (RFC 6598)
+    if (a === 198 && (b === 18 || b === 19)) return true; // 198.18.0.0/15 — benchmark testing
+    if (a >= 224 && a <= 239) return true;            // 224.0.0.0/4 — multicast
+    if (a >= 240) return true;                        // 240.0.0.0/4 — reserved + broadcast
   }
   return false;
 }

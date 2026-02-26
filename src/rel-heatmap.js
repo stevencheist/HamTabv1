@@ -4,7 +4,7 @@
 // colored on a continuous HSL gradient (red→yellow→green).
 
 import state from './state.js';
-import { dayFraction, calculateMUF, calculateBandReliability, VOACAP_BANDS, HF_BANDS } from './band-conditions.js';
+import { dayFraction, calculateMUF, VOACAP_BANDS, HF_BANDS } from './band-conditions.js';
 import { getVoacapOpts } from './voacap.js';
 
 // --- Great-circle midpoint (spherical) ---
@@ -51,17 +51,72 @@ function distanceModifier(distKm) {
   return 0.5;                       // antipodal — severe attenuation
 }
 
-// --- Per-cell reliability pipeline ---
+// --- Per-cell reliability for heatmap ---
+// Uses a heatmap-specific model tuned for visual clarity on a dark basemap.
+// The widget model's LUF threshold (50% of MUF) is too aggressive — it blanks
+// everything below ~17 MHz during daytime, making 20m/40m/80m invisible.
+//
+// Physical model: any frequency below MUF CAN be reflected by the ionosphere.
+// Optimal propagation occurs at 30-70% of MUF. Higher ratios approach MUF and
+// risk penetration; lower ratios suffer increasing D-layer absorption (daytime).
+// At night, D-layer recombines, so lower bands propagate much better.
 function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex, aIndex, utcHour, opts) {
   const mid = greatCircleMidpoint(deLat, deLon, dxLat, dxLon);
   const df = dayFraction(mid.lat, mid.lon, utcHour);
   const muf = calculateMUF(sfi, df);
-  const isDay = df >= 0.5;
-  const baseRel = calculateBandReliability(freqMHz, muf, kIndex, aIndex, isDay, opts);
   const dist = distanceKm(deLat, deLon, dxLat, dxLon);
-  const distMod = distanceModifier(dist);
 
-  return Math.max(0, Math.min(100, Math.round(baseRel * distMod)));
+  let rel;
+  const ratio = freqMHz / muf; // freq-to-MUF ratio
+
+  if (ratio > 1.0) {
+    // Above MUF — signal escapes ionosphere, rapid dropoff
+    rel = Math.max(0, 15 - (ratio - 1.0) * 150);
+  } else if (ratio > 0.85) {
+    // Close to MUF — usable but risk of penetration increases
+    rel = 90 - (ratio - 0.85) * 300; // 90 at 0.85 → ~45 at 1.0
+  } else if (ratio >= 0.25) {
+    // Main propagation zone (25-85% of MUF) — this is where most HF bands live.
+    // Peak near 50% of MUF (sweet spot for ionospheric reflection).
+    // D-layer absorption increases for lower ratios during daytime.
+    const peak = 0.5;
+    const distFromPeak = Math.abs(ratio - peak);
+    const baseRel = 95 - distFromPeak * 60; // peaks at 95, tapers to edges
+    // D-layer absorption penalty — scales with daylight and how low the frequency is
+    const dLayerPenalty = df * Math.max(0, (0.5 - ratio)) * 80; // 0 penalty above peak, up to ~20 below
+    rel = baseRel - dLayerPenalty;
+  } else {
+    // Very low ratio (<25% of MUF) — heavy absorption, marginal
+    const nightBoost = (1 - df) * 30; // nighttime helps a lot
+    rel = 20 + nightBoost - (0.25 - ratio) * 100;
+  }
+
+  // Geomagnetic disturbance penalty
+  if (kIndex >= 6) rel -= (kIndex - 5) * 12;
+  else if (kIndex >= 3) rel -= (kIndex - 2) * 5;
+  if (aIndex > 30) rel -= Math.min(20, (aIndex - 30) / 2);
+  else if (aIndex > 10) rel -= (aIndex - 10) / 4;
+
+  // VOACAP parameter adjustments
+  if (opts) {
+    if (opts.mode === 'CW') rel += 8;
+    else if (opts.mode === 'FT8') rel += 15;
+    if (opts.powerWatts && opts.powerWatts !== 100) {
+      rel += 10 * Math.log10(opts.powerWatts / 100) * 1.5;
+    }
+    if (opts.longPath) rel -= 30;
+  }
+
+  // Sensitivity adjustment — maps 1-5 to a reliability shift.
+  // 1 (optimistic) = +20%, 3 (normal) = 0%, 5 (strict) = -20%
+  const sens = state.voacapSensitivity || 3;
+  rel += (3 - sens) * 10; // +20, +10, 0, -10, -20
+
+  // Distance modifier
+  const distMod = distanceModifier(dist);
+  rel *= distMod;
+
+  return Math.max(0, Math.min(100, Math.round(rel)));
 }
 
 // --- HSL to RGB conversion ---
@@ -86,17 +141,19 @@ function hslToRgb(h, s, l) {
 }
 
 // --- Reliability → RGBA pixel ---
-// Maps 0-100 reliability to a continuous HSL gradient:
-// 0 = dark/transparent, 10 = red (hue 0), 50 = yellow (hue 60), 100 = green (hue 120)
+// Maps 0-100 reliability to a vivid gradient readable on a dark basemap.
+// Uses bright, saturated colors at high alpha for clear visual contrast.
+// 0-10 = dark purple (closed), 10-40 = red, 40-60 = orange/yellow, 60-80 = yellow-green, 80-100 = bright green
 function reliabilityToRGBA(rel) {
-  if (rel < 5) return { r: 0, g: 0, b: 0, a: 30 }; // nearly transparent dark — band closed
+  if (rel < 3) return { r: 20, g: 0, b: 40, a: 60 }; // dark purple tint — band closed
 
-  // Map 5-100 → hue 0° (red) to 120° (green)
-  const hue = ((rel - 5) / 95) * 120;
-  const { r, g, b } = hslToRgb(hue, 0.85, 0.45);
+  // Bright, vivid gradient: red (0°) → yellow (60°) → green (120°)
+  // Map 3-100 → hue 0° to 120°
+  const hue = (Math.min(rel, 100) - 3) / 97 * 120;
+  const { r, g, b } = hslToRgb(hue, 1.0, 0.50); // full saturation, medium-bright lightness
 
-  // Alpha ramps up from low reliability
-  const alpha = Math.min(200, 80 + (rel / 100) * 120); // 80–200 range
+  // Higher constant alpha so the overlay pops against the dark basemap
+  const alpha = Math.min(210, 140 + (rel / 100) * 70); // 140–210 range
   return { r, g, b, a: Math.round(alpha) };
 }
 
@@ -194,6 +251,43 @@ export function clearHeatmap() {
   if (state.heatmapLayer && state.map) {
     state.map.removeLayer(state.heatmapLayer);
     state.heatmapLayer = null;
+  }
+}
+
+// --- Floating Heatmap Legend (Leaflet control) ---
+// Displays band name, gradient bar (red→yellow→green), and 0%/50%/100% labels.
+
+let heatmapLegendControl = null;
+
+export function renderHeatmapLegend(band) {
+  clearHeatmapLegend();
+  if (!state.map) return;
+
+  const L = window.L;
+
+  const HeatmapLegend = L.Control.extend({
+    options: { position: 'bottomleft' },
+    onAdd() {
+      const div = L.DomUtil.create('div', 'prop-heatmap-legend');
+      L.DomEvent.disableClickPropagation(div);
+      L.DomEvent.disableScrollPropagation(div);
+
+      div.innerHTML =
+        '<div class="prop-heatmap-legend-title">' + (band || '20m') + ' from QTH</div>' +
+        '<div class="prop-heatmap-legend-bar"></div>' +
+        '<div class="prop-heatmap-legend-labels"><span>0%</span><span>50%</span><span>100%</span></div>';
+      return div;
+    },
+  });
+
+  heatmapLegendControl = new HeatmapLegend();
+  state.map.addControl(heatmapLegendControl);
+}
+
+export function clearHeatmapLegend() {
+  if (heatmapLegendControl && state.map) {
+    state.map.removeControl(heatmapLegendControl);
+    heatmapLegendControl = null;
   }
 }
 

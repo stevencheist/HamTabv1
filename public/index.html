@@ -25,6 +25,13 @@
   <meta name="twitter:description" content="Modern web-based amateur radio dashboard for POTA, SOTA, and DX spotting.">
   <meta name="twitter:image" content="https://hamtab.net/og-image.png">
 
+  <!-- Favicon & App Icons -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.json">
+
   <!-- Canonical URL -->
   <link rel="canonical" href="https://hamtab.net">
 
@@ -1103,6 +1110,19 @@
         <label><input type="checkbox" id="mapOvTimezone" /> Timezone Lines</label>
         <label><input type="checkbox" id="mapOvMufImage" /> MUF Map (prop.kc2g.com)</label>
         <label><input type="checkbox" id="mapOvDrap" /> D-RAP Absorption (NOAA SWPC)</label>
+        <label class="map-ov-heatmap-row"><input type="checkbox" id="mapOvPropHeatmap" /> Propagation Heatmap
+          <select id="mapOvPropHeatmapBand" class="map-ov-band-select">
+            <option value="80m">80m</option>
+            <option value="40m">40m</option>
+            <option value="30m">30m</option>
+            <option value="20m" selected>20m</option>
+            <option value="17m">17m</option>
+            <option value="15m">15m</option>
+            <option value="12m">12m</option>
+            <option value="10m">10m</option>
+            <option value="6m">6m</option>
+          </select>
+        </label>
         <label><input type="checkbox" id="mapOvBandPaths" /> DX Paths (band-colored)</label>
         <label><input type="checkbox" id="mapOvDxpedMarkers" /> DXpedition Markers</label>
         <label><input type="checkbox" id="mapOvTropics" /> Tropics &amp; Arctic Lines</label>

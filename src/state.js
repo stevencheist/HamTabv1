@@ -244,6 +244,38 @@ const state = {
   // Day/night
   lastLocalDay: null,
   lastUtcDay: null,
+
+  // --- Radio config (persisted to localStorage) ---
+  radioConnectionType: localStorage.getItem('hamtab_radio_conn_type') || 'demo',
+
+  // Protocol + model
+  radioProtocolFamily: localStorage.getItem('hamtab_radio_protocol') || 'auto',
+  radioModelPreset: localStorage.getItem('hamtab_radio_model_preset') || '',
+
+  // Port
+  radioPortMode: localStorage.getItem('hamtab_radio_port_mode') || 'auto', // 'auto' | 'manual'
+
+  // Serial settings
+  radioBaudRate: localStorage.getItem('hamtab_radio_baud') || 'auto', // 'auto' | number string
+  radioDataBits: parseInt(localStorage.getItem('hamtab_radio_data_bits'), 10) || 8,
+  radioStopBits: parseInt(localStorage.getItem('hamtab_radio_stop_bits'), 10) || 1,
+  radioParity: localStorage.getItem('hamtab_radio_parity') || 'none',
+  radioFlowControl: localStorage.getItem('hamtab_radio_flow_control') || 'none', // 'none' | 'hardware'
+
+  // Control
+  radioPttMethod: localStorage.getItem('hamtab_radio_ptt_method') || 'cat', // 'cat' | 'dtr' | 'rts' | 'none'
+  radioPollingInterval: parseInt(localStorage.getItem('hamtab_radio_polling_interval'), 10) || 500,
+  radioCivAddress: localStorage.getItem('hamtab_radio_civ_address') || '0x94',
+
+  // Safety
+  radioSafetyTxIntent: localStorage.getItem('hamtab_radio_safety_tx_intent') !== 'false',
+  radioSafetyBandLockout: localStorage.getItem('hamtab_radio_safety_band_lockout') !== 'false',
+  radioSafetyAutoPower: localStorage.getItem('hamtab_radio_safety_auto_power') !== 'false',
+  radioSwrLimit: parseFloat(localStorage.getItem('hamtab_radio_swr_limit')) || 3.0,
+  radioSafePower: parseInt(localStorage.getItem('hamtab_radio_safe_power'), 10) || 20,
+
+  // Demo
+  radioDemoPropagation: localStorage.getItem('hamtab_radio_demo_propagation') || 'location',
 };
 
 // Migrate old SVG metric values

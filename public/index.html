@@ -121,6 +121,7 @@
 
       <div class="config-tabs">
         <button type="button" class="config-tab active" data-tab="station">Station</button>
+        <button type="button" class="config-tab" data-tab="radio" style="display:none">Radio</button><!-- RADIO_HIDDEN -->
         <button type="button" class="config-tab" data-tab="display">Display</button>
         <button type="button" class="config-tab" data-tab="appearance">Appearance</button>
         <button type="button" class="config-tab" data-tab="services">Services</button>
@@ -191,6 +192,165 @@
                 <label><input type="radio" name="tempUnit" value="F" id="tempUnitF"> °F</label>
                 <label><input type="radio" name="tempUnit" value="C" id="tempUnitC"> °C</label>
               </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab: Radio --><!-- RADIO_HIDDEN -->
+        <div class="config-panel" data-panel="radio" style="display:none">
+          <!-- Connection Mode -->
+          <div class="radio-cfg-section">
+            <span class="splash-loc-title">Connection Mode</span>
+            <div class="radio-cfg-row">
+              <label><input type="radio" name="radioConnType" value="real" id="radioConnReal"> Real Radio</label>
+              <label><input type="radio" name="radioConnType" value="demo" id="radioConnDemo"> Demo Mode</label>
+            </div>
+          </div>
+
+          <div class="splash-divider"></div>
+
+          <!-- Protocol + Model (real radio only) -->
+          <div class="radio-cfg-section" id="radioProtocolSection">
+            <span class="splash-loc-title">Protocol &amp; Radio</span>
+            <div class="radio-cfg-row">
+              <label for="radioProtocolFamily">Protocol Family</label>
+              <select id="radioProtocolFamily" class="radio-cfg-select">
+                <option value="auto">Auto-Detect</option>
+                <option value="yaesu_ascii">Yaesu ASCII</option>
+                <option value="kenwood_ascii">Kenwood ASCII</option>
+                <option value="icom_civ">Icom CI-V</option>
+                <option value="elecraft_ascii">Elecraft ASCII</option>
+              </select>
+            </div>
+            <div class="radio-cfg-row">
+              <label for="radioModelPreset">Model Preset</label>
+              <select id="radioModelPreset" class="radio-cfg-select">
+                <option value="">(None &mdash; use protocol defaults)</option>
+              </select>
+            </div>
+            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:-4px;text-align:left;">Model preset fills serial settings. You can still override below.</div>
+          </div>
+
+          <div class="splash-divider"></div>
+
+          <!-- Port Selection (real radio only) -->
+          <div class="radio-cfg-section" id="radioPortSection">
+            <span class="splash-loc-title">Serial Port</span>
+            <div class="radio-cfg-row">
+              <label for="radioPortMode">Port</label>
+              <select id="radioPortMode" class="radio-cfg-select">
+                <option value="auto">Auto (browser picker)</option>
+                <option value="manual">Use authorized port</option>
+              </select>
+            </div>
+            <div class="radio-cfg-row" id="radioPortListRow" style="display:none;">
+              <label for="radioPortList">Authorized Ports</label>
+              <select id="radioPortList" class="radio-cfg-select">
+                <option value="">No authorized ports</option>
+              </select>
+              <button type="button" class="radio-cfg-refresh-btn" id="radioRefreshPorts" title="Refresh port list">&#x21bb;</button>
+            </div>
+            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:-4px;text-align:left;">Auto mode shows the browser port picker on connect. Manual uses a previously authorized port.</div>
+          </div>
+
+          <div class="splash-divider"></div>
+
+          <!-- Serial Settings (real radio only) -->
+          <div class="radio-cfg-section" id="radioSerialSection">
+            <span class="splash-loc-title">Serial Settings</span>
+            <div class="radio-cfg-row">
+              <label for="radioBaudRate">Baud Rate</label>
+              <select id="radioBaudRate" class="radio-cfg-select">
+                <option value="auto">Auto-Detect</option>
+                <option value="4800">4800</option>
+                <option value="9600">9600</option>
+                <option value="19200">19200</option>
+                <option value="38400">38400</option>
+                <option value="57600">57600</option>
+                <option value="115200">115200</option>
+              </select>
+            </div>
+            <div class="radio-cfg-row">
+              <label for="radioDataBits">Data Bits</label>
+              <select id="radioDataBits" class="radio-cfg-select radio-cfg-narrow">
+                <option value="7">7</option>
+                <option value="8" selected>8</option>
+              </select>
+              <label for="radioStopBits">Stop Bits</label>
+              <select id="radioStopBits" class="radio-cfg-select radio-cfg-narrow">
+                <option value="1" selected>1</option>
+                <option value="2">2</option>
+              </select>
+            </div>
+            <div class="radio-cfg-row">
+              <label for="radioParity">Parity</label>
+              <select id="radioParity" class="radio-cfg-select radio-cfg-narrow">
+                <option value="none" selected>None</option>
+                <option value="even">Even</option>
+                <option value="odd">Odd</option>
+              </select>
+              <label for="radioFlowControl">Flow Ctrl</label>
+              <select id="radioFlowControl" class="radio-cfg-select radio-cfg-narrow">
+                <option value="none" selected>None</option>
+                <option value="hardware">RTS/CTS</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="splash-divider"></div>
+
+          <!-- Control Settings (real radio only) -->
+          <div class="radio-cfg-section" id="radioControlSection">
+            <span class="splash-loc-title">Control</span>
+            <div class="radio-cfg-row">
+              <label for="radioPttMethod">PTT Method</label>
+              <select id="radioPttMethod" class="radio-cfg-select">
+                <option value="cat">CAT (serial command)</option>
+                <option value="dtr">DTR line</option>
+                <option value="rts">RTS line</option>
+                <option value="none">None (manual)</option>
+              </select>
+            </div>
+            <div class="radio-cfg-row">
+              <label for="radioPollingInterval">Polling (ms)</label>
+              <input type="number" id="radioPollingInterval" class="radio-cfg-number" min="100" max="5000" step="100" value="500">
+            </div>
+            <div class="radio-cfg-row" id="radioCivRow">
+              <label for="radioCivAddress">CI-V Address</label>
+              <input type="text" id="radioCivAddress" class="radio-cfg-text" placeholder="0x94" maxlength="4">
+            </div>
+          </div>
+
+          <div class="splash-divider"></div>
+
+          <!-- Safety (real radio only) -->
+          <div class="radio-cfg-section" id="radioSafetySection">
+            <span class="splash-loc-title">Safety</span>
+            <label class="config-toggle"><input type="checkbox" id="radioSafetyTxIntent" checked> TX Intent Guard (locks TX during rapid tuning)</label>
+            <label class="config-toggle"><input type="checkbox" id="radioSafetyBandLockout" checked> Band Transition Lockout (locks TX on band change)</label>
+            <label class="config-toggle"><input type="checkbox" id="radioSafetyAutoPower" checked> Auto Power Reduction (reduces power on high SWR)</label>
+            <div class="radio-cfg-row">
+              <label for="radioSwrLimit">SWR Limit</label>
+              <input type="number" id="radioSwrLimit" class="radio-cfg-number" min="1.5" max="10" step="0.1" value="3.0">
+            </div>
+            <div class="radio-cfg-row">
+              <label for="radioSafePower">Safe Power (W)</label>
+              <input type="number" id="radioSafePower" class="radio-cfg-number" min="5" max="100" step="5" value="20">
+            </div>
+          </div>
+
+          <div class="splash-divider"></div>
+
+          <!-- Demo Settings (demo mode only) -->
+          <div class="radio-cfg-section" id="radioDemoSection">
+            <span class="splash-loc-title">Demo Settings</span>
+            <div class="radio-cfg-row">
+              <span class="radio-cfg-sublabel">Propagation Simulation</span>
+            </div>
+            <div class="radio-cfg-row">
+              <label><input type="radio" name="radioDemoProp" value="off" id="radioPropOff"> Off</label>
+              <label><input type="radio" name="radioDemoProp" value="basic" id="radioPropBasic"> Basic</label>
+              <label><input type="radio" name="radioDemoProp" value="location" id="radioPropLocation"> Location-Aware</label>
             </div>
           </div>
         </div>
@@ -870,6 +1030,62 @@
       </div>
       <div class="widget-body">
         <svg id="analogClockSvg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- On-Air Rig Control --><!-- RADIO_HIDDEN -->
+    <div class="widget" id="widget-on-air-rig" style="display:none">
+      <div class="widget-header">On-Air Rig
+        <button class="widget-help-btn" data-widget="widget-on-air-rig" title="Help">?</button>
+      </div>
+      <div class="widget-body">
+        <div class="rig-container" id="rigContainer">
+          <!-- LCD Display Panel -->
+          <div class="rig-lcd" id="rigLcd">
+            <div class="rig-lcd-top">
+              <span class="rig-vfo-label">VFO A</span>
+              <span class="rig-tx-state" id="rigTxState">RX</span>
+            </div>
+            <div class="rig-confidence" id="rigConfidence">
+              <div class="rig-frequency" id="rigFrequency">-.---.---</div>
+              <span class="rig-freq-unit">MHz</span>
+            </div>
+            <div class="rig-info-row">
+              <span class="rig-band" id="rigBand"></span>
+              <span class="rig-mode" id="rigMode">---</span>
+              <span class="rig-rst hidden" id="rigRST"></span>
+              <span class="rig-power hidden" id="rigPower"></span>
+            </div>
+          </div>
+          <!-- S-Meter (LED bar-graph) -->
+          <div class="rig-meter-row">
+            <label>S</label>
+            <div class="rig-meter-wrap">
+              <div class="rig-meter-bar"><div class="rig-meter-fill" id="rigSMeter"></div></div>
+              <div class="rig-meter-scale">
+                <span>1</span><span>3</span><span>5</span><span>7</span><span>9</span><span class="rig-meter-over-label">+20</span><span class="rig-meter-over-label">+40</span>
+              </div>
+            </div>
+            <span class="rig-swr-label" id="rigSWR">SWR ---</span>
+          </div>
+          <!-- Band plan overlay -->
+          <div class="rig-band-overlay" id="rigBandOverlay"></div>
+          <!-- Power slider -->
+          <div class="rig-power-row hidden" id="rigPowerRow">
+            <label>PWR</label>
+            <input type="range" class="rig-power-slider" id="rigPowerSlider" min="5" max="100" step="5" value="100">
+            <span class="rig-power-value" id="rigPowerValue">100W</span>
+          </div>
+          <!-- Controls -->
+          <div class="rig-connect-row">
+            <select id="rigProfileSelect" class="rig-profile-select">
+              <option value="">Select Radio...</option>
+            </select>
+            <button id="rigConnectBtn" class="rig-connect-btn">Connect</button>
+          </div>
+          <div class="rig-status" id="rigStatus"></div>
+        </div>
       </div>
       <div class="widget-resize"></div>
     </div>

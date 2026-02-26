@@ -81,6 +81,10 @@ export function initMap() {
         clearTimeout(state.heatmapRenderTimer);
         const { renderHeatmapCanvas } = require('./rel-heatmap.js');
         state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.hfPropOverlayBand), 200);
+      } else if (state.mapOverlays.propagationHeatmap) {
+        clearTimeout(state.heatmapRenderTimer);
+        const { renderHeatmapCanvas } = require('./rel-heatmap.js');
+        state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.propagationHeatmapBand), 200);
       }
     });
     state.map.on('moveend', () => {
@@ -98,6 +102,10 @@ export function initMap() {
         clearTimeout(state.heatmapRenderTimer);
         const { renderHeatmapCanvas } = require('./rel-heatmap.js');
         state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.hfPropOverlayBand), 200);
+      } else if (state.mapOverlays.propagationHeatmap) {
+        clearTimeout(state.heatmapRenderTimer);
+        const { renderHeatmapCanvas } = require('./rel-heatmap.js');
+        state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.propagationHeatmapBand), 200);
       }
     });
 

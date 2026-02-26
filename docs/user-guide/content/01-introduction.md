@@ -21,7 +21,7 @@ Whether you're hunting activators from home or setting up a portable station, Ha
 | Live Spots | Real-time POTA, SOTA, DX Cluster, and PSK spots |
 | Interactive Map | Markers, overlays, geodesic paths, satellite footprints |
 | Solar Data | 18 configurable space weather metrics with color coding |
-| Band Conditions | Day/night propagation forecast by band and region |
+| Band Conditions | Day/night propagation forecast for HF + 6m with sporadic E detection |
 | HF Propagation | 24-hour band reliability matrix |
 | Live Spots Widget | See where YOUR signal is being received |
 | Satellite Tracking | Real-time position and pass predictions |

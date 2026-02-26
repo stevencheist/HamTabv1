@@ -78,6 +78,20 @@ A full-map image overlay showing real-time Maximum Usable Frequency conditions f
 
 <div class="tip">The MUF image overlay complements the contour lines. Contours show precise MHz values along lines; the MUF image overlay fills the entire map with color so you can see regional patterns at a glance.</div>
 
+### Propagation Heatmap
+
+A colored map overlay showing predicted HF propagation reliability from your QTH on a selected band. The map is painted in a continuous gradient from red (poor/closed) through yellow (marginal) to green (reliable), giving you an instant visual of where you can reach.
+
+- **Toggle:** Map gear icon → "Propagation Heatmap" checkbox
+- **Band selector:** Use the inline dropdown (80m–6m) to pick which band to display. Default is 20m.
+- **Legend:** A floating panel appears in the bottom-left corner showing the band name, a color gradient bar, and 0%/50%/100% labels
+- **Dynamic:** The heatmap re-renders automatically when you pan or zoom (with a 200ms debounce for performance)
+- **Independent:** Works alongside all other map overlays. If the VOACAP widget is actively showing its own heatmap, that takes priority; when the VOACAP overlay clears, the standalone heatmap restores automatically.
+
+The reliability calculation uses the same engine as the HF Band Conditions widget — it considers solar flux, K-index, time of day, and path distance from your QTH to each point on the map.
+
+<div class="tip">This overlay is the quickest way to answer "where can I reach on 20m right now?" — enable it, glance at the green areas, and start calling.</div>
+
 ### Tropics & Arctic Lines
 Draws five major latitude circles on the map with colored, labeled lines:
 - **Arctic Circle** (66.5°N) — light blue dashed line

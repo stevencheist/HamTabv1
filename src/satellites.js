@@ -126,8 +126,9 @@ export async function fetchSatelliteList() {
   if (!state.n2yoApiKey) return;
 
   try {
-    const url = `/api/satellites/list?apikey=${encodeURIComponent(state.n2yoApiKey)}`;
-    const resp = await fetch(url);
+    const resp = await fetch('/api/satellites/list', {
+      headers: { 'X-Api-Key': state.n2yoApiKey },
+    });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 
@@ -149,9 +150,9 @@ export async function fetchSatellitePositions() {
     const ids = n2yoIds.join(',');
     const lat = state.myLat ?? 0;
     const lon = state.myLon ?? 0;
-    const url = `/api/satellites/positions?apikey=${encodeURIComponent(state.n2yoApiKey)}&ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`;
-
-    const resp = await fetch(url);
+    const resp = await fetch(`/api/satellites/positions?ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`, {
+      headers: { 'X-Api-Key': state.n2yoApiKey },
+    });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 
@@ -171,8 +172,9 @@ export async function fetchSatellitePasses(satId) {
   if (!state.n2yoApiKey || state.myLat === null || state.myLon === null) return;
 
   try {
-    const url = `/api/satellites/passes?apikey=${encodeURIComponent(state.n2yoApiKey)}&id=${satId}&lat=${state.myLat}&lon=${state.myLon}&days=2&minEl=10`;
-    const resp = await fetch(url);
+    const resp = await fetch(`/api/satellites/passes?id=${satId}&lat=${state.myLat}&lon=${state.myLon}&days=2&minEl=10`, {
+      headers: { 'X-Api-Key': state.n2yoApiKey },
+    });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 

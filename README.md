@@ -17,7 +17,8 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **Day/Night Terminator** — Gray line overlay showing the solar terminator with a subtle daylight tint on the illuminated hemisphere
 - **Propagation Contours** — MUF and foF2 HF propagation overlays on the map from prop.kc2g.com
 - **MUF Map Overlay** — Real-time Maximum Usable Frequency image overlay from prop.kc2g.com showing worldwide MUF conditions, auto-refreshes every 15 minutes
-- **Map Overlays** — Toggleable lat/lon grid, Maidenhead grid squares, timezone lines, MUF image overlay, tropics & arctic lines, and weather radar via map gear icon
+- **Propagation Heatmap** — HamClock-style colored map showing predicted propagation reach from your QTH on any HF band (80m–6m), toggled independently via the map gear icon with an inline band selector
+- **Map Overlays** — Toggleable lat/lon grid, Maidenhead grid squares, timezone lines, MUF image overlay, propagation heatmap, tropics & arctic lines, and weather radar via map gear icon
 - **Weather Radar** — Global precipitation overlay from RainViewer, semi-transparent tile layer with 5-minute auto-refresh
 - **Map Legend** — Toggleable legend panel showing color keys for all marker and line types on the map
 - **Fullscreen Map** — Expand the map to fill the entire viewport with a single click; press Escape or click the close button to return to the grid
@@ -604,6 +605,7 @@ Interactive Leaflet map with dark tiles showing activation markers, your QTH, sa
 | **Propagation contours** | Color-coded MHz contour lines when MUF or foF2 is enabled |
 | **MUF image overlay** | Full-map MUF visualization from prop.kc2g.com, toggleable via map gear icon, auto-refreshes every 15 minutes |
 | **VOACAP overlays** | Circle and heatmap overlays showing propagation reach from your QTH |
+| **Propagation heatmap overlay** | Standalone colored heatmap (red→yellow→green) showing predicted band reliability from your QTH, with per-band selector and floating legend |
 | **Lat/lon grid** | Toggleable coordinate grid overlay |
 | **Maidenhead grid** | Toggleable grid square boundaries overlay |
 | **Timezone lines** | Toggleable UTC timezone boundary overlay |

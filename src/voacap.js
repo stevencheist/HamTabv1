@@ -7,6 +7,7 @@ import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
 import { calculate24HourMatrix, getReliabilityColor, VOACAP_BANDS, HF_BANDS } from './band-conditions.js';
 import { renderHeatmapCanvas, clearHeatmap } from './rel-heatmap.js';
+import { renderPropagationHeatmapOverlay } from './map-overlays.js';
 
 // Store overlay circles on map
 let bandOverlayCircles = [];
@@ -108,6 +109,7 @@ function cycleParam(name) {
     state.voacapSensitivity = DEFAULT_SENSITIVITY;
     localStorage.setItem('hamtab_voacap_sensitivity', DEFAULT_SENSITIVITY);
     renderVoacapMatrix();
+    renderPropagationHeatmapOverlay();
     clearTimeout(state.voacapParamTimer);
     state.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
     return;
@@ -120,6 +122,7 @@ function cycleParam(name) {
     state.voacapSensitivity = next;
     localStorage.setItem('hamtab_voacap_sensitivity', next);
     renderVoacapMatrix();
+    renderPropagationHeatmapOverlay();
     clearTimeout(state.voacapParamTimer);
     state.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
     return;
@@ -168,6 +171,8 @@ function cycleParam(name) {
     } else {
       drawBandOverlay(state.hfPropOverlayBand);
     }
+  } else {
+    renderPropagationHeatmapOverlay();
   }
 }
 
@@ -500,10 +505,11 @@ export function toggleBandOverlay(band) {
   clearBandOverlay();
   clearHeatmap();
 
-  // If clicking the same band, just clear
+  // If clicking the same band, just clear — restore standalone heatmap if enabled
   if (state.hfPropOverlayBand === band) {
     state.hfPropOverlayBand = null;
     renderVoacapMatrix();
+    renderPropagationHeatmapOverlay();
     return;
   }
 
@@ -595,11 +601,12 @@ function drawBandOverlay(band) {
   bandOverlayCircles.push(marker);
 }
 
-// Export for cleanup on source change
+// Export for cleanup on source change — restores standalone heatmap if enabled
 export function clearVoacapOverlay() {
   clearBandOverlay();
   clearHeatmap();
   state.hfPropOverlayBand = null;
+  renderPropagationHeatmapOverlay();
 }
 
 // Called by markers.js when a spot is selected — auto-switch to SPOT mode if enabled

@@ -1,4 +1,5 @@
 import state from './state.js';
+import { renderHeatmapCanvas, clearHeatmap, renderHeatmapLegend, clearHeatmapLegend } from './rel-heatmap.js';
 
 export function renderAllMapOverlays() {
   if (!state.map) return;
@@ -11,6 +12,7 @@ export function renderAllMapOverlays() {
   renderWeatherRadar();
   renderCloudCover();
   renderSymbolLegend();
+  renderPropagationHeatmapOverlay();
 }
 
 export function renderLatLonGrid() {
@@ -432,6 +434,21 @@ export function renderSymbolLegend() {
 
   legendControl = new LegendControl();
   state.map.addControl(legendControl);
+}
+
+// --- Propagation Heatmap Overlay (standalone, independent of VOACAP widget) ---
+
+export function renderPropagationHeatmapOverlay() {
+  // Skip if VOACAP widget is currently driving the heatmap (avoid double-render)
+  if (state.hfPropOverlayBand && state.heatmapOverlayMode === 'heatmap') return;
+
+  if (state.mapOverlays.propagationHeatmap) {
+    renderHeatmapCanvas(state.propagationHeatmapBand);
+    renderHeatmapLegend(state.propagationHeatmapBand);
+  } else {
+    clearHeatmap();
+    clearHeatmapLegend();
+  }
 }
 
 export function saveMapOverlays() {

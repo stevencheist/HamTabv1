@@ -1402,6 +1402,22 @@
     if (reliability >= 20) return "poor";
     return "closed";
   }
+  function getSporadicEBoost() {
+    const vhfData = state_default.lastSolarData?.vhf;
+    if (!vhfData || vhfData.length === 0) return 0;
+    let maxBoost = 0;
+    for (const item of vhfData) {
+      if (item.name !== "E-Skip") continue;
+      const c = item.condition.toLowerCase();
+      let boost = 0;
+      if (c.includes("band open") || c === "open") boost = 40;
+      else if (c.includes("high")) boost = 25;
+      else if (c.includes("good")) boost = 15;
+      else if (c.includes("fair")) boost = 5;
+      if (boost > maxBoost) maxBoost = boost;
+    }
+    return maxBoost;
+  }
   function calculateBandConditions(timeOfDay = null) {
     if (!state_default.lastSolarData || !state_default.lastSolarData.indices) {
       return HF_BANDS.map((band) => ({
@@ -1425,14 +1441,18 @@
       isDay = utcHour >= 6 && utcHour < 18;
     }
     const muf = calculateMUF(sfi, isDay);
+    const esBoost = getSporadicEBoost();
     return HF_BANDS.map((band) => {
-      const reliability = calculateBandReliability(
+      let reliability = calculateBandReliability(
         band.freqMHz,
         muf,
         kIndex,
         aIndex,
         isDay
       );
+      if (band.name === "6m" && esBoost > 0) {
+        reliability = Math.min(100, reliability + esBoost);
+      }
       return {
         ...band,
         reliability,
@@ -1673,9 +1693,10 @@
         { name: "17m", freqMHz: 18.1, label: "17m" },
         { name: "15m", freqMHz: 21.2, label: "15m" },
         { name: "12m", freqMHz: 24.93, label: "12m" },
-        { name: "10m", freqMHz: 28.5, label: "10m" }
+        { name: "10m", freqMHz: 28.5, label: "10m" },
+        { name: "6m", freqMHz: 50.1, label: "6m" }
       ];
-      VOACAP_BANDS = HF_BANDS.filter((b) => b.name !== "160m" && b.name !== "60m");
+      VOACAP_BANDS = HF_BANDS.filter((b) => b.name !== "160m" && b.name !== "60m" && b.name !== "6m");
     }
   });
 
@@ -8190,9 +8211,10 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         },
         "widget-propagation": {
           title: "Band Conditions",
-          description: "HF band conditions and VHF propagation status. Shows per-band reliability predictions for both day and night simultaneously, plus VHF phenomena like Aurora and E-Skip.",
+          description: "HF and 6m band conditions plus VHF propagation status. Shows per-band reliability predictions for both day and night simultaneously, plus VHF phenomena like Aurora and E-Skip.",
           sections: [
             { heading: "HF Bands", content: "Each band shows a reliability percentage and condition (Excellent/Good/Fair/Poor/Closed). Day and night are shown side by side \u2014 day conditions appear in the left column (orange border), night in the right column (blue border). Green means the band is likely open, yellow means marginal, red means closed." },
+            { heading: "6m (Magic Band)", content: "6m is included because it has meaningful propagation modes \u2014 sporadic E (Es) and F2 skip during high solar activity. The prediction combines the MUF model with live E-Skip data from HamQSL. When E-Skip is reported as active, 6m reliability gets a boost. During quiet conditions, 6m may show as closed even though brief Es openings can still occur unpredictably." },
             { heading: "VHF Conditions", content: "Below the HF bands, VHF propagation phenomena are shown: Aurora (affects 2m and above in northern latitudes) and E-Skip (sporadic E-layer openings on 6m/4m/2m by region). Data comes directly from HamQSL." },
             { heading: "How It Works", content: "HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model. Higher SFI means better HF conditions. K-index above 4 can shut down HF bands. The summary bar shows current MUF (Maximum Usable Frequency), SFI, and K-index." }
           ],
@@ -18052,8 +18074,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.54.2";
-    $("aboutVersion").textContent = "0.54.2";
+    $("splashVersion").textContent = "0.55.0";
+    $("aboutVersion").textContent = "0.55.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

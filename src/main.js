@@ -107,7 +107,7 @@ initAnalogClock();
 initClockConfigListeners();
 initMobileMenu();
 initTabs();
-initOnAirRig(); // only activates if widget is visible (checked inside)
+// initOnAirRig(); // RADIO_HIDDEN — re-enable when radio hardware available
 
 // Wire initApp into splash dismissal
 function initApp() {

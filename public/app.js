@@ -7853,8 +7853,8 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         { id: "widget-beacons", name: "NCDXF Beacons", short: "Bcn" },
         { id: "widget-dedx", name: "DE/DX Info", short: "DEDX" },
         { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
-        { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" },
-        { id: "widget-on-air-rig", name: "On-Air Rig", short: "Rig" }
+        { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" }
+        // { id: 'widget-on-air-rig',  name: 'On-Air Rig',       short: 'Rig' }, // RADIO_HIDDEN
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -20907,7 +20907,6 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initClockConfigListeners();
   initMobileMenu();
   initTabs();
-  initOnAirRig();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

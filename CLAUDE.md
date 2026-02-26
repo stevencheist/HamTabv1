@@ -483,7 +483,7 @@ Be friendly, assume non-technical users, ask specific questions. See the project
 
 ### RCA Format
 
-Write the RCA to auto memory (`memory/rca/YYYY-MM-DD-short-title.md`) so it persists across sessions. Include:
+Write the RCA to Claude's auto memory so it persists across sessions. Include:
 
 ```markdown
 # RCA: <Short Title>
@@ -515,8 +515,8 @@ Broader insights for future debugging or development.
 
 1. **Update CLAUDE.md** — Add any new rules, checklists, or validation steps identified in Preventive Measures
 2. **Update instructions.md** — If the lesson applies across all projects, add it to shared instructions
-3. **Update MEMORY.md** — Add a brief note linking to the RCA file
-4. **Commit the RCA and all updated files** in a single commit
+3. **Update MEMORY.md** — Add a brief summary of the incident and lessons learned
+4. **Commit all updated files** in a single commit
 
 ---
 
@@ -531,4 +531,4 @@ Rules added from past RCAs. Each links to the original analysis.
 - Pre-commit branch check (CLAUDE.md § Pre-Commit Branch Check) — prevents accidental commits to wrong branch
 - Post-merge validation (CLAUDE.md § Branch Sync Protocol) — `node -c server.js` + duplicate section scan after every merge
 - RCA protocol (this section) — forces analysis after every major incident
-**See:** `memory/rca/2026-02-06-hostedmode-container-crash.md`
+**See:** RCA was documented in this section; no separate file was written.

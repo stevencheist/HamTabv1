@@ -135,7 +135,7 @@ const state = {
   wxApiKey: localStorage.getItem('hamtab_wx_apikey') || '',
   owmApiKey: localStorage.getItem('hamtab_owm_apikey') || '',
   hamqthUser: localStorage.getItem('hamtab_hamqth_user') || '',
-  hamqthPass: localStorage.getItem('hamtab_hamqth_pass') || '',
+  hamqthPass: '', // server-side only — never persisted in browser storage
   nwsAlerts: [],
   weatherTimer: null,
   nwsCondTimer: null,
@@ -344,5 +344,8 @@ try {
     }
   }
 } catch (e) {}
+
+// Security migration: remove HamQTH password from localStorage (now server-side only)
+localStorage.removeItem('hamtab_hamqth_pass');
 
 export default state;

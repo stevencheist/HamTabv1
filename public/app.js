@@ -173,7 +173,8 @@
         wxApiKey: localStorage.getItem("hamtab_wx_apikey") || "",
         owmApiKey: localStorage.getItem("hamtab_owm_apikey") || "",
         hamqthUser: localStorage.getItem("hamtab_hamqth_user") || "",
-        hamqthPass: localStorage.getItem("hamtab_hamqth_pass") || "",
+        hamqthPass: "",
+        // server-side only — never persisted in browser storage
         nwsAlerts: [],
         weatherTimer: null,
         nwsCondTimer: null,
@@ -394,6 +395,7 @@
         }
       } catch (e) {
       }
+      localStorage.removeItem("hamtab_hamqth_pass");
       state_default = state;
     }
   });
@@ -5553,7 +5555,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     }
     if (state_default.owmApiKey) {
       try {
-        const resp = await fetch(`/api/weather/owm?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&apikey=${encodeURIComponent(state_default.owmApiKey)}`);
+        const resp = await fetch(`/api/weather/owm?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`, {
+          headers: { "X-Api-Key": state_default.owmApiKey }
+        });
         if (resp.ok) {
           const data = await resp.json();
           spotDetailWeatherCache[key] = data;
@@ -11255,8 +11259,8 @@ ${beacon.location}`);
   }
   function doFetchWeather() {
     if (useWU()) {
-      const url = "/api/weather?station=" + encodeURIComponent(state_default.wxStation) + "&apikey=" + encodeURIComponent(state_default.wxApiKey);
-      fetch(url).then((r) => r.ok ? r.json() : Promise.reject()).then((data) => {
+      const url = "/api/weather?station=" + encodeURIComponent(state_default.wxStation);
+      fetch(url, { headers: { "X-Api-Key": state_default.wxApiKey } }).then((r) => r.ok ? r.json() : Promise.reject()).then((data) => {
         const name = data.neighborhood || state_default.wxStation;
         const tempStr = data.temp != null ? data.temp + "\xB0F" : "";
         const cond = data.condition || "";
@@ -11301,8 +11305,8 @@ ${beacon.location}`);
   function fetchOwmConditions() {
     if (state_default.myLat === null || state_default.myLon === null) return;
     if (!state_default.owmApiKey) return;
-    const url = "/api/weather/owm?lat=" + state_default.myLat + "&lon=" + state_default.myLon + "&apikey=" + encodeURIComponent(state_default.owmApiKey);
-    fetch(url).then((r) => r.ok ? r.json() : Promise.reject()).then((data) => {
+    const url = "/api/weather/owm?lat=" + state_default.myLat + "&lon=" + state_default.myLon;
+    fetch(url, { headers: { "X-Api-Key": state_default.owmApiKey } }).then((r) => r.ok ? r.json() : Promise.reject()).then((data) => {
       displayConditions(data, "owm");
     }).catch((err2) => {
       console.warn("OWM conditions fetch failed:", err2);
@@ -12282,8 +12286,9 @@ ${beacon.location}`);
   async function fetchSatelliteList() {
     if (!state_default.n2yoApiKey) return;
     try {
-      const url = `/api/satellites/list?apikey=${encodeURIComponent(state_default.n2yoApiKey)}`;
-      const resp = await fetch(url);
+      const resp = await fetch("/api/satellites/list", {
+        headers: { "X-Api-Key": state_default.n2yoApiKey }
+      });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       state_default.satellites.available = data;
@@ -12300,8 +12305,9 @@ ${beacon.location}`);
       const ids = n2yoIds.join(",");
       const lat = state_default.myLat ?? 0;
       const lon = state_default.myLon ?? 0;
-      const url = `/api/satellites/positions?apikey=${encodeURIComponent(state_default.n2yoApiKey)}&ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`;
-      const resp = await fetch(url);
+      const resp = await fetch(`/api/satellites/positions?ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`, {
+        headers: { "X-Api-Key": state_default.n2yoApiKey }
+      });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       const issPos = state_default.satellites.positions["25544"];
@@ -12316,8 +12322,9 @@ ${beacon.location}`);
   async function fetchSatellitePasses(satId) {
     if (!state_default.n2yoApiKey || state_default.myLat === null || state_default.myLon === null) return;
     try {
-      const url = `/api/satellites/passes?apikey=${encodeURIComponent(state_default.n2yoApiKey)}&id=${satId}&lat=${state_default.myLat}&lon=${state_default.myLon}&days=2&minEl=10`;
-      const resp = await fetch(url);
+      const resp = await fetch(`/api/satellites/passes?id=${satId}&lat=${state_default.myLat}&lon=${state_default.myLon}&days=2&minEl=10`, {
+        headers: { "X-Api-Key": state_default.n2yoApiKey }
+      });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
       state_default.satellites.passes[satId] = {
@@ -17982,7 +17989,8 @@ ${beacon.location}`);
     $("splashOwmApiKey").value = state_default.owmApiKey;
     $("splashN2yoApiKey").value = state_default.n2yoApiKey;
     $("splashHamqthUser").value = state_default.hamqthUser;
-    $("splashHamqthPass").value = state_default.hamqthPass;
+    $("splashHamqthPass").value = "";
+    $("splashHamqthPass").placeholder = state_default.hamqthUser ? "(server-configured)" : "";
     const intervalSelect = $("splashUpdateInterval");
     if (intervalSelect) {
       const savedInterval = localStorage.getItem("hamtab_update_interval") || "60";
@@ -18044,8 +18052,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.54.1";
-    $("aboutVersion").textContent = "0.54.1";
+    $("splashVersion").textContent = "0.54.2";
+    $("aboutVersion").textContent = "0.54.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -18336,19 +18344,18 @@ ${beacon.location}`);
     state_default.owmApiKey = ($("splashOwmApiKey").value || "").trim();
     state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
     state_default.hamqthUser = ($("splashHamqthUser").value || "").trim();
-    state_default.hamqthPass = ($("splashHamqthPass").value || "").trim();
+    const hamqthPassInput = ($("splashHamqthPass").value || "").trim();
     localStorage.setItem("hamtab_wx_station", state_default.wxStation);
     localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
     localStorage.setItem("hamtab_owm_apikey", state_default.owmApiKey);
     localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
     localStorage.setItem("hamtab_hamqth_user", state_default.hamqthUser);
-    localStorage.setItem("hamtab_hamqth_pass", state_default.hamqthPass);
     const envUpdates = {};
     if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
     if (state_default.owmApiKey) envUpdates.OWM_API_KEY = state_default.owmApiKey;
     if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
     if (state_default.hamqthUser) envUpdates.HAMQTH_USER = state_default.hamqthUser;
-    if (state_default.hamqthPass) envUpdates.HAMQTH_PASS = state_default.hamqthPass;
+    if (hamqthPassInput) envUpdates.HAMQTH_PASS = hamqthPassInput;
     if (Object.keys(envUpdates).length > 0) {
       fetch("/api/config/env", {
         method: "POST",

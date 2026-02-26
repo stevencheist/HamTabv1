@@ -302,7 +302,36 @@
         })(),
         // Day/night
         lastLocalDay: null,
-        lastUtcDay: null
+        lastUtcDay: null,
+        // --- Radio config (persisted to localStorage) ---
+        radioConnectionType: localStorage.getItem("hamtab_radio_conn_type") || "demo",
+        // Protocol + model
+        radioProtocolFamily: localStorage.getItem("hamtab_radio_protocol") || "auto",
+        radioModelPreset: localStorage.getItem("hamtab_radio_model_preset") || "",
+        // Port
+        radioPortMode: localStorage.getItem("hamtab_radio_port_mode") || "auto",
+        // 'auto' | 'manual'
+        // Serial settings
+        radioBaudRate: localStorage.getItem("hamtab_radio_baud") || "auto",
+        // 'auto' | number string
+        radioDataBits: parseInt(localStorage.getItem("hamtab_radio_data_bits"), 10) || 8,
+        radioStopBits: parseInt(localStorage.getItem("hamtab_radio_stop_bits"), 10) || 1,
+        radioParity: localStorage.getItem("hamtab_radio_parity") || "none",
+        radioFlowControl: localStorage.getItem("hamtab_radio_flow_control") || "none",
+        // 'none' | 'hardware'
+        // Control
+        radioPttMethod: localStorage.getItem("hamtab_radio_ptt_method") || "cat",
+        // 'cat' | 'dtr' | 'rts' | 'none'
+        radioPollingInterval: parseInt(localStorage.getItem("hamtab_radio_polling_interval"), 10) || 500,
+        radioCivAddress: localStorage.getItem("hamtab_radio_civ_address") || "0x94",
+        // Safety
+        radioSafetyTxIntent: localStorage.getItem("hamtab_radio_safety_tx_intent") !== "false",
+        radioSafetyBandLockout: localStorage.getItem("hamtab_radio_safety_band_lockout") !== "false",
+        radioSafetyAutoPower: localStorage.getItem("hamtab_radio_safety_auto_power") !== "false",
+        radioSwrLimit: parseFloat(localStorage.getItem("hamtab_radio_swr_limit")) || 3,
+        radioSafePower: parseInt(localStorage.getItem("hamtab_radio_safe_power"), 10) || 20,
+        // Demo
+        radioDemoPropagation: localStorage.getItem("hamtab_radio_demo_propagation") || "location"
       };
       if (state.propMetric === "mof_sp" || state.propMetric === "lof_sp") {
         state.propMetric = "mufd";
@@ -2292,6 +2321,3189 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     }
   });
 
+  // src/cat/transports/web-serial.js
+  var ConnectionState, encoder, decoder, WebSerialTransport;
+  var init_web_serial = __esm({
+    "src/cat/transports/web-serial.js"() {
+      ConnectionState = {
+        DISCONNECTED: "disconnected",
+        CONNECTING: "connecting",
+        CONNECTED: "connected",
+        ERROR: "error"
+      };
+      encoder = new TextEncoder();
+      decoder = new TextDecoder();
+      WebSerialTransport = class _WebSerialTransport {
+        constructor(config = {}) {
+          this.port = null;
+          this.state = ConnectionState.DISCONNECTED;
+          this._onStateChange = null;
+          this._hwFlowControl = false;
+          this.config = {
+            baudRate: config.baudRate || 38400,
+            dataBits: config.dataBits || 8,
+            stopBits: config.stopBits || 2,
+            // FT-DX10 uses 2 stop bits
+            parity: config.parity || "none",
+            flowControl: config.flowControl || "hardware"
+          };
+        }
+        // --- API check ---
+        static isSupported() {
+          return "serial" in navigator;
+        }
+        // --- State management ---
+        onStateChange(callback) {
+          this._onStateChange = callback;
+        }
+        _setState(newState) {
+          this.state = newState;
+          if (this._onStateChange) this._onStateChange(newState);
+        }
+        // --- Connect ---
+        // Opens the browser serial port picker, then opens with configured params.
+        // Asserts DTR after open. Falls back to no flow control if HW not supported.
+        async connect(existingPort) {
+          if (!_WebSerialTransport.isSupported()) {
+            throw new Error("Web Serial API not supported in this browser");
+          }
+          try {
+            this._setState(ConnectionState.CONNECTING);
+            this.port = existingPort || await navigator.serial.requestPort();
+            this._hwFlowControl = false;
+            try {
+              await this.port.open(this.config);
+              if (this.config.flowControl === "hardware") {
+                this._hwFlowControl = true;
+              }
+            } catch (openErr) {
+              if (openErr.message && openErr.message.includes("flowControl")) {
+                console.warn("[cat] HW flow control not supported, falling back");
+                await this.port.open({ ...this.config, flowControl: "none" });
+              } else {
+                throw openErr;
+              }
+            }
+            if (this._hwFlowControl) {
+              await this.port.setSignals({ dataTerminalReady: true });
+            } else {
+              await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+            }
+            this._setState(ConnectionState.CONNECTED);
+            return true;
+          } catch (err2) {
+            if (err2.name === "NotFoundError") {
+              this._setState(ConnectionState.DISCONNECTED);
+              return false;
+            }
+            this._setState(ConnectionState.ERROR);
+            throw err2;
+          }
+        }
+        // --- Disconnect ---
+        // Deasserts DTR/RTS before closing to prevent radio hangs.
+        async disconnect() {
+          try {
+            if (this.port) {
+              try {
+                const signals = { dataTerminalReady: false };
+                if (!this._hwFlowControl) signals.requestToSend = false;
+                await this.port.setSignals(signals);
+              } catch {
+              }
+              try {
+                if (this.port.readable && this.port.readable.locked) {
+                }
+                await this.port.close();
+              } catch {
+              }
+              this.port = null;
+            }
+          } catch {
+          }
+          this._setState(ConnectionState.DISCONNECTED);
+        }
+        // --- Write ASCII command ---
+        // Sends a string command (e.g., "FA;" or "MD02;")
+        async writeCommand(cmd) {
+          if (!this.port || !this.port.writable) {
+            throw new Error("Serial port not open");
+          }
+          const writer = this.port.writable.getWriter();
+          try {
+            await writer.write(encoder.encode(cmd));
+          } finally {
+            writer.releaseLock();
+          }
+        }
+        // --- Write raw bytes ---
+        async writeRaw(data) {
+          if (!this.port || !this.port.writable) {
+            throw new Error("Serial port not open");
+          }
+          const writer = this.port.writable.getWriter();
+          try {
+            const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+            await writer.write(bytes);
+          } finally {
+            writer.releaseLock();
+          }
+        }
+        // --- Read until terminator ---
+        // Reads ASCII data until the terminator character (default ";") is found.
+        // Returns the complete response string including terminator.
+        // Used for Yaesu/Kenwood/Elecraft ASCII protocols.
+        async readUntil(terminator = ";", timeoutMs = 2e3) {
+          if (!this.port || !this.port.readable) {
+            throw new Error("Serial port not open");
+          }
+          let buffer = "";
+          const reader = this.port.readable.getReader();
+          const timer = setTimeout(() => reader.cancel(), timeoutMs);
+          try {
+            while (true) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              if (value) {
+                buffer += decoder.decode(value, { stream: true });
+                if (buffer.includes(terminator)) break;
+              }
+            }
+          } catch (err2) {
+            if (err2.name !== "AbortError") throw err2;
+          } finally {
+            clearTimeout(timer);
+            reader.releaseLock();
+          }
+          if (!buffer.includes(terminator)) {
+            throw new Error(`Read timeout: no terminator in response ("${buffer}")`);
+          }
+          return buffer;
+        }
+        // --- Read until sentinel byte ---
+        // For binary protocols (Icom CI-V). Reads until a specific byte is found.
+        // Returns the complete frame including the sentinel.
+        async readUntilByte(sentinel, timeoutMs = 2e3) {
+          if (!this.port || !this.port.readable) {
+            throw new Error("Serial port not open");
+          }
+          const chunks = [];
+          let totalLen = 0;
+          let found = false;
+          const reader = this.port.readable.getReader();
+          const timer = setTimeout(() => reader.cancel(), timeoutMs);
+          try {
+            while (!found) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              if (value) {
+                chunks.push(value);
+                totalLen += value.length;
+                for (let i = 0; i < value.length; i++) {
+                  if (value[i] === sentinel) {
+                    found = true;
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (err2) {
+            if (err2.name !== "AbortError") throw err2;
+          } finally {
+            clearTimeout(timer);
+            reader.releaseLock();
+          }
+          if (!found) {
+            throw new Error(`Read timeout: sentinel 0x${sentinel.toString(16)} not found`);
+          }
+          const result = new Uint8Array(totalLen);
+          let offset = 0;
+          for (const chunk of chunks) {
+            result.set(chunk, offset);
+            offset += chunk.length;
+          }
+          const sentinelIdx = result.indexOf(sentinel);
+          return result.slice(0, sentinelIdx + 1);
+        }
+        // --- Send binary command and read until sentinel ---
+        // For CI-V: sends raw bytes and reads until EOM (0xFD).
+        async sendBinaryCommand(data, sentinel = 253, timeoutMs = 2e3) {
+          await this.writeRaw(data);
+          return this.readUntilByte(sentinel, timeoutMs);
+        }
+        // --- Read exact bytes ---
+        // For binary protocols (Icom CI-V). Reads exactly N bytes.
+        async readBytes(length, timeoutMs = 2e3) {
+          if (!this.port || !this.port.readable) {
+            throw new Error("Serial port not open");
+          }
+          const result = new Uint8Array(length);
+          let offset = 0;
+          const reader = this.port.readable.getReader();
+          const timer = setTimeout(() => reader.cancel(), timeoutMs);
+          try {
+            while (offset < length) {
+              const { value, done } = await reader.read();
+              if (done) break;
+              if (value) {
+                const remaining = length - offset;
+                const chunk = value.length > remaining ? value.slice(0, remaining) : value;
+                result.set(chunk, offset);
+                offset += chunk.length;
+              }
+            }
+          } finally {
+            clearTimeout(timer);
+            reader.releaseLock();
+          }
+          if (offset < length) {
+            throw new Error(`Read timeout: got ${offset}/${length} bytes`);
+          }
+          return result;
+        }
+        // --- Send command and read response ---
+        // Writes an ASCII command and reads until terminator.
+        async sendCommand(cmd, timeoutMs = 2e3) {
+          await this.writeCommand(cmd);
+          return this.readUntil(";", timeoutMs);
+        }
+        // --- Flush ---
+        // Clear stale data from the serial buffer before starting.
+        async flush() {
+          if (!this.port || !this.port.readable) return;
+          const reader = this.port.readable.getReader();
+          const timer = setTimeout(() => reader.cancel(), 200);
+          try {
+            while (true) {
+              const { done } = await reader.read();
+              if (done) break;
+            }
+          } catch {
+          } finally {
+            clearTimeout(timer);
+            reader.releaseLock();
+          }
+        }
+      };
+    }
+  });
+
+  // src/cat/simulator/propagation-signal-engine.js
+  function detectBand(freq) {
+    for (const [band, props] of Object.entries(BAND_PROPS)) {
+      if (freq >= props.min && freq <= props.max) return band;
+    }
+    return null;
+  }
+  function getDayFactor(longitude) {
+    const now = /* @__PURE__ */ new Date();
+    const utcHour = now.getUTCHours() + now.getUTCMinutes() / 60;
+    const solarHour = (utcHour + longitude / 15 + 24) % 24;
+    return (Math.sin((solarHour - 6) * Math.PI / 12) + 1) / 2;
+  }
+  function createPropagationEngine(options = {}) {
+    const latitude = options.latitude || 0;
+    const longitude = options.longitude || 0;
+    let slowFadeOffset = 0;
+    let slowFadeTimer = setInterval(() => {
+      slowFadeOffset += (Math.random() - 0.5) * 10;
+      slowFadeOffset = Math.max(-20, Math.min(20, slowFadeOffset));
+    }, 3e4);
+    let sporadicEBoost = 0;
+    let sporadicETimer = setInterval(() => {
+      if (Math.random() < 0.08) {
+        sporadicEBoost = 60 + Math.random() * 40;
+        setTimeout(() => {
+          sporadicEBoost = 0;
+        }, 15e3 + Math.random() * 45e3);
+      }
+    }, 3e4);
+    function getSignalLevel(frequency) {
+      const band = detectBand(frequency);
+      if (!band) return 40;
+      const props = BAND_PROPS[band];
+      const dayFactor = getDayFactor(longitude);
+      const dayNightMod = props.dayPenalty * dayFactor + props.nightBonus * (1 - dayFactor);
+      let signal = props.baseSignal + dayNightMod;
+      signal += slowFadeOffset;
+      signal += (Math.random() - 0.5) * 30;
+      if (Math.random() < 0.03) {
+        signal += Math.random() * 50;
+      }
+      if (band === "6m") {
+        signal += sporadicEBoost;
+      }
+      return Math.max(0, Math.min(255, Math.round(signal)));
+    }
+    function getSWR(frequency) {
+      const band = detectBand(frequency);
+      if (!band) return 3.5;
+      const props = BAND_PROPS[band];
+      const bandWidth = props.max - props.min;
+      const distFromCenter = Math.abs(frequency - props.center);
+      const normalizedDist = distFromCenter / (bandWidth / 2);
+      const baseSwr = 1.1 + 1.4 * normalizedDist * normalizedDist;
+      const jitter = (Math.random() - 0.5) * 0.2;
+      return Math.max(1, Math.round((baseSwr + jitter) * 10) / 10);
+    }
+    function getNoise(frequency) {
+      const band = detectBand(frequency);
+      if (!band) return 20;
+      const props = BAND_PROPS[band];
+      const dayFactor = getDayFactor(longitude);
+      let noise = props.noiseFloor;
+      if (props.nightBonus > 0) {
+        noise += (1 - dayFactor) * 15;
+      }
+      noise += (Math.random() - 0.5) * 6;
+      return Math.max(0, Math.min(100, Math.round(noise)));
+    }
+    function destroy() {
+      if (slowFadeTimer) {
+        clearInterval(slowFadeTimer);
+        slowFadeTimer = null;
+      }
+      if (sporadicETimer) {
+        clearInterval(sporadicETimer);
+        sporadicETimer = null;
+      }
+    }
+    return { getSignalLevel, getSWR, getNoise, destroy };
+  }
+  var BAND_PROPS;
+  var init_propagation_signal_engine = __esm({
+    "src/cat/simulator/propagation-signal-engine.js"() {
+      BAND_PROPS = {
+        "160m": { min: 18e5, max: 2e6, center: 19e5, nightBonus: 60, dayPenalty: -40, baseSignal: 40, noiseFloor: 30 },
+        "80m": { min: 35e5, max: 4e6, center: 375e4, nightBonus: 50, dayPenalty: -30, baseSignal: 50, noiseFloor: 25 },
+        "40m": { min: 7e6, max: 73e5, center: 715e4, nightBonus: 30, dayPenalty: -10, baseSignal: 70, noiseFloor: 20 },
+        "30m": { min: 101e5, max: 1015e4, center: 10125e3, nightBonus: 20, dayPenalty: -5, baseSignal: 65, noiseFloor: 18 },
+        "20m": { min: 14e6, max: 1435e4, center: 14175e3, nightBonus: -20, dayPenalty: 30, baseSignal: 80, noiseFloor: 15 },
+        "17m": { min: 18068e3, max: 18168e3, center: 18118e3, nightBonus: -25, dayPenalty: 25, baseSignal: 70, noiseFloor: 12 },
+        "15m": { min: 21e6, max: 2145e4, center: 21225e3, nightBonus: -30, dayPenalty: 35, baseSignal: 65, noiseFloor: 10 },
+        "12m": { min: 2489e4, max: 2499e4, center: 2494e4, nightBonus: -35, dayPenalty: 30, baseSignal: 55, noiseFloor: 8 },
+        "10m": { min: 28e6, max: 297e5, center: 2885e4, nightBonus: -40, dayPenalty: 40, baseSignal: 50, noiseFloor: 8 },
+        "6m": { min: 5e7, max: 54e6, center: 52e6, nightBonus: -50, dayPenalty: 20, baseSignal: 30, noiseFloor: 6 }
+      };
+    }
+  });
+
+  // src/cat/simulator/fake-radio-engine.js
+  function createFakeRadioEngine(options = {}) {
+    let frequency = options.frequency || 14074e3;
+    let frequencyB = options.frequencyB || 7074e3;
+    let mode2 = options.mode || "DATA-U";
+    let ptt = false;
+    let rfPower = options.rfPower || 50;
+    let radioId = "0761";
+    let baseSignal = 80;
+    let signalNoise = 0;
+    let swr = 1.3;
+    let lastBand = "20m";
+    let propEngine = null;
+    const propMode = options.propagation || "off";
+    if (propMode === "basic") {
+      propEngine = createPropagationEngine({ latitude: 0, longitude: 0 });
+    } else if (propMode === "location" && options.latitude != null) {
+      propEngine = createPropagationEngine({ latitude: options.latitude, longitude: options.longitude });
+    }
+    function updateSignal() {
+      signalNoise = Math.round((Math.random() - 0.5) * 40);
+      if (Math.random() < 0.05) {
+        signalNoise += Math.round(Math.random() * 60);
+      }
+    }
+    function updateSWR(newBand) {
+      if (newBand && newBand !== lastBand) {
+        swr = 2.5 + Math.random() * 3;
+        lastBand = newBand;
+        setTimeout(() => {
+          swr = 1.1 + Math.random() * 0.5;
+        }, 3e3);
+      }
+    }
+    function processCommand(cmd) {
+      if (!cmd) return null;
+      const c = cmd.endsWith(";") ? cmd.slice(0, -1) : cmd;
+      if (c === "FA") return `FA${String(frequency).padStart(9, "0")};`;
+      if (c.startsWith("FA")) {
+        frequency = parseInt(c.slice(2), 10);
+        const band = detectSimBand(frequency);
+        updateSWR(band);
+        return null;
+      }
+      if (c === "FB") return `FB${String(frequencyB).padStart(9, "0")};`;
+      if (c.startsWith("FB")) {
+        frequencyB = parseInt(c.slice(2), 10);
+        return null;
+      }
+      if (c === "MD0") {
+        const modeMap = { "DATA-U": "C", "USB": "2", "LSB": "1", "CW-U": "3", "FM": "4", "AM": "5" };
+        return `MD0${modeMap[mode2] || "C"};`;
+      }
+      if (c.startsWith("MD0")) {
+        const codeMap = { "1": "LSB", "2": "USB", "3": "CW-U", "4": "FM", "5": "AM", "C": "DATA-U" };
+        mode2 = codeMap[c.slice(3)] || mode2;
+        return null;
+      }
+      if (c === "TX") return `TX${ptt ? "1" : "0"};`;
+      if (c === "TX1") {
+        ptt = true;
+        return null;
+      }
+      if (c === "TX0") {
+        ptt = false;
+        return null;
+      }
+      if (c === "SM0") {
+        let raw;
+        if (propEngine) {
+          raw = propEngine.getSignalLevel(frequency);
+        } else {
+          updateSignal();
+          raw = Math.max(0, Math.min(255, baseSignal + signalNoise));
+        }
+        return `SM0${String(raw).padStart(3, "0")};`;
+      }
+      if (c === "RM6") {
+        let swrVal;
+        if (propEngine) {
+          swrVal = propEngine.getSWR(frequency);
+        } else {
+          swrVal = swr;
+        }
+        const raw = Math.min(255, Math.max(0, Math.round(swrVal * 40)));
+        return `RM6${String(raw).padStart(3, "0")};`;
+      }
+      if (c === "RM5") {
+        const watts = ptt ? rfPower * (0.85 + Math.random() * 0.15) : 0;
+        const raw = Math.min(255, Math.round(watts * 2.05));
+        return `RM5${String(raw).padStart(3, "0")};`;
+      }
+      if (c === "PC") return `PC${String(rfPower).padStart(3, "0")};`;
+      if (c.startsWith("PC")) {
+        rfPower = parseInt(c.slice(2), 10);
+        return null;
+      }
+      if (c === "ID") return `ID${radioId};`;
+      if (c === "IF") {
+        return `IF${String(frequency).padStart(9, "0")}${"0".repeat(10)};`;
+      }
+      if (c === "AI0") return null;
+      return "?;";
+    }
+    function detectSimBand(freq) {
+      if (freq >= 18e5 && freq <= 2e6) return "160m";
+      if (freq >= 35e5 && freq <= 4e6) return "80m";
+      if (freq >= 7e6 && freq <= 73e5) return "40m";
+      if (freq >= 101e5 && freq <= 1015e4) return "30m";
+      if (freq >= 14e6 && freq <= 1435e4) return "20m";
+      if (freq >= 18068e3 && freq <= 18168e3) return "17m";
+      if (freq >= 21e6 && freq <= 2145e4) return "15m";
+      if (freq >= 2489e4 && freq <= 2499e4) return "12m";
+      if (freq >= 28e6 && freq <= 297e5) return "10m";
+      if (freq >= 5e7 && freq <= 54e6) return "6m";
+      return null;
+    }
+    function destroy() {
+      if (propEngine) {
+        propEngine.destroy();
+        propEngine = null;
+      }
+    }
+    return { processCommand, destroy };
+  }
+  var init_fake_radio_engine = __esm({
+    "src/cat/simulator/fake-radio-engine.js"() {
+      init_propagation_signal_engine();
+    }
+  });
+
+  // src/cat/simulator/in-memory-transport.js
+  var InMemoryTransport;
+  var init_in_memory_transport = __esm({
+    "src/cat/simulator/in-memory-transport.js"() {
+      init_web_serial();
+      init_fake_radio_engine();
+      InMemoryTransport = class {
+        constructor(options = {}) {
+          this.state = ConnectionState.DISCONNECTED;
+          this._onStateChange = null;
+          this.engine = null;
+          this._responseDelay = options.responseDelay || 15;
+          this._engineOptions = options.engineOptions || {};
+        }
+        static isSupported() {
+          return true;
+        }
+        onStateChange(callback) {
+          this._onStateChange = callback;
+        }
+        _setState(newState) {
+          this.state = newState;
+          if (this._onStateChange) this._onStateChange(newState);
+        }
+        // --- Connect: create a fake radio engine ---
+        async connect() {
+          this._setState(ConnectionState.CONNECTING);
+          this.engine = createFakeRadioEngine(this._engineOptions);
+          this._setState(ConnectionState.CONNECTED);
+          return true;
+        }
+        // --- Disconnect ---
+        async disconnect() {
+          this.engine = null;
+          this._setState(ConnectionState.DISCONNECTED);
+        }
+        // --- Write a command (no response) ---
+        async writeCommand(cmd) {
+          if (!this.engine) throw new Error("Not connected");
+          this.engine.processCommand(cmd);
+        }
+        // --- Write raw bytes (no-op for simulator) ---
+        async writeRaw() {
+        }
+        // --- Read until terminator (not used directly in sim) ---
+        async readUntil() {
+          return "";
+        }
+        // --- Read exact bytes (not used directly in sim) ---
+        async readBytes() {
+          return new Uint8Array(0);
+        }
+        // --- Read until sentinel byte (not used directly in sim) ---
+        async readUntilByte() {
+          return new Uint8Array(0);
+        }
+        // --- Send binary command (not used — demo uses ASCII) ---
+        async sendBinaryCommand() {
+          return new Uint8Array(0);
+        }
+        // --- Send command and get response ---
+        async sendCommand(cmd) {
+          if (!this.engine) throw new Error("Not connected");
+          if (this._responseDelay > 0) {
+            await new Promise((r) => setTimeout(r, this._responseDelay));
+          }
+          const response = this.engine.processCommand(cmd);
+          return response || "";
+        }
+        // --- Flush (no-op for simulator) ---
+        async flush() {
+        }
+      };
+    }
+  });
+
+  // src/cat/drivers/yaesu-ascii.js
+  function interpolate(cal, raw) {
+    if (raw <= cal[0][0]) return cal[0][1];
+    if (raw >= cal[cal.length - 1][0]) return cal[cal.length - 1][1];
+    for (let i = 1; i < cal.length; i++) {
+      if (raw <= cal[i][0]) {
+        const [x0, y0] = cal[i - 1];
+        const [x1, y1] = cal[i];
+        return y0 + (raw - x0) * (y1 - y0) / (x1 - x0);
+      }
+    }
+    return cal[cal.length - 1][1];
+  }
+  var MODE_CODES, MODE_TO_CODE, SMETER_CAL, SWR_CAL, POWER_CAL, yaesuAscii;
+  var init_yaesu_ascii = __esm({
+    "src/cat/drivers/yaesu-ascii.js"() {
+      MODE_CODES = {
+        "1": "LSB",
+        "2": "USB",
+        "3": "CW-U",
+        "4": "FM",
+        "5": "AM",
+        "6": "RTTY-L",
+        "7": "CW-L",
+        "8": "DATA-L",
+        "9": "RTTY-U",
+        "A": "DATA-FM",
+        "B": "FM-N",
+        "C": "DATA-U",
+        // FT8/WSJT-X
+        "D": "AM-N"
+      };
+      MODE_TO_CODE = Object.fromEntries(
+        Object.entries(MODE_CODES).map(([k, v]) => [v, k])
+      );
+      SMETER_CAL = [
+        [0, 0],
+        [30, 1],
+        [60, 3],
+        [90, 5],
+        [120, 7],
+        [150, 9],
+        [170, 10],
+        [190, 11],
+        [210, 12],
+        [230, 13],
+        [255, 15]
+      ];
+      SWR_CAL = [
+        [0, 1],
+        [26, 1.2],
+        [52, 1.5],
+        [89, 2],
+        [126, 3],
+        [173, 4],
+        [236, 5],
+        [255, 25]
+      ];
+      POWER_CAL = [
+        [0, 0],
+        [27, 5],
+        [94, 25],
+        [147, 50],
+        [176, 75],
+        [205, 100]
+      ];
+      yaesuAscii = {
+        name: "yaesu_ascii",
+        label: "Yaesu (NewCAT)",
+        terminator: ";",
+        // --- Initialization commands ---
+        // Sent once after connection to configure the radio for CAT control
+        init() {
+          return [
+            "ID;",
+            // Read radio ID — confirms communication
+            "AI0;"
+            // Disable auto-information (prevents unsolicited data)
+          ];
+        },
+        // --- Capabilities ---
+        // Declares what this driver supports. UI auto-builds from this list.
+        capabilities() {
+          return [
+            "frequency_read",
+            "frequency_set",
+            "mode_read",
+            "mode_set",
+            "ptt_read",
+            "ptt_cat",
+            "meter_signal",
+            "meter_swr",
+            "meter_power",
+            "rf_power"
+          ];
+        },
+        // --- Command encoding ---
+        // Converts a logical command + params into the ASCII string to send.
+        encode(command, params) {
+          switch (command) {
+            case "getFrequency":
+              return "FA;";
+            case "setFrequency":
+              return `FA${String(params).padStart(9, "0")};`;
+            case "getFrequencyB":
+              return "FB;";
+            case "setFrequencyB":
+              return `FB${String(params).padStart(9, "0")};`;
+            case "getMode":
+              return "MD0;";
+            case "setMode": {
+              const code = MODE_TO_CODE[params] || params;
+              return `MD0${code};`;
+            }
+            case "getPTT":
+              return "TX;";
+            case "setPTT":
+              return params ? "TX1;" : "TX0;";
+            case "getSignal":
+              return "SM0;";
+            case "getSWR":
+              return "RM6;";
+            case "getPower":
+              return "RM5;";
+            case "getRFPower":
+              return "PC;";
+            case "setRFPower":
+              return `PC${String(params).padStart(3, "0")};`;
+            case "getInfo":
+              return "IF;";
+            case "getID":
+              return "ID;";
+            default:
+              return null;
+          }
+        },
+        // --- Response parsing ---
+        // Parses an ASCII response string into a {type, value} event.
+        // Returns null if response is not recognized.
+        parse(response) {
+          if (!response || response === "?;") {
+            return { type: "error", value: response };
+          }
+          const resp = response.endsWith(";") ? response.slice(0, -1) : response;
+          if (resp.startsWith("FA")) {
+            return { type: "frequency", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("FB")) {
+            return { type: "frequencyB", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("MD0")) {
+            const code = resp.slice(3);
+            return { type: "mode", value: MODE_CODES[code] || code };
+          }
+          if (resp.startsWith("TX")) {
+            const val = parseInt(resp.slice(2), 10);
+            return { type: "ptt", value: val > 0 };
+          }
+          if (resp.startsWith("SM0")) {
+            const raw = parseInt(resp.slice(3), 10);
+            return { type: "signal", value: raw, sUnits: interpolate(SMETER_CAL, raw) };
+          }
+          if (resp.startsWith("RM6")) {
+            const raw = parseInt(resp.slice(3), 10);
+            return { type: "swr", value: interpolate(SWR_CAL, raw), raw };
+          }
+          if (resp.startsWith("RM5")) {
+            const raw = parseInt(resp.slice(3), 10);
+            return { type: "powerMeter", value: interpolate(POWER_CAL, raw), raw };
+          }
+          if (resp.startsWith("PC")) {
+            return { type: "rfPower", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("ID")) {
+            return { type: "radioId", value: resp.slice(2) };
+          }
+          if (resp.startsWith("IF")) {
+            const data = resp.slice(2);
+            return {
+              type: "info",
+              value: {
+                frequency: parseInt(data.slice(0, 9), 10),
+                raw: data
+              }
+            };
+          }
+          return null;
+        },
+        // --- Polling commands ---
+        // Returns the list of commands to send each polling cycle.
+        // Meter commands are separate (handled by MeterStreamEngine).
+        pollCommands() {
+          return [
+            "getFrequency",
+            "getMode",
+            "getPTT"
+          ];
+        },
+        // --- Meter commands ---
+        // Sent at adaptive rate by MeterStreamEngine.
+        meterCommands() {
+          return [
+            "getSignal",
+            "getSWR"
+          ];
+        }
+      };
+    }
+  });
+
+  // src/cat/drivers/kenwood-ascii.js
+  function interpolate2(cal, raw) {
+    if (raw <= cal[0][0]) return cal[0][1];
+    if (raw >= cal[cal.length - 1][0]) return cal[cal.length - 1][1];
+    for (let i = 1; i < cal.length; i++) {
+      if (raw <= cal[i][0]) {
+        const [x0, y0] = cal[i - 1];
+        const [x1, y1] = cal[i];
+        return y0 + (raw - x0) * (y1 - y0) / (x1 - x0);
+      }
+    }
+    return cal[cal.length - 1][1];
+  }
+  var MODE_CODES2, MODE_TO_CODE2, SMETER_CAL2, SWR_CAL2, POWER_CAL2, kenwoodAscii;
+  var init_kenwood_ascii = __esm({
+    "src/cat/drivers/kenwood-ascii.js"() {
+      MODE_CODES2 = {
+        "1": "LSB",
+        "2": "USB",
+        "3": "CW",
+        "4": "FM",
+        "5": "AM",
+        "6": "FSK",
+        // RTTY
+        "7": "CW-R",
+        // CW reverse
+        "8": "DATA",
+        // alias for FSK-R on some models
+        "9": "FSK-R",
+        // RTTY reverse
+        "A": "DATA-LSB",
+        // PSK/DATA on LSB
+        "B": "FM-N",
+        "C": "DATA-USB",
+        // FT8/WSJT-X — DATA on USB
+        "D": "DATA-FM"
+      };
+      MODE_TO_CODE2 = Object.fromEntries(
+        Object.entries(MODE_CODES2).map(([k, v]) => [v, k])
+      );
+      MODE_TO_CODE2["FT8"] = "C";
+      MODE_TO_CODE2["FT4"] = "C";
+      MODE_TO_CODE2["DATA-U"] = "C";
+      MODE_TO_CODE2["DATA-L"] = "A";
+      MODE_TO_CODE2["RTTY-L"] = "6";
+      MODE_TO_CODE2["RTTY-U"] = "9";
+      MODE_TO_CODE2["CW-U"] = "3";
+      MODE_TO_CODE2["CW-L"] = "7";
+      SMETER_CAL2 = [
+        [0, 0],
+        [3, 1],
+        [6, 3],
+        [9, 5],
+        [12, 7],
+        [15, 9],
+        [20, 10],
+        [25, 13],
+        [30, 15]
+      ];
+      SWR_CAL2 = [
+        [0, 1],
+        [4, 1.5],
+        [8, 2],
+        [12, 3],
+        [16, 4],
+        [20, 5],
+        [30, 25]
+      ];
+      POWER_CAL2 = [
+        [0, 0],
+        [5, 10],
+        [10, 25],
+        [15, 50],
+        [20, 75],
+        [25, 100],
+        [30, 120]
+      ];
+      kenwoodAscii = {
+        name: "kenwood_ascii",
+        label: "Kenwood (TS Series)",
+        terminator: ";",
+        // --- Initialization commands ---
+        init() {
+          return [
+            "ID;",
+            // Read radio ID
+            "AI0;"
+            // Disable auto-information
+          ];
+        },
+        // --- Capabilities ---
+        capabilities() {
+          return [
+            "frequency_read",
+            "frequency_set",
+            "mode_read",
+            "mode_set",
+            "ptt_read",
+            "ptt_cat",
+            "meter_signal",
+            "meter_swr",
+            "meter_power",
+            "rf_power"
+          ];
+        },
+        // --- Command encoding ---
+        // Kenwood uses 11-digit frequency fields (vs Yaesu's 9)
+        encode(command, params) {
+          switch (command) {
+            case "getFrequency":
+              return "FA;";
+            case "setFrequency":
+              return `FA${String(params).padStart(11, "0")};`;
+            case "getFrequencyB":
+              return "FB;";
+            case "setFrequencyB":
+              return `FB${String(params).padStart(11, "0")};`;
+            case "getMode":
+              return "MD;";
+            case "setMode": {
+              const code = MODE_TO_CODE2[params] || params;
+              return `MD${code};`;
+            }
+            case "getPTT":
+              return "TX;";
+            case "setPTT":
+              return params ? "TX1;" : "TX0;";
+            case "getSignal":
+              return "SM0;";
+            case "getSWR":
+              return "RM1;";
+            // Kenwood: RM1 = SWR meter
+            case "getPower":
+              return "RM0;";
+            // Kenwood: RM0 = output power
+            case "getRFPower":
+              return "PC;";
+            case "setRFPower":
+              return `PC${String(params).padStart(3, "0")};`;
+            case "getInfo":
+              return "IF;";
+            case "getID":
+              return "ID;";
+            default:
+              return null;
+          }
+        },
+        // --- Response parsing ---
+        parse(response) {
+          if (!response || response === "?;") {
+            return { type: "error", value: response };
+          }
+          const resp = response.endsWith(";") ? response.slice(0, -1) : response;
+          if (resp.startsWith("FA")) {
+            return { type: "frequency", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("FB")) {
+            return { type: "frequencyB", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("MD")) {
+            const code = resp.slice(2);
+            return { type: "mode", value: MODE_CODES2[code] || code };
+          }
+          if (resp.startsWith("TX")) {
+            const val = parseInt(resp.slice(2), 10);
+            return { type: "ptt", value: val > 0 };
+          }
+          if (resp.startsWith("SM")) {
+            const raw = parseInt(resp.slice(2), 10);
+            return { type: "signal", value: raw, sUnits: interpolate2(SMETER_CAL2, raw) };
+          }
+          if (resp.startsWith("RM1")) {
+            const raw = parseInt(resp.slice(3), 10);
+            return { type: "swr", value: interpolate2(SWR_CAL2, raw), raw };
+          }
+          if (resp.startsWith("RM0")) {
+            const raw = parseInt(resp.slice(3), 10);
+            return { type: "powerMeter", value: interpolate2(POWER_CAL2, raw), raw };
+          }
+          if (resp.startsWith("PC")) {
+            return { type: "rfPower", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("ID")) {
+            return { type: "radioId", value: resp.slice(2) };
+          }
+          if (resp.startsWith("IF")) {
+            const data = resp.slice(2);
+            return {
+              type: "info",
+              value: {
+                frequency: parseInt(data.slice(0, 11), 10),
+                raw: data
+              }
+            };
+          }
+          return null;
+        },
+        // --- Polling commands ---
+        pollCommands() {
+          return [
+            "getFrequency",
+            "getMode",
+            "getPTT"
+          ];
+        },
+        // --- Meter commands ---
+        meterCommands() {
+          return [
+            "getSignal",
+            "getSWR"
+          ];
+        }
+      };
+    }
+  });
+
+  // src/cat/drivers/icom-civ.js
+  function interpolate3(cal, raw) {
+    if (raw <= cal[0][0]) return cal[0][1];
+    if (raw >= cal[cal.length - 1][0]) return cal[cal.length - 1][1];
+    for (let i = 1; i < cal.length; i++) {
+      if (raw <= cal[i][0]) {
+        const [x0, y0] = cal[i - 1];
+        const [x1, y1] = cal[i];
+        return y0 + (raw - x0) * (y1 - y0) / (x1 - x0);
+      }
+    }
+    return cal[cal.length - 1][1];
+  }
+  function freqToBCD(hz) {
+    const str = String(Math.round(hz / 10)).padStart(8, "0");
+    const bytes = new Uint8Array(5);
+    const padded = str.padStart(10, "0");
+    for (let i = 0; i < 5; i++) {
+      const hi = parseInt(padded[9 - (i * 2 + 1)], 10);
+      const lo = parseInt(padded[9 - i * 2], 10);
+      bytes[i] = hi << 4 | lo;
+    }
+    return bytes;
+  }
+  function bcdToFreq(bytes) {
+    let hz = 0;
+    let mult = 10;
+    for (let i = 0; i < bytes.length; i++) {
+      const lo = bytes[i] & 15;
+      const hi = bytes[i] >> 4 & 15;
+      hz += lo * mult;
+      mult *= 10;
+      hz += hi * mult;
+      mult *= 10;
+    }
+    return hz;
+  }
+  function buildFrame(toAddr, cmd, sub, data) {
+    const parts = [PREAMBLE, PREAMBLE, toAddr, CONTROLLER, cmd];
+    if (sub !== null && sub !== void 0) parts.push(sub);
+    if (data) {
+      for (const b of data) parts.push(b);
+    }
+    parts.push(EOM);
+    return new Uint8Array(parts);
+  }
+  var PREAMBLE, EOM, CONTROLLER, ACK, NAK, MODE_CODES3, MODE_TO_CODE3, SMETER_CAL3, SWR_CAL3, civAddress, icomCiv;
+  var init_icom_civ = __esm({
+    "src/cat/drivers/icom-civ.js"() {
+      PREAMBLE = 254;
+      EOM = 253;
+      CONTROLLER = 224;
+      ACK = 251;
+      NAK = 250;
+      MODE_CODES3 = {
+        0: "LSB",
+        1: "USB",
+        2: "AM",
+        3: "CW",
+        4: "RTTY",
+        5: "FM",
+        6: "WFM",
+        7: "CW-R",
+        8: "RTTY-R",
+        23: "DATA-FM"
+      };
+      MODE_TO_CODE3 = {};
+      for (const [k, v] of Object.entries(MODE_CODES3)) {
+        MODE_TO_CODE3[v] = parseInt(k, 10);
+      }
+      MODE_TO_CODE3["DATA-U"] = 1;
+      MODE_TO_CODE3["DATA-L"] = 0;
+      MODE_TO_CODE3["CW-U"] = 3;
+      MODE_TO_CODE3["CW-L"] = 7;
+      MODE_TO_CODE3["FT8"] = 1;
+      MODE_TO_CODE3["FT4"] = 1;
+      SMETER_CAL3 = [
+        [0, 0],
+        [36, 1],
+        [73, 3],
+        [109, 5],
+        [146, 7],
+        [182, 9],
+        [200, 10],
+        [218, 12],
+        [237, 14],
+        [255, 15]
+      ];
+      SWR_CAL3 = [
+        [0, 1],
+        [48, 1.5],
+        [80, 2],
+        [120, 3],
+        [160, 4],
+        [200, 5],
+        [255, 25]
+      ];
+      civAddress = 148;
+      icomCiv = {
+        name: "icom_civ",
+        label: "Icom (CI-V)",
+        terminator: null,
+        // binary protocol, no terminator
+        binary: true,
+        // flag for rig-manager to use binary transport
+        // --- Set the CI-V address for the target radio ---
+        setCivAddress(addr) {
+          civAddress = typeof addr === "string" ? parseInt(addr, 16) : addr;
+        },
+        // --- Initialization commands ---
+        init() {
+          return [
+            "getID"
+          ];
+        },
+        // --- Capabilities ---
+        capabilities() {
+          return [
+            "frequency_read",
+            "frequency_set",
+            "mode_read",
+            "mode_set",
+            "ptt_read",
+            "ptt_cat",
+            "meter_signal",
+            "meter_swr",
+            "rf_power"
+          ];
+        },
+        // --- Command encoding ---
+        // Returns an ASCII command string that the rig-manager will process.
+        // For CI-V, we encode to hex string representation of the binary frame,
+        // then the transport layer converts to raw bytes.
+        encode(command, params) {
+          let frame;
+          switch (command) {
+            case "getFrequency":
+              frame = buildFrame(civAddress, 3, null, null);
+              break;
+            case "setFrequency":
+              frame = buildFrame(civAddress, 5, null, freqToBCD(params));
+              break;
+            case "getMode":
+              frame = buildFrame(civAddress, 4, null, null);
+              break;
+            case "setMode": {
+              const code = MODE_TO_CODE3[params];
+              if (code !== void 0) {
+                frame = buildFrame(civAddress, 6, null, new Uint8Array([code, 1]));
+              }
+              break;
+            }
+            case "getPTT":
+              frame = buildFrame(civAddress, 28, 0, null);
+              break;
+            case "setPTT":
+              frame = buildFrame(civAddress, 28, 0, new Uint8Array([params ? 1 : 0]));
+              break;
+            case "getSignal":
+              frame = buildFrame(civAddress, 21, 2, null);
+              break;
+            case "getSWR":
+              frame = buildFrame(civAddress, 21, 18, null);
+              break;
+            case "getRFPower":
+              frame = buildFrame(civAddress, 20, 10, null);
+              break;
+            case "setRFPower": {
+              const pctByte = Math.min(255, Math.max(0, Math.round(params / 100 * 255)));
+              frame = buildFrame(civAddress, 20, 10, new Uint8Array([pctByte >> 4, pctByte & 15]));
+              break;
+            }
+            case "getID":
+              frame = buildFrame(civAddress, 25, 0, null);
+              break;
+            default:
+              return null;
+          }
+          if (!frame) return null;
+          return "CIV:" + Array.from(frame).map((b) => b.toString(16).padStart(2, "0")).join("");
+        },
+        // --- Response parsing ---
+        // Accepts either a hex-encoded string (CIV:...) or raw response string
+        parse(response) {
+          if (!response) return null;
+          let bytes;
+          if (typeof response === "string" && response.startsWith("CIV:")) {
+            const hex = response.slice(4);
+            bytes = new Uint8Array(hex.match(/.{2}/g).map((h) => parseInt(h, 16)));
+          } else if (response instanceof Uint8Array) {
+            bytes = response;
+          } else {
+            return null;
+          }
+          if (bytes.length < 6 || bytes[0] !== PREAMBLE || bytes[1] !== PREAMBLE) {
+            return null;
+          }
+          const cmd = bytes[4];
+          const eomIdx = bytes.indexOf(EOM);
+          if (eomIdx < 0) return null;
+          const data = bytes.slice(5, eomIdx);
+          if (cmd === ACK) return null;
+          if (cmd === NAK) return { type: "error", value: "NAK" };
+          if (cmd === 3 || cmd === 0) {
+            if (data.length >= 5) {
+              return { type: "frequency", value: bcdToFreq(data.slice(0, 5)) };
+            }
+          }
+          if (cmd === 4 || cmd === 1) {
+            if (data.length >= 1) {
+              return { type: "mode", value: MODE_CODES3[data[0]] || `mode_${data[0]}` };
+            }
+          }
+          if (cmd === 28) {
+            if (data.length >= 2 && data[0] === 0) {
+              return { type: "ptt", value: data[1] > 0 };
+            }
+          }
+          if (cmd === 21 && data.length >= 3) {
+            const sub = data[0];
+            const raw = (data[1] & 15) * 100 + (data[2] >> 4 & 15) * 10 + (data[2] & 15);
+            if (sub === 2) {
+              return { type: "signal", value: raw, sUnits: interpolate3(SMETER_CAL3, raw) };
+            }
+            if (sub === 18) {
+              return { type: "swr", value: interpolate3(SWR_CAL3, raw), raw };
+            }
+          }
+          if (cmd === 20 && data.length >= 3 && data[0] === 10) {
+            const raw = (data[1] & 15) * 100 + (data[2] >> 4 & 15) * 10 + (data[2] & 15);
+            return { type: "rfPower", value: Math.round(raw / 255 * 100) };
+          }
+          if (cmd === 25 && data.length >= 1) {
+            return { type: "radioId", value: data[0].toString(16).padStart(2, "0") };
+          }
+          return null;
+        },
+        pollCommands() {
+          return [
+            "getFrequency",
+            "getMode",
+            "getPTT"
+          ];
+        },
+        meterCommands() {
+          return [
+            "getSignal",
+            "getSWR"
+          ];
+        }
+      };
+    }
+  });
+
+  // src/cat/drivers/elecraft-ascii.js
+  function interpolate4(cal, raw) {
+    if (raw <= cal[0][0]) return cal[0][1];
+    if (raw >= cal[cal.length - 1][0]) return cal[cal.length - 1][1];
+    for (let i = 1; i < cal.length; i++) {
+      if (raw <= cal[i][0]) {
+        const [x0, y0] = cal[i - 1];
+        const [x1, y1] = cal[i];
+        return y0 + (raw - x0) * (y1 - y0) / (x1 - x0);
+      }
+    }
+    return cal[cal.length - 1][1];
+  }
+  var MODE_CODES4, MODE_TO_CODE4, SMETER_CAL4, SWR_CAL4, elecraftAscii;
+  var init_elecraft_ascii = __esm({
+    "src/cat/drivers/elecraft-ascii.js"() {
+      MODE_CODES4 = {
+        "1": "LSB",
+        "2": "USB",
+        "3": "CW",
+        "4": "FM",
+        "5": "AM",
+        "6": "DATA",
+        // RTTY / DATA
+        "7": "CW-R",
+        "9": "DATA-R"
+        // DATA reverse
+      };
+      MODE_TO_CODE4 = Object.fromEntries(
+        Object.entries(MODE_CODES4).map(([k, v]) => [v, k])
+      );
+      MODE_TO_CODE4["FT8"] = "2";
+      MODE_TO_CODE4["FT4"] = "2";
+      MODE_TO_CODE4["DATA-U"] = "2";
+      MODE_TO_CODE4["DATA-L"] = "1";
+      MODE_TO_CODE4["CW-U"] = "3";
+      MODE_TO_CODE4["CW-L"] = "7";
+      MODE_TO_CODE4["RTTY"] = "6";
+      MODE_TO_CODE4["RTTY-R"] = "9";
+      MODE_TO_CODE4["FSK"] = "6";
+      SMETER_CAL4 = [
+        [0, 0],
+        [2, 1],
+        [5, 3],
+        [7, 5],
+        [9, 7],
+        [12, 9],
+        [15, 10],
+        [18, 13],
+        [21, 15]
+      ];
+      SWR_CAL4 = [
+        [0, 1],
+        [3, 1.5],
+        [6, 2],
+        [9, 3],
+        [12, 4],
+        [15, 5],
+        [20, 25]
+      ];
+      elecraftAscii = {
+        name: "elecraft_ascii",
+        label: "Elecraft (K/KX Series)",
+        terminator: ";",
+        // --- Initialization commands ---
+        init() {
+          return [
+            "OM;",
+            // Read option module info (confirms communication)
+            "AI0;",
+            // Disable auto-information
+            "K31;"
+            // Extended mode: enable K3-extended responses
+          ];
+        },
+        // --- Capabilities ---
+        capabilities() {
+          return [
+            "frequency_read",
+            "frequency_set",
+            "mode_read",
+            "mode_set",
+            "ptt_read",
+            "ptt_cat",
+            "meter_signal",
+            "meter_swr",
+            "rf_power"
+          ];
+        },
+        // --- Command encoding ---
+        // Elecraft uses 11-digit frequency fields like Kenwood
+        encode(command, params) {
+          switch (command) {
+            case "getFrequency":
+              return "FA;";
+            case "setFrequency":
+              return `FA${String(params).padStart(11, "0")};`;
+            case "getFrequencyB":
+              return "FB;";
+            case "setFrequencyB":
+              return `FB${String(params).padStart(11, "0")};`;
+            case "getMode":
+              return "MD;";
+            case "setMode": {
+              const code = MODE_TO_CODE4[params] || params;
+              return `MD${code};`;
+            }
+            case "getPTT":
+              return "TQ;";
+            // Elecraft: TQ = TX query
+            case "setPTT":
+              return params ? "TX;" : "RX;";
+            // TX; to transmit, RX; to receive
+            case "getSignal":
+              return "SM;";
+            case "getSWR":
+              return "SW;";
+            // Elecraft SWR command
+            case "getRFPower":
+              return "PC;";
+            case "setRFPower":
+              return `PC${String(params).padStart(3, "0")};`;
+            case "getBandwidth":
+              return "BW;";
+            case "getID":
+              return "OM;";
+            // Option module as ID proxy
+            default:
+              return null;
+          }
+        },
+        // --- Response parsing ---
+        parse(response) {
+          if (!response || response === "?;") {
+            return { type: "error", value: response };
+          }
+          const resp = response.endsWith(";") ? response.slice(0, -1) : response;
+          if (resp.startsWith("FA")) {
+            return { type: "frequency", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("FB")) {
+            return { type: "frequencyB", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("MD")) {
+            const code = resp.slice(2);
+            return { type: "mode", value: MODE_CODES4[code] || code };
+          }
+          if (resp.startsWith("TQ")) {
+            const val = parseInt(resp.slice(2), 10);
+            return { type: "ptt", value: val > 0 };
+          }
+          if (resp.startsWith("SM")) {
+            const raw = parseInt(resp.slice(2), 10);
+            return { type: "signal", value: raw, sUnits: interpolate4(SMETER_CAL4, raw) };
+          }
+          if (resp.startsWith("SW")) {
+            const raw = parseInt(resp.slice(2), 10);
+            return { type: "swr", value: interpolate4(SWR_CAL4, raw), raw };
+          }
+          if (resp.startsWith("PC")) {
+            return { type: "rfPower", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("BW")) {
+            return { type: "bandwidth", value: parseInt(resp.slice(2), 10) * 10 };
+          }
+          if (resp.startsWith("OM")) {
+            return { type: "radioId", value: resp.slice(2) };
+          }
+          return null;
+        },
+        // --- Polling commands ---
+        pollCommands() {
+          return [
+            "getFrequency",
+            "getMode",
+            "getPTT"
+          ];
+        },
+        // --- Meter commands ---
+        meterCommands() {
+          return [
+            "getSignal",
+            "getSWR"
+          ];
+        }
+      };
+    }
+  });
+
+  // src/cat/command-queue.js
+  function createCommandQueue(sendFn, options = {}) {
+    const minInterval = options.minInterval || 60;
+    const maxQueueSize = options.maxQueueSize || 50;
+    let queue = [];
+    let processing = false;
+    let lastSendTime = 0;
+    function push(command, params = null, priority = 0) {
+      if (command === "setFrequency" || command === "setFrequencyB") {
+        const existing = queue.findIndex((item) => item.command === command);
+        if (existing >= 0) {
+          queue[existing].params = params;
+          queue[existing].priority = Math.max(queue[existing].priority, priority);
+          return;
+        }
+      }
+      if (command === "setRFPower") {
+        const existing = queue.findIndex((item) => item.command === command);
+        if (existing >= 0) {
+          queue[existing].params = params;
+          return;
+        }
+      }
+      if (queue.length >= maxQueueSize) {
+        queue.sort((a, b) => b.priority - a.priority);
+        queue = queue.slice(0, maxQueueSize - 1);
+      }
+      queue.push({ command, params, priority, time: Date.now() });
+      queue.sort((a, b) => {
+        if (b.priority !== a.priority) return b.priority - a.priority;
+        return a.time - b.time;
+      });
+      processNext();
+    }
+    async function processNext() {
+      if (processing || queue.length === 0) return;
+      processing = true;
+      try {
+        const elapsed2 = Date.now() - lastSendTime;
+        if (elapsed2 < minInterval) {
+          await new Promise((resolve) => setTimeout(resolve, minInterval - elapsed2));
+        }
+        const item = queue.shift();
+        if (item) {
+          lastSendTime = Date.now();
+          await sendFn(item.command, item.params);
+        }
+      } catch (err2) {
+        console.error("[cat] Queue send error:", err2);
+      } finally {
+        processing = false;
+        if (queue.length > 0) {
+          processNext();
+        }
+      }
+    }
+    function clear() {
+      queue = [];
+    }
+    function size() {
+      return queue.length;
+    }
+    return { push, clear, size };
+  }
+  var init_command_queue = __esm({
+    "src/cat/command-queue.js"() {
+    }
+  });
+
+  // src/cat/rig-manager.js
+  function createRigManager(transport, driver, store, options = {}) {
+    const pollingInterval = options.pollingInterval || 500;
+    const meterInterval = options.meterInterval || 300;
+    const commandInterval = options.commandInterval || 60;
+    let pollTimer = null;
+    let meterTimer = null;
+    let connected = false;
+    const isBinary = !!driver.binary;
+    function hexToBytes(hex) {
+      return new Uint8Array(hex.match(/.{2}/g).map((h) => parseInt(h, 16)));
+    }
+    function bytesToHex(bytes) {
+      return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+    }
+    const queue = createCommandQueue(
+      async (command, params) => {
+        const encoded = driver.encode(command, params);
+        if (!encoded) return;
+        try {
+          let response;
+          if (isBinary && encoded.startsWith("CIV:")) {
+            const bytes = hexToBytes(encoded.slice(4));
+            const rawBytes = await transport.sendBinaryCommand(bytes, 253);
+            const frames = splitCivFrames(rawBytes);
+            for (const frame of frames) {
+              const hexResp = "CIV:" + bytesToHex(frame);
+              const event = driver.parse(hexResp);
+              if (event) {
+                store.applyEvent(event);
+              }
+            }
+            return;
+          } else {
+            response = await transport.sendCommand(encoded);
+          }
+          handleResponse(response);
+        } catch (err2) {
+          if (err2.message && err2.message.includes("timeout")) {
+            console.warn("[cat] Command timeout:", command);
+          } else {
+            console.error("[cat] Command error:", command, err2);
+          }
+        }
+      },
+      { minInterval: commandInterval }
+    );
+    function splitCivFrames(bytes) {
+      const frames = [];
+      let start = -1;
+      for (let i = 0; i < bytes.length; i++) {
+        if (i < bytes.length - 1 && bytes[i] === 254 && bytes[i + 1] === 254) {
+          start = i;
+        }
+        if (bytes[i] === 253 && start >= 0) {
+          frames.push(bytes.slice(start, i + 1));
+          start = -1;
+        }
+      }
+      return frames;
+    }
+    function handleResponse(raw) {
+      if (!raw) return;
+      const terminator = driver.terminator || ";";
+      const parts = raw.split(terminator).filter(Boolean);
+      for (const part of parts) {
+        const event = driver.parse(part + terminator);
+        if (event) {
+          store.applyEvent(event);
+        }
+      }
+    }
+    async function initialize() {
+      const initCmds = driver.init();
+      for (const cmd of initCmds) {
+        try {
+          if (isBinary) {
+            const encoded = driver.encode(cmd);
+            if (encoded && encoded.startsWith("CIV:")) {
+              const bytes = hexToBytes(encoded.slice(4));
+              const rawBytes = await transport.sendBinaryCommand(bytes, 253);
+              const frames = splitCivFrames(rawBytes);
+              for (const frame of frames) {
+                const event = driver.parse("CIV:" + bytesToHex(frame));
+                if (event) store.applyEvent(event);
+              }
+            }
+          } else {
+            const response = await transport.sendCommand(cmd);
+            handleResponse(response);
+          }
+        } catch (err2) {
+          console.warn("[cat] Init command failed:", cmd, err2.message);
+        }
+      }
+    }
+    function startPolling() {
+      if (pollTimer) return;
+      pollTimer = setInterval(() => {
+        if (!connected) return;
+        const commands = driver.pollCommands();
+        for (const cmd of commands) {
+          queue.push(cmd, null, 0);
+        }
+      }, pollingInterval);
+    }
+    function stopPolling() {
+      if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
+    }
+    function startMeters() {
+      if (meterTimer) return;
+      if (!driver.meterCommands) return;
+      meterTimer = setInterval(() => {
+        if (!connected) return;
+        const commands = driver.meterCommands();
+        for (const cmd of commands) {
+          queue.push(cmd, null, 0);
+        }
+      }, meterInterval);
+    }
+    function stopMeters() {
+      if (meterTimer) {
+        clearInterval(meterTimer);
+        meterTimer = null;
+      }
+    }
+    async function connect(existingPort) {
+      if (connected) return true;
+      const opened = await transport.connect(existingPort);
+      if (!opened) return false;
+      await transport.flush();
+      connected = true;
+      store.set({ connected: true });
+      await initialize();
+      startPolling();
+      startMeters();
+      return true;
+    }
+    async function disconnect() {
+      connected = false;
+      stopPolling();
+      stopMeters();
+      queue.clear();
+      try {
+        await transport.disconnect();
+      } catch (err2) {
+        console.warn("[cat] Disconnect error:", err2);
+      }
+      store.set({ connected: false });
+    }
+    function sendCommand(command, params, priority = 1) {
+      if (!connected) return;
+      queue.push(command, params, priority);
+    }
+    function isConnected() {
+      return connected;
+    }
+    return {
+      connect,
+      disconnect,
+      sendCommand,
+      isConnected
+    };
+  }
+  var init_rig_manager = __esm({
+    "src/cat/rig-manager.js"() {
+      init_command_queue();
+    }
+  });
+
+  // src/cat/rig-state-store.js
+  function createRigStateStore() {
+    const state2 = {
+      connected: false,
+      demo: false,
+      radioId: null,
+      // Core
+      frequency: 0,
+      frequencyB: 0,
+      mode: "",
+      ptt: false,
+      // Meters
+      signal: 0,
+      // raw 0-255
+      sUnits: 0,
+      // interpolated S-units
+      swr: 0,
+      // interpolated SWR ratio
+      swrRaw: 0,
+      // raw 0-255
+      powerMeter: 0,
+      // interpolated watts (TX meter)
+      rfPower: 0,
+      // set power (watts)
+      txPower: 0,
+      // alias for rfPower
+      // Derived
+      tuneConfidence: "unknown",
+      // good | caution | unsafe | unknown
+      band: null,
+      // detected band name (e.g., "20m")
+      // Safety
+      txLocked: false,
+      txLockReason: ""
+    };
+    const subscribers = [];
+    function subscribe(callback) {
+      subscribers.push(callback);
+      callback({ ...state2 });
+      return () => {
+        const idx = subscribers.indexOf(callback);
+        if (idx >= 0) subscribers.splice(idx, 1);
+      };
+    }
+    function notify() {
+      const snapshot = { ...state2 };
+      for (const cb of subscribers) {
+        try {
+          cb(snapshot);
+        } catch {
+        }
+      }
+    }
+    function applyEvent(event) {
+      if (!event || !event.type) return;
+      switch (event.type) {
+        case "frequency":
+          state2.frequency = event.value;
+          state2.band = detectBand2(event.value);
+          break;
+        case "frequencyB":
+          state2.frequencyB = event.value;
+          break;
+        case "mode":
+          state2.mode = event.value;
+          break;
+        case "ptt":
+          state2.ptt = event.value;
+          break;
+        case "signal":
+          state2.signal = event.value;
+          state2.sUnits = event.sUnits || 0;
+          break;
+        case "swr":
+          state2.swr = event.value;
+          state2.swrRaw = event.raw || 0;
+          updateTuneConfidence();
+          break;
+        case "powerMeter":
+          state2.powerMeter = event.value;
+          break;
+        case "rfPower":
+          state2.rfPower = event.value;
+          state2.txPower = event.value;
+          break;
+        case "radioId":
+          state2.radioId = event.value;
+          break;
+        case "tuneConfidence":
+          state2.tuneConfidence = event.value;
+          break;
+        case "info":
+          if (event.value && event.value.frequency) {
+            state2.frequency = event.value.frequency;
+            state2.band = detectBand2(event.value.frequency);
+          }
+          break;
+        case "error":
+          break;
+        default:
+          break;
+      }
+      notify();
+    }
+    function set(partial) {
+      Object.assign(state2, partial);
+      notify();
+    }
+    function get() {
+      return { ...state2 };
+    }
+    function reset() {
+      state2.connected = false;
+      state2.demo = false;
+      state2.radioId = null;
+      state2.frequency = 0;
+      state2.frequencyB = 0;
+      state2.mode = "";
+      state2.ptt = false;
+      state2.signal = 0;
+      state2.sUnits = 0;
+      state2.swr = 0;
+      state2.swrRaw = 0;
+      state2.powerMeter = 0;
+      state2.rfPower = 0;
+      state2.txPower = 0;
+      state2.tuneConfidence = "unknown";
+      state2.band = null;
+      state2.txLocked = false;
+      state2.txLockReason = "";
+      notify();
+    }
+    function updateTuneConfidence() {
+      if (state2.swr <= 0) {
+        state2.tuneConfidence = "unknown";
+      } else if (state2.swr <= 1.5) {
+        state2.tuneConfidence = "good";
+      } else if (state2.swr <= 3) {
+        state2.tuneConfidence = "caution";
+      } else {
+        state2.tuneConfidence = "unsafe";
+      }
+    }
+    return { subscribe, applyEvent, set, get, reset };
+  }
+  function detectBand2(freq) {
+    for (const b of BANDS) {
+      if (freq >= b.min && freq <= b.max) return b.name;
+    }
+    return null;
+  }
+  var BANDS;
+  var init_rig_state_store = __esm({
+    "src/cat/rig-state-store.js"() {
+      BANDS = [
+        { name: "160m", min: 18e5, max: 2e6 },
+        { name: "80m", min: 35e5, max: 4e6 },
+        { name: "60m", min: 5330500, max: 5406400 },
+        { name: "40m", min: 7e6, max: 73e5 },
+        { name: "30m", min: 101e5, max: 1015e4 },
+        { name: "20m", min: 14e6, max: 1435e4 },
+        { name: "17m", min: 18068e3, max: 18168e3 },
+        { name: "15m", min: 21e6, max: 2145e4 },
+        { name: "12m", min: 2489e4, max: 2499e4 },
+        { name: "10m", min: 28e6, max: 297e5 },
+        { name: "6m", min: 5e7, max: 54e6 }
+      ];
+    }
+  });
+
+  // src/cat/rig-profiles.json
+  var rig_profiles_default;
+  var init_rig_profiles = __esm({
+    "src/cat/rig-profiles.json"() {
+      rig_profiles_default = {
+        profiles: {
+          "yaesu-ft891": {
+            manufacturer: "Yaesu",
+            model: "FT-891",
+            modelId: "0135",
+            protocol: {
+              family: "yaesu_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 4800,
+              dataBits: 8,
+              stopBits: 2,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "radio_managed",
+              hasATAS: false
+            }
+          },
+          "yaesu-ft991a": {
+            manufacturer: "Yaesu",
+            model: "FT-991A",
+            modelId: "0670",
+            protocol: {
+              family: "yaesu_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 4800,
+              dataBits: 8,
+              stopBits: 2,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "radio_managed",
+              hasATAS: true
+            }
+          },
+          "yaesu-ftdx10": {
+            manufacturer: "Yaesu",
+            model: "FT-DX10",
+            modelId: "0761",
+            protocol: {
+              family: "yaesu_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 38400,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "radio_managed",
+              hasATAS: true
+            }
+          },
+          "yaesu-ft710": {
+            manufacturer: "Yaesu",
+            model: "FT-710",
+            modelId: "0800",
+            protocol: {
+              family: "yaesu_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 38400,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "radio_managed",
+              hasATAS: false
+            }
+          },
+          "yaesu-ftdx101d": {
+            manufacturer: "Yaesu",
+            model: "FT-DX101D",
+            modelId: "0681",
+            protocol: {
+              family: "yaesu_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 38400,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "radio_managed",
+              hasATAS: false
+            }
+          },
+          "yaesu-ftdx101mp": {
+            manufacturer: "Yaesu",
+            model: "FT-DX101MP",
+            modelId: "0682",
+            protocol: {
+              family: "yaesu_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 38400,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 200,
+              maxAM: 50,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "radio_managed",
+              hasATAS: false
+            }
+          },
+          "yaesu-ft450d": {
+            manufacturer: "Yaesu",
+            model: "FT-450D",
+            modelId: "0244",
+            protocol: {
+              family: "yaesu_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 4800,
+              dataBits: 8,
+              stopBits: 2,
+              parity: "none",
+              flowControl: "hardware"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "radio_managed",
+              hasATAS: false
+            }
+          },
+          "yaesu-ft950": {
+            manufacturer: "Yaesu",
+            model: "FT-950",
+            modelId: "0310",
+            protocol: {
+              family: "yaesu_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 4800,
+              dataBits: 8,
+              stopBits: 2,
+              parity: "none",
+              flowControl: "hardware"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "radio_managed",
+              hasATAS: false
+            }
+          },
+          "icom-ic7300": {
+            manufacturer: "Icom",
+            model: "IC-7300",
+            modelId: "94",
+            protocol: {
+              family: "icom_civ",
+              civAddress: "0x94"
+            },
+            serial: {
+              baudRate: 19200,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 0,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "icom-ic7100": {
+            manufacturer: "Icom",
+            model: "IC-7100",
+            modelId: "88",
+            protocol: {
+              family: "icom_civ",
+              civAddress: "0x88"
+            },
+            serial: {
+              baudRate: 19200,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 0,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "icom-ic7610": {
+            manufacturer: "Icom",
+            model: "IC-7610",
+            modelId: "98",
+            protocol: {
+              family: "icom_civ",
+              civAddress: "0x98"
+            },
+            serial: {
+              baudRate: 115200,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 0,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "icom-ic9700": {
+            manufacturer: "Icom",
+            model: "IC-9700",
+            modelId: "A2",
+            protocol: {
+              family: "icom_civ",
+              civAddress: "0xA2"
+            },
+            serial: {
+              baudRate: 115200,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 0,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "icom-ic705": {
+            manufacturer: "Icom",
+            model: "IC-705",
+            modelId: "A4",
+            protocol: {
+              family: "icom_civ",
+              civAddress: "0xA4"
+            },
+            serial: {
+              baudRate: 115200,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 0,
+              max: 10,
+              maxAM: 2,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "kenwood-ts890s": {
+            manufacturer: "Kenwood",
+            model: "TS-890S",
+            modelId: "024",
+            protocol: {
+              family: "kenwood_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 115200,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "kenwood-ts590sg": {
+            manufacturer: "Kenwood",
+            model: "TS-590SG",
+            modelId: "023",
+            protocol: {
+              family: "kenwood_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 115200,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "kenwood-ts480": {
+            manufacturer: "Kenwood",
+            model: "TS-480",
+            modelId: "020",
+            protocol: {
+              family: "kenwood_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 9600,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "hardware"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "elecraft-k4": {
+            manufacturer: "Elecraft",
+            model: "K4",
+            modelId: "K4",
+            protocol: {
+              family: "elecraft_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 38400,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 0,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "elecraft-k3s": {
+            manufacturer: "Elecraft",
+            model: "K3S",
+            modelId: "K3S",
+            protocol: {
+              family: "elecraft_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 38400,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 0,
+              max: 100,
+              maxAM: 25,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "elecraft-kx3": {
+            manufacturer: "Elecraft",
+            model: "KX3",
+            modelId: "017",
+            protocol: {
+              family: "elecraft_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 38400,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 0,
+              max: 15,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          "elecraft-kx2": {
+            manufacturer: "Elecraft",
+            model: "KX2",
+            modelId: "KX2",
+            protocol: {
+              family: "elecraft_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 38400,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 0,
+              max: 12,
+              step: 1
+            },
+            tuning: {
+              smartTuneMethod: "auto_reduce",
+              hasATAS: false
+            }
+          },
+          demo: {
+            manufacturer: "HamTab",
+            model: "Demo Radio",
+            modelId: "DEMO",
+            protocol: {
+              family: "yaesu_ascii",
+              terminator: ";"
+            },
+            serial: {
+              baudRate: 38400,
+              dataBits: 8,
+              stopBits: 1,
+              parity: "none",
+              flowControl: "none"
+            },
+            control: {
+              pttMethod: "cat",
+              pollingInterval: 500
+            },
+            power: {
+              min: 5,
+              max: 100,
+              step: 5
+            },
+            tuning: {
+              smartTuneMethod: "radio_managed",
+              hasATAS: true
+            }
+          }
+        }
+      };
+    }
+  });
+
+  // src/cat/smart-detect.js
+  function parseAsciiId(resp, protocolFamily) {
+    if (!resp || typeof resp !== "string") return null;
+    const match = resp.match(/^ID(\d{3,4});?/);
+    if (!match) return null;
+    const modelId = match[1];
+    if (modelId.length === 4 && protocolFamily !== "yaesu_ascii") return null;
+    if (modelId.length === 3 && protocolFamily === "yaesu_ascii") return null;
+    return matchProfile(protocolFamily, modelId);
+  }
+  function matchElecraftOM(resp) {
+    if (resp.includes("K4")) {
+      return matchProfile("elecraft_ascii", "K4");
+    }
+    if (resp.includes("K3S") || resp.includes("K3") && resp.includes("S")) {
+      return matchProfile("elecraft_ascii", "K3S");
+    }
+    const pidMatch = resp.match(/OM\s*AP.*?(\d{2})/);
+    if (pidMatch) {
+      const pid = pidMatch[1];
+      if (pid === "01") return matchProfile("elecraft_ascii", "KX2");
+      if (pid === "02") return matchProfile("elecraft_ascii", "017");
+    }
+    return matchProfile("elecraft_ascii", null);
+  }
+  function matchProfile(protocolFamily, modelId) {
+    for (const [id, profile] of Object.entries(rig_profiles_default.profiles)) {
+      if (id === "demo") continue;
+      if (profile.protocol.family !== protocolFamily) continue;
+      if (modelId && profile.modelId && profile.modelId === modelId) {
+        return { profileId: id, protocol: protocolFamily, serialConfig: profile.serial };
+      }
+      if (!modelId) {
+        return { profileId: id, protocol: protocolFamily, serialConfig: profile.serial };
+      }
+    }
+    if (modelId) {
+      for (const [id, profile] of Object.entries(rig_profiles_default.profiles)) {
+        if (id === "demo") continue;
+        if (profile.protocol.family === protocolFamily) {
+          return { profileId: id, protocol: protocolFamily, serialConfig: profile.serial, unknownModel: modelId };
+        }
+      }
+    }
+    return null;
+  }
+  function matchCivProfile(civAddr) {
+    const addrHex = "0x" + civAddr.toString(16).padStart(2, "0").toUpperCase();
+    const addrShort = civAddr.toString(16).toUpperCase();
+    for (const [id, profile] of Object.entries(rig_profiles_default.profiles)) {
+      if (id === "demo") continue;
+      if (profile.protocol.family !== "icom_civ") continue;
+      const profCiv = (profile.protocol.civAddress || "").toUpperCase();
+      const profId = (profile.modelId || "").toUpperCase();
+      if (profCiv === addrHex || profId === addrShort) {
+        return { profileId: id, protocol: "icom_civ", serialConfig: profile.serial };
+      }
+    }
+    for (const [id, profile] of Object.entries(rig_profiles_default.profiles)) {
+      if (id === "demo") continue;
+      if (profile.protocol.family === "icom_civ") {
+        return { profileId: id, protocol: "icom_civ", serialConfig: profile.serial, unknownCivAddr: addrHex };
+      }
+    }
+    return null;
+  }
+  async function smartDetect(port, onProgress) {
+    const total = PROBES.length;
+    for (let i = 0; i < PROBES.length; i++) {
+      const probe = PROBES[i];
+      if (onProgress) {
+        onProgress({ step: i + 1, total, trying: probe.name });
+      }
+      try {
+        const result = await runProbe(port, probe);
+        if (result) {
+          return result;
+        }
+      } catch (err2) {
+        console.debug(`[smart-detect] ${probe.name} failed:`, err2.message);
+      }
+      await new Promise((r) => setTimeout(r, 100));
+    }
+    return null;
+  }
+  async function runProbe(port, probe) {
+    const transport = new WebSerialTransport(probe.serialConfig);
+    try {
+      await transport.connect(port);
+      await transport.flush();
+      let response;
+      if (probe.binary) {
+        await transport.writeRaw(probe.sendBytes);
+        response = await readWithTimeout(transport, "binary", 1500);
+      } else {
+        response = await transport.sendCommand(probe.send);
+        if (!response) {
+          response = await readWithTimeout(transport, "ascii", 1500);
+        }
+      }
+      const result = probe.parse(response);
+      await transport.disconnect();
+      return result;
+    } catch (err2) {
+      try {
+        await transport.disconnect();
+      } catch (_) {
+      }
+      throw err2;
+    }
+  }
+  async function readWithTimeout(transport, mode2, timeoutMs) {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(mode2 === "binary" ? new Uint8Array(0) : ""), timeoutMs);
+      if (mode2 === "binary") {
+        transport.readUntilByte(253).then((data) => {
+          clearTimeout(timer);
+          resolve(data);
+        }).catch(() => {
+          clearTimeout(timer);
+          resolve(new Uint8Array(0));
+        });
+      } else {
+        transport.readUntil(";").then((data) => {
+          clearTimeout(timer);
+          resolve(data);
+        }).catch(() => {
+          clearTimeout(timer);
+          resolve("");
+        });
+      }
+    });
+  }
+  var PROBES;
+  var init_smart_detect = __esm({
+    "src/cat/smart-detect.js"() {
+      init_web_serial();
+      init_rig_profiles();
+      PROBES = [
+        // 1. Yaesu 38400/8N1 — newer radios: FT-DX10, FT-710, FT-DX101D/MP
+        {
+          name: "Yaesu 38400",
+          serialConfig: { baudRate: 38400, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
+          send: "ID;",
+          terminator: ";",
+          parse(resp) {
+            return parseAsciiId(resp, "yaesu_ascii");
+          }
+        },
+        // 2. Kenwood 115200/8N1 — TS-890S, TS-590SG (also catches Elecraft responding to ID;)
+        {
+          name: "Kenwood 115200",
+          serialConfig: { baudRate: 115200, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
+          send: "ID;",
+          terminator: ";",
+          parse(resp) {
+            return parseAsciiId(resp, "kenwood_ascii") || parseAsciiId(resp, "elecraft_ascii");
+          }
+        },
+        // 3. Elecraft 38400/8N1 — K4, K3S, KX3, KX2 (OM; command for model identification)
+        {
+          name: "Elecraft 38400",
+          serialConfig: { baudRate: 38400, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
+          send: "OM;",
+          terminator: ";",
+          parse(resp) {
+            if (!resp || !resp.startsWith("OM")) return null;
+            return matchElecraftOM(resp);
+          }
+        },
+        // 4. Icom 115200/8N1 — IC-7610, IC-9700, IC-705 (USB default)
+        {
+          name: "Icom 115200",
+          serialConfig: { baudRate: 115200, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
+          binary: true,
+          send: null,
+          sendBytes: new Uint8Array([254, 254, 0, 224, 25, 253]),
+          parse(resp) {
+            if (!resp || resp.length < 6) return null;
+            if (resp[0] !== 254 || resp[1] !== 254) return null;
+            return matchCivProfile(resp[2]);
+          }
+        },
+        // 5. Icom 19200/8N1 — IC-7300, IC-7100 (CI-V jack / older USB default)
+        {
+          name: "Icom 19200",
+          serialConfig: { baudRate: 19200, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
+          binary: true,
+          send: null,
+          sendBytes: new Uint8Array([254, 254, 0, 224, 25, 253]),
+          parse(resp) {
+            if (!resp || resp.length < 6) return null;
+            if (resp[0] !== 254 || resp[1] !== 254) return null;
+            return matchCivProfile(resp[2]);
+          }
+        },
+        // 6. Yaesu 4800/8N2 — older radios: FT-891, FT-991A, FT-450D, FT-950
+        {
+          name: "Yaesu 4800",
+          serialConfig: { baudRate: 4800, dataBits: 8, stopBits: 2, parity: "none", flowControl: "none" },
+          send: "ID;",
+          terminator: ";",
+          parse(resp) {
+            return parseAsciiId(resp, "yaesu_ascii");
+          }
+        },
+        // 7. Kenwood 9600/8N1 — TS-480
+        {
+          name: "Kenwood 9600",
+          serialConfig: { baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
+          send: "ID;",
+          terminator: ";",
+          parse(resp) {
+            return parseAsciiId(resp, "kenwood_ascii");
+          }
+        },
+        // 8. Fallback: Yaesu 9600/8N2 (user-changed baud on older Yaesu)
+        {
+          name: "Yaesu 9600",
+          serialConfig: { baudRate: 9600, dataBits: 8, stopBits: 2, parity: "none", flowControl: "none" },
+          send: "ID;",
+          terminator: ";",
+          parse(resp) {
+            return parseAsciiId(resp, "yaesu_ascii");
+          }
+        },
+        // 9. Fallback: Icom 9600 (rare CI-V jack config)
+        {
+          name: "Icom 9600",
+          serialConfig: { baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
+          binary: true,
+          send: null,
+          sendBytes: new Uint8Array([254, 254, 0, 224, 25, 253]),
+          parse(resp) {
+            if (!resp || resp.length < 6) return null;
+            if (resp[0] !== 254 || resp[1] !== 254) return null;
+            return matchCivProfile(resp[2]);
+          }
+        }
+      ];
+    }
+  });
+
+  // src/cat/safety/tx-intent-system.js
+  function createTxIntentSystem(store, options = {}) {
+    const rapidThreshold = options.rapidThreshold || 3;
+    const rapidWindowMs = options.rapidWindowMs || 2e3;
+    const settleMs = options.settleMs || 1500;
+    let freqChanges = [];
+    let lastFreq = 0;
+    let settleTimer = null;
+    let locked = false;
+    let unsubscribe2 = null;
+    function start() {
+      unsubscribe2 = store.subscribe((state2) => {
+        if (state2.frequency !== lastFreq && lastFreq > 0) {
+          lastFreq = state2.frequency;
+          const now = Date.now();
+          freqChanges.push(now);
+          freqChanges = freqChanges.filter((t) => now - t < rapidWindowMs);
+          if (freqChanges.length >= rapidThreshold && !locked) {
+            locked = true;
+            store.set({ txLocked: true, txLockReason: "Rapid tuning \u2014 wait for settle" });
+          }
+          if (locked) {
+            if (settleTimer) clearTimeout(settleTimer);
+            settleTimer = setTimeout(() => {
+              locked = false;
+              const current = store.get();
+              if (current.txLockReason === "Rapid tuning \u2014 wait for settle") {
+                store.set({ txLocked: false, txLockReason: "" });
+              }
+            }, settleMs);
+          }
+        }
+        if (lastFreq === 0) lastFreq = state2.frequency;
+      });
+    }
+    function stop() {
+      if (unsubscribe2) {
+        unsubscribe2();
+        unsubscribe2 = null;
+      }
+      if (settleTimer) {
+        clearTimeout(settleTimer);
+        settleTimer = null;
+      }
+      locked = false;
+    }
+    return { start, stop };
+  }
+  var init_tx_intent_system = __esm({
+    "src/cat/safety/tx-intent-system.js"() {
+    }
+  });
+
+  // src/cat/safety/band-transition-guard.js
+  function createBandTransitionGuard(store, options = {}) {
+    const lockoutMs = options.lockoutMs || 2e3;
+    let lastBand = null;
+    let lockoutTimer = null;
+    let unsubscribe2 = null;
+    function start() {
+      unsubscribe2 = store.subscribe((state2) => {
+        const band = detectBand2(state2.frequency);
+        if (band && lastBand && band !== lastBand) {
+          store.set({ txLocked: true, txLockReason: `Band change: ${lastBand} \u2192 ${band}` });
+          if (lockoutTimer) clearTimeout(lockoutTimer);
+          lockoutTimer = setTimeout(() => {
+            const current = store.get();
+            if (current.txLockReason && current.txLockReason.startsWith("Band change:")) {
+              store.set({ txLocked: false, txLockReason: "" });
+            }
+          }, lockoutMs);
+        }
+        lastBand = band;
+      });
+    }
+    function stop() {
+      if (unsubscribe2) {
+        unsubscribe2();
+        unsubscribe2 = null;
+      }
+      if (lockoutTimer) {
+        clearTimeout(lockoutTimer);
+        lockoutTimer = null;
+      }
+    }
+    return { start, stop };
+  }
+  var init_band_transition_guard = __esm({
+    "src/cat/safety/band-transition-guard.js"() {
+      init_rig_state_store();
+    }
+  });
+
+  // src/cat/safety/tx-power-guard.js
+  function createTxPowerGuard(store, sendCommandFn, options = {}) {
+    const swrLimit = options.swrLimit || 3;
+    const safePower = options.safePower || 20;
+    const restoreDelay = options.restoreDelay || 5e3;
+    let originalPower = null;
+    let reduced = false;
+    let restoreTimer = null;
+    let unsubscribe2 = null;
+    function start() {
+      unsubscribe2 = store.subscribe((state2) => {
+        if (!state2.ptt) {
+          if (reduced && !restoreTimer) {
+            restoreTimer = setTimeout(() => {
+              if (originalPower !== null) {
+                sendCommandFn("setRFPower", originalPower, 1);
+              }
+              reduced = false;
+              originalPower = null;
+              restoreTimer = null;
+            }, restoreDelay);
+          }
+          return;
+        }
+        if (state2.swr > swrLimit && !reduced) {
+          originalPower = state2.rfPower || state2.txPower;
+          if (originalPower && originalPower > safePower) {
+            sendCommandFn("setRFPower", safePower, 2);
+            reduced = true;
+            store.set({
+              txLocked: false,
+              // don't lock TX, just reduce power
+              txLockReason: `Power reduced: SWR ${state2.swr.toFixed(1)} > ${swrLimit}`
+            });
+          }
+        }
+      });
+    }
+    function stop() {
+      if (unsubscribe2) {
+        unsubscribe2();
+        unsubscribe2 = null;
+      }
+      if (restoreTimer) {
+        clearTimeout(restoreTimer);
+        restoreTimer = null;
+      }
+      reduced = false;
+      originalPower = null;
+    }
+    return { start, stop };
+  }
+  var init_tx_power_guard = __esm({
+    "src/cat/safety/tx-power-guard.js"() {
+    }
+  });
+
+  // src/cat/connection-orchestrator.js
+  function getRigStore() {
+    if (!rigStore) {
+      rigStore = createRigStateStore();
+    }
+    return rigStore;
+  }
+  async function connectRig(config = {}) {
+    if (rigManager && rigManager.isConnected()) {
+      console.warn("[cat] Already connected \u2014 disconnect first");
+      return false;
+    }
+    const store = getRigStore();
+    const isDemo = config.demo || config.profileId === "demo";
+    let resolvedProfileId = config.profileId;
+    let resolvedProtocol = config.protocol || config.protocolFamily;
+    let resolvedSerialConfig = config.serialConfig;
+    if (config.autoDetect && config.existingPort && !isDemo) {
+      const detected = await smartDetect(config.existingPort, config.onDetectProgress);
+      if (detected) {
+        resolvedProfileId = detected.profileId;
+        resolvedProtocol = detected.protocol;
+        resolvedSerialConfig = detected.serialConfig;
+      } else {
+        return false;
+      }
+    }
+    let profile = null;
+    if (resolvedProfileId && rig_profiles_default.profiles[resolvedProfileId]) {
+      profile = rig_profiles_default.profiles[resolvedProfileId];
+    }
+    const protocolFamily = resolvedProtocol || profile && profile.protocol && profile.protocol.family || "yaesu_ascii";
+    const driver = DRIVERS[protocolFamily];
+    if (!driver) {
+      throw new Error(`Unsupported protocol: ${protocolFamily}`);
+    }
+    if (protocolFamily === "icom_civ") {
+      const civAddr = config.civAddress || profile && profile.protocol && profile.protocol.civAddress;
+      if (civAddr) driver.setCivAddress(civAddr);
+    }
+    function buildSerialConfig() {
+      if (resolvedSerialConfig) return resolvedSerialConfig;
+      const explicit = {};
+      if (config.baudRate && config.baudRate !== "auto") explicit.baudRate = parseInt(config.baudRate, 10);
+      if (config.dataBits) explicit.dataBits = config.dataBits;
+      if (config.stopBits) explicit.stopBits = config.stopBits;
+      if (config.parity) explicit.parity = config.parity;
+      if (config.flowControl) explicit.flowControl = config.flowControl;
+      const profileSerial = profile && profile.serial || {};
+      return { ...profileSerial, ...explicit };
+    }
+    let transport;
+    if (isDemo) {
+      const engineOptions = {};
+      if (config.propagation && config.propagation !== "off") {
+        engineOptions.propagation = config.propagation;
+        if (config.latitude != null) engineOptions.latitude = config.latitude;
+        if (config.longitude != null) engineOptions.longitude = config.longitude;
+      }
+      transport = new InMemoryTransport({ engineOptions });
+    } else {
+      const serialConfig = buildSerialConfig();
+      transport = new WebSerialTransport(serialConfig);
+    }
+    const pollingInterval = config.pollingInterval || profile && profile.control && profile.control.pollingInterval || 500;
+    rigManager = createRigManager(transport, driver, store, { pollingInterval });
+    const success = await rigManager.connect(config.existingPort || null);
+    if (!success) {
+      rigManager = null;
+      return false;
+    }
+    if (isDemo) {
+      store.set({ demo: true });
+    }
+    if (!isDemo) {
+      if (config.safetyTxIntent !== false) {
+        const txIntent = createTxIntentSystem(store);
+        txIntent.start();
+        activeSafetyModules.push(txIntent);
+      }
+      if (config.safetyBandLockout !== false) {
+        const bandGuard = createBandTransitionGuard(store);
+        bandGuard.start();
+        activeSafetyModules.push(bandGuard);
+      }
+      if (config.safetyAutoPower !== false) {
+        const sendCmd = (cmd, val, pri) => {
+          if (rigManager && rigManager.isConnected()) {
+            rigManager.sendCommand(cmd, val, pri);
+          }
+        };
+        const powerGuard = createTxPowerGuard(store, sendCmd, {
+          swrLimit: config.swrLimit || 3,
+          safePower: config.safePower || 20
+        });
+        powerGuard.start();
+        activeSafetyModules.push(powerGuard);
+      }
+    }
+    return true;
+  }
+  async function disconnectRig() {
+    if (!rigManager) return;
+    for (const mod of activeSafetyModules) {
+      try {
+        mod.stop();
+      } catch (_) {
+      }
+    }
+    activeSafetyModules = [];
+    await rigManager.disconnect();
+    rigManager = null;
+    const store = getRigStore();
+    store.reset();
+  }
+  function sendRigCommand(command, params, priority) {
+    if (!rigManager || !rigManager.isConnected()) {
+      console.warn("[cat] Not connected \u2014 cannot send command");
+      return;
+    }
+    rigManager.sendCommand(command, params, priority);
+  }
+  function isRigConnected() {
+    return rigManager ? rigManager.isConnected() : false;
+  }
+  function getAvailableProfiles() {
+    return Object.entries(rig_profiles_default.profiles).map(([id, p]) => ({
+      id,
+      manufacturer: p.manufacturer,
+      model: p.model,
+      protocol: p.protocol.family,
+      serial: p.serial,
+      control: p.control,
+      civAddress: p.protocol.civAddress || null
+    }));
+  }
+  var DRIVERS, rigManager, rigStore, activeSafetyModules;
+  var init_connection_orchestrator = __esm({
+    "src/cat/connection-orchestrator.js"() {
+      init_web_serial();
+      init_in_memory_transport();
+      init_yaesu_ascii();
+      init_kenwood_ascii();
+      init_icom_civ();
+      init_elecraft_ascii();
+      init_rig_manager();
+      init_rig_state_store();
+      init_smart_detect();
+      init_tx_intent_system();
+      init_band_transition_guard();
+      init_tx_power_guard();
+      init_rig_profiles();
+      DRIVERS = {
+        yaesu_ascii: yaesuAscii,
+        kenwood_ascii: kenwoodAscii,
+        icom_civ: icomCiv,
+        elecraft_ascii: elecraftAscii
+      };
+      rigManager = null;
+      rigStore = null;
+      activeSafetyModules = [];
+    }
+  });
+
+  // src/cat/index.js
+  var init_cat = __esm({
+    "src/cat/index.js"() {
+      init_connection_orchestrator();
+      init_smart_detect();
+    }
+  });
+
+  // src/cat/profiles/band-auto-profile.js
+  function resolveRigMode(spotMode, freqHz) {
+    if (!spotMode) return null;
+    const upper = spotMode.toUpperCase().trim();
+    const mapped = SPOT_TO_RIG_MODE[upper];
+    if (mapped) return mapped;
+    if (upper === "SSB" || upper === "PH" || upper === "PHONE") {
+      return freqHz >= SSB_CROSSOVER ? "USB" : "LSB";
+    }
+    return null;
+  }
+  function spotFreqToHz(freq) {
+    let val;
+    if (typeof freq === "number") {
+      val = freq;
+    } else {
+      val = parseFloat(freq);
+    }
+    if (isNaN(val) || val <= 0) return 0;
+    if (val > 1e6) return Math.round(val);
+    if (val > 1e3) return Math.round(val * 1e3);
+    return Math.round(val * 1e6);
+  }
+  var SPOT_TO_RIG_MODE, SSB_CROSSOVER;
+  var init_band_auto_profile = __esm({
+    "src/cat/profiles/band-auto-profile.js"() {
+      SPOT_TO_RIG_MODE = {
+        "FT8": "DATA-U",
+        // FT8 uses upper sideband data mode
+        "FT4": "DATA-U",
+        "JS8": "DATA-U",
+        "WSPR": "DATA-U",
+        "MSK144": "DATA-U",
+        "JT65": "DATA-U",
+        "JT9": "DATA-U",
+        "RTTY": "RTTY-L",
+        "PSK31": "DATA-L",
+        "PSK63": "DATA-L",
+        "OLIVIA": "DATA-U",
+        "CW": "CW-U",
+        "SSB": null,
+        // resolved by frequency (USB/LSB)
+        "USB": "USB",
+        "LSB": "LSB",
+        "FM": "FM",
+        "AM": "AM",
+        "DSTAR": "DATA-FM",
+        "DMR": "DATA-FM",
+        "C4FM": "DATA-FM"
+      };
+      SSB_CROSSOVER = 1e7;
+    }
+  });
+
+  // src/cat/safety/band-plan-validator.js
+  function validateFrequency(freqHz) {
+    if (!freqHz || freqHz <= 0) {
+      return { valid: false, band: null, zone: null, warning: "Invalid frequency" };
+    }
+    const band = US_BANDS.find((b) => freqHz >= b.min && freqHz <= b.max);
+    if (!band) {
+      return {
+        valid: false,
+        band: null,
+        zone: null,
+        warning: `${(freqHz / 1e6).toFixed(3)} MHz is outside US amateur bands`
+      };
+    }
+    let zone = null;
+    const zones = MODE_ZONES[band.name];
+    if (zones) {
+      const match = zones.find((z) => freqHz >= z.min && freqHz <= z.max);
+      if (match) zone = match.zone;
+    }
+    return { valid: true, band: band.name, zone, warning: null };
+  }
+  var US_BANDS, MODE_ZONES;
+  var init_band_plan_validator = __esm({
+    "src/cat/safety/band-plan-validator.js"() {
+      US_BANDS = [
+        { name: "160m", min: 18e5, max: 2e6 },
+        { name: "80m", min: 35e5, max: 4e6 },
+        { name: "60m", min: 5330500, max: 5406400 },
+        // channelized
+        { name: "40m", min: 7e6, max: 73e5 },
+        { name: "30m", min: 101e5, max: 1015e4 },
+        { name: "20m", min: 14e6, max: 1435e4 },
+        { name: "17m", min: 18068e3, max: 18168e3 },
+        { name: "15m", min: 21e6, max: 2145e4 },
+        { name: "12m", min: 2489e4, max: 2499e4 },
+        { name: "10m", min: 28e6, max: 297e5 },
+        { name: "6m", min: 5e7, max: 54e6 },
+        { name: "2m", min: 144e6, max: 148e6 },
+        { name: "70cm", min: 42e7, max: 45e7 }
+      ];
+      MODE_ZONES = {
+        "160m": [
+          { min: 18e5, max: 181e4, zone: "CW" },
+          { min: 181e4, max: 1843e3, zone: "CW/DATA" },
+          { min: 1843e3, max: 2e6, zone: "PHONE" }
+        ],
+        "80m": [
+          { min: 35e5, max: 36e5, zone: "CW/DATA" },
+          { min: 36e5, max: 4e6, zone: "PHONE" }
+        ],
+        "40m": [
+          { min: 7e6, max: 7125e3, zone: "CW/DATA" },
+          { min: 7125e3, max: 73e5, zone: "PHONE" }
+        ],
+        "20m": [
+          { min: 14e6, max: 1415e4, zone: "CW/DATA" },
+          { min: 1415e4, max: 1435e4, zone: "PHONE" }
+        ],
+        "15m": [
+          { min: 21e6, max: 212e5, zone: "CW/DATA" },
+          { min: 212e5, max: 2145e4, zone: "PHONE" }
+        ],
+        "10m": [
+          { min: 28e6, max: 283e5, zone: "CW/DATA" },
+          { min: 283e5, max: 297e5, zone: "PHONE/FM" }
+        ]
+      };
+    }
+  });
+
   // src/spot-detail.js
   function weatherCacheKey(lat, lon) {
     return `${lat.toFixed(1)},${lon.toFixed(1)}`;
@@ -2419,8 +5631,13 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     ${bearingHtml}
     ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ""}
     ${spot.comments ? `<div class="spot-detail-row spot-detail-comments">${esc(spot.comments)}</div>` : ""}
+    <div class="spot-detail-tune" id="spotDetailTune"></div>
     <div class="spot-detail-wx" id="spotDetailWx"></div>
   `;
+    renderTuneButton(spot);
+    if (isRigConnected() && spot.frequency) {
+      tuneToSpot(spot);
+    }
     if (clockInterval) clearInterval(clockInterval);
     if (!isNaN(lon)) {
       clockInterval = setInterval(() => renderLocalTime(lon), 1e3);
@@ -2458,6 +5675,51 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       }
     }
   }
+  function renderTuneButton(spot) {
+    const container = document.getElementById("spotDetailTune");
+    if (!container) return;
+    if (!isRigConnected()) {
+      container.innerHTML = "";
+      return;
+    }
+    const freqHz = spotFreqToHz(spot.frequency);
+    const rigMode = resolveRigMode(spot.mode, freqHz);
+    const validation = validateFrequency(freqHz);
+    let label = "Tune Rig";
+    if (rigMode) label += ` \u2192 ${rigMode}`;
+    const btn = document.createElement("button");
+    btn.className = "btn btn-sm spot-detail-tune-btn";
+    btn.textContent = label;
+    btn.addEventListener("click", () => tuneToSpot(spot));
+    container.innerHTML = "";
+    container.appendChild(btn);
+    if (validation.warning) {
+      const warn = document.createElement("div");
+      warn.className = "spot-detail-tune-warn";
+      warn.textContent = validation.warning;
+      container.appendChild(warn);
+    }
+  }
+  function tuneToSpot(spot) {
+    if (!isRigConnected() || !spot.frequency) return;
+    const freqHz = spotFreqToHz(spot.frequency);
+    if (freqHz <= 0) return;
+    sendRigCommand("setFrequency", freqHz, 2);
+    const rigMode = resolveRigMode(spot.mode, freqHz);
+    if (rigMode) {
+      sendRigCommand("setMode", rigMode, 1);
+    }
+    const btn = document.querySelector(".spot-detail-tune-btn");
+    if (btn) {
+      const original = btn.textContent;
+      btn.textContent = "Tuned!";
+      btn.disabled = true;
+      setTimeout(() => {
+        btn.textContent = original;
+        btn.disabled = false;
+      }, 1500);
+    }
+  }
   function clearSpotDetail() {
     currentSpot = null;
     if (clockInterval) {
@@ -2478,6 +5740,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       init_utils();
       init_filters();
       init_geo();
+      init_cat();
+      init_band_auto_profile();
+      init_band_plan_validator();
       currentSpot = null;
       clockInterval = null;
       spotDetailWeatherCache = {};
@@ -4586,6 +7851,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         { id: "widget-dedx", name: "DE/DX Info", short: "DEDX" },
         { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
         { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" }
+        // { id: 'widget-on-air-rig',  name: 'On-Air Rig',       short: 'Rig' }, // RADIO_HIDDEN
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -6419,6 +9685,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   });
 
   // src/widgets.js
+  function onWidgetHide(widgetId, fn) {
+    widgetHideCallbacks[widgetId] = fn;
+  }
   function loadWidgetVisibility() {
     try {
       const saved = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
@@ -7012,6 +10281,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
           state_default.widgetVisibility[widget.id] = false;
           saveWidgetVisibility();
           applyWidgetVisibility();
+          if (widgetHideCallbacks[widget.id]) widgetHideCallbacks[widget.id]();
         });
         header.insertBefore(closeBtn, header.firstChild);
         if (!isDesktop) {
@@ -7118,7 +10388,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     }
     applyProgressiveScale();
   }
-  var WIDGET_VIS_KEY, prevAreaW, prevAreaH;
+  var WIDGET_VIS_KEY, widgetHideCallbacks, prevAreaW, prevAreaH;
   var init_widgets = __esm({
     "src/widgets.js"() {
       init_state();
@@ -7126,6 +10396,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       init_grid_layout();
       init_tabs();
       WIDGET_VIS_KEY = "hamtab_widget_vis";
+      widgetHideCallbacks = {};
       prevAreaW = 0;
       prevAreaH = 0;
     }
@@ -7634,160 +10905,43 @@ ${beacon.location}`);
         // bright green — DX panel accent
       }
     },
-    rebel: {
-      id: "rebel",
-      name: "Rebel",
-      description: "Desert outpost warmth",
-      bodyClass: "",
+    radioface: {
+      id: "radioface",
+      name: "Radio Face",
+      description: "Modern transceiver LCD",
+      bodyClass: "theme-radioface",
       supportsGrid: true,
       vars: {
-        "--bg": "#1a120b",
-        // deep charred brown
-        "--surface": "#2a1a0e",
-        // dark burnt sienna
-        "--surface2": "#3d2614",
-        // warm leather brown
-        "--surface3": "#4a3020",
-        // dusty canyon
-        "--accent": "#ff6f00",
-        // blazing orange — rally signal
-        "--text": "#f0dcc0",
-        // warm parchment
-        "--text-dim": "#9a8060",
-        // faded sand
-        "--green": "#7cb342",
-        // olive rebel green
-        "--yellow": "#ffc107",
-        // gold
-        "--red": "#e53935",
-        // alert red
-        "--orange": "#ff8f00",
-        // deep amber
-        "--border": "#5c3a1e",
-        // worn leather edge
-        "--bg-secondary": "#1a120b",
-        "--bg-tertiary": "#221610",
-        "--de-color": "#ff6f00",
-        // blazing orange — DE panel accent
-        "--dx-color": "#7cb342"
-        // olive green — DX panel accent
-      }
-    },
-    imperial: {
-      id: "imperial",
-      name: "Imperial",
-      description: "Cold steel command deck",
-      bodyClass: "",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#0a0c10",
-        // near-black with cold blue cast
-        "--surface": "#12151c",
-        // dark gunmetal
-        "--surface2": "#1c2030",
-        // brushed steel
-        "--surface3": "#262b3e",
-        // polished durasteel
-        "--accent": "#90caf9",
-        // cold ice blue — command highlight
-        "--text": "#cfd8e0",
-        // cool gray-white
-        "--text-dim": "#607080",
-        // muted steel
-        "--green": "#66bb6a",
-        // tactical green
-        "--yellow": "#ffee58",
-        // caution yellow
-        "--red": "#ef5350",
-        // imperial red
-        "--orange": "#ffa726",
-        // amber alert
-        "--border": "#2a3040",
-        // cold steel border
-        "--bg-secondary": "#0a0c10",
-        "--bg-tertiary": "#0e1018",
-        "--de-color": "#90caf9",
-        // ice blue — DE panel accent
-        "--dx-color": "#ef5350"
-        // imperial red — DX panel accent
-      }
-    },
-    neon: {
-      id: "neon",
-      name: "Neon",
-      description: "Digital grid, neon glow",
-      bodyClass: "theme-neon",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#050510",
-        // void black with blue tint
-        "--surface": "#0a0a1a",
-        // deep digital dark
-        "--surface2": "#0f1028",
-        // dark grid
-        "--surface3": "#141838",
-        // subtle grid highlight
+        "--bg": "#060a12",
+        // very dark blue-black chassis
+        "--surface": "#0c1220",
+        // dark panel
+        "--surface2": "#141e30",
+        // metallic dark blue
+        "--surface3": "#1c2840",
+        // lighter metallic
         "--accent": "#00e5ff",
-        // neon cyan — primary glow
-        "--text": "#e0f0ff",
+        // bright cyan — LCD glow
+        "--text": "#d0e0f0",
         // cool white
         "--text-dim": "#4a6080",
-        // dim circuit trace
-        "--green": "#00e676",
-        // neon green
-        "--yellow": "#eeff41",
-        // electric yellow
+        // muted steel blue
+        "--green": "#00c853",
+        // bright green — RX
+        "--yellow": "#ffd600",
+        // amber — warnings, mode
         "--red": "#ff1744",
-        // neon red
-        "--orange": "#ff6e40",
-        // neon orange
-        "--border": "#0d2040",
-        // dark grid line
-        "--bg-secondary": "#050510",
-        "--bg-tertiary": "#080818",
+        // bright red — TX, alerts
+        "--orange": "#ff9100",
+        // orange — power, caution
+        "--border": "#1a2a44",
+        // dark metallic border
+        "--bg-secondary": "#060a12",
+        "--bg-tertiary": "#080e18",
         "--de-color": "#00e5ff",
-        // neon cyan — DE panel accent
-        "--dx-color": "#ff1744"
-        // neon red — DX panel accent
-      }
-    },
-    steampunk: {
-      id: "steampunk",
-      name: "Steampunk",
-      description: "Brass, gears & gaslight",
-      bodyClass: "theme-steampunk",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#1a1408",
-        // dark aged wood
-        "--surface": "#241c0e",
-        // oiled mahogany
-        "--surface2": "#3a2e18",
-        // polished walnut
-        "--surface3": "#4a3c22",
-        // brass-touched panel
-        "--accent": "#d4a04a",
-        // polished brass
-        "--text": "#e8d8b8",
-        // aged parchment
-        "--text-dim": "#8a7a5a",
-        // faded ink
-        "--green": "#6b8e23",
-        // oxidized copper green
-        "--yellow": "#daa520",
-        // goldenrod
-        "--red": "#b22222",
-        // firebrick
-        "--orange": "#cd853f",
-        // peru — warm copper
-        "--border": "#5a4a2a",
-        // brass trim
-        "--bg-secondary": "#1a1408",
-        "--bg-tertiary": "#1e180c",
-        "--de-color": "#d4a04a",
-        // polished brass — DE panel accent
-        "--dx-color": "#6b8e23"
-        // oxidized copper — DX panel accent
+        // cyan — DE panel accent
+        "--dx-color": "#ff9100"
+        // orange — DX panel accent
       }
     }
   };
@@ -14077,6 +17231,457 @@ ${beacon.location}`);
   }
 
   // src/splash.js
+  init_cat();
+
+  // src/on-air-rig.js
+  init_dom();
+  init_widgets();
+  init_state();
+  init_cat();
+
+  // src/cat/profiles/band-overlay-engine.js
+  var BAND_SEGMENTS = {
+    "160m": [
+      { min: 18e5, max: 181e4, zone: "CW", color: "cw" },
+      { min: 181e4, max: 1843e3, zone: "DATA", color: "digi" },
+      { min: 1843e3, max: 2e6, zone: "PHONE", color: "phone" }
+    ],
+    "80m": [
+      { min: 35e5, max: 36e5, zone: "CW", color: "cw" },
+      { min: 357e4, max: 36e5, zone: "DATA", color: "digi" },
+      { min: 36e5, max: 4e6, zone: "PHONE", color: "phone" }
+    ],
+    "40m": [
+      { min: 7e6, max: 705e4, zone: "CW", color: "cw" },
+      { min: 705e4, max: 7125e3, zone: "DATA", color: "digi" },
+      { min: 7125e3, max: 73e5, zone: "PHONE", color: "phone" }
+    ],
+    "30m": [
+      { min: 101e5, max: 1013e4, zone: "CW", color: "cw" },
+      { min: 1013e4, max: 1015e4, zone: "DATA", color: "digi" }
+    ],
+    "20m": [
+      { min: 14e6, max: 1407e4, zone: "CW", color: "cw" },
+      { min: 1407e4, max: 1415e4, zone: "DATA", color: "digi" },
+      { min: 1415e4, max: 1435e4, zone: "PHONE", color: "phone" }
+    ],
+    "17m": [
+      { min: 18068e3, max: 181e5, zone: "CW", color: "cw" },
+      { min: 181e5, max: 1811e4, zone: "DATA", color: "digi" },
+      { min: 1811e4, max: 18168e3, zone: "PHONE", color: "phone" }
+    ],
+    "15m": [
+      { min: 21e6, max: 2107e4, zone: "CW", color: "cw" },
+      { min: 2107e4, max: 212e5, zone: "DATA", color: "digi" },
+      { min: 212e5, max: 2145e4, zone: "PHONE", color: "phone" }
+    ],
+    "12m": [
+      { min: 2489e4, max: 2492e4, zone: "CW", color: "cw" },
+      { min: 2492e4, max: 2493e4, zone: "DATA", color: "digi" },
+      { min: 2493e4, max: 2499e4, zone: "PHONE", color: "phone" }
+    ],
+    "10m": [
+      { min: 28e6, max: 2807e4, zone: "CW", color: "cw" },
+      { min: 2807e4, max: 283e5, zone: "DATA", color: "digi" },
+      { min: 283e5, max: 297e5, zone: "PHONE", color: "phone" }
+    ],
+    "6m": [
+      { min: 5e7, max: 501e5, zone: "CW", color: "cw" },
+      { min: 501e5, max: 503e5, zone: "DATA", color: "digi" },
+      { min: 503e5, max: 54e6, zone: "PHONE", color: "phone" }
+    ]
+  };
+  function getBandSegments(bandName) {
+    return BAND_SEGMENTS[bandName] || [];
+  }
+  function getBandEdges(bandName) {
+    const segments = BAND_SEGMENTS[bandName];
+    if (!segments || segments.length === 0) return null;
+    return {
+      min: segments[0].min,
+      max: segments[segments.length - 1].max
+    };
+  }
+  function getPositionInBand(freqHz, bandName) {
+    const edges = getBandEdges(bandName);
+    if (!edges) return 0.5;
+    if (freqHz <= edges.min) return 0;
+    if (freqHz >= edges.max) return 1;
+    return (freqHz - edges.min) / (edges.max - edges.min);
+  }
+
+  // src/on-air-rig.js
+  var unsubscribe = null;
+  var initialized2 = false;
+  var listenersAttached = false;
+  var lastBandOverlay = "";
+  function formatFrequency(hz) {
+    if (!hz || hz <= 0) return "----.---";
+    const mhz = Math.floor(hz / 1e6);
+    const khz = String(Math.floor(hz % 1e6 / 1e3)).padStart(3, "0");
+    const hzPart = String(hz % 1e3).padStart(3, "0");
+    return `${mhz}.${khz}.${hzPart}`;
+  }
+  function sUnitsToReadability(sUnits) {
+    if (sUnits <= 1) return 1;
+    if (sUnits <= 3) return 2;
+    if (sUnits <= 5) return 3;
+    if (sUnits <= 7) return 4;
+    return 5;
+  }
+  function buildRST(sUnits) {
+    const r = sUnitsToReadability(sUnits);
+    const s = Math.min(9, Math.max(1, Math.round(sUnits)));
+    return `${r}${s}9`;
+  }
+  function confidenceClass(confidence) {
+    switch (confidence) {
+      case "good":
+        return "rig-confidence-good";
+      case "caution":
+        return "rig-confidence-caution";
+      case "unsafe":
+        return "rig-confidence-unsafe";
+      default:
+        return "";
+    }
+  }
+  function render(state2) {
+    if (!isWidgetVisible("widget-on-air-rig")) return;
+    const freqEl = $("rigFrequency");
+    const modeEl = $("rigMode");
+    const txEl = $("rigTxState");
+    const sMeterEl = $("rigSMeter");
+    const swrEl = $("rigSWR");
+    const rstEl = $("rigRST");
+    const powerEl = $("rigPower");
+    const bandEl = $("rigBand");
+    const statusEl = $("rigStatus");
+    const connectBtn = $("rigConnectBtn");
+    const confEl = $("rigConfidence");
+    const lcdEl = $("rigLcd");
+    if (!freqEl) return;
+    freqEl.textContent = formatFrequency(state2.frequency);
+    if (confEl) {
+      confEl.className = `rig-confidence ${state2.ptt ? confidenceClass(state2.tuneConfidence) : ""}`;
+    }
+    if (bandEl) {
+      bandEl.textContent = state2.band || "";
+    }
+    modeEl.textContent = state2.mode || "---";
+    if (state2.ptt) {
+      txEl.textContent = "TX";
+      txEl.classList.add("rig-tx-active");
+      if (lcdEl) lcdEl.classList.add("rig-lcd-tx");
+    } else {
+      txEl.textContent = "RX";
+      txEl.classList.remove("rig-tx-active");
+      if (lcdEl) lcdEl.classList.remove("rig-lcd-tx");
+    }
+    if (rstEl) {
+      if (state2.signal > 0 && !state2.ptt) {
+        rstEl.textContent = `RST ${buildRST(state2.sUnits)}`;
+        rstEl.classList.remove("hidden");
+      } else {
+        rstEl.classList.add("hidden");
+      }
+    }
+    let sMeterPct;
+    if (state2.signal <= 150) {
+      sMeterPct = state2.signal / 150 * 71;
+    } else {
+      sMeterPct = 71 + (state2.signal - 150) / 105 * 29;
+    }
+    sMeterPct = Math.min(100, Math.max(0, sMeterPct));
+    sMeterEl.style.width = sMeterPct + "%";
+    if (state2.signal > 150) {
+      sMeterEl.classList.add("rig-meter-over");
+    } else {
+      sMeterEl.classList.remove("rig-meter-over");
+    }
+    if (state2.swr > 0) {
+      swrEl.textContent = `SWR ${state2.swr.toFixed(1)}`;
+      if (state2.swr > 3) {
+        swrEl.classList.add("rig-swr-danger");
+        swrEl.classList.remove("rig-swr-caution");
+      } else if (state2.swr > 1.5) {
+        swrEl.classList.remove("rig-swr-danger");
+        swrEl.classList.add("rig-swr-caution");
+      } else {
+        swrEl.classList.remove("rig-swr-danger", "rig-swr-caution");
+      }
+    } else {
+      swrEl.textContent = "SWR ---";
+      swrEl.classList.remove("rig-swr-danger", "rig-swr-caution");
+    }
+    if (powerEl) {
+      if (state2.ptt && state2.powerMeter > 0) {
+        powerEl.textContent = `${Math.round(state2.powerMeter)}W`;
+        powerEl.classList.remove("hidden");
+      } else if (state2.rfPower > 0) {
+        powerEl.textContent = `Set: ${state2.rfPower}W`;
+        powerEl.classList.remove("hidden");
+      } else {
+        powerEl.classList.add("hidden");
+      }
+    }
+    renderBandOverlay(state2);
+    const powerRow = $("rigPowerRow");
+    const powerSlider = $("rigPowerSlider");
+    const powerValue = $("rigPowerValue");
+    if (powerRow && state2.connected) {
+      powerRow.classList.remove("hidden");
+      if (powerValue && state2.rfPower > 0) {
+        powerValue.textContent = `${state2.rfPower}W`;
+      }
+      if (powerSlider && !powerSlider.matches(":active") && state2.rfPower > 0) {
+        powerSlider.value = state2.rfPower;
+      }
+    } else if (powerRow) {
+      powerRow.classList.add("hidden");
+    }
+    if (state2.txLocked && state2.txLockReason) {
+      statusEl.textContent = state2.txLockReason;
+      statusEl.classList.add("rig-status-warn");
+    } else {
+      statusEl.classList.remove("rig-status-warn");
+    }
+    if (state2.connected) {
+      if (!state2.txLocked) {
+        statusEl.textContent = state2.demo ? "DEMO MODE" : state2.radioId ? `Connected (${state2.radioId})` : "Connected";
+      }
+      connectBtn.textContent = "Disconnect";
+    } else {
+      statusEl.textContent = "";
+      connectBtn.textContent = "Connect";
+    }
+    const header = document.querySelector("#widget-on-air-rig .widget-header");
+    if (header) {
+      let badge = header.querySelector(".rig-demo-badge");
+      if (state2.demo && state2.connected) {
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "rig-demo-badge";
+          badge.textContent = "DEMO";
+          header.insertBefore(badge, header.querySelector(".widget-help-btn"));
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+    }
+  }
+  function renderBandOverlay(state2) {
+    const container = $("rigBandOverlay");
+    if (!container) return;
+    if (!state2.band || !state2.connected) {
+      container.innerHTML = "";
+      lastBandOverlay = "";
+      return;
+    }
+    if (state2.band !== lastBandOverlay) {
+      lastBandOverlay = state2.band;
+      const segments = getBandSegments(state2.band);
+      const edges = getBandEdges(state2.band);
+      if (!segments.length || !edges) {
+        container.innerHTML = "";
+        return;
+      }
+      const totalSpan = edges.max - edges.min;
+      let html = "";
+      for (const seg of segments) {
+        const left = (seg.min - edges.min) / totalSpan * 100;
+        const width = (seg.max - seg.min) / totalSpan * 100;
+        html += `<div class="rig-overlay-seg rig-overlay-${seg.color}" style="left:${left.toFixed(1)}%;width:${width.toFixed(1)}%"><span>${seg.zone}</span></div>`;
+      }
+      html += '<div class="rig-overlay-needle" id="rigOverlayNeedle"></div>';
+      container.innerHTML = html;
+    }
+    const needle = document.getElementById("rigOverlayNeedle");
+    if (needle) {
+      const pos = getPositionInBand(state2.frequency, state2.band);
+      needle.style.left = (pos * 100).toFixed(1) + "%";
+    }
+  }
+  function populateProfiles() {
+    const select = $("rigProfileSelect");
+    if (!select) return;
+    const existing = select.querySelectorAll("option[data-profile]");
+    if (existing.length > 0) return;
+    const cfgOpt = document.createElement("option");
+    cfgOpt.value = "configured";
+    cfgOpt.textContent = "Use Radio Settings";
+    cfgOpt.dataset.profile = "configured";
+    select.appendChild(cfgOpt);
+    const demoOpt = document.createElement("option");
+    demoOpt.value = "demo";
+    demoOpt.textContent = "Demo Mode";
+    demoOpt.dataset.profile = "demo";
+    select.appendChild(demoOpt);
+    select.value = state_default.radioConnectionType === "demo" ? "demo" : "configured";
+  }
+  function buildConnectConfig() {
+    return {
+      // Serial settings
+      baudRate: state_default.radioBaudRate,
+      dataBits: state_default.radioDataBits,
+      stopBits: state_default.radioStopBits,
+      parity: state_default.radioParity,
+      flowControl: state_default.radioFlowControl,
+      // Control
+      pttMethod: state_default.radioPttMethod,
+      pollingInterval: state_default.radioPollingInterval,
+      civAddress: state_default.radioCivAddress,
+      // Safety
+      safetyTxIntent: state_default.radioSafetyTxIntent,
+      safetyBandLockout: state_default.radioSafetyBandLockout,
+      safetyAutoPower: state_default.radioSafetyAutoPower,
+      swrLimit: state_default.radioSwrLimit,
+      safePower: state_default.radioSafePower
+    };
+  }
+  async function acquirePort(statusEl) {
+    if (state_default.radioPortMode === "manual") {
+      if (!navigator.serial || !navigator.serial.getPorts) return null;
+      const ports = await navigator.serial.getPorts();
+      if (ports.length === 0) {
+        statusEl.textContent = "No authorized ports \u2014 change to Auto in Radio settings";
+        return null;
+      }
+      return ports[0];
+    }
+    statusEl.textContent = "Select serial port...";
+    try {
+      return await navigator.serial.requestPort();
+    } catch (err2) {
+      if (err2.name === "NotFoundError") {
+        statusEl.textContent = "Cancelled";
+        return null;
+      }
+      throw err2;
+    }
+  }
+  async function handleConnectClick() {
+    const connectBtn = $("rigConnectBtn");
+    const statusEl = $("rigStatus");
+    const select = $("rigProfileSelect");
+    if (isRigConnected()) {
+      connectBtn.disabled = true;
+      statusEl.textContent = "Disconnecting...";
+      try {
+        await disconnectRig();
+      } catch (err2) {
+        console.error("[rig] Disconnect error:", err2);
+        statusEl.textContent = "Disconnect error";
+      }
+      connectBtn.disabled = false;
+      return;
+    }
+    connectBtn.disabled = true;
+    const widgetSelection = select ? select.value : "";
+    const isDemo = widgetSelection === "demo" || state_default.radioConnectionType === "demo";
+    try {
+      if (isDemo) {
+        statusEl.textContent = "Connecting (demo)...";
+        const success = await connectRig({
+          profileId: "demo",
+          demo: true,
+          propagation: state_default.radioDemoPropagation,
+          latitude: state_default.myLat,
+          longitude: state_default.myLon
+        });
+        if (!success) statusEl.textContent = "Cancelled";
+      } else {
+        const config = buildConnectConfig();
+        const protocolFamily = state_default.radioProtocolFamily;
+        const modelPreset = state_default.radioModelPreset;
+        const isAutoProtocol = protocolFamily === "auto" && !modelPreset;
+        const port = await acquirePort(statusEl);
+        if (!port) {
+          connectBtn.disabled = false;
+          return;
+        }
+        if (isAutoProtocol) {
+          statusEl.textContent = "Detecting radio...";
+          const success = await connectRig({
+            ...config,
+            autoDetect: true,
+            existingPort: port,
+            onDetectProgress: (info) => {
+              statusEl.textContent = `Probing ${info.step}/${info.total}: ${info.trying}`;
+            }
+          });
+          if (!success) statusEl.textContent = "No radio detected";
+        } else if (modelPreset) {
+          statusEl.textContent = "Connecting...";
+          const success = await connectRig({
+            ...config,
+            profileId: modelPreset,
+            existingPort: port
+          });
+          if (!success) statusEl.textContent = "Connection failed";
+        } else {
+          statusEl.textContent = "Connecting...";
+          const success = await connectRig({
+            ...config,
+            protocolFamily,
+            existingPort: port
+          });
+          if (!success) statusEl.textContent = "Connection failed";
+        }
+      }
+    } catch (err2) {
+      console.error("[rig] Connect error:", err2);
+      statusEl.textContent = `Error: ${err2.message}`;
+    }
+    connectBtn.disabled = false;
+  }
+  function initOnAirRig() {
+    if (initialized2) return;
+    if (!isWidgetVisible("widget-on-air-rig")) return;
+    const connectBtn = $("rigConnectBtn");
+    if (!connectBtn) return;
+    if (!listenersAttached) {
+      populateProfiles();
+      connectBtn.addEventListener("click", handleConnectClick);
+      const powerSlider = $("rigPowerSlider");
+      if (powerSlider) {
+        powerSlider.addEventListener("input", () => {
+          const val = parseInt(powerSlider.value, 10);
+          const powerValue = $("rigPowerValue");
+          if (powerValue) powerValue.textContent = `${val}W`;
+        });
+        powerSlider.addEventListener("change", () => {
+          const val = parseInt(powerSlider.value, 10);
+          if (isRigConnected()) {
+            sendRigCommand("setRFPower", val, 1);
+          }
+        });
+      }
+      listenersAttached = true;
+    }
+    const store = getRigStore();
+    unsubscribe = store.subscribe(render);
+    initialized2 = true;
+  }
+  async function destroyOnAirRig() {
+    if (!initialized2) return;
+    if (isRigConnected()) {
+      try {
+        await disconnectRig();
+      } catch (err2) {
+        console.error("[rig] Disconnect on destroy:", err2);
+      }
+    }
+    if (unsubscribe) {
+      unsubscribe();
+      unsubscribe = null;
+    }
+    lastBandOverlay = "";
+    initialized2 = false;
+  }
+  onWidgetHide("widget-on-air-rig", destroyOnAirRig);
+
+  // src/splash.js
   var stagedAssignments = {};
   var selectedCell = null;
   function updateOperatorDisplay2() {
@@ -14503,7 +18108,208 @@ ${beacon.location}`);
         }
       });
     }
+    loadRadioConfig();
     $("splashCallsign").focus();
+  }
+  function loadRadioConfig() {
+    const connReal = $("radioConnReal");
+    const connDemo = $("radioConnDemo");
+    if (connReal) connReal.checked = state_default.radioConnectionType === "real";
+    if (connDemo) connDemo.checked = state_default.radioConnectionType !== "real";
+    const protocolFamily = $("radioProtocolFamily");
+    if (protocolFamily) protocolFamily.value = state_default.radioProtocolFamily;
+    populateModelPresets();
+    const portMode = $("radioPortMode");
+    if (portMode) portMode.value = state_default.radioPortMode;
+    const baudRate = $("radioBaudRate");
+    const dataBits = $("radioDataBits");
+    const stopBits = $("radioStopBits");
+    const parity = $("radioParity");
+    const flowControl = $("radioFlowControl");
+    if (baudRate) baudRate.value = state_default.radioBaudRate;
+    if (dataBits) dataBits.value = String(state_default.radioDataBits);
+    if (stopBits) stopBits.value = String(state_default.radioStopBits);
+    if (parity) parity.value = state_default.radioParity;
+    if (flowControl) flowControl.value = state_default.radioFlowControl;
+    const pttMethod = $("radioPttMethod");
+    const pollingInterval = $("radioPollingInterval");
+    const civAddress2 = $("radioCivAddress");
+    if (pttMethod) pttMethod.value = state_default.radioPttMethod;
+    if (pollingInterval) pollingInterval.value = state_default.radioPollingInterval;
+    if (civAddress2) civAddress2.value = state_default.radioCivAddress;
+    const txIntent = $("radioSafetyTxIntent");
+    const bandLockout = $("radioSafetyBandLockout");
+    const autoPower = $("radioSafetyAutoPower");
+    if (txIntent) txIntent.checked = state_default.radioSafetyTxIntent;
+    if (bandLockout) bandLockout.checked = state_default.radioSafetyBandLockout;
+    if (autoPower) autoPower.checked = state_default.radioSafetyAutoPower;
+    const swrLimit = $("radioSwrLimit");
+    const safePower = $("radioSafePower");
+    if (swrLimit) swrLimit.value = state_default.radioSwrLimit;
+    if (safePower) safePower.value = state_default.radioSafePower;
+    const propOff = $("radioPropOff");
+    const propBasic = $("radioPropBasic");
+    const propLocation = $("radioPropLocation");
+    if (propOff) propOff.checked = state_default.radioDemoPropagation === "off";
+    if (propBasic) propBasic.checked = state_default.radioDemoPropagation === "basic";
+    if (propLocation) propLocation.checked = state_default.radioDemoPropagation === "location";
+    updateRadioSections();
+  }
+  function populateModelPresets() {
+    const presetSelect = $("radioModelPreset");
+    if (!presetSelect) return;
+    const familySelect = $("radioProtocolFamily");
+    const selectedFamily = familySelect ? familySelect.value : "auto";
+    while (presetSelect.options.length > 1) presetSelect.remove(1);
+    const profs = getAvailableProfiles();
+    for (const p of profs) {
+      if (p.id === "demo") continue;
+      if (selectedFamily !== "auto" && p.protocol !== selectedFamily) continue;
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = `${p.manufacturer} ${p.model}`;
+      presetSelect.appendChild(opt);
+    }
+    const saved = state_default.radioModelPreset;
+    if (saved && presetSelect.querySelector(`option[value="${saved}"]`)) {
+      presetSelect.value = saved;
+    }
+  }
+  function applyModelPresetDefaults() {
+    const presetSelect = $("radioModelPreset");
+    if (!presetSelect || !presetSelect.value) return;
+    const profs = getAvailableProfiles();
+    const profile = profs.find((p) => p.id === presetSelect.value);
+    if (!profile || !profile.serial) return;
+    const baudRate = $("radioBaudRate");
+    const dataBits = $("radioDataBits");
+    const stopBits = $("radioStopBits");
+    const parity = $("radioParity");
+    const flowControl = $("radioFlowControl");
+    if (baudRate) baudRate.value = String(profile.serial.baudRate);
+    if (dataBits) dataBits.value = String(profile.serial.dataBits);
+    if (stopBits) stopBits.value = String(profile.serial.stopBits);
+    if (parity) parity.value = profile.serial.parity;
+    if (flowControl) flowControl.value = profile.serial.flowControl;
+    const pttMethod = $("radioPttMethod");
+    const pollingInterval = $("radioPollingInterval");
+    if (pttMethod && profile.control) pttMethod.value = profile.control.pttMethod;
+    if (pollingInterval && profile.control) pollingInterval.value = profile.control.pollingInterval;
+    if (profile.civAddress) {
+      const civAddress2 = $("radioCivAddress");
+      if (civAddress2) civAddress2.value = profile.civAddress;
+    }
+    const familySelect = $("radioProtocolFamily");
+    if (familySelect && profile.protocol) {
+      familySelect.value = profile.protocol;
+    }
+  }
+  async function refreshPortList() {
+    const portList = $("radioPortList");
+    if (!portList) return;
+    portList.innerHTML = "";
+    if (!navigator.serial || !navigator.serial.getPorts) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "WebSerial not supported";
+      portList.appendChild(opt);
+      return;
+    }
+    try {
+      const ports = await navigator.serial.getPorts();
+      if (ports.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = "No authorized ports";
+        portList.appendChild(opt);
+        return;
+      }
+      ports.forEach((port, i) => {
+        const info = port.getInfo();
+        const opt = document.createElement("option");
+        opt.value = String(i);
+        opt.textContent = info.usbVendorId ? `USB ${info.usbVendorId.toString(16).toUpperCase()}:${info.usbProductId.toString(16).toUpperCase()}` : `Port ${i + 1}`;
+        portList.appendChild(opt);
+      });
+    } catch {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Error reading ports";
+      portList.appendChild(opt);
+    }
+  }
+  function updateRadioSections() {
+    const isReal = $("radioConnReal") && $("radioConnReal").checked;
+    const protocolSection = document.getElementById("radioProtocolSection");
+    const portSection = document.getElementById("radioPortSection");
+    const serialSection = document.getElementById("radioSerialSection");
+    const controlSection = document.getElementById("radioControlSection");
+    const safetySection = document.getElementById("radioSafetySection");
+    const demoSection = document.getElementById("radioDemoSection");
+    if (protocolSection) protocolSection.style.display = isReal ? "" : "none";
+    if (portSection) portSection.style.display = isReal ? "" : "none";
+    if (serialSection) serialSection.style.display = isReal ? "" : "none";
+    if (controlSection) controlSection.style.display = isReal ? "" : "none";
+    if (safetySection) safetySection.style.display = isReal ? "" : "none";
+    if (demoSection) demoSection.style.display = isReal ? "none" : "";
+    updatePortListVisibility();
+    updateCivRowVisibility();
+  }
+  function updatePortListVisibility() {
+    const portListRow = document.getElementById("radioPortListRow");
+    const portMode = $("radioPortMode");
+    if (!portListRow) return;
+    const isManual = portMode && portMode.value === "manual";
+    portListRow.style.display = isManual ? "" : "none";
+    if (isManual) refreshPortList();
+  }
+  function updateCivRowVisibility() {
+    const civRow = document.getElementById("radioCivRow");
+    const familySelect = $("radioProtocolFamily");
+    if (!civRow) return;
+    const val = familySelect ? familySelect.value : "auto";
+    const isIcom = val === "auto" || val === "icom_civ";
+    civRow.style.display = isIcom ? "" : "none";
+  }
+  function saveRadioConfig() {
+    state_default.radioConnectionType = $("radioConnReal") && $("radioConnReal").checked ? "real" : "demo";
+    localStorage.setItem("hamtab_radio_conn_type", state_default.radioConnectionType);
+    state_default.radioProtocolFamily = $("radioProtocolFamily")?.value || "auto";
+    state_default.radioModelPreset = $("radioModelPreset")?.value || "";
+    localStorage.setItem("hamtab_radio_protocol", state_default.radioProtocolFamily);
+    localStorage.setItem("hamtab_radio_model_preset", state_default.radioModelPreset);
+    state_default.radioPortMode = $("radioPortMode")?.value || "auto";
+    localStorage.setItem("hamtab_radio_port_mode", state_default.radioPortMode);
+    state_default.radioBaudRate = $("radioBaudRate")?.value || "auto";
+    state_default.radioDataBits = parseInt($("radioDataBits")?.value, 10) || 8;
+    state_default.radioStopBits = parseInt($("radioStopBits")?.value, 10) || 1;
+    state_default.radioParity = $("radioParity")?.value || "none";
+    state_default.radioFlowControl = $("radioFlowControl")?.value || "none";
+    localStorage.setItem("hamtab_radio_baud", state_default.radioBaudRate);
+    localStorage.setItem("hamtab_radio_data_bits", String(state_default.radioDataBits));
+    localStorage.setItem("hamtab_radio_stop_bits", String(state_default.radioStopBits));
+    localStorage.setItem("hamtab_radio_parity", state_default.radioParity);
+    localStorage.setItem("hamtab_radio_flow_control", state_default.radioFlowControl);
+    state_default.radioPttMethod = $("radioPttMethod")?.value || "cat";
+    state_default.radioPollingInterval = parseInt($("radioPollingInterval")?.value, 10) || 500;
+    state_default.radioCivAddress = ($("radioCivAddress")?.value || "0x94").trim();
+    localStorage.setItem("hamtab_radio_ptt_method", state_default.radioPttMethod);
+    localStorage.setItem("hamtab_radio_polling_interval", String(state_default.radioPollingInterval));
+    localStorage.setItem("hamtab_radio_civ_address", state_default.radioCivAddress);
+    state_default.radioSafetyTxIntent = $("radioSafetyTxIntent") ? $("radioSafetyTxIntent").checked : true;
+    state_default.radioSafetyBandLockout = $("radioSafetyBandLockout") ? $("radioSafetyBandLockout").checked : true;
+    state_default.radioSafetyAutoPower = $("radioSafetyAutoPower") ? $("radioSafetyAutoPower").checked : true;
+    localStorage.setItem("hamtab_radio_safety_tx_intent", String(state_default.radioSafetyTxIntent));
+    localStorage.setItem("hamtab_radio_safety_band_lockout", String(state_default.radioSafetyBandLockout));
+    localStorage.setItem("hamtab_radio_safety_auto_power", String(state_default.radioSafetyAutoPower));
+    state_default.radioSwrLimit = parseFloat($("radioSwrLimit")?.value) || 3;
+    state_default.radioSafePower = parseInt($("radioSafePower")?.value, 10) || 20;
+    localStorage.setItem("hamtab_radio_swr_limit", String(state_default.radioSwrLimit));
+    localStorage.setItem("hamtab_radio_safe_power", String(state_default.radioSafePower));
+    if ($("radioPropBasic")?.checked) state_default.radioDemoPropagation = "basic";
+    else if ($("radioPropLocation")?.checked) state_default.radioDemoPropagation = "location";
+    else state_default.radioDemoPropagation = "off";
+    localStorage.setItem("hamtab_radio_demo_propagation", state_default.radioDemoPropagation);
   }
   function dismissSplash() {
     const callsignEl = $("splashCallsign");
@@ -14529,6 +18335,7 @@ ${beacon.location}`);
       state_default.temperatureUnit = tempUnitC && tempUnitC.checked ? "C" : "F";
       localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
       localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
+      saveRadioConfig();
       const wxStationEl = $("splashWxStation");
       const wxApiKeyEl = $("splashWxApiKey");
       const owmApiKeyEl = $("splashOwmApiKey");
@@ -14562,7 +18369,7 @@ ${beacon.location}`);
         });
       }
       fetchWeather();
-      const oldVis2 = { ...state_default.widgetVisibility };
+      const oldVis = { ...state_default.widgetVisibility };
       const widgetList = document.getElementById("splashWidgetList");
       if (widgetList) {
         widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
@@ -14571,27 +18378,39 @@ ${beacon.location}`);
       }
       saveWidgetVisibility();
       applyWidgetVisibility();
-      const justShown2 = (id) => oldVis2[id] === false && state_default.widgetVisibility[id] !== false;
-      const justHidden2 = (id) => oldVis2[id] !== false && state_default.widgetVisibility[id] === false;
-      if (justShown2("widget-satellites")) fetchSatellitePositions();
-      if (justShown2("widget-voacap")) fetchVoacapMatrixThrottled();
-      if (justShown2("widget-live-spots")) fetchLiveSpots();
-      if (justShown2("widget-dedx")) renderDedxInfo();
-      if (justShown2("widget-solar")) fetchSolar();
-      if (justShown2("widget-lunar")) fetchLunar();
-      if (justShown2("widget-spacewx")) fetchSpaceWxData();
-      if (justShown2("widget-dxpeditions")) fetchDxpeditions();
-      if (justShown2("widget-contests")) fetchContests();
-      if (justShown2("widget-beacons")) {
+      const justShown = (id) => oldVis[id] === false && state_default.widgetVisibility[id] !== false;
+      const justHidden = (id) => oldVis[id] !== false && state_default.widgetVisibility[id] === false;
+      if (justShown("widget-satellites")) fetchSatellitePositions();
+      if (justShown("widget-voacap")) fetchVoacapMatrixThrottled();
+      if (justShown("widget-live-spots")) fetchLiveSpots();
+      if (justShown("widget-dedx")) renderDedxInfo();
+      if (justShown("widget-solar")) fetchSolar();
+      if (justShown("widget-lunar")) fetchLunar();
+      if (justShown("widget-spacewx")) fetchSpaceWxData();
+      if (justShown("widget-dxpeditions")) fetchDxpeditions();
+      if (justShown("widget-contests")) fetchContests();
+      if (justShown("widget-beacons")) {
         startBeaconTimer();
         updateBeaconMarkers();
       }
-      if (justHidden2("widget-beacons")) {
+      if (justHidden("widget-beacons")) {
         stopBeaconTimer();
       }
-      const intervalSelect2 = $("splashUpdateInterval");
-      if (intervalSelect2) {
-        const intervalVal = intervalSelect2.value;
+      if (justShown("widget-dedx")) {
+        startDedxTimer();
+      }
+      if (justHidden("widget-dedx")) {
+        stopDedxTimer();
+      }
+      if (justShown("widget-on-air-rig")) {
+        initOnAirRig();
+      }
+      if (justHidden("widget-on-air-rig")) {
+        destroyOnAirRig();
+      }
+      const intervalSelect = $("splashUpdateInterval");
+      if (intervalSelect) {
+        const intervalVal = intervalSelect.value;
         localStorage.setItem("hamtab_update_interval", intervalVal);
         fetch("/api/update/interval", {
           method: "POST",
@@ -14632,51 +18451,6 @@ ${beacon.location}`);
         deactivateGridMode();
       }
     }
-    applyWidgetVisibility();
-    const justShown = (id) => oldVis[id] === false && state_default.widgetVisibility[id] !== false;
-    const justHidden = (id) => oldVis[id] !== false && state_default.widgetVisibility[id] === false;
-    if (justShown("widget-satellites")) fetchSatellitePositions();
-    if (justShown("widget-voacap")) fetchVoacapMatrixThrottled();
-    if (justShown("widget-live-spots")) fetchLiveSpots();
-    if (justShown("widget-dedx")) renderDedxInfo();
-    if (justShown("widget-solar")) fetchSolar();
-    if (justShown("widget-lunar")) fetchLunar();
-    if (justShown("widget-spacewx")) fetchSpaceWxData();
-    if (justShown("widget-dxpeditions")) fetchDxpeditions();
-    if (justShown("widget-contests")) fetchContests();
-    if (justShown("widget-beacons")) {
-      startBeaconTimer();
-      updateBeaconMarkers();
-    }
-    if (justHidden("widget-beacons")) {
-      stopBeaconTimer();
-    }
-    if (justShown("widget-dedx")) {
-      startDedxTimer();
-    }
-    if (justHidden("widget-dedx")) {
-      stopDedxTimer();
-    }
-    const intervalSelect = $("splashUpdateInterval");
-    if (intervalSelect) {
-      const intervalVal = intervalSelect.value;
-      localStorage.setItem("hamtab_update_interval", intervalVal);
-      fetch("/api/update/interval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
-      }).catch(() => {
-      });
-    }
-    $("splashGridDropdown").classList.remove("open");
-    $("splash").classList.add("hidden");
-    updateOperatorDisplay2();
-    centerMapOnUser();
-    updateUserMarker();
-    updateClocks();
-    renderSpots();
-    if (_initApp) _initApp();
-    fetchLicenseClass(state_default.myCallsign);
     if (isSyncEnabled() && state_default.myCallsign) {
       pushConfig(state_default.myCallsign).catch(() => {
       });
@@ -15012,6 +18786,29 @@ ${beacon.location}`);
           });
         }
       });
+    }
+    const radioConnReal = $("radioConnReal");
+    const radioConnDemo = $("radioConnDemo");
+    if (radioConnReal) radioConnReal.addEventListener("change", updateRadioSections);
+    if (radioConnDemo) radioConnDemo.addEventListener("change", updateRadioSections);
+    const radioProtocolFamily = $("radioProtocolFamily");
+    if (radioProtocolFamily) {
+      radioProtocolFamily.addEventListener("change", () => {
+        populateModelPresets();
+        updateCivRowVisibility();
+      });
+    }
+    const radioModelPreset = $("radioModelPreset");
+    if (radioModelPreset) {
+      radioModelPreset.addEventListener("change", applyModelPresetDefaults);
+    }
+    const radioPortMode = $("radioPortMode");
+    if (radioPortMode) {
+      radioPortMode.addEventListener("change", updatePortListVisibility);
+    }
+    const radioRefreshPorts = $("radioRefreshPorts");
+    if (radioRefreshPorts) {
+      radioRefreshPorts.addEventListener("click", refreshPortList);
     }
     $("editCallBtn").addEventListener("click", () => {
       showSplash();
@@ -15423,7 +19220,7 @@ ${beacon.location}`);
   init_dom();
   function initUpdateDisplay() {
     const el2 = $("platformLabel");
-    if (el2) el2.textContent = "v0.53.7";
+    if (el2) el2.textContent = "v0.54.1";
   }
 
   // src/settings-sync.js
@@ -15699,8 +19496,8 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
         false,
         ["encrypt"]
       );
-      const encoder = new TextEncoder();
-      const emailData = encoder.encode(email.trim());
+      const encoder2 = new TextEncoder();
+      const emailData = encoder2.encode(email.trim());
       const encryptedBuffer = await crypto.subtle.encrypt(
         { name: "RSA-OAEP" },
         publicKey,

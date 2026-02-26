@@ -1,0 +1,631 @@
+{
+  "profiles": {
+    "yaesu-ft891": {
+      "manufacturer": "Yaesu",
+      "model": "FT-891",
+      "modelId": "0135",
+      "protocol": {
+        "family": "yaesu_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 4800,
+        "dataBits": 8,
+        "stopBits": 2,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "radio_managed",
+        "hasATAS": false
+      }
+    },
+    "yaesu-ft991a": {
+      "manufacturer": "Yaesu",
+      "model": "FT-991A",
+      "modelId": "0670",
+      "protocol": {
+        "family": "yaesu_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 4800,
+        "dataBits": 8,
+        "stopBits": 2,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "radio_managed",
+        "hasATAS": true
+      }
+    },
+    "yaesu-ftdx10": {
+      "manufacturer": "Yaesu",
+      "model": "FT-DX10",
+      "modelId": "0761",
+      "protocol": {
+        "family": "yaesu_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 38400,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "radio_managed",
+        "hasATAS": true
+      }
+    },
+    "yaesu-ft710": {
+      "manufacturer": "Yaesu",
+      "model": "FT-710",
+      "modelId": "0800",
+      "protocol": {
+        "family": "yaesu_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 38400,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "radio_managed",
+        "hasATAS": false
+      }
+    },
+    "yaesu-ftdx101d": {
+      "manufacturer": "Yaesu",
+      "model": "FT-DX101D",
+      "modelId": "0681",
+      "protocol": {
+        "family": "yaesu_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 38400,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "radio_managed",
+        "hasATAS": false
+      }
+    },
+    "yaesu-ftdx101mp": {
+      "manufacturer": "Yaesu",
+      "model": "FT-DX101MP",
+      "modelId": "0682",
+      "protocol": {
+        "family": "yaesu_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 38400,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 200,
+        "maxAM": 50,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "radio_managed",
+        "hasATAS": false
+      }
+    },
+    "yaesu-ft450d": {
+      "manufacturer": "Yaesu",
+      "model": "FT-450D",
+      "modelId": "0244",
+      "protocol": {
+        "family": "yaesu_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 4800,
+        "dataBits": 8,
+        "stopBits": 2,
+        "parity": "none",
+        "flowControl": "hardware"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "radio_managed",
+        "hasATAS": false
+      }
+    },
+    "yaesu-ft950": {
+      "manufacturer": "Yaesu",
+      "model": "FT-950",
+      "modelId": "0310",
+      "protocol": {
+        "family": "yaesu_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 4800,
+        "dataBits": 8,
+        "stopBits": 2,
+        "parity": "none",
+        "flowControl": "hardware"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "radio_managed",
+        "hasATAS": false
+      }
+    },
+    "icom-ic7300": {
+      "manufacturer": "Icom",
+      "model": "IC-7300",
+      "modelId": "94",
+      "protocol": {
+        "family": "icom_civ",
+        "civAddress": "0x94"
+      },
+      "serial": {
+        "baudRate": 19200,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 0,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "icom-ic7100": {
+      "manufacturer": "Icom",
+      "model": "IC-7100",
+      "modelId": "88",
+      "protocol": {
+        "family": "icom_civ",
+        "civAddress": "0x88"
+      },
+      "serial": {
+        "baudRate": 19200,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 0,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "icom-ic7610": {
+      "manufacturer": "Icom",
+      "model": "IC-7610",
+      "modelId": "98",
+      "protocol": {
+        "family": "icom_civ",
+        "civAddress": "0x98"
+      },
+      "serial": {
+        "baudRate": 115200,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 0,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "icom-ic9700": {
+      "manufacturer": "Icom",
+      "model": "IC-9700",
+      "modelId": "A2",
+      "protocol": {
+        "family": "icom_civ",
+        "civAddress": "0xA2"
+      },
+      "serial": {
+        "baudRate": 115200,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 0,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "icom-ic705": {
+      "manufacturer": "Icom",
+      "model": "IC-705",
+      "modelId": "A4",
+      "protocol": {
+        "family": "icom_civ",
+        "civAddress": "0xA4"
+      },
+      "serial": {
+        "baudRate": 115200,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 0,
+        "max": 10,
+        "maxAM": 2,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "kenwood-ts890s": {
+      "manufacturer": "Kenwood",
+      "model": "TS-890S",
+      "modelId": "024",
+      "protocol": {
+        "family": "kenwood_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 115200,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "kenwood-ts590sg": {
+      "manufacturer": "Kenwood",
+      "model": "TS-590SG",
+      "modelId": "023",
+      "protocol": {
+        "family": "kenwood_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 115200,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "kenwood-ts480": {
+      "manufacturer": "Kenwood",
+      "model": "TS-480",
+      "modelId": "020",
+      "protocol": {
+        "family": "kenwood_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 9600,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "hardware"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "elecraft-k4": {
+      "manufacturer": "Elecraft",
+      "model": "K4",
+      "modelId": "K4",
+      "protocol": {
+        "family": "elecraft_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 38400,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 0,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "elecraft-k3s": {
+      "manufacturer": "Elecraft",
+      "model": "K3S",
+      "modelId": "K3S",
+      "protocol": {
+        "family": "elecraft_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 38400,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 0,
+        "max": 100,
+        "maxAM": 25,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "elecraft-kx3": {
+      "manufacturer": "Elecraft",
+      "model": "KX3",
+      "modelId": "017",
+      "protocol": {
+        "family": "elecraft_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 38400,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 0,
+        "max": 15,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "elecraft-kx2": {
+      "manufacturer": "Elecraft",
+      "model": "KX2",
+      "modelId": "KX2",
+      "protocol": {
+        "family": "elecraft_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 38400,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 0,
+        "max": 12,
+        "step": 1
+      },
+      "tuning": {
+        "smartTuneMethod": "auto_reduce",
+        "hasATAS": false
+      }
+    },
+    "demo": {
+      "manufacturer": "HamTab",
+      "model": "Demo Radio",
+      "modelId": "DEMO",
+      "protocol": {
+        "family": "yaesu_ascii",
+        "terminator": ";"
+      },
+      "serial": {
+        "baudRate": 38400,
+        "dataBits": 8,
+        "stopBits": 1,
+        "parity": "none",
+        "flowControl": "none"
+      },
+      "control": {
+        "pttMethod": "cat",
+        "pollingInterval": 500
+      },
+      "power": {
+        "min": 5,
+        "max": 100,
+        "step": 5
+      },
+      "tuning": {
+        "smartTuneMethod": "radio_managed",
+        "hasATAS": true
+      }
+    }
+  }
+}

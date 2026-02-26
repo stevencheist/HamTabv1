@@ -250,6 +250,9 @@ export async function fetchSolar() {
     renderVoacapMatrix();
     // Auto-enable D-RAP overlay when Kp ≥ 5 (geomagnetic storm)
     checkAutoStormOverlay(data);
+    // Re-render propagation heatmap overlay now that solar indices are available
+    const { renderPropagationHeatmapOverlay } = await import('./map-overlays.js');
+    renderPropagationHeatmapOverlay();
   } catch (err) {
     console.error('Failed to fetch solar:', err);
   }

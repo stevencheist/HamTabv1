@@ -83,7 +83,9 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false, propagationHeatmap: false },
+        // Propagation heatmap band (standalone overlay — independent of VOACAP widget)
+        propagationHeatmapBand: localStorage.getItem("hamtab_prop_heatmap_band") || "20m",
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
         // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
@@ -590,445 +592,6 @@
     }
   });
 
-  // src/map-overlays.js
-  var map_overlays_exports = {};
-  __export(map_overlays_exports, {
-    renderAllMapOverlays: () => renderAllMapOverlays,
-    renderCloudCover: () => renderCloudCover,
-    renderDrapOverlay: () => renderDrapOverlay,
-    renderLatLonGrid: () => renderLatLonGrid,
-    renderMaidenheadGrid: () => renderMaidenheadGrid,
-    renderMufImageOverlay: () => renderMufImageOverlay,
-    renderSymbolLegend: () => renderSymbolLegend,
-    renderTimezoneGrid: () => renderTimezoneGrid,
-    renderTropicsLines: () => renderTropicsLines,
-    renderWeatherRadar: () => renderWeatherRadar,
-    saveMapOverlays: () => saveMapOverlays
-  });
-  function renderAllMapOverlays() {
-    if (!state_default.map) return;
-    renderLatLonGrid();
-    renderMaidenheadGrid();
-    renderTimezoneGrid();
-    renderMufImageOverlay();
-    renderDrapOverlay();
-    renderTropicsLines();
-    renderWeatherRadar();
-    renderCloudCover();
-    renderSymbolLegend();
-  }
-  function renderLatLonGrid() {
-    if (state_default.latLonLayer) {
-      state_default.map.removeLayer(state_default.latLonLayer);
-      state_default.latLonLayer = null;
-    }
-    if (!state_default.mapOverlays.latLonGrid) return;
-    state_default.latLonLayer = L.layerGroup().addTo(state_default.map);
-    const zoom = state_default.map.getZoom();
-    let spacing = 30;
-    if (zoom >= 8) spacing = 1;
-    else if (zoom >= 6) spacing = 5;
-    else if (zoom >= 3) spacing = 10;
-    const bounds = state_default.map.getBounds();
-    const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.01;
-    const labelLat = bounds.getSouth() + (bounds.getNorth() - bounds.getSouth()) * 0.01;
-    const lineStyle = { color: "#4a90e2", weight: 1, opacity: 0.3, pane: "mapOverlays", interactive: false };
-    const equatorStyle = { color: "#4a90e2", weight: 3, opacity: 0.6, pane: "mapOverlays", interactive: false };
-    const pmStyle = { color: "#4a90e2", weight: 2, opacity: 0.5, pane: "mapOverlays", interactive: false };
-    for (let lat = -90; lat <= 90; lat += spacing) {
-      const style = lat === 0 ? equatorStyle : lineStyle;
-      L.polyline([[lat, -180], [lat, 180]], style).addTo(state_default.latLonLayer);
-      if (lat >= bounds.getSouth() && lat <= bounds.getNorth()) {
-        const ns = lat === 0 ? "EQ" : lat > 0 ? lat + "\xB0N" : Math.abs(lat) + "\xB0S";
-        L.marker([lat, labelLon], {
-          icon: L.divIcon({ className: "grid-label latlon-label" + (lat === 0 ? " latlon-equator" : ""), html: ns, iconSize: null }),
-          pane: "mapOverlays",
-          interactive: false
-        }).addTo(state_default.latLonLayer);
-      }
-    }
-    for (let lon = -180; lon <= 180; lon += spacing) {
-      const style = lon === 0 ? pmStyle : lineStyle;
-      L.polyline([[-85, lon], [85, lon]], style).addTo(state_default.latLonLayer);
-      if (lon >= bounds.getWest() && lon <= bounds.getEast()) {
-        const ew = lon === 0 ? "PM" : lon > 0 ? lon + "\xB0E" : Math.abs(lon) + "\xB0W";
-        L.marker([labelLat, lon], {
-          icon: L.divIcon({ className: "grid-label latlon-label", html: ew, iconSize: null }),
-          pane: "mapOverlays",
-          interactive: false
-        }).addTo(state_default.latLonLayer);
-      }
-    }
-  }
-  function renderMaidenheadGrid() {
-    if (state_default.maidenheadLayer) {
-      state_default.map.removeLayer(state_default.maidenheadLayer);
-      state_default.maidenheadLayer = null;
-    }
-    if (!state_default.mapOverlays.maidenheadGrid) return;
-    state_default.maidenheadLayer = L.layerGroup().addTo(state_default.map);
-    const zoom = state_default.map.getZoom();
-    const bounds = state_default.map.getBounds();
-    const south = bounds.getSouth(), north = bounds.getNorth();
-    const west = bounds.getWest(), east = bounds.getEast();
-    if (zoom <= 5) {
-      const lonStep = 20, latStep = 10;
-      const lonStart = Math.floor((west + 180) / lonStep) * lonStep - 180;
-      const latStart = Math.floor((south + 90) / latStep) * latStep - 90;
-      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
-        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
-          const fieldLon = Math.floor((lon + 180) / 20);
-          const fieldLat = Math.floor((lat + 90) / 10);
-          if (fieldLon < 0 || fieldLon > 17 || fieldLat < 0 || fieldLat > 17) continue;
-          const label = String.fromCharCode(65 + fieldLon) + String.fromCharCode(65 + fieldLat);
-          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
-            color: "#ff6b35",
-            weight: 1.5,
-            fill: false,
-            pane: "mapOverlays",
-            interactive: false
-          }).addTo(state_default.maidenheadLayer);
-          L.marker([lat + latStep / 2, lon + lonStep / 2], {
-            icon: L.divIcon({ className: "grid-label maidenhead-label", html: label, iconSize: null }),
-            pane: "mapOverlays",
-            interactive: false
-          }).addTo(state_default.maidenheadLayer);
-        }
-      }
-    } else if (zoom <= 9) {
-      const lonStep = 2, latStep = 1;
-      const lonStart = Math.floor((west + 180) / lonStep) * lonStep - 180;
-      const latStart = Math.floor((south + 90) / latStep) * latStep - 90;
-      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
-        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
-          const fieldLon = Math.floor((lon + 180) / 20);
-          const fieldLat = Math.floor((lat + 90) / 10);
-          if (fieldLon < 0 || fieldLon > 17 || fieldLat < 0 || fieldLat > 17) continue;
-          const sqLon = Math.floor((lon + 180) % 20 / 2);
-          const sqLat = Math.floor((lat + 90) % 10 / 1);
-          const label = String.fromCharCode(65 + fieldLon) + String.fromCharCode(65 + fieldLat) + sqLon + sqLat;
-          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
-            color: "#ff6b35",
-            weight: 1,
-            fill: false,
-            pane: "mapOverlays",
-            interactive: false
-          }).addTo(state_default.maidenheadLayer);
-          L.marker([lat + latStep / 2, lon + lonStep / 2], {
-            icon: L.divIcon({ className: "grid-label maidenhead-label-sm", html: label, iconSize: null }),
-            pane: "mapOverlays",
-            interactive: false
-          }).addTo(state_default.maidenheadLayer);
-        }
-      }
-    } else {
-      const lonStep = 5 / 60, latStep = 2.5 / 60;
-      const lonStart = Math.floor(west / lonStep) * lonStep;
-      const latStart = Math.floor(south / latStep) * latStep;
-      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
-        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
-          const aLon = lon + 180, aLat = lat + 90;
-          if (aLon < 0 || aLon >= 360 || aLat < 0 || aLat >= 180) continue;
-          const fLon = Math.floor(aLon / 20), fLat = Math.floor(aLat / 10);
-          const sLon = Math.floor(aLon % 20 / 2), sLat = Math.floor(aLat % 10 / 1);
-          const ssLon = Math.floor(aLon % 2 / (5 / 60)), ssLat = Math.floor(aLat % 1 / (2.5 / 60));
-          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
-            color: "#ff6b35",
-            weight: 0.5,
-            fill: false,
-            opacity: 0.5,
-            pane: "mapOverlays",
-            interactive: false
-          }).addTo(state_default.maidenheadLayer);
-          if (zoom >= 12) {
-            const label = String.fromCharCode(65 + fLon) + String.fromCharCode(65 + fLat) + sLon + sLat + String.fromCharCode(97 + Math.min(ssLon, 23)) + String.fromCharCode(97 + Math.min(ssLat, 23));
-            L.marker([lat + latStep / 2, lon + lonStep / 2], {
-              icon: L.divIcon({ className: "grid-label maidenhead-label-xs", html: label, iconSize: null }),
-              pane: "mapOverlays",
-              interactive: false
-            }).addTo(state_default.maidenheadLayer);
-          }
-        }
-      }
-    }
-  }
-  function renderTimezoneGrid() {
-    if (state_default.timezoneLayer) {
-      state_default.map.removeLayer(state_default.timezoneLayer);
-      state_default.timezoneLayer = null;
-    }
-    if (!state_default.mapOverlays.timezoneGrid) return;
-    state_default.timezoneLayer = L.layerGroup().addTo(state_default.map);
-    const lineStyle = { color: "#9b59b6", weight: 1.5, opacity: 0.4, dashArray: "5,5", pane: "mapOverlays", interactive: false };
-    for (let i = -12; i <= 12; i++) {
-      const lon = i * 15;
-      L.polyline([[-85, lon], [85, lon]], lineStyle).addTo(state_default.timezoneLayer);
-      const label = "UTC" + (i === 0 ? "" : i > 0 ? "+" + i : "" + i);
-      L.marker([70, lon], {
-        icon: L.divIcon({ className: "grid-label timezone-label", html: label, iconSize: null }),
-        pane: "mapOverlays",
-        interactive: false
-      }).addTo(state_default.timezoneLayer);
-    }
-  }
-  function renderMufImageOverlay() {
-    if (mufImageLayer) {
-      state_default.map.removeLayer(mufImageLayer);
-      mufImageLayer = null;
-    }
-    if (mufImageRefreshTimer) {
-      clearInterval(mufImageRefreshTimer);
-      mufImageRefreshTimer = null;
-    }
-    if (!state_default.mapOverlays.mufImageOverlay) return;
-    const L2 = window.L;
-    const type = state_default.propMetric === "fof2" ? "fof2" : "mufd";
-    const url = `/api/propagation/image?type=${type}&_t=${Date.now()}`;
-    const bounds = [[-90, -180], [90, 180]];
-    mufImageLayer = L2.imageOverlay(url, bounds, {
-      opacity: 0.45,
-      pane: "propagation",
-      // z-index 300, below mapOverlays (350)
-      interactive: false
-    }).addTo(state_default.map);
-    mufImageRefreshTimer = setInterval(() => {
-      if (!state_default.mapOverlays.mufImageOverlay || !mufImageLayer) return;
-      const freshUrl = `/api/propagation/image?type=${type}&_t=${Date.now()}`;
-      mufImageLayer.setUrl(freshUrl);
-    }, 15 * 60 * 1e3);
-  }
-  function drapColor(mhz, maxVal) {
-    if (mhz <= 0) return { r: 0, g: 0, b: 0, a: 0 };
-    const ceil = Math.max(maxVal, 5);
-    const t = Math.min(mhz / ceil, 1);
-    let r, g, b;
-    if (t < 0.2) {
-      const s = t / 0.2;
-      r = Math.round(80 * (1 - s));
-      g = 0;
-      b = Math.round(128 + 127 * s);
-    } else if (t < 0.4) {
-      const s = (t - 0.2) / 0.2;
-      r = 0;
-      g = Math.round(255 * s);
-      b = 255;
-    } else if (t < 0.6) {
-      const s = (t - 0.4) / 0.2;
-      r = 0;
-      g = 255;
-      b = Math.round(255 * (1 - s));
-    } else if (t < 0.8) {
-      const s = (t - 0.6) / 0.2;
-      r = Math.round(255 * s);
-      g = 255;
-      b = 0;
-    } else {
-      const s = (t - 0.8) / 0.2;
-      r = 255;
-      g = Math.round(255 * (1 - s));
-      b = 0;
-    }
-    return { r, g, b, a: 180 };
-  }
-  function renderDrapOverlay() {
-    if (drapImageLayer) {
-      state_default.map.removeLayer(drapImageLayer);
-      drapImageLayer = null;
-    }
-    if (drapImageRefreshTimer) {
-      clearInterval(drapImageRefreshTimer);
-      drapImageRefreshTimer = null;
-    }
-    if (!state_default.mapOverlays.drapOverlay) return;
-    const L2 = window.L;
-    async function fetchAndRender() {
-      try {
-        const resp = await fetch("/api/drap/data");
-        if (!resp.ok) return;
-        const { lons, rows } = await resp.json();
-        if (!lons || !rows || rows.length === 0) return;
-        const cols = lons.length;
-        const numRows = rows.length;
-        let maxVal = 0;
-        for (let r = 0; r < numRows; r++) {
-          for (let c = 0; c < cols; c++) {
-            const v = rows[r].values[c] || 0;
-            if (v > maxVal) maxVal = v;
-          }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = cols;
-        canvas.height = numRows;
-        const ctx = canvas.getContext("2d");
-        const imageData = ctx.createImageData(cols, numRows);
-        const data = imageData.data;
-        for (let r = 0; r < numRows; r++) {
-          const values = rows[r].values;
-          for (let c = 0; c < cols; c++) {
-            const px = drapColor(values[c] || 0, maxVal);
-            const idx = (r * cols + c) * 4;
-            data[idx] = px.r;
-            data[idx + 1] = px.g;
-            data[idx + 2] = px.b;
-            data[idx + 3] = px.a;
-          }
-        }
-        ctx.putImageData(imageData, 0, 0);
-        const bounds = [[-90, -180], [90, 180]];
-        if (drapImageLayer) state_default.map.removeLayer(drapImageLayer);
-        drapImageLayer = L2.imageOverlay(canvas.toDataURL(), bounds, {
-          opacity: 0.55,
-          pane: "propagation",
-          interactive: false
-        }).addTo(state_default.map);
-      } catch (err2) {
-        if (state_default.debug) console.error("D-RAP render error:", err2);
-      }
-    }
-    fetchAndRender();
-    drapImageRefreshTimer = setInterval(() => {
-      if (!state_default.mapOverlays.drapOverlay) return;
-      fetchAndRender();
-    }, 15 * 60 * 1e3);
-  }
-  function renderTropicsLines() {
-    if (tropicsLayer) {
-      state_default.map.removeLayer(tropicsLayer);
-      tropicsLayer = null;
-    }
-    if (!state_default.mapOverlays.tropicsLines) return;
-    tropicsLayer = L.layerGroup().addTo(state_default.map);
-    const lines = [
-      { lat: 66.5634, name: "Arctic Circle", color: "#6ec6ff", dash: "8,6" },
-      { lat: 23.4362, name: "Tropic of Cancer", color: "#f0a050", dash: "8,6" },
-      { lat: 0, name: "Equator", color: "#f0d060", dash: null },
-      { lat: -23.4362, name: "Tropic of Capricorn", color: "#f0a050", dash: "8,6" },
-      { lat: -66.5634, name: "Antarctic Circle", color: "#6ec6ff", dash: "8,6" }
-    ];
-    const bounds = state_default.map.getBounds();
-    const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.02;
-    for (const ln of lines) {
-      const style = {
-        color: ln.color,
-        weight: ln.dash ? 1.5 : 2,
-        opacity: 0.6,
-        dashArray: ln.dash || void 0,
-        pane: "mapOverlays",
-        interactive: false
-      };
-      L.polyline([[ln.lat, -180], [ln.lat, 180]], style).addTo(tropicsLayer);
-      if (ln.lat >= bounds.getSouth() && ln.lat <= bounds.getNorth()) {
-        const isArctic = Math.abs(ln.lat) > 60;
-        L.marker([ln.lat, labelLon], {
-          icon: L.divIcon({
-            className: "grid-label tropics-label" + (isArctic ? " tropics-arctic" : ""),
-            html: ln.name,
-            iconSize: null
-          }),
-          pane: "mapOverlays",
-          interactive: false
-        }).addTo(tropicsLayer);
-      }
-    }
-  }
-  function renderWeatherRadar() {
-    if (weatherRadarLayer) {
-      state_default.map.removeLayer(weatherRadarLayer);
-      weatherRadarLayer = null;
-    }
-    if (weatherRadarTimer) {
-      clearInterval(weatherRadarTimer);
-      weatherRadarTimer = null;
-    }
-    if (!state_default.mapOverlays.weatherRadar) return;
-    fetchRadarAndShow();
-    weatherRadarTimer = setInterval(fetchRadarAndShow, 5 * 60 * 1e3);
-  }
-  async function fetchRadarAndShow() {
-    try {
-      const res = await fetch("/api/weather/radar");
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data.host || !data.path) return;
-      const tileUrl = `${data.host}${data.path}/256/{z}/{x}/{y}/2/1_1.png`;
-      if (weatherRadarLayer) state_default.map.removeLayer(weatherRadarLayer);
-      weatherRadarLayer = L.tileLayer(tileUrl, {
-        opacity: 0.35,
-        pane: "propagation",
-        // z-300, below mapOverlays (350)
-        interactive: false,
-        attribution: "&copy; RainViewer"
-      }).addTo(state_default.map);
-    } catch (e) {
-      if (state_default.debug) console.error("Weather radar fetch failed:", e);
-    }
-  }
-  function renderCloudCover() {
-    if (cloudCoverLayer) {
-      state_default.map.removeLayer(cloudCoverLayer);
-      cloudCoverLayer = null;
-    }
-    if (!state_default.mapOverlays.cloudCover) return;
-    cloudCoverLayer = L.tileLayer("/api/weather/clouds/{z}/{x}/{y}", {
-      opacity: 0.4,
-      pane: "propagation",
-      // z-300, below mapOverlays (350)
-      interactive: false,
-      attribution: "&copy; OpenWeatherMap"
-    }).addTo(state_default.map);
-  }
-  function renderSymbolLegend() {
-    if (legendControl) {
-      state_default.map.removeControl(legendControl);
-      legendControl = null;
-    }
-    if (!state_default.mapOverlays.symbolLegend) return;
-    const LegendControl = L.Control.extend({
-      options: { position: "bottomright" },
-      onAdd() {
-        const div = L.DomUtil.create("div", "map-legend");
-        L.DomEvent.disableClickPropagation(div);
-        L.DomEvent.disableScrollPropagation(div);
-        const items = [
-          { symbol: '<span class="legend-dot" style="background:#4CAF50"></span>', label: "POTA" },
-          { symbol: '<span class="legend-dot" style="background:#FF9800"></span>', label: "SOTA" },
-          { symbol: '<span class="legend-dot" style="background:#f44336"></span>', label: "DX Cluster" },
-          { symbol: '<span class="legend-dot" style="background:#009688"></span>', label: "WWFF" },
-          { symbol: '<span class="legend-dot" style="background:#9C27B0"></span>', label: "PSKReporter" },
-          { symbol: '<span class="legend-circle" style="border-color:#FF9800"></span>', label: "DXped (active)" },
-          { symbol: '<span class="legend-circle" style="border-color:#888"></span>', label: "DXped (upcoming)" },
-          { symbol: '<span class="legend-dot legend-sun"></span>', label: "Sun sub-point" },
-          { symbol: '<span class="legend-dot legend-moon"></span>', label: "Moon sub-point" },
-          { symbol: '<span class="legend-line" style="border-color:#666"></span>', label: "Gray line" },
-          { symbol: '<span class="legend-line" style="border-color:#4a90e2"></span>', label: "Geodesic path" },
-          { symbol: '<span class="legend-dot legend-beacon"></span>', label: "NCDXF beacon" }
-        ];
-        div.innerHTML = '<div class="legend-title">Legend</div>' + items.map((i) => `<div class="legend-row">${i.symbol}<span class="legend-label">${i.label}</span></div>`).join("");
-        return div;
-      }
-    });
-    legendControl = new LegendControl();
-    state_default.map.addControl(legendControl);
-  }
-  function saveMapOverlays() {
-    localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
-  }
-  var mufImageLayer, mufImageRefreshTimer, drapImageLayer, drapImageRefreshTimer, tropicsLayer, weatherRadarLayer, weatherRadarTimer, cloudCoverLayer, legendControl;
-  var init_map_overlays = __esm({
-    "src/map-overlays.js"() {
-      init_state();
-      mufImageLayer = null;
-      mufImageRefreshTimer = null;
-      drapImageLayer = null;
-      drapImageRefreshTimer = null;
-      tropicsLayer = null;
-      weatherRadarLayer = null;
-      weatherRadarTimer = null;
-      cloudCoverLayer = null;
-      legendControl = null;
-    }
-  });
-
   // src/dom.js
   function $(id) {
     if (!cache[id]) cache[id] = document.getElementById(id);
@@ -1038,264 +601,6 @@
   var init_dom = __esm({
     "src/dom.js"() {
       cache = {};
-    }
-  });
-
-  // src/country-bounds.js
-  function findCountryBounds(lat, lon) {
-    let best = null;
-    let bestArea = Infinity;
-    for (const [, south, west, north, east] of COUNTRY_BOUNDS) {
-      if (lat < south || lat > north) continue;
-      let lonInside;
-      if (west <= east) {
-        lonInside = lon >= west && lon <= east;
-      } else {
-        lonInside = lon >= west || lon <= east;
-      }
-      if (!lonInside) continue;
-      const latSpan = north - south;
-      const lonSpan = west <= east ? east - west : 360 - west + east;
-      const area = latSpan * lonSpan;
-      if (area < bestArea) {
-        bestArea = area;
-        best = [south, west, north, east];
-      }
-    }
-    return best;
-  }
-  var COUNTRY_BOUNDS;
-  var init_country_bounds = __esm({
-    "src/country-bounds.js"() {
-      COUNTRY_BOUNDS = [
-        // North America
-        ["United States", 24.52, -124.73, 49.38, -66.95],
-        // contiguous 48
-        ["United States (Alaska)", 51.21, -179.15, 71.39, -129.98],
-        ["United States (Hawaii)", 18.91, -160.24, 22.24, -154.81],
-        ["Canada", 41.68, -141, 83.11, -52.62],
-        ["Mexico", 14.53, -118.4, 32.72, -86.7],
-        ["Guatemala", 13.74, -92.23, 17.82, -88.22],
-        ["Belize", 15.89, -89.22, 18.5, -87.49],
-        ["Honduras", 12.98, -89.35, 16.51, -83.15],
-        ["El Salvador", 13.15, -90.13, 14.45, -87.69],
-        ["Nicaragua", 10.71, -87.69, 15.03, -83.15],
-        ["Costa Rica", 8.03, -85.95, 11.22, -82.55],
-        ["Panama", 7.2, -83.05, 9.65, -77.17],
-        // Caribbean
-        ["Cuba", 19.83, -84.95, 23.27, -74.13],
-        ["Jamaica", 17.7, -78.37, 18.52, -76.18],
-        ["Haiti", 18.02, -74.48, 20.09, -71.62],
-        ["Dominican Republic", 17.54, -72, 19.93, -68.32],
-        ["Puerto Rico", 17.93, -67.24, 18.52, -65.59],
-        ["Trinidad and Tobago", 10.04, -61.93, 11.36, -60.52],
-        ["Bahamas", 20.91, -80.47, 27.26, -72.71],
-        ["Barbados", 13.04, -59.65, 13.34, -59.43],
-        ["Saint Lucia", 13.71, -61.08, 14.11, -60.87],
-        ["Grenada", 11.99, -61.8, 12.53, -61.38],
-        ["Antigua and Barbuda", 16.99, -62.35, 17.73, -61.67],
-        ["Dominica", 15.2, -61.48, 15.65, -61.24],
-        ["Saint Vincent", 12.58, -61.46, 13.38, -61.11],
-        ["Saint Kitts and Nevis", 17.09, -62.87, 17.42, -62.54],
-        ["Cura\xE7ao", 12.04, -69.16, 12.39, -68.73],
-        ["Aruba", 12.41, -70.06, 12.63, -69.87],
-        // South America
-        ["Brazil", -33.75, -73.99, 5.27, -34.79],
-        ["Argentina", -55.06, -73.56, -21.78, -53.64],
-        ["Chile", -55.98, -75.64, -17.51, -66.96],
-        ["Colombia", -4.23, -79, 12.46, -66.87],
-        ["Peru", -18.35, -81.33, -0.04, -68.65],
-        ["Venezuela", 0.63, -73.35, 12.2, -59.8],
-        ["Ecuador", -5.01, -81.08, 1.68, -75.19],
-        ["Bolivia", -22.9, -69.64, -9.68, -57.45],
-        ["Paraguay", -27.59, -62.65, -19.29, -54.26],
-        ["Uruguay", -34.95, -58.43, -30.09, -53.07],
-        ["Guyana", 1.17, -61.4, 8.56, -56.48],
-        ["Suriname", 1.83, -58.07, 6, -53.98],
-        ["French Guiana", 2.11, -54.54, 5.78, -51.61],
-        ["Falkland Islands", -52.41, -61.32, -51.25, -57.71],
-        // Europe
-        ["Iceland", 63.3, -24.53, 66.56, -13.5],
-        ["Norway", 57.96, 4.65, 71.19, 31.08],
-        ["Sweden", 55.34, 11.11, 69.06, 24.17],
-        ["Finland", 59.81, 20.55, 70.09, 31.59],
-        ["Denmark", 54.56, 8.07, 57.75, 15.2],
-        ["United Kingdom", 49.96, -8.17, 60.86, 1.75],
-        ["Ireland", 51.42, -10.48, 55.38, -5.99],
-        ["France", 42.33, -5.14, 51.09, 8.23],
-        // metropolitan only
-        ["Spain", 35.95, -9.3, 43.79, 4.33],
-        ["Portugal", 36.96, -9.5, 42.15, -6.19],
-        ["Germany", 47.27, 5.87, 55.06, 15.04],
-        ["Netherlands", 50.75, 3.36, 53.47, 7.21],
-        ["Belgium", 49.5, 2.54, 51.5, 6.41],
-        ["Luxembourg", 49.45, 5.73, 50.18, 6.53],
-        ["Switzerland", 45.82, 5.96, 47.81, 10.49],
-        ["Austria", 46.37, 9.53, 49.02, 17.16],
-        ["Italy", 36.65, 6.63, 47.09, 18.52],
-        ["Vatican City", 41.9, 12.45, 41.91, 12.46],
-        ["San Marino", 43.89, 12.4, 43.99, 12.52],
-        ["Malta", 35.81, 14.18, 36.08, 14.57],
-        ["Greece", 34.8, 19.37, 41.75, 29.65],
-        ["Turkey", 35.82, 25.66, 42.11, 44.82],
-        ["Cyprus", 34.57, 32.27, 35.71, 34.6],
-        ["Poland", 49, 14.12, 54.84, 24.15],
-        ["Czech Republic", 48.55, 12.09, 51.06, 18.86],
-        ["Slovakia", 47.73, 16.83, 49.61, 22.57],
-        ["Hungary", 45.74, 16.11, 48.59, 22.9],
-        ["Romania", 43.62, 20.26, 48.27, 29.69],
-        ["Bulgaria", 41.24, 22.36, 44.22, 28.61],
-        ["Serbia", 42.23, 18.83, 46.19, 23],
-        ["Croatia", 42.39, 13.49, 46.55, 19.43],
-        ["Bosnia and Herzegovina", 42.56, 15.72, 45.28, 19.62],
-        ["Montenegro", 41.85, 18.46, 43.56, 20.36],
-        ["North Macedonia", 40.85, 20.45, 42.37, 23.04],
-        ["Albania", 39.64, 19.26, 42.66, 21.06],
-        ["Kosovo", 41.86, 20.01, 43.27, 21.79],
-        ["Slovenia", 45.42, 13.38, 46.88, 16.61],
-        ["Estonia", 57.52, 21.76, 59.68, 28.21],
-        ["Latvia", 55.67, 20.97, 58.08, 28.24],
-        ["Lithuania", 53.9, 20.93, 56.45, 26.84],
-        ["Belarus", 51.26, 23.18, 56.17, 32.78],
-        ["Ukraine", 44.39, 22.14, 52.38, 40.23],
-        ["Moldova", 46.35, 26.62, 48.49, 30.16],
-        ["Andorra", 42.43, 1.41, 42.66, 1.79],
-        ["Monaco", 43.72, 7.41, 43.75, 7.44],
-        ["Liechtenstein", 47.05, 9.47, 47.27, 9.64],
-        // Russia — split into European and Asian
-        ["Russia (European)", 41.19, 27.33, 69.95, 60],
-        ["Russia (Asian)", 42.3, 60, 81.86, 179.99],
-        // Middle East
-        ["Israel", 29.49, 34.27, 33.33, 35.88],
-        ["Palestine", 31.22, 34.22, 32.55, 35.57],
-        ["Lebanon", 33.05, 35.1, 34.69, 36.62],
-        ["Syria", 32.31, 35.73, 37.32, 42.35],
-        ["Jordan", 29.18, 34.96, 33.38, 39.3],
-        ["Iraq", 29.06, 38.79, 37.38, 48.57],
-        ["Iran", 25.06, 44.05, 39.78, 63.32],
-        ["Saudi Arabia", 16.38, 34.63, 32.15, 55.67],
-        ["Yemen", 12.11, 42.53, 19, 54.53],
-        ["Oman", 16.65, 51.88, 26.39, 59.84],
-        ["United Arab Emirates", 22.63, 51.58, 26.08, 56.38],
-        ["Qatar", 24.47, 50.75, 26.15, 51.64],
-        ["Bahrain", 25.79, 50.45, 26.29, 50.65],
-        ["Kuwait", 28.53, 46.55, 30.1, 48.42],
-        // Central Asia
-        ["Kazakhstan", 40.57, 46.49, 55.44, 87.36],
-        ["Uzbekistan", 37.18, 55.99, 45.59, 73.13],
-        ["Turkmenistan", 35.14, 52.5, 42.8, 66.68],
-        ["Kyrgyzstan", 39.17, 69.25, 43.27, 80.28],
-        ["Tajikistan", 36.67, 67.34, 41.04, 75.14],
-        ["Afghanistan", 29.38, 60.5, 38.49, 74.89],
-        // South Asia
-        ["India", 6.75, 68.16, 35.5, 97.4],
-        ["Pakistan", 23.69, 60.87, 37.09, 77.83],
-        ["Bangladesh", 20.74, 88.01, 26.63, 92.67],
-        ["Sri Lanka", 5.92, 79.65, 9.84, 81.88],
-        ["Nepal", 26.35, 80.06, 30.45, 88.2],
-        ["Bhutan", 26.71, 88.75, 28.33, 92.13],
-        ["Maldives", -0.69, 72.64, 7.1, 73.75],
-        // East Asia
-        ["China", 18.16, 73.5, 53.56, 134.77],
-        ["Japan", 24.25, 122.93, 45.52, 153.99],
-        ["South Korea", 33.11, 124.6, 38.61, 131.87],
-        ["North Korea", 37.67, 124.32, 43.01, 130.67],
-        ["Mongolia", 41.58, 87.75, 52.15, 119.93],
-        ["Taiwan", 21.9, 120.22, 25.3, 122],
-        // Southeast Asia
-        ["Thailand", 5.61, 97.35, 20.46, 105.64],
-        ["Vietnam", 8.56, 102.14, 23.39, 109.46],
-        ["Myanmar", 9.78, 92.17, 28.54, 101.17],
-        ["Cambodia", 10.41, 102.34, 14.69, 107.63],
-        ["Laos", 13.91, 100.09, 22.5, 107.64],
-        ["Malaysia", 0.85, 99.64, 7.36, 119.27],
-        ["Singapore", 1.26, 103.64, 1.47, 104.01],
-        ["Indonesia", -11, 95.01, 5.91, 141.02],
-        ["Philippines", 4.59, 116.93, 21.12, 126.6],
-        ["Brunei", 4.01, 114.08, 5.05, 115.36],
-        ["Timor-Leste", -9.5, 124.05, -8.13, 127.31],
-        // Africa
-        ["Egypt", 22, 24.7, 31.67, 36.9],
-        ["Libya", 19.51, 9.39, 33.17, 25.15],
-        ["Tunisia", 30.23, 7.52, 37.54, 11.6],
-        ["Algeria", 18.96, -8.67, 37.09, 11.98],
-        ["Morocco", 27.67, -13.17, 35.93, -1.01],
-        ["Western Sahara", 20.77, -17.1, 27.67, -8.67],
-        ["Mauritania", 14.72, -17.07, 27.3, -4.83],
-        ["Mali", 10.16, -12.24, 25, 4.27],
-        ["Niger", 11.69, 0.17, 23.53, 16],
-        ["Chad", 7.44, 13.47, 23.45, 24],
-        ["Sudan", 8.68, 21.84, 22.23, 38.58],
-        ["South Sudan", 3.49, 23.44, 12.24, 35.95],
-        ["Ethiopia", 3.4, 32.99, 14.89, 48],
-        ["Eritrea", 12.36, 36.44, 18, 43.13],
-        ["Djibouti", 10.93, 41.77, 12.71, 43.42],
-        ["Somalia", -1.67, 40.99, 11.99, 51.41],
-        ["Kenya", -4.68, 33.91, 5.03, 41.9],
-        ["Uganda", -1.48, 29.57, 4.23, 35.03],
-        ["Tanzania", -11.75, 29.33, -0.99, 40.44],
-        ["Rwanda", -2.84, 28.86, -1.05, 30.9],
-        ["Burundi", -4.47, 29, -2.31, 30.85],
-        ["Democratic Republic of the Congo", -13.46, 12.18, 5.39, 31.31],
-        ["Republic of the Congo", -5.03, 11.21, 3.7, 18.65],
-        ["Gabon", -3.98, 8.7, 2.32, 14.5],
-        ["Equatorial Guinea", 0.92, 9.35, 2.35, 11.34],
-        ["Cameroon", 1.65, 8.49, 13.08, 16.19],
-        ["Central African Republic", 2.22, 14.42, 11, 27.46],
-        ["Nigeria", 4.28, 2.69, 13.87, 14.68],
-        ["Benin", 6.23, 0.77, 12.42, 3.84],
-        ["Togo", 6.1, -0.15, 11.14, 1.81],
-        ["Ghana", 4.74, -3.26, 11.17, 1.19],
-        ["Ivory Coast", 4.36, -8.6, 10.74, -2.49],
-        ["Burkina Faso", 9.39, -5.52, 15.08, 2.4],
-        ["Liberia", 4.35, -11.49, 8.55, -7.37],
-        ["Sierra Leone", 6.93, -13.3, 10, -10.28],
-        ["Guinea", 7.19, -15.08, 12.68, -7.64],
-        ["Guinea-Bissau", 10.93, -16.71, 12.68, -13.64],
-        ["Senegal", 12.31, -17.54, 16.69, -11.36],
-        ["Gambia", 13.06, -16.81, 13.83, -13.8],
-        ["Cape Verde", 14.81, -25.36, 17.2, -22.66],
-        ["Mauritius", -20.52, 57.31, -19.97, 57.81],
-        ["Madagascar", -25.6, 43.22, -11.95, 50.48],
-        ["Mozambique", -26.87, 30.22, -10.47, 40.84],
-        ["Malawi", -17.13, 32.67, -9.37, 35.92],
-        ["Zambia", -18.08, 21.99, -8.22, 33.49],
-        ["Zimbabwe", -22.42, 25.24, -15.61, 33.07],
-        ["Botswana", -26.91, 19.99, -17.78, 29.37],
-        ["Namibia", -28.97, 11.72, -16.96, 25.26],
-        ["South Africa", -34.84, 16.45, -22.13, 32.89],
-        ["Eswatini", -27.32, 30.79, -25.72, 32.13],
-        ["Lesotho", -30.67, 27.01, -28.57, 29.46],
-        ["Angola", -18.04, 11.64, -4.37, 24.08],
-        ["Comoros", -12.42, 43.23, -11.36, 44.54],
-        ["Seychelles", -9.76, 46.2, -4.28, 56.3],
-        ["S\xE3o Tom\xE9 and Pr\xEDncipe", 0.02, 6.47, 1.7, 7.47],
-        ["R\xE9union", -21.39, 55.22, -20.87, 55.84],
-        // Oceania
-        ["Australia", -43.64, 113.16, -10.06, 153.64],
-        ["New Zealand", -47.29, 166.43, -34.39, 178.57],
-        ["Papua New Guinea", -10.69, 140.84, -1.35, 155.97],
-        ["Fiji", -20.68, 177, -12.48, -179.87],
-        // antimeridian
-        ["New Caledonia", -22.7, 163.56, -19.55, 168.13],
-        ["Solomon Islands", -11.85, 155.51, -6.59, 167.21],
-        ["Vanuatu", -20.25, 166.52, -13.07, 170.24],
-        ["Samoa", -14.06, -172.8, -13.43, -171.42],
-        ["Tonga", -21.46, -175.68, -15.56, -173.91],
-        ["Palau", 2.8, 131.12, 8.1, 134.73],
-        ["Micronesia", 1.03, 137.33, 10.09, 163.04],
-        ["Marshall Islands", 4.57, 160.8, 14.62, 172.03],
-        ["Kiribati", -11.44, 169.56, 4.72, -150.22],
-        // antimeridian
-        ["Tuvalu", -10.8, 176.06, -5.64, 179.87],
-        ["Nauru", -0.56, 166.9, -0.49, 166.96],
-        ["Guam", 13.24, 144.62, 13.65, 144.96],
-        ["American Samoa", -14.38, -170.83, -14.16, -169.42],
-        // North Asia / other
-        ["Georgia", 41.05, 40.01, 43.59, 46.72],
-        ["Armenia", 38.84, 43.45, 41.3, 46.63],
-        ["Azerbaijan", 38.39, 44.79, 41.91, 50.37]
-      ];
     }
   });
 
@@ -1700,650 +1005,261 @@
     }
   });
 
-  // src/rel-heatmap.js
-  var rel_heatmap_exports = {};
-  __export(rel_heatmap_exports, {
-    clearHeatmap: () => clearHeatmap,
-    initHeatmapListeners: () => initHeatmapListeners,
-    renderHeatmapCanvas: () => renderHeatmapCanvas
-  });
-  function greatCircleMidpoint(lat1, lon1, lat2, lon2) {
-    const r = Math.PI / 180;
-    const lat1r = lat1 * r, lon1r = lon1 * r;
-    const lat2r = lat2 * r, lon2r = lon2 * r;
-    const dLon = lon2r - lon1r;
-    const Bx = Math.cos(lat2r) * Math.cos(dLon);
-    const By = Math.cos(lat2r) * Math.sin(dLon);
-    const midLat = Math.atan2(
-      Math.sin(lat1r) + Math.sin(lat2r),
-      Math.sqrt((Math.cos(lat1r) + Bx) ** 2 + By ** 2)
-    );
-    const midLon = lon1r + Math.atan2(By, Math.cos(lat1r) + Bx);
-    return { lat: midLat / r, lon: midLon / r };
-  }
-  function distanceKm(lat1, lon1, lat2, lon2) {
-    const r = Math.PI / 180;
-    const R3 = 6371;
-    const dLat = (lat2 - lat1) * r;
-    const dLon = (lon2 - lon1) * r;
-    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
-    return R3 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-  function distanceModifier(distKm) {
-    if (distKm < 100) return 0.3;
-    if (distKm < 500) return 0.5;
-    if (distKm < 1e3) return 0.85;
-    if (distKm < 4e3) return 1;
-    if (distKm < 8e3) return 0.85;
-    if (distKm < 15e3) return 0.7;
-    return 0.5;
-  }
-  function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex, aIndex, utcHour, opts) {
-    const mid = greatCircleMidpoint(deLat, deLon, dxLat, dxLon);
-    const df = dayFraction(mid.lat, mid.lon, utcHour);
-    const muf = calculateMUF(sfi, df);
-    const isDay = df >= 0.5;
-    const baseRel = calculateBandReliability(freqMHz, muf, kIndex, aIndex, isDay, opts);
-    const dist = distanceKm(deLat, deLon, dxLat, dxLon);
-    const distMod = distanceModifier(dist);
-    return Math.max(0, Math.min(100, Math.round(baseRel * distMod)));
-  }
-  function hslToRgb(h, s, l) {
-    const c = (1 - Math.abs(2 * l - 1)) * s;
-    const x = c * (1 - Math.abs(h / 60 % 2 - 1));
-    const m = l - c / 2;
-    let r = 0, g = 0, b = 0;
-    if (h < 60) {
-      r = c;
-      g = x;
-    } else if (h < 120) {
-      r = x;
-      g = c;
-    } else if (h < 180) {
-      g = c;
-      b = x;
-    } else if (h < 240) {
-      g = x;
-      b = c;
-    } else if (h < 300) {
-      r = x;
-      b = c;
-    } else {
-      r = c;
-      b = x;
-    }
-    return {
-      r: Math.round((r + m) * 255),
-      g: Math.round((g + m) * 255),
-      b: Math.round((b + m) * 255)
-    };
-  }
-  function reliabilityToRGBA(rel) {
-    if (rel < 5) return { r: 0, g: 0, b: 0, a: 30 };
-    const hue = (rel - 5) / 95 * 120;
-    const { r, g, b } = hslToRgb(hue, 0.85, 0.45);
-    const alpha = Math.min(200, 80 + rel / 100 * 120);
-    return { r, g, b, a: Math.round(alpha) };
-  }
-  function cellSizeForZoom(zoom) {
-    if (zoom <= 3) return 4;
-    if (zoom <= 5) return 2;
-    if (zoom <= 7) return 1;
-    return 0.5;
-  }
-  function renderHeatmapCanvas(band) {
-    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
-    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) return;
-    const L2 = window.L;
-    const map = state_default.map;
-    clearHeatmap();
-    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
-    if (!bandDef) return;
-    const { indices } = state_default.lastSolarData;
-    const sfi = parseFloat(indices.sfi) || 70;
-    const kIndex = parseInt(indices.kindex) || 2;
-    const aIndex = parseInt(indices.aindex) || 5;
-    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
-    const opts = getVoacapOpts();
-    const bounds = map.getBounds();
-    const south = Math.max(-85, bounds.getSouth());
-    const north = Math.min(85, bounds.getNorth());
-    const west = bounds.getWest();
-    const east = bounds.getEast();
-    const zoom = map.getZoom();
-    const cellSize = cellSizeForZoom(zoom);
-    const cols = Math.ceil((east - west) / cellSize);
-    const rows = Math.ceil((north - south) / cellSize);
-    if (cols <= 0 || rows <= 0) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = cols;
-    canvas.height = rows;
-    const ctx = canvas.getContext("2d");
-    const imageData = ctx.createImageData(cols, rows);
-    const data = imageData.data;
-    for (let row = 0; row < rows; row++) {
-      const dxLat = north - (row + 0.5) * cellSize;
-      for (let col = 0; col < cols; col++) {
-        const dxLon = west + (col + 0.5) * cellSize;
-        const rel = computeCellReliability(
-          state_default.myLat,
-          state_default.myLon,
-          dxLat,
-          dxLon,
-          bandDef.freqMHz,
-          sfi,
-          kIndex,
-          aIndex,
-          utcHour,
-          opts
-        );
-        const px = reliabilityToRGBA(rel);
-        const idx = (row * cols + col) * 4;
-        data[idx] = px.r;
-        data[idx + 1] = px.g;
-        data[idx + 2] = px.b;
-        data[idx + 3] = px.a;
-      }
-    }
-    ctx.putImageData(imageData, 0, 0);
-    const dataUrl = canvas.toDataURL();
-    const imageBounds = [[south, west], [north, east]];
-    state_default.heatmapLayer = L2.imageOverlay(dataUrl, imageBounds, {
-      opacity: 0.7,
-      pane: "propagation"
-    });
-    state_default.heatmapLayer.addTo(map);
-  }
-  function clearHeatmap() {
-    if (state_default.heatmapLayer && state_default.map) {
-      state_default.map.removeLayer(state_default.heatmapLayer);
-      state_default.heatmapLayer = null;
-    }
-  }
-  function initHeatmapListeners() {
-  }
-  var init_rel_heatmap = __esm({
-    "src/rel-heatmap.js"() {
-      init_state();
-      init_band_conditions();
-      init_voacap();
-    }
-  });
-
-  // src/voacap.js
-  var voacap_exports = {};
-  __export(voacap_exports, {
-    clearVoacapOverlay: () => clearVoacapOverlay,
-    fetchVoacapMatrix: () => fetchVoacapMatrix,
-    fetchVoacapMatrixThrottled: () => fetchVoacapMatrixThrottled,
-    getVoacapOpts: () => getVoacapOpts,
-    initVoacapListeners: () => initVoacapListeners,
-    onSpotDeselected: () => onSpotDeselected,
-    onSpotSelected: () => onSpotSelected,
-    renderVoacapMatrix: () => renderVoacapMatrix,
-    toggleBandOverlay: () => toggleBandOverlay
-  });
-  function initVoacapListeners() {
-    const matrix = $("voacapMatrix");
-    if (!matrix) return;
-    matrix.addEventListener("click", (e) => {
-      const param = e.target.closest(".voacap-param");
-      if (param && param.dataset.param) {
-        if (param.dataset.param === "sensitivity" && e.shiftKey) {
-          cycleParam("sensitivity-reset");
-        } else {
-          cycleParam(param.dataset.param);
-        }
-        return;
-      }
-      const row = e.target.closest(".voacap-row");
-      if (row && row.dataset.band) {
-        toggleBandOverlay(row.dataset.band);
-      }
-    });
-  }
-  function cycleParam(name) {
-    if (name === "overlay") {
-      const next2 = state_default.heatmapOverlayMode === "circles" ? "heatmap" : "circles";
-      state_default.heatmapOverlayMode = next2;
-      localStorage.setItem("hamtab_heatmap_mode", next2);
-      renderVoacapMatrix();
-      if (state_default.hfPropOverlayBand) {
-        clearBandOverlay();
-        clearHeatmap();
-        if (next2 === "heatmap") {
-          renderHeatmapCanvas(state_default.hfPropOverlayBand);
-        } else {
-          drawBandOverlay(state_default.hfPropOverlayBand);
-        }
-      }
-      return;
-    }
-    if (name === "autospot") {
-      state_default.voacapAutoSpot = !state_default.voacapAutoSpot;
-      localStorage.setItem("hamtab_voacap_auto_spot", state_default.voacapAutoSpot);
-      renderVoacapMatrix();
-      return;
-    }
-    if (name === "sensitivity-reset") {
-      state_default.voacapSensitivity = DEFAULT_SENSITIVITY;
-      localStorage.setItem("hamtab_voacap_sensitivity", DEFAULT_SENSITIVITY);
-      renderVoacapMatrix();
-      clearTimeout(state_default.voacapParamTimer);
-      state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
-      return;
-    }
-    if (name === "sensitivity") {
-      const current2 = state_default.voacapSensitivity;
-      const next2 = current2 >= MAX_SENSITIVITY ? 1 : current2 + 1;
-      state_default.voacapSensitivity = next2;
-      localStorage.setItem("hamtab_voacap_sensitivity", next2);
-      renderVoacapMatrix();
-      clearTimeout(state_default.voacapParamTimer);
-      state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
-      return;
-    }
-    if (name === "target") {
-      const current2 = state_default.voacapTarget;
-      const next2 = current2 === "overview" ? "spot" : "overview";
-      state_default.voacapTarget = next2;
-      localStorage.setItem("hamtab_voacap_target", next2);
-      fetchVoacapMatrix();
-      return;
-    }
-    let options, key, stateKey;
-    if (name === "power") {
-      options = POWER_OPTIONS;
-      key = "hamtab_voacap_power";
-      stateKey = "voacapPower";
-    } else if (name === "mode") {
-      options = MODE_OPTIONS;
-      key = "hamtab_voacap_mode";
-      stateKey = "voacapMode";
-    } else if (name === "toa") {
-      options = TOA_OPTIONS;
-      key = "hamtab_voacap_toa";
-      stateKey = "voacapToa";
-    } else if (name === "path") {
-      options = PATH_OPTIONS;
-      key = "hamtab_voacap_path";
-      stateKey = "voacapPath";
-    } else return;
-    const current = state_default[stateKey];
-    const idx = options.indexOf(current);
-    const next = options[(idx + 1) % options.length];
-    state_default[stateKey] = next;
-    localStorage.setItem(key, next);
-    renderVoacapMatrix();
-    clearTimeout(state_default.voacapParamTimer);
-    state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
-    if (state_default.hfPropOverlayBand) {
-      clearBandOverlay();
-      clearHeatmap();
-      if (state_default.heatmapOverlayMode === "heatmap") {
-        renderHeatmapCanvas(state_default.hfPropOverlayBand);
+  // src/country-bounds.js
+  function findCountryBounds(lat, lon) {
+    let best = null;
+    let bestArea = Infinity;
+    for (const [, south, west, north, east] of COUNTRY_BOUNDS) {
+      if (lat < south || lat > north) continue;
+      let lonInside;
+      if (west <= east) {
+        lonInside = lon >= west && lon <= east;
       } else {
-        drawBandOverlay(state_default.hfPropOverlayBand);
+        lonInside = lon >= west || lon <= east;
+      }
+      if (!lonInside) continue;
+      const latSpan = north - south;
+      const lonSpan = west <= east ? east - west : 360 - west + east;
+      const area = latSpan * lonSpan;
+      if (area < bestArea) {
+        bestArea = area;
+        best = [south, west, north, east];
       }
     }
+    return best;
   }
-  function getVoacapOpts() {
-    return {
-      lat: state_default.myLat,
-      lon: state_default.myLon,
-      mode: state_default.voacapMode,
-      powerWatts: parseInt(state_default.voacapPower, 10),
-      toaDeg: parseInt(state_default.voacapToa, 10),
-      longPath: state_default.voacapPath === "LP"
-    };
-  }
-  async function fetchVoacapMatrix() {
-    if (state_default.myLat == null || state_default.myLon == null) {
-      renderVoacapMatrix();
-      return;
-    }
-    console.log(`[VOACAP] fetchVoacapMatrix called, target=${state_default.voacapTarget}, selectedSpot=${state_default.selectedSpotId}, sensitivity=${state_default.voacapSensitivity}`);
-    if (activeFetchController) activeFetchController.abort();
-    if (retryTimer) {
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    }
-    const controller = new AbortController();
-    activeFetchController = controller;
-    const sensLevel = SENSITIVITY_LEVELS[state_default.voacapSensitivity] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
-    const currentSnr = sensLevel[state_default.voacapMode] ?? sensLevel.SSB;
-    const params = new URLSearchParams({
-      txLat: state_default.myLat,
-      txLon: state_default.myLon,
-      power: state_default.voacapPower,
-      mode: state_default.voacapMode,
-      toa: state_default.voacapToa,
-      path: state_default.voacapPath,
-      snr: currentSnr
-    });
-    if (state_default.voacapTarget === "spot" && state_default.selectedSpotId) {
-      try {
-        const spot = findSelectedSpot();
-        const spotLat = parseFloat(spot?.latitude);
-        const spotLon = parseFloat(spot?.longitude);
-        console.log(`[VOACAP] Spot lookup: found=${!!spot}, lat=${spotLat}, lon=${spotLon}`);
-        if (!isNaN(spotLat) && !isNaN(spotLon)) {
-          params.set("rxLat", spotLat);
-          params.set("rxLon", spotLon);
-        }
-      } catch (err2) {
-        console.warn("[VOACAP] Spot lookup error:", err2);
-      }
-    }
-    try {
-      const timeout = setTimeout(() => controller.abort(), 25e3);
-      const resp = await fetch(`/api/voacap?${params}`, { signal: controller.signal });
-      clearTimeout(timeout);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      if (activeFetchController === controller) {
-        state_default.voacapServerData = data;
-        state_default.voacapEngine = data.engine || "simplified";
-        state_default.voacapLastFetch = Date.now();
-        retryCount = 0;
-        if (state_default.voacapTarget === "spot") {
-          const hasSignal = matrixHasSignal(data.matrix);
-          const peakRel = Math.max(...data.matrix.flatMap(
-            (e) => Object.values(e.bands).map((b) => typeof b === "object" ? b.rel || 0 : b || 0)
-          ));
-          console.log(`[VOACAP] SPOT fetch: engine=${data.engine}, rxLat=${params.get("rxLat")}, rxLon=${params.get("rxLon")}, peakRel=${peakRel}%, hasSignal=${hasSignal}${data.fallbackReason ? ", fallback=" + data.fallbackReason : ""}`);
-        }
-      }
-    } catch (err2) {
-      if (err2.name === "AbortError") {
-        console.log("[VOACAP] Fetch aborted (superseded)");
-        return;
-      }
-      console.warn(`[VOACAP] Fetch error: ${err2.message}`);
-      if (retryCount < MAX_RETRIES && activeFetchController === controller) {
-        retryCount++;
-        console.log(`[VOACAP] Retry ${retryCount}/${MAX_RETRIES} in ${FETCH_RETRY_MS / 1e3}s`);
-        retryTimer = setTimeout(() => {
-          retryTimer = null;
-          fetchVoacapMatrix();
-        }, FETCH_RETRY_MS);
-      }
-    }
-    renderVoacapMatrix();
-  }
-  function fetchVoacapMatrixThrottled() {
-    const throttle = state_default.voacapEngine === "dvoacap" ? FETCH_THROTTLE_MS : FETCH_RETRY_MS;
-    if (Date.now() - state_default.voacapLastFetch < throttle) return;
-    fetchVoacapMatrix();
-  }
-  function findSelectedSpot() {
-    if (!state_default.selectedSpotId) return null;
-    const source = state_default.currentSource;
-    const spots = state_default.sourceData[source] || [];
-    const def = SOURCE_DEFS[source];
-    if (!def || !def.spotId) return null;
-    return spots.find((s) => def.spotId(s) === state_default.selectedSpotId);
-  }
-  function matrixHasSignal(matrix) {
-    for (const entry of matrix) {
-      for (const val of Object.values(entry.bands)) {
-        const rel = typeof val === "object" ? val.rel || 0 : val || 0;
-        if (rel >= 5) return true;
-      }
-    }
-    return false;
-  }
-  function getActiveMatrix() {
-    if (state_default.voacapServerData && state_default.voacapServerData.matrix) {
-      const serverMatrix = state_default.voacapServerData.matrix;
-      if (state_default.voacapTarget === "spot" && !matrixHasSignal(serverMatrix)) {
-        const opts2 = getVoacapOpts();
-        return calculate24HourMatrix(opts2);
-      }
-      return serverMatrix;
-    }
-    const opts = getVoacapOpts();
-    return calculate24HourMatrix(opts);
-  }
-  function getBandReliability(hourData, bandName) {
-    const bandVal = hourData.bands[bandName];
-    if (bandVal == null) return 0;
-    if (typeof bandVal === "object") return bandVal.rel || 0;
-    return bandVal;
-  }
-  function renderVoacapMatrix() {
-    const container = $("voacapMatrix");
-    if (!container) return;
-    const matrix = getActiveMatrix();
-    const hasData = matrix.some((entry) => Object.keys(entry.bands).length > 0);
-    if (!hasData) {
-      container.innerHTML = '<div class="voacap-no-data">Waiting for solar data...</div>';
-      return;
-    }
-    const spotPathDead = state_default.voacapTarget === "spot" && state_default.voacapServerData?.matrix && !matrixHasSignal(state_default.voacapServerData.matrix);
-    const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
-    const hourOrder = [];
-    for (let i = 0; i < 24; i++) {
-      hourOrder.push((nowHour + i) % 24);
-    }
-    const bandsReversed = [...VOACAP_BANDS].reverse();
-    let html = '<table class="voacap-table"><tbody>';
-    for (const band of bandsReversed) {
-      const isOverlayActive = state_default.hfPropOverlayBand === band.name;
-      const activeClass = isOverlayActive ? "voacap-row-active" : "";
-      html += `<tr class="voacap-row ${activeClass}" data-band="${band.name}">`;
-      html += `<td class="voacap-band-label">${band.label}</td>`;
-      for (let i = 0; i < 24; i++) {
-        const h = hourOrder[i];
-        const hourData = matrix[h];
-        const reliability = getBandReliability(hourData, band.name);
-        const color = getReliabilityColor(reliability);
-        const isNow = i === 0;
-        const nowClass = isNow ? "voacap-cell-now" : "";
-        html += `<td class="voacap-cell ${nowClass}" style="background-color: ${color}" title="${band.label} @ ${String(h).padStart(2, "0")}z: ${reliability}%"></td>`;
-      }
-      html += "</tr>";
-    }
-    html += '<tr class="voacap-hour-row"><td class="voacap-band-label"></td>';
-    for (let i = 0; i < 24; i++) {
-      const h = hourOrder[i];
-      if (i % 3 === 0) {
-        const isNow = i === 0;
-        const nowClass = isNow ? "voacap-hour-now" : "";
-        html += `<td class="voacap-hour-label ${nowClass}" colspan="3">${String(h).padStart(2, "0")}</td>`;
-      }
-    }
-    html += "</tr>";
-    html += "</tbody></table>";
-    const engineLabel = state_default.voacapEngine === "dvoacap" ? "VOACAP" : "SIM";
-    const engineClass = state_default.voacapEngine === "dvoacap" ? "voacap-engine-real" : "voacap-engine-sim";
-    const engineTitle = state_default.voacapEngine === "dvoacap" ? "Using real VOACAP propagation model" : "Using simplified propagation model";
-    const targetLabel = state_default.voacapTarget === "spot" ? "SPOT" : "OVW";
-    const targetTitle = state_default.voacapTarget === "spot" ? "Showing prediction to selected spot (click for overview)" : "Showing average worldwide prediction (click for spot mode)";
-    const serverData = state_default.voacapServerData;
-    const effectiveSSN = serverData?.ssn ? Math.round(serverData.ssn) : null;
-    const baseSSN = serverData?.ssnBase ? Math.round(serverData.ssnBase) : null;
-    const kIndex = serverData?.kIndex;
-    const kDegradation = serverData?.kDegradation || 0;
-    const ssnDisplay = effectiveSSN ?? (state_default.lastSolarData?.indices?.sunspots || "--");
-    const isStorm = kIndex !== null && kIndex >= 4;
-    const ssnWarningClass = isStorm ? " voacap-k-warning" : "";
-    const ssnWarningIndicator = isStorm ? "!" : "";
-    let ssnTitle = "Smoothed sunspot number";
-    if (kIndex !== null && baseSSN !== null) {
-      if (kDegradation > 0) {
-        ssnTitle = `K-index ${kIndex}: Base SSN ${baseSSN} \u2192 ${effectiveSSN} (-${kDegradation}%)`;
-      } else {
-        ssnTitle = `K-index ${kIndex}: SSN ${baseSSN} (no degradation)`;
-      }
-    }
-    const overlayLabel = state_default.heatmapOverlayMode === "heatmap" ? "REL" : "\u25CB";
-    const overlayTitle = state_default.heatmapOverlayMode === "heatmap" ? "Overlay: REL heatmap (click for circles)" : "Overlay: circles (click for REL heatmap)";
-    html += `<div class="voacap-params">`;
-    html += `<span class="voacap-engine-badge ${engineClass}" title="${engineTitle}">${engineLabel}</span>`;
-    html += `<span class="voacap-param" data-param="target" title="${targetTitle}">${targetLabel}</span>`;
-    const autoClass = state_default.voacapAutoSpot ? " voacap-param-active" : "";
-    const autoTitle = state_default.voacapAutoSpot ? "Auto-SPOT: ON \u2014 clicking a spot refreshes VOACAP to that path (click to disable)" : "Auto-SPOT: OFF \u2014 click to auto-refresh VOACAP when selecting a spot";
-    html += `<span class="voacap-param${autoClass}" data-param="autospot" title="${autoTitle}">AUTO</span>`;
-    html += `<span class="voacap-param" data-param="overlay" title="${overlayTitle}">${overlayLabel}</span>`;
-    html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state_default.voacapPower] || state_default.voacapPower}</span>`;
-    html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state_default.voacapMode}</span>`;
-    html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
-    html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
-    html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
-    const sensLvl = state_default.voacapSensitivity;
-    const sensInfo = SENSITIVITY_LEVELS[sensLvl] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
-    const sensDefault = sensLvl === DEFAULT_SENSITIVITY;
-    const sensActiveClass = !sensDefault ? " voacap-param-active" : "";
-    const sensTooltip = `SNR Sensitivity: ${sensInfo.label} (${sensLvl}/${MAX_SENSITIVITY})
-${sensInfo.desc}
-
-Required S/N for ${state_default.voacapMode}: ${sensInfo[state_default.voacapMode]}dB
-
-Higher = stricter (fewer paths workable)
-Lower = more lenient (more paths workable)
-
-Click to cycle \u2022 Shift+click to reset to Normal`;
-    html += `<span class="voacap-param${sensActiveClass}" data-param="sensitivity" title="${sensTooltip}">SN${sensLvl}</span>`;
-    html += `</div>`;
-    if (spotPathDead) {
-      html += `<div class="voacap-no-prop">No HF path to this station \u2014 showing overview</div>`;
-    }
-    html += `<div class="voacap-legend">`;
-    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(0)}"></span>Closed</span>`;
-    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(20)}"></span>Poor</span>`;
-    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(50)}"></span>Fair</span>`;
-    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(80)}"></span>Good</span>`;
-    html += `</div>`;
-    container.innerHTML = html;
-  }
-  function toggleBandOverlay(band) {
-    clearBandOverlay();
-    clearHeatmap();
-    if (state_default.hfPropOverlayBand === band) {
-      state_default.hfPropOverlayBand = null;
-      renderVoacapMatrix();
-      return;
-    }
-    state_default.hfPropOverlayBand = band;
-    renderVoacapMatrix();
-    if (state_default.heatmapOverlayMode === "heatmap") {
-      renderHeatmapCanvas(band);
-    } else {
-      drawBandOverlay(band);
-    }
-  }
-  function clearBandOverlay() {
-    if (!state_default.map) return;
-    for (const circle of bandOverlayCircles) {
-      state_default.map.removeLayer(circle);
-    }
-    bandOverlayCircles = [];
-  }
-  function drawBandOverlay(band) {
-    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
-    const L2 = window.L;
-    const matrix = getActiveMatrix();
-    const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
-    const hourData = matrix[nowHour];
-    const reliability = getBandReliability(hourData, band);
-    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
-    if (!bandDef) return;
-    const baseRadius = 500;
-    const maxRadius = 15e3;
-    const radius = baseRadius + (maxRadius - baseRadius) * (reliability / 100);
-    if (reliability < 10) {
-      const circle = L2.circle([state_default.myLat, state_default.myLon], {
-        radius: 500 * 1e3,
-        // 500 km in meters
-        color: "#c0392b",
-        fillColor: "#c0392b",
-        fillOpacity: 0.1,
-        weight: 1
-      });
-      circle.addTo(state_default.map);
-      bandOverlayCircles.push(circle);
-      return;
-    }
-    const steps = 4;
-    for (let i = steps; i >= 1; i--) {
-      const stepRadius = radius / steps * i;
-      const stepReliability = reliability * (i / steps);
-      const color = getReliabilityColor(stepReliability);
-      const circle = L2.circle([state_default.myLat, state_default.myLon], {
-        radius: stepRadius * 1e3,
-        // km → meters
-        color,
-        fillColor: color,
-        fillOpacity: 0.05 + 0.1 * (steps - i) / steps,
-        weight: 1,
-        dashArray: i === steps ? null : "4 4"
-      });
-      circle.addTo(state_default.map);
-      bandOverlayCircles.push(circle);
-    }
-    const marker = L2.marker([state_default.myLat, state_default.myLon], {
-      icon: L2.divIcon({
-        className: "voacap-center-marker",
-        html: `<div class="voacap-center-label">${band}: ${reliability}%</div>`,
-        iconSize: [80, 20],
-        iconAnchor: [40, 10]
-      })
-    });
-    marker.addTo(state_default.map);
-    bandOverlayCircles.push(marker);
-  }
-  function clearVoacapOverlay() {
-    clearBandOverlay();
-    clearHeatmap();
-    state_default.hfPropOverlayBand = null;
-  }
-  function onSpotSelected() {
-    if (!state_default.voacapAutoSpot) return;
-    if (state_default.voacapTarget !== "spot") {
-      state_default.voacapTarget = "spot";
-      localStorage.setItem("hamtab_voacap_target", "spot");
-    }
-    fetchVoacapMatrix();
-  }
-  function onSpotDeselected() {
-    if (!state_default.voacapAutoSpot) return;
-    if (state_default.voacapTarget === "spot") {
-      state_default.voacapTarget = "overview";
-      localStorage.setItem("hamtab_voacap_target", "overview");
-    }
-    state_default.voacapServerData = null;
-    fetchVoacapMatrix();
-  }
-  var bandOverlayCircles, activeFetchController, retryTimer, retryCount, MAX_RETRIES, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS, SENSITIVITY_LEVELS, DEFAULT_SENSITIVITY, MAX_SENSITIVITY;
-  var init_voacap = __esm({
-    "src/voacap.js"() {
-      init_state();
-      init_dom();
-      init_constants();
-      init_band_conditions();
-      init_rel_heatmap();
-      bandOverlayCircles = [];
-      activeFetchController = null;
-      retryTimer = null;
-      retryCount = 0;
-      MAX_RETRIES = 3;
-      FETCH_THROTTLE_MS = 5 * 60 * 1e3;
-      FETCH_RETRY_MS = 30 * 1e3;
-      POWER_OPTIONS = ["5", "100", "1000"];
-      POWER_LABELS = { "5": "5W", "100": "100W", "1000": "1kW" };
-      MODE_OPTIONS = ["CW", "SSB", "FT8"];
-      TOA_OPTIONS = ["3", "5", "10", "15"];
-      PATH_OPTIONS = ["SP", "LP"];
-      SENSITIVITY_LEVELS = {
-        1: { SSB: 42, CW: 18, FT8: -4, label: "Optimistic", desc: "Beam antenna, low noise \u2014 most paths show as workable" },
-        2: { SSB: 48, CW: 24, FT8: 0, label: "Relaxed", desc: "Good antenna, reasonable noise floor" },
-        3: { SSB: 54, CW: 30, FT8: 2, label: "Normal", desc: "Typical amateur station (default)" },
-        4: { SSB: 60, CW: 36, FT8: 8, label: "Conservative", desc: "Compromise antenna, urban noise" },
-        5: { SSB: 66, CW: 42, FT8: 14, label: "Strict", desc: "Small antenna, high noise \u2014 only strong paths show" }
-      };
-      DEFAULT_SENSITIVITY = 3;
-      MAX_SENSITIVITY = 5;
+  var COUNTRY_BOUNDS;
+  var init_country_bounds = __esm({
+    "src/country-bounds.js"() {
+      COUNTRY_BOUNDS = [
+        // North America
+        ["United States", 24.52, -124.73, 49.38, -66.95],
+        // contiguous 48
+        ["United States (Alaska)", 51.21, -179.15, 71.39, -129.98],
+        ["United States (Hawaii)", 18.91, -160.24, 22.24, -154.81],
+        ["Canada", 41.68, -141, 83.11, -52.62],
+        ["Mexico", 14.53, -118.4, 32.72, -86.7],
+        ["Guatemala", 13.74, -92.23, 17.82, -88.22],
+        ["Belize", 15.89, -89.22, 18.5, -87.49],
+        ["Honduras", 12.98, -89.35, 16.51, -83.15],
+        ["El Salvador", 13.15, -90.13, 14.45, -87.69],
+        ["Nicaragua", 10.71, -87.69, 15.03, -83.15],
+        ["Costa Rica", 8.03, -85.95, 11.22, -82.55],
+        ["Panama", 7.2, -83.05, 9.65, -77.17],
+        // Caribbean
+        ["Cuba", 19.83, -84.95, 23.27, -74.13],
+        ["Jamaica", 17.7, -78.37, 18.52, -76.18],
+        ["Haiti", 18.02, -74.48, 20.09, -71.62],
+        ["Dominican Republic", 17.54, -72, 19.93, -68.32],
+        ["Puerto Rico", 17.93, -67.24, 18.52, -65.59],
+        ["Trinidad and Tobago", 10.04, -61.93, 11.36, -60.52],
+        ["Bahamas", 20.91, -80.47, 27.26, -72.71],
+        ["Barbados", 13.04, -59.65, 13.34, -59.43],
+        ["Saint Lucia", 13.71, -61.08, 14.11, -60.87],
+        ["Grenada", 11.99, -61.8, 12.53, -61.38],
+        ["Antigua and Barbuda", 16.99, -62.35, 17.73, -61.67],
+        ["Dominica", 15.2, -61.48, 15.65, -61.24],
+        ["Saint Vincent", 12.58, -61.46, 13.38, -61.11],
+        ["Saint Kitts and Nevis", 17.09, -62.87, 17.42, -62.54],
+        ["Cura\xE7ao", 12.04, -69.16, 12.39, -68.73],
+        ["Aruba", 12.41, -70.06, 12.63, -69.87],
+        // South America
+        ["Brazil", -33.75, -73.99, 5.27, -34.79],
+        ["Argentina", -55.06, -73.56, -21.78, -53.64],
+        ["Chile", -55.98, -75.64, -17.51, -66.96],
+        ["Colombia", -4.23, -79, 12.46, -66.87],
+        ["Peru", -18.35, -81.33, -0.04, -68.65],
+        ["Venezuela", 0.63, -73.35, 12.2, -59.8],
+        ["Ecuador", -5.01, -81.08, 1.68, -75.19],
+        ["Bolivia", -22.9, -69.64, -9.68, -57.45],
+        ["Paraguay", -27.59, -62.65, -19.29, -54.26],
+        ["Uruguay", -34.95, -58.43, -30.09, -53.07],
+        ["Guyana", 1.17, -61.4, 8.56, -56.48],
+        ["Suriname", 1.83, -58.07, 6, -53.98],
+        ["French Guiana", 2.11, -54.54, 5.78, -51.61],
+        ["Falkland Islands", -52.41, -61.32, -51.25, -57.71],
+        // Europe
+        ["Iceland", 63.3, -24.53, 66.56, -13.5],
+        ["Norway", 57.96, 4.65, 71.19, 31.08],
+        ["Sweden", 55.34, 11.11, 69.06, 24.17],
+        ["Finland", 59.81, 20.55, 70.09, 31.59],
+        ["Denmark", 54.56, 8.07, 57.75, 15.2],
+        ["United Kingdom", 49.96, -8.17, 60.86, 1.75],
+        ["Ireland", 51.42, -10.48, 55.38, -5.99],
+        ["France", 42.33, -5.14, 51.09, 8.23],
+        // metropolitan only
+        ["Spain", 35.95, -9.3, 43.79, 4.33],
+        ["Portugal", 36.96, -9.5, 42.15, -6.19],
+        ["Germany", 47.27, 5.87, 55.06, 15.04],
+        ["Netherlands", 50.75, 3.36, 53.47, 7.21],
+        ["Belgium", 49.5, 2.54, 51.5, 6.41],
+        ["Luxembourg", 49.45, 5.73, 50.18, 6.53],
+        ["Switzerland", 45.82, 5.96, 47.81, 10.49],
+        ["Austria", 46.37, 9.53, 49.02, 17.16],
+        ["Italy", 36.65, 6.63, 47.09, 18.52],
+        ["Vatican City", 41.9, 12.45, 41.91, 12.46],
+        ["San Marino", 43.89, 12.4, 43.99, 12.52],
+        ["Malta", 35.81, 14.18, 36.08, 14.57],
+        ["Greece", 34.8, 19.37, 41.75, 29.65],
+        ["Turkey", 35.82, 25.66, 42.11, 44.82],
+        ["Cyprus", 34.57, 32.27, 35.71, 34.6],
+        ["Poland", 49, 14.12, 54.84, 24.15],
+        ["Czech Republic", 48.55, 12.09, 51.06, 18.86],
+        ["Slovakia", 47.73, 16.83, 49.61, 22.57],
+        ["Hungary", 45.74, 16.11, 48.59, 22.9],
+        ["Romania", 43.62, 20.26, 48.27, 29.69],
+        ["Bulgaria", 41.24, 22.36, 44.22, 28.61],
+        ["Serbia", 42.23, 18.83, 46.19, 23],
+        ["Croatia", 42.39, 13.49, 46.55, 19.43],
+        ["Bosnia and Herzegovina", 42.56, 15.72, 45.28, 19.62],
+        ["Montenegro", 41.85, 18.46, 43.56, 20.36],
+        ["North Macedonia", 40.85, 20.45, 42.37, 23.04],
+        ["Albania", 39.64, 19.26, 42.66, 21.06],
+        ["Kosovo", 41.86, 20.01, 43.27, 21.79],
+        ["Slovenia", 45.42, 13.38, 46.88, 16.61],
+        ["Estonia", 57.52, 21.76, 59.68, 28.21],
+        ["Latvia", 55.67, 20.97, 58.08, 28.24],
+        ["Lithuania", 53.9, 20.93, 56.45, 26.84],
+        ["Belarus", 51.26, 23.18, 56.17, 32.78],
+        ["Ukraine", 44.39, 22.14, 52.38, 40.23],
+        ["Moldova", 46.35, 26.62, 48.49, 30.16],
+        ["Andorra", 42.43, 1.41, 42.66, 1.79],
+        ["Monaco", 43.72, 7.41, 43.75, 7.44],
+        ["Liechtenstein", 47.05, 9.47, 47.27, 9.64],
+        // Russia — split into European and Asian
+        ["Russia (European)", 41.19, 27.33, 69.95, 60],
+        ["Russia (Asian)", 42.3, 60, 81.86, 179.99],
+        // Middle East
+        ["Israel", 29.49, 34.27, 33.33, 35.88],
+        ["Palestine", 31.22, 34.22, 32.55, 35.57],
+        ["Lebanon", 33.05, 35.1, 34.69, 36.62],
+        ["Syria", 32.31, 35.73, 37.32, 42.35],
+        ["Jordan", 29.18, 34.96, 33.38, 39.3],
+        ["Iraq", 29.06, 38.79, 37.38, 48.57],
+        ["Iran", 25.06, 44.05, 39.78, 63.32],
+        ["Saudi Arabia", 16.38, 34.63, 32.15, 55.67],
+        ["Yemen", 12.11, 42.53, 19, 54.53],
+        ["Oman", 16.65, 51.88, 26.39, 59.84],
+        ["United Arab Emirates", 22.63, 51.58, 26.08, 56.38],
+        ["Qatar", 24.47, 50.75, 26.15, 51.64],
+        ["Bahrain", 25.79, 50.45, 26.29, 50.65],
+        ["Kuwait", 28.53, 46.55, 30.1, 48.42],
+        // Central Asia
+        ["Kazakhstan", 40.57, 46.49, 55.44, 87.36],
+        ["Uzbekistan", 37.18, 55.99, 45.59, 73.13],
+        ["Turkmenistan", 35.14, 52.5, 42.8, 66.68],
+        ["Kyrgyzstan", 39.17, 69.25, 43.27, 80.28],
+        ["Tajikistan", 36.67, 67.34, 41.04, 75.14],
+        ["Afghanistan", 29.38, 60.5, 38.49, 74.89],
+        // South Asia
+        ["India", 6.75, 68.16, 35.5, 97.4],
+        ["Pakistan", 23.69, 60.87, 37.09, 77.83],
+        ["Bangladesh", 20.74, 88.01, 26.63, 92.67],
+        ["Sri Lanka", 5.92, 79.65, 9.84, 81.88],
+        ["Nepal", 26.35, 80.06, 30.45, 88.2],
+        ["Bhutan", 26.71, 88.75, 28.33, 92.13],
+        ["Maldives", -0.69, 72.64, 7.1, 73.75],
+        // East Asia
+        ["China", 18.16, 73.5, 53.56, 134.77],
+        ["Japan", 24.25, 122.93, 45.52, 153.99],
+        ["South Korea", 33.11, 124.6, 38.61, 131.87],
+        ["North Korea", 37.67, 124.32, 43.01, 130.67],
+        ["Mongolia", 41.58, 87.75, 52.15, 119.93],
+        ["Taiwan", 21.9, 120.22, 25.3, 122],
+        // Southeast Asia
+        ["Thailand", 5.61, 97.35, 20.46, 105.64],
+        ["Vietnam", 8.56, 102.14, 23.39, 109.46],
+        ["Myanmar", 9.78, 92.17, 28.54, 101.17],
+        ["Cambodia", 10.41, 102.34, 14.69, 107.63],
+        ["Laos", 13.91, 100.09, 22.5, 107.64],
+        ["Malaysia", 0.85, 99.64, 7.36, 119.27],
+        ["Singapore", 1.26, 103.64, 1.47, 104.01],
+        ["Indonesia", -11, 95.01, 5.91, 141.02],
+        ["Philippines", 4.59, 116.93, 21.12, 126.6],
+        ["Brunei", 4.01, 114.08, 5.05, 115.36],
+        ["Timor-Leste", -9.5, 124.05, -8.13, 127.31],
+        // Africa
+        ["Egypt", 22, 24.7, 31.67, 36.9],
+        ["Libya", 19.51, 9.39, 33.17, 25.15],
+        ["Tunisia", 30.23, 7.52, 37.54, 11.6],
+        ["Algeria", 18.96, -8.67, 37.09, 11.98],
+        ["Morocco", 27.67, -13.17, 35.93, -1.01],
+        ["Western Sahara", 20.77, -17.1, 27.67, -8.67],
+        ["Mauritania", 14.72, -17.07, 27.3, -4.83],
+        ["Mali", 10.16, -12.24, 25, 4.27],
+        ["Niger", 11.69, 0.17, 23.53, 16],
+        ["Chad", 7.44, 13.47, 23.45, 24],
+        ["Sudan", 8.68, 21.84, 22.23, 38.58],
+        ["South Sudan", 3.49, 23.44, 12.24, 35.95],
+        ["Ethiopia", 3.4, 32.99, 14.89, 48],
+        ["Eritrea", 12.36, 36.44, 18, 43.13],
+        ["Djibouti", 10.93, 41.77, 12.71, 43.42],
+        ["Somalia", -1.67, 40.99, 11.99, 51.41],
+        ["Kenya", -4.68, 33.91, 5.03, 41.9],
+        ["Uganda", -1.48, 29.57, 4.23, 35.03],
+        ["Tanzania", -11.75, 29.33, -0.99, 40.44],
+        ["Rwanda", -2.84, 28.86, -1.05, 30.9],
+        ["Burundi", -4.47, 29, -2.31, 30.85],
+        ["Democratic Republic of the Congo", -13.46, 12.18, 5.39, 31.31],
+        ["Republic of the Congo", -5.03, 11.21, 3.7, 18.65],
+        ["Gabon", -3.98, 8.7, 2.32, 14.5],
+        ["Equatorial Guinea", 0.92, 9.35, 2.35, 11.34],
+        ["Cameroon", 1.65, 8.49, 13.08, 16.19],
+        ["Central African Republic", 2.22, 14.42, 11, 27.46],
+        ["Nigeria", 4.28, 2.69, 13.87, 14.68],
+        ["Benin", 6.23, 0.77, 12.42, 3.84],
+        ["Togo", 6.1, -0.15, 11.14, 1.81],
+        ["Ghana", 4.74, -3.26, 11.17, 1.19],
+        ["Ivory Coast", 4.36, -8.6, 10.74, -2.49],
+        ["Burkina Faso", 9.39, -5.52, 15.08, 2.4],
+        ["Liberia", 4.35, -11.49, 8.55, -7.37],
+        ["Sierra Leone", 6.93, -13.3, 10, -10.28],
+        ["Guinea", 7.19, -15.08, 12.68, -7.64],
+        ["Guinea-Bissau", 10.93, -16.71, 12.68, -13.64],
+        ["Senegal", 12.31, -17.54, 16.69, -11.36],
+        ["Gambia", 13.06, -16.81, 13.83, -13.8],
+        ["Cape Verde", 14.81, -25.36, 17.2, -22.66],
+        ["Mauritius", -20.52, 57.31, -19.97, 57.81],
+        ["Madagascar", -25.6, 43.22, -11.95, 50.48],
+        ["Mozambique", -26.87, 30.22, -10.47, 40.84],
+        ["Malawi", -17.13, 32.67, -9.37, 35.92],
+        ["Zambia", -18.08, 21.99, -8.22, 33.49],
+        ["Zimbabwe", -22.42, 25.24, -15.61, 33.07],
+        ["Botswana", -26.91, 19.99, -17.78, 29.37],
+        ["Namibia", -28.97, 11.72, -16.96, 25.26],
+        ["South Africa", -34.84, 16.45, -22.13, 32.89],
+        ["Eswatini", -27.32, 30.79, -25.72, 32.13],
+        ["Lesotho", -30.67, 27.01, -28.57, 29.46],
+        ["Angola", -18.04, 11.64, -4.37, 24.08],
+        ["Comoros", -12.42, 43.23, -11.36, 44.54],
+        ["Seychelles", -9.76, 46.2, -4.28, 56.3],
+        ["S\xE3o Tom\xE9 and Pr\xEDncipe", 0.02, 6.47, 1.7, 7.47],
+        ["R\xE9union", -21.39, 55.22, -20.87, 55.84],
+        // Oceania
+        ["Australia", -43.64, 113.16, -10.06, 153.64],
+        ["New Zealand", -47.29, 166.43, -34.39, 178.57],
+        ["Papua New Guinea", -10.69, 140.84, -1.35, 155.97],
+        ["Fiji", -20.68, 177, -12.48, -179.87],
+        // antimeridian
+        ["New Caledonia", -22.7, 163.56, -19.55, 168.13],
+        ["Solomon Islands", -11.85, 155.51, -6.59, 167.21],
+        ["Vanuatu", -20.25, 166.52, -13.07, 170.24],
+        ["Samoa", -14.06, -172.8, -13.43, -171.42],
+        ["Tonga", -21.46, -175.68, -15.56, -173.91],
+        ["Palau", 2.8, 131.12, 8.1, 134.73],
+        ["Micronesia", 1.03, 137.33, 10.09, 163.04],
+        ["Marshall Islands", 4.57, 160.8, 14.62, 172.03],
+        ["Kiribati", -11.44, 169.56, 4.72, -150.22],
+        // antimeridian
+        ["Tuvalu", -10.8, 176.06, -5.64, 179.87],
+        ["Nauru", -0.56, 166.9, -0.49, 166.96],
+        ["Guam", 13.24, 144.62, 13.65, 144.96],
+        ["American Samoa", -14.38, -170.83, -14.16, -169.42],
+        // North Asia / other
+        ["Georgia", 41.05, 40.01, 43.59, 46.72],
+        ["Armenia", 38.84, 43.45, 41.3, 46.63],
+        ["Azerbaijan", 38.39, 44.79, 41.91, 50.37]
+      ];
     }
   });
 
@@ -5777,2943 +4693,6 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     }
   });
 
-  // src/dedx-info.js
-  function initDedxListeners() {
-  }
-  function setDedxSpot(spot) {
-    selectedSpot = spot;
-    renderDedxInfo();
-  }
-  function clearDedxSpot() {
-    selectedSpot = null;
-    renderDedxInfo();
-  }
-  function startDedxTimer() {
-    renderDedxInfo();
-    if (state_default.dedxTimer) return;
-    state_default.dedxTimer = setInterval(renderDedxInfo, 1e3);
-  }
-  function stopDedxTimer() {
-    if (state_default.dedxTimer) {
-      clearInterval(state_default.dedxTimer);
-      state_default.dedxTimer = null;
-    }
-  }
-  function fmtTime2(date, use24h) {
-    const h = date.getHours();
-    const m = String(date.getMinutes()).padStart(2, "0");
-    const s = String(date.getSeconds()).padStart(2, "0");
-    if (use24h) return `${String(h).padStart(2, "0")}:${m}:${s}`;
-    const h12 = h % 12 || 12;
-    const ampm = h < 12 ? "AM" : "PM";
-    return `${h12}:${m}:${s} ${ampm}`;
-  }
-  function localTimeAtLonDate(lon) {
-    const now = /* @__PURE__ */ new Date();
-    const utcMs = now.getTime() + now.getTimezoneOffset() * 6e4;
-    const offsetMs = lon / 15 * 36e5;
-    return new Date(utcMs + offsetMs);
-  }
-  function fmtSunCountdown(target, now, prefix) {
-    if (!target) return null;
-    const diffMs = target.getTime() - now.getTime();
-    const absDiff = Math.abs(diffMs);
-    const h = Math.floor(absDiff / 36e5);
-    const m = Math.floor(absDiff % 36e5 / 6e4);
-    const mm = String(m).padStart(2, "0");
-    if (diffMs > 0) {
-      return `${prefix} in ${h}:${mm}`;
-    }
-    return `${prefix} ${h}:${mm} ago`;
-  }
-  function renderDedxInfo() {
-    if (!isWidgetVisible("widget-dedx")) return;
-    renderDedxDe();
-    renderDedxDx();
-  }
-  function renderDedxDe() {
-    const timeEl = $("dedxDeTime");
-    const el2 = $("dedxDeContent");
-    if (!el2) return;
-    const now = /* @__PURE__ */ new Date();
-    if (timeEl) timeEl.textContent = fmtTime2(now, state_default.use24h);
-    const call = state_default.myCallsign || "\u2014";
-    const lat = state_default.myLat;
-    const lon = state_default.myLon;
-    let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
-    if (lat !== null && lon !== null) {
-      const grid = latLonToGrid(lat, lon).substring(0, 6).toUpperCase();
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
-      const cardinal = latLonToCardinal(lat, lon);
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
-      const sun = getSunTimes(lat, lon, now);
-      const rise = fmtSunCountdown(sun.sunrise, now, "R");
-      const set = fmtSunCountdown(sun.sunset, now, "S");
-      if (rise) {
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunrise">${rise}</span></div>`;
-      }
-      if (set) {
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunset">${set}</span></div>`;
-      }
-    } else {
-      rows += `<div class="dedx-row dedx-empty">Set location in Config</div>`;
-    }
-    el2.innerHTML = rows;
-  }
-  function renderDedxDx() {
-    const timeEl = $("dedxDxTime");
-    const el2 = $("dedxDxContent");
-    if (!el2) return;
-    if (!selectedSpot) {
-      if (timeEl) {
-        const now = /* @__PURE__ */ new Date();
-        const h = String(now.getUTCHours()).padStart(2, "0");
-        const m = String(now.getUTCMinutes()).padStart(2, "0");
-        const s = String(now.getUTCSeconds()).padStart(2, "0");
-        timeEl.textContent = `${h}:${m}:${s}`;
-      }
-      el2.innerHTML = '<div class="dedx-utc-label">UTC</div><div class="dedx-row dedx-empty">Select a spot</div>';
-      return;
-    }
-    const spot = selectedSpot;
-    const call = spot.callsign || spot.activator || "\u2014";
-    const freq = spot.frequency || "";
-    const mode2 = spot.mode || "";
-    const band = freqToBand(freq) || "";
-    const lat = parseFloat(spot.latitude);
-    const lon = parseFloat(spot.longitude);
-    if (timeEl) {
-      if (!isNaN(lat) && !isNaN(lon)) {
-        const dxLocal = localTimeAtLonDate(lon);
-        timeEl.textContent = fmtTime2(dxLocal, state_default.use24h);
-      } else {
-        timeEl.textContent = "--:--:--";
-      }
-    }
-    let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
-    if (freq) {
-      const parts = [freq];
-      if (band) parts.push(`(${band})`);
-      if (mode2) parts.push(mode2);
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Freq</span><span class="dedx-value">${esc(parts.join(" "))}</span></div>`;
-    } else if (mode2) {
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode2)}</span></div>`;
-    }
-    if (!isNaN(lat) && !isNaN(lon)) {
-      const grid = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
-      const cardinal = latLonToCardinal(lat, lon);
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
-      if (state_default.myLat !== null && state_default.myLon !== null) {
-        const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
-        const mi = distanceMi(state_default.myLat, state_default.myLon, lat, lon);
-        const dist = state_default.distanceUnit === "km" ? Math.round(mi * 1.60934) : Math.round(mi);
-        const card = bearingToCardinal(deg);
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">D/B</span><span class="dedx-value dedx-compact">${dist.toLocaleString()}${state_default.distanceUnit}@${Math.round(deg)}\xB0${card}</span></div>`;
-      }
-      const now = /* @__PURE__ */ new Date();
-      const sun = getSunTimes(lat, lon, now);
-      const rise = fmtSunCountdown(sun.sunrise, now, "R");
-      const set = fmtSunCountdown(sun.sunset, now, "S");
-      if (rise) {
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunrise">${rise}</span></div>`;
-      }
-      if (set) {
-        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunset">${set}</span></div>`;
-      }
-      const offset = utcOffsetFromLon(lon);
-      const sign = offset >= 0 ? "+" : "";
-      rows += `<div class="dedx-row"><span class="dedx-label-sm">TZ</span><span class="dedx-value dedx-utc-badge">UTC${sign}${offset}</span></div>`;
-    }
-    el2.innerHTML = rows;
-  }
-  var selectedSpot;
-  var init_dedx_info = __esm({
-    "src/dedx-info.js"() {
-      init_state();
-      init_dom();
-      init_widgets();
-      init_geo();
-      init_utils();
-      init_filters();
-      selectedSpot = null;
-    }
-  });
-
-  // src/markers.js
-  function ensureIcons() {
-    if (defaultIcon) return;
-    defaultIcon = L.icon({
-      iconUrl: "vendor/images/marker-icon.png",
-      iconRetinaUrl: "vendor/images/marker-icon-2x.png",
-      shadowUrl: "vendor/images/marker-shadow.png",
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowSize: [41, 41]
-    });
-    selectedIcon = L.icon({
-      iconUrl: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41"><path d="M12.5 0C5.6 0 0 5.6 0 12.5C0 22 12.5 41 12.5 41S25 22 25 12.5C25 5.6 19.4 0 12.5 0z" fill="#ff9800"/><circle cx="12.5" cy="12.5" r="5" fill="#fff"/></svg>'),
-      iconSize: [25, 41],
-      iconAnchor: [12, 41],
-      popupAnchor: [1, -34],
-      shadowUrl: "vendor/images/marker-shadow.png",
-      shadowSize: [41, 41]
-    });
-  }
-  function clearGeodesicLine() {
-    if (state_default.geodesicLine) {
-      state_default.map.removeLayer(state_default.geodesicLine);
-      state_default.geodesicLine = null;
-    }
-    if (state_default.geodesicLineLong) {
-      state_default.map.removeLayer(state_default.geodesicLineLong);
-      state_default.geodesicLineLong = null;
-    }
-  }
-  function drawGeodesicLine(spot) {
-    if (state_default.myLat == null || state_default.myLon == null || !state_default.map) return;
-    let spotLat, spotLon;
-    let fromGrid = false;
-    const lat = parseFloat(spot.latitude);
-    const lon = parseFloat(spot.longitude);
-    if (!isNaN(lat) && !isNaN(lon)) {
-      spotLat = lat;
-      spotLon = lon;
-    } else if (spot.grid4) {
-      const center = gridToLatLon(spot.grid4);
-      if (!center) return;
-      spotLat = center.lat;
-      spotLon = center.lon;
-      fromGrid = true;
-    } else {
-      return;
-    }
-    const pts = geodesicPoints(state_default.myLat, state_default.myLon, spotLat, spotLon, 64);
-    function splitAtDateline2(points) {
-      const segments = [[]];
-      for (let i = 0; i < points.length; i++) {
-        segments[segments.length - 1].push(points[i]);
-        if (i < points.length - 1) {
-          if (Math.abs(points[i + 1][1] - points[i][1]) > 180) {
-            segments.push([]);
-          }
-        }
-      }
-      return segments;
-    }
-    state_default.geodesicLine = L.polyline(splitAtDateline2(pts), {
-      color: "#ff9800",
-      weight: 2,
-      opacity: 0.7,
-      dashArray: "6 4"
-    });
-    state_default.geodesicLine.addTo(state_default.map);
-    const midIdx = Math.floor(pts.length / 2);
-    const midPt = pts[midIdx];
-    const antiLat = -midPt[0];
-    let antiLon = midPt[1] + 180;
-    if (antiLon > 180) antiLon -= 360;
-    const ptsToAnti = geodesicPoints(state_default.myLat, state_default.myLon, antiLat, antiLon, 48);
-    const ptsFromAnti = geodesicPoints(antiLat, antiLon, spotLat, spotLon, 48);
-    const longPts = [...ptsToAnti.slice(0, -1), ...ptsFromAnti];
-    state_default.geodesicLineLong = L.polyline(splitAtDateline2(longPts), {
-      color: "#ff9800",
-      weight: 1.5,
-      opacity: 0.35,
-      dashArray: "4 6"
-    });
-    state_default.geodesicLineLong.addTo(state_default.map);
-  }
-  function clearBandPaths() {
-    for (const line of state_default.dxPathLines) {
-      state_default.map.removeLayer(line);
-    }
-    state_default.dxPathLines = [];
-  }
-  function drawBandPaths() {
-    clearBandPaths();
-    if (!state_default.mapOverlays.bandPaths) return;
-    if (state_default.myLat == null || state_default.myLon == null || !state_default.map) return;
-    const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
-    function splitAtDateline2(points) {
-      const segments = [[]];
-      for (let i = 0; i < points.length; i++) {
-        segments[segments.length - 1].push(points[i]);
-        if (i < points.length - 1 && Math.abs(points[i + 1][1] - points[i][1]) > 180) {
-          segments.push([]);
-        }
-      }
-      return segments;
-    }
-    for (const spot of filtered) {
-      let spotLat, spotLon;
-      const lat = parseFloat(spot.latitude);
-      const lon = parseFloat(spot.longitude);
-      if (!isNaN(lat) && !isNaN(lon)) {
-        spotLat = lat;
-        spotLon = lon;
-      } else if (spot.grid4) {
-        const center = gridToLatLon(spot.grid4);
-        if (!center) continue;
-        spotLat = center.lat;
-        spotLon = center.lon;
-      } else {
-        continue;
-      }
-      const band = freqToBand(spot.frequency);
-      const color = band ? getBandColor(band) : "#888";
-      const pts = geodesicPoints(state_default.myLat, state_default.myLon, spotLat, spotLon, 32);
-      const line = L.polyline(splitAtDateline2(pts), {
-        color,
-        weight: 1.5,
-        opacity: 0.45,
-        interactive: false
-      });
-      line.addTo(state_default.map);
-      state_default.dxPathLines.push(line);
-    }
-  }
-  function renderMarkers() {
-    if (!state_default.map) return;
-    ensureIcons();
-    clearGeodesicLine();
-    clearBandPaths();
-    state_default.clusterGroup.clearLayers();
-    state_default.markers = {};
-    if (!SOURCE_DEFS[state_default.currentSource].hasMap) return;
-    const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
-    filtered.forEach((spot) => {
-      const lat = parseFloat(spot.latitude);
-      const lon = parseFloat(spot.longitude);
-      if (isNaN(lat) || isNaN(lon)) return;
-      const sid = spotId(spot);
-      const marker = L.marker([lat, lon], { icon: sid === state_default.selectedSpotId ? selectedIcon : defaultIcon });
-      const displayCall = spot.callsign || spot.activator || "";
-      const callsign = esc(displayCall);
-      const qrzUrl = `https://www.qrz.com/db/${encodeURIComponent(displayCall)}`;
-      let dirLine = "";
-      let distLine = "";
-      if (state_default.myLat !== null && state_default.myLon !== null) {
-        const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
-        const longPath = (Math.round(deg) + 180) % 360;
-        const mi = distanceMi(state_default.myLat, state_default.myLon, lat, lon);
-        const dist = state_default.distanceUnit === "km" ? Math.round(mi * 1.60934) : Math.round(mi);
-        dirLine = `<div class="popup-dir">SP: ${Math.round(deg)}\xB0 ${bearingToCardinal(deg)} \xB7 LP: ${longPath}\xB0 ${bearingToCardinal(longPath)}</div>`;
-        distLine = `<div class="popup-dist">Distance: ~${dist.toLocaleString()} ${state_default.distanceUnit}</div>`;
-      }
-      const localTime = localTimeAtLon(lon, state_default.use24h);
-      marker.bindPopup(`
-      <div class="popup-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${callsign}</a></div>
-      <div class="popup-freq">${esc(spot.frequency || "")} ${esc(spot.mode || "")}</div>
-      <div class="popup-park"><strong>${esc(spot.reference || "")}</strong> ${esc(spot.name || "")}</div>
-      ${dirLine}
-      ${distLine}
-      <div class="popup-time">Local time: ${esc(localTime)}</div>
-      ${spot.comments ? '<div style="margin-top:4px;font-size:0.78rem;color:#8899aa;">' + esc(spot.comments) + "</div>" : ""}
-    `);
-      marker.on("click", () => {
-        selectSpot(sid);
-      });
-      state_default.markers[sid] = marker;
-      state_default.clusterGroup.addLayer(marker);
-    });
-    drawBandPaths();
-  }
-  function selectSpot(sid) {
-    ensureIcons();
-    clearGeodesicLine();
-    const oldSid = state_default.selectedSpotId;
-    const newSid = sid && sid === oldSid ? null : sid;
-    if (oldSid && state_default.markers[oldSid]) {
-      state_default.markers[oldSid].setIcon(defaultIcon);
-    }
-    state_default.selectedSpotId = newSid;
-    if (newSid && state_default.markers[newSid]) {
-      state_default.markers[newSid].setIcon(selectedIcon);
-    }
-    if (state_default.clusterGroup) {
-      if (oldSid && state_default.markers[oldSid]) {
-        const oldParent = state_default.clusterGroup.getVisibleParent(state_default.markers[oldSid]);
-        if (oldParent && oldParent !== state_default.markers[oldSid] && oldParent._icon) {
-          oldParent._icon.classList.remove("marker-cluster-selected");
-        }
-      }
-      if (newSid && state_default.markers[newSid]) {
-        const newParent = state_default.clusterGroup.getVisibleParent(state_default.markers[newSid]);
-        if (newParent && newParent !== state_default.markers[newSid] && newParent._icon) {
-          newParent._icon.classList.add("marker-cluster-selected");
-        }
-      }
-    }
-    document.querySelectorAll("#spotsBody tr").forEach((tr) => {
-      tr.classList.toggle("selected", tr.dataset.spotId === newSid);
-    });
-    if (newSid) {
-      const selectedRow = document.querySelector(`#spotsBody tr[data-spot-id="${CSS.escape(newSid)}"]`);
-      if (selectedRow) {
-        selectedRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
-      }
-    }
-    if (newSid) {
-      const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
-      const spot = filtered.find((s) => spotId(s) === newSid);
-      if (spot) {
-        updateSpotDetail(spot);
-        setDedxSpot(spot);
-        drawGeodesicLine(spot);
-      } else {
-        clearSpotDetail();
-        clearDedxSpot();
-      }
-      onSpotSelected();
-    } else {
-      clearSpotDetail();
-      clearDedxSpot();
-      onSpotDeselected();
-    }
-  }
-  function flyToSpot(spot) {
-    const sid = spotId(spot);
-    selectSpot(sid);
-    const lat = parseFloat(spot.latitude);
-    const lon = parseFloat(spot.longitude);
-    if (!state_default.map || isNaN(lat) || isNaN(lon)) return;
-    if (state_default.mapCenterMode === "spot") {
-      state_default.map.flyTo([lat, lon], 5, { duration: 0.8 });
-    }
-    const marker = state_default.markers[sid];
-    if (marker) {
-      marker.openPopup();
-    }
-  }
-  var defaultIcon, selectedIcon;
-  var init_markers = __esm({
-    "src/markers.js"() {
-      init_state();
-      init_constants();
-      init_utils();
-      init_geo();
-      init_filters();
-      init_spot_detail();
-      init_dedx_info();
-      init_voacap();
-      defaultIcon = null;
-      selectedIcon = null;
-    }
-  });
-
-  // src/spots.js
-  function loadSpotColumnVisibility() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
-    } catch (e) {
-    }
-    const vis = {};
-    SOURCE_DEFS.pota.columns.forEach((c) => vis[c.key] = true);
-    return vis;
-  }
-  function saveSpotColumnVisibility() {
-    localStorage.setItem(SPOT_COL_VIS_KEY, JSON.stringify(state_default.spotColumnVisibility));
-  }
-  function toggleSort(colKey) {
-    if (state_default.spotSortColumn === colKey) {
-      state_default.spotSortDirection = state_default.spotSortDirection === "asc" ? "desc" : "asc";
-    } else {
-      state_default.spotSortColumn = colKey;
-      state_default.spotSortDirection = colKey === "spotTime" || colKey === "age" ? "desc" : "asc";
-    }
-    saveCurrentFilters();
-    renderSpots();
-  }
-  function renderSpotsHeader() {
-    const cols = SOURCE_DEFS[state_default.currentSource].columns.filter((c) => state_default.spotColumnVisibility[c.key] !== false);
-    const thead = $("spotsHead");
-    thead.innerHTML = "";
-    const tr = document.createElement("tr");
-    cols.forEach((col) => {
-      const th = document.createElement("th");
-      th.textContent = col.label;
-      if (col.sortable) {
-        th.classList.add("sortable");
-        th.addEventListener("click", () => toggleSort(col.key));
-        const effectiveCol = state_default.spotSortColumn || SOURCE_DEFS[state_default.currentSource].sortKey;
-        if (effectiveCol === col.key || col.key === "age" && effectiveCol === "spotTime" && !state_default.spotSortColumn) {
-          th.classList.add(state_default.spotSortDirection === "asc" ? "sort-asc" : "sort-desc");
-        }
-      }
-      tr.appendChild(th);
-    });
-    thead.appendChild(tr);
-  }
-  function renderSpots() {
-    const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
-    const spotsBody = $("spotsBody");
-    spotsBody.innerHTML = "";
-    $("spotCount").textContent = `(${filtered.length})`;
-    renderSpotsHeader();
-    const cols = SOURCE_DEFS[state_default.currentSource].columns.filter((c) => state_default.spotColumnVisibility[c.key] !== false);
-    const sortCol = state_default.spotSortColumn || SOURCE_DEFS[state_default.currentSource].sortKey;
-    const dir = state_default.spotSortDirection === "asc" ? 1 : -1;
-    const sorted = [...filtered].sort((a, b) => {
-      if (sortCol === "spotTime" || sortCol === "age") {
-        return dir * (new Date(a.spotTime) - new Date(b.spotTime));
-      } else if (sortCol === "frequency") {
-        return dir * ((parseFloat(a.frequency) || 0) - (parseFloat(b.frequency) || 0));
-      } else {
-        const aVal = (a[sortCol] || a.activator || "").toString().toLowerCase();
-        const bVal = (b[sortCol] || b.activator || "").toString().toLowerCase();
-        return dir * aVal.localeCompare(bVal);
-      }
-    });
-    sorted.forEach((spot) => {
-      const tr = document.createElement("tr");
-      const sid = spotId(spot);
-      tr.dataset.spotId = sid;
-      if (sid === state_default.selectedSpotId) tr.classList.add("selected");
-      const spotCall = (spot.activator || spot.callsign || "").toUpperCase();
-      if (state_default.myCallsign && spotCall === state_default.myCallsign.toUpperCase()) {
-        tr.classList.add("my-spot");
-      }
-      if (state_default.watchRedSpotIds.has(sid)) {
-        tr.classList.add("spot-watch-red");
-      }
-      cols.forEach((col) => {
-        const td = document.createElement("td");
-        if (col.class) td.className = col.class;
-        if (col.key === "spotTime") {
-          const time = spot.spotTime ? new Date(spot.spotTime) : null;
-          td.textContent = time ? fmtTime(time, { hour: "2-digit", minute: "2-digit" }) : "";
-        } else if (col.key === "age") {
-          td.textContent = formatAge(spot.spotTime);
-        } else if (col.key === "callsign") {
-          td.textContent = spot.activator || spot.callsign || "";
-        } else if (col.key === "reference") {
-          const ref = spot[col.key] || "";
-          if (ref) {
-            const a = document.createElement("a");
-            a.textContent = ref;
-            a.target = "_blank";
-            a.rel = "noopener";
-            if (state_default.currentSource === "sota") {
-              a.href = `https://www.sota.org.uk/Summit/${ref}`;
-            } else if (state_default.currentSource === "wwff") {
-              a.href = `https://wwff.co/directory/?showRef=${encodeURIComponent(ref)}`;
-            } else {
-              a.href = `https://pota.app/#/park/${ref}`;
-            }
-            a.addEventListener("click", (e) => e.stopPropagation());
-            td.appendChild(a);
-          }
-        } else if (col.key === "spotter" && state_default.currentSource === "dxc") {
-          const spotter = spot.spotter || "";
-          if (spotter) {
-            const a = document.createElement("a");
-            a.textContent = spotter;
-            a.href = `https://www.qrz.com/db/${encodeURIComponent(spotter)}`;
-            a.target = "_blank";
-            a.rel = "noopener";
-            a.addEventListener("click", (e) => e.stopPropagation());
-            td.appendChild(a);
-          }
-        } else if (col.key === "name") {
-          const val = spot[col.key] || "";
-          td.textContent = val;
-          td.title = val;
-        } else {
-          td.textContent = spot[col.key] || "";
-        }
-        tr.appendChild(td);
-      });
-      tr.addEventListener("click", () => flyToSpot(spot));
-      spotsBody.appendChild(tr);
-    });
-  }
-  var SPOT_COL_VIS_KEY;
-  var init_spots = __esm({
-    "src/spots.js"() {
-      init_state();
-      init_dom();
-      init_constants();
-      init_utils();
-      init_filters();
-      init_markers();
-      SPOT_COL_VIS_KEY = "hamtab_spot_columns";
-    }
-  });
-
-  // src/filters.js
-  var filters_exports = {};
-  __export(filters_exports, {
-    applyFilter: () => applyFilter,
-    clearAllFilters: () => clearAllFilters,
-    deletePreset: () => deletePreset,
-    fetchLicenseClass: () => fetchLicenseClass,
-    filterByAge: () => filterByAge,
-    filterByDistance: () => filterByDistance,
-    filterByPrivileges: () => filterByPrivileges,
-    filterByPropagation: () => filterByPropagation,
-    freqToBand: () => freqToBand,
-    getAvailableBands: () => getAvailableBands,
-    getAvailableContinents: () => getAvailableContinents,
-    getAvailableCountries: () => getAvailableCountries,
-    getAvailableGrids: () => getAvailableGrids,
-    getAvailableModes: () => getAvailableModes,
-    getAvailableStates: () => getAvailableStates,
-    hasActiveFilters: () => hasActiveFilters,
-    initFilterListeners: () => initFilterListeners,
-    isUSCallsign: () => isUSCallsign,
-    loadFiltersForSource: () => loadFiltersForSource,
-    loadPreset: () => loadPreset,
-    normalizeMode: () => normalizeMode,
-    renderWatchListEditor: () => renderWatchListEditor,
-    saveCurrentFilters: () => saveCurrentFilters,
-    savePreset: () => savePreset,
-    saveWatchLists: () => saveWatchLists,
-    spotId: () => spotId,
-    updateAllFilterUI: () => updateAllFilterUI,
-    updateBandFilterButtons: () => updateBandFilterButtons,
-    updateContinentFilter: () => updateContinentFilter,
-    updateCountryFilter: () => updateCountryFilter,
-    updateDistanceAgeVisibility: () => updateDistanceAgeVisibility,
-    updateGridFilter: () => updateGridFilter,
-    updateModeFilterButtons: () => updateModeFilterButtons,
-    updatePresetDropdown: () => updatePresetDropdown,
-    updatePrivFilterVisibility: () => updatePrivFilterVisibility,
-    updateStateFilter: () => updateStateFilter
-  });
-  function freqToBand(freqStr) {
-    let freq = parseFloat(freqStr);
-    if (isNaN(freq)) return null;
-    if (freq > 1e3) freq = freq / 1e3;
-    if (freq >= 1.8 && freq <= 2) return "160m";
-    if (freq >= 3.5 && freq <= 4) return "80m";
-    if (freq >= 5.3 && freq <= 5.4) return "60m";
-    if (freq >= 7 && freq <= 7.3) return "40m";
-    if (freq >= 10.1 && freq <= 10.15) return "30m";
-    if (freq >= 14 && freq <= 14.35) return "20m";
-    if (freq >= 18.068 && freq <= 18.168) return "17m";
-    if (freq >= 21 && freq <= 21.45) return "15m";
-    if (freq >= 24.89 && freq <= 24.99) return "12m";
-    if (freq >= 28 && freq <= 29.7) return "10m";
-    if (freq >= 50 && freq <= 54) return "6m";
-    if (freq >= 144 && freq <= 148) return "2m";
-    if (freq >= 420 && freq <= 450) return "70cm";
-    return null;
-  }
-  function isUSCallsign(call) {
-    if (!call) return false;
-    return /^[AKNW][A-Z]?\d/.test(call.toUpperCase());
-  }
-  function normalizeMode(mode2) {
-    if (!mode2) return "phone";
-    const m = mode2.toUpperCase();
-    if (m === "CW") return "cw";
-    if (m === "SSB" || m === "FM" || m === "AM" || m === "LSB" || m === "USB") return "phone";
-    return "digital";
-  }
-  function filterByPrivileges(spot) {
-    if (!state_default.licenseClass) return true;
-    const privs = US_PRIVILEGES[state_default.licenseClass.toUpperCase()];
-    if (!privs) return true;
-    let freq = parseFloat(spot.frequency);
-    if (isNaN(freq)) return true;
-    if (freq > 1e3) freq = freq / 1e3;
-    const spotMode = normalizeMode(spot.mode);
-    for (const [lo, hi, allowed] of privs) {
-      if (freq >= lo && freq <= hi) {
-        if (allowed === "all") return true;
-        if (allowed === "cw" && spotMode === "cw") return true;
-        if (allowed === "cwdig" && (spotMode === "cw" || spotMode === "digital")) return true;
-        if (allowed === "phone" && spotMode === "phone") return true;
-      }
-    }
-    return false;
-  }
-  function filterByDistance(spot) {
-    if (state_default.activeMaxDistance === null) return true;
-    if (state_default.myLat === null || state_default.myLon === null) return true;
-    if (spot.latitude == null || spot.longitude == null) return true;
-    const dist = distanceMi(state_default.myLat, state_default.myLon, spot.latitude, spot.longitude);
-    const thresholdMi = state_default.distanceUnit === "km" ? state_default.activeMaxDistance * 0.621371 : state_default.activeMaxDistance;
-    return dist <= thresholdMi;
-  }
-  function filterByAge(spot) {
-    if (state_default.activeMaxAge === null) return true;
-    if (!spot.spotTime) return true;
-    const ageMs = Date.now() - new Date(spot.spotTime).getTime();
-    const ageMin = ageMs / 6e4;
-    return ageMin <= state_default.activeMaxAge;
-  }
-  function filterByPropagation(spot) {
-    if (!state_default.propagationFilterEnabled) return true;
-    if (!state_default.lastSolarData?.indices) return true;
-    const band = freqToBand(spot.frequency);
-    if (!band) return true;
-    const bandDef = HF_BANDS.find((b) => b.name === band);
-    if (!bandDef) return true;
-    const { indices } = state_default.lastSolarData;
-    const sfi = parseFloat(indices.sfi) || 70;
-    const kIndex = parseInt(indices.kindex) || 2;
-    const aIndex = parseInt(indices.aindex) || 5;
-    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
-    const dayFrac = dayFraction(state_default.myLat, state_default.myLon, utcHour);
-    const muf = calculateMUF(sfi, dayFrac);
-    const isDay = dayFrac > 0.5;
-    const rel = calculateBandReliability(bandDef.freqMHz, muf, kIndex, aIndex, isDay);
-    return rel >= 30;
-  }
-  function getCountryPrefix(ref) {
-    if (!ref) return "";
-    return ref.split("-")[0];
-  }
-  function getUSState(locationDesc) {
-    if (!locationDesc) return "";
-    if (locationDesc.startsWith("US-")) return locationDesc.substring(3);
-    return "";
-  }
-  function normalizeCallsign(raw) {
-    const call = (raw || "").toUpperCase().trim();
-    const slash = call.lastIndexOf("/");
-    return slash > 0 ? call.substring(0, slash) : call;
-  }
-  function matchWatchRule(rule, spot) {
-    const val = (rule.value || "").toUpperCase();
-    if (!val) return false;
-    switch (rule.type) {
-      case "callsign": {
-        const spotCall = normalizeCallsign(spot.activator || spot.callsign);
-        return spotCall === val;
-      }
-      case "dxcc": {
-        const country = (spot.name || "").toUpperCase();
-        const locPrefix = (spot.locationDesc || "").split("-")[0].toUpperCase();
-        return country.includes(val) || locPrefix === val;
-      }
-      case "grid": {
-        const grid = (spot.grid4 || spot.senderLocator || "").toUpperCase();
-        return grid.startsWith(val);
-      }
-      case "ref": {
-        const ref = (spot.reference || "").toUpperCase();
-        return ref === val;
-      }
-      default:
-        return false;
-    }
-  }
-  function saveWatchLists() {
-    localStorage.setItem("hamtab_watchlists", JSON.stringify(state_default.watchLists));
-  }
-  function renderWatchListEditor() {
-    const container = document.getElementById("watchListEditor");
-    if (!container) return;
-    container.innerHTML = "";
-    const key = state_default.currentSource;
-    if (!SOURCE_DEFS[key]) return;
-    const rules = state_default.watchLists[key] || [];
-    if (rules.length > 0) {
-      const list = document.createElement("div");
-      list.className = "wl-rule-list";
-      rules.forEach((rule, idx) => {
-        const row = document.createElement("div");
-        row.className = "wl-rule";
-        const badge = document.createElement("span");
-        badge.className = `wl-rule-mode ${rule.mode}`;
-        badge.textContent = rule.mode;
-        row.appendChild(badge);
-        const val = document.createElement("span");
-        val.className = "wl-rule-value";
-        val.textContent = rule.value;
-        row.appendChild(val);
-        const type = document.createElement("span");
-        type.className = "wl-rule-type";
-        type.textContent = `(${rule.type})`;
-        row.appendChild(type);
-        const del = document.createElement("span");
-        del.className = "wl-rule-delete";
-        del.textContent = "\xD7";
-        del.title = "Remove rule";
-        del.addEventListener("click", () => {
-          state_default.watchLists[key].splice(idx, 1);
-          saveWatchLists();
-          applyFilter();
-          renderSpots();
-          renderMarkers();
-          renderWatchListEditor();
-        });
-        row.appendChild(del);
-        list.appendChild(row);
-      });
-      container.appendChild(list);
-    }
-    const form = document.createElement("div");
-    form.className = "wl-add-form";
-    const modes = ["red", "only", "not"];
-    const radioName = `wl-mode-${key}`;
-    modes.forEach((m, i) => {
-      const radio = document.createElement("input");
-      radio.type = "radio";
-      radio.name = radioName;
-      radio.value = m;
-      if (i === 0) radio.checked = true;
-      const label = document.createElement("label");
-      label.appendChild(radio);
-      label.appendChild(document.createTextNode(m.charAt(0).toUpperCase() + m.slice(1)));
-      form.appendChild(label);
-    });
-    const typeSelect = document.createElement("select");
-    const types = ["callsign", "dxcc", "grid"];
-    if (key === "pota" || key === "sota" || key === "wwff") types.push("ref");
-    types.forEach((t) => {
-      const opt = document.createElement("option");
-      opt.value = t;
-      opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
-      typeSelect.appendChild(opt);
-    });
-    form.appendChild(typeSelect);
-    const valueInput = document.createElement("input");
-    valueInput.type = "text";
-    valueInput.placeholder = "Value";
-    form.appendChild(valueInput);
-    const addBtn = document.createElement("button");
-    addBtn.type = "button";
-    addBtn.textContent = "Add";
-    addBtn.addEventListener("click", () => {
-      const val = valueInput.value.trim().toUpperCase();
-      if (!val) return;
-      const mode2 = form.querySelector(`input[name="${radioName}"]:checked`).value;
-      const type = typeSelect.value;
-      const existing = state_default.watchLists[key] || [];
-      if (existing.some((r) => r.mode === mode2 && r.type === type && r.value === val)) return;
-      if (!state_default.watchLists[key]) state_default.watchLists[key] = [];
-      state_default.watchLists[key].push({ mode: mode2, type, value: val });
-      saveWatchLists();
-      applyFilter();
-      renderSpots();
-      renderMarkers();
-      renderWatchListEditor();
-    });
-    form.appendChild(addBtn);
-    container.appendChild(form);
-  }
-  function applyFilter() {
-    state_default.watchRedSpotIds = /* @__PURE__ */ new Set();
-    const allowed = SOURCE_DEFS[state_default.currentSource].filters;
-    const wlRules = state_default.watchLists[state_default.currentSource] || [];
-    const onlyRules = wlRules.filter((r) => r.mode === "only");
-    const notRules = wlRules.filter((r) => r.mode === "not");
-    const redRules = wlRules.filter((r) => r.mode === "red");
-    state_default.sourceFiltered[state_default.currentSource] = (state_default.sourceData[state_default.currentSource] || []).filter((s) => {
-      if (allowed.includes("band") && state_default.activeBands.size > 0) {
-        const spotBand = freqToBand(s.frequency);
-        if (!spotBand || !state_default.activeBands.has(spotBand)) return false;
-      }
-      if (allowed.includes("mode") && state_default.activeModes.size > 0) {
-        if (!state_default.activeModes.has((s.mode || "").toUpperCase())) return false;
-      }
-      if (allowed.includes("distance") && !filterByDistance(s)) return false;
-      if (allowed.includes("age") && !filterByAge(s)) return false;
-      if (state_default.propagationFilterEnabled && !filterByPropagation(s)) return false;
-      if (allowed.includes("country") && state_default.activeCountry && getCountryPrefix(s.reference) !== state_default.activeCountry) return false;
-      if (allowed.includes("state") && state_default.activeState && getUSState(s.locationDesc) !== state_default.activeState) return false;
-      if (allowed.includes("grid") && state_default.activeGrid && (s.grid4 || "") !== state_default.activeGrid) return false;
-      if (allowed.includes("continent") && state_default.activeContinent && (s.continent || "") !== state_default.activeContinent) return false;
-      if (allowed.includes("privilege") && state_default.privilegeFilterEnabled && !filterByPrivileges(s)) return false;
-      if (wlRules.length > 0) {
-        if (onlyRules.length > 0 && !onlyRules.some((r) => matchWatchRule(r, s))) return false;
-        if (notRules.some((r) => matchWatchRule(r, s))) return false;
-        if (redRules.length > 0 && redRules.some((r) => matchWatchRule(r, s))) {
-          state_default.watchRedSpotIds.add(SOURCE_DEFS[state_default.currentSource].spotId(s));
-        }
-      }
-      return true;
-    });
-  }
-  function getAvailableBands() {
-    const bandSet = /* @__PURE__ */ new Set();
-    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
-      const band = freqToBand(s.frequency);
-      if (band) bandSet.add(band);
-    });
-    const order = ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm"];
-    return order.filter((b) => bandSet.has(b));
-  }
-  function updateBandFilterButtons() {
-    const bands = getAvailableBands();
-    const bandFilters = $("bandFilters");
-    bandFilters.innerHTML = "";
-    const allBtn = document.createElement("button");
-    allBtn.textContent = "All";
-    allBtn.className = state_default.activeBands.size === 0 ? "active" : "";
-    allBtn.addEventListener("click", () => {
-      state_default.activeBands.clear();
-      saveCurrentFilters();
-      applyFilter();
-      renderSpots();
-      renderMarkers();
-      updateBandFilterButtons();
-    });
-    bandFilters.appendChild(allBtn);
-    bands.forEach((band) => {
-      const btn = document.createElement("button");
-      btn.textContent = band;
-      btn.className = state_default.activeBands.has(band) ? "active" : "";
-      btn.addEventListener("click", () => {
-        if (state_default.activeBands.has(band)) {
-          state_default.activeBands.delete(band);
-        } else {
-          state_default.activeBands.add(band);
-        }
-        saveCurrentFilters();
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-        updateBandFilterButtons();
-      });
-      bandFilters.appendChild(btn);
-    });
-  }
-  function getAvailableModes() {
-    const modeSet = /* @__PURE__ */ new Set();
-    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
-      if (s.mode) modeSet.add(s.mode.toUpperCase());
-    });
-    return [...modeSet].sort();
-  }
-  function updateModeFilterButtons() {
-    const modes = getAvailableModes();
-    const modeFilters = $("modeFilters");
-    modeFilters.innerHTML = "";
-    const allBtn = document.createElement("button");
-    allBtn.textContent = "All";
-    allBtn.className = state_default.activeModes.size === 0 ? "active" : "";
-    allBtn.addEventListener("click", () => {
-      state_default.activeModes.clear();
-      saveCurrentFilters();
-      applyFilter();
-      renderSpots();
-      renderMarkers();
-      updateModeFilterButtons();
-    });
-    modeFilters.appendChild(allBtn);
-    modes.forEach((mode2) => {
-      const btn = document.createElement("button");
-      btn.textContent = mode2;
-      btn.className = state_default.activeModes.has(mode2) ? "active" : "";
-      btn.addEventListener("click", () => {
-        if (state_default.activeModes.has(mode2)) {
-          state_default.activeModes.delete(mode2);
-        } else {
-          state_default.activeModes.add(mode2);
-        }
-        saveCurrentFilters();
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-        updateModeFilterButtons();
-      });
-      modeFilters.appendChild(btn);
-    });
-  }
-  function getAvailableCountries() {
-    const countrySet = /* @__PURE__ */ new Set();
-    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
-      const prefix = getCountryPrefix(s.reference);
-      if (prefix) countrySet.add(prefix);
-    });
-    return [...countrySet].sort();
-  }
-  function updateCountryFilter() {
-    const countries = getAvailableCountries();
-    const current = state_default.activeCountry;
-    const countryFilter = $("countryFilter");
-    countryFilter.innerHTML = '<option value="">All Countries</option>';
-    countries.forEach((c) => {
-      const opt = document.createElement("option");
-      opt.value = c;
-      opt.textContent = c;
-      if (c === current) opt.selected = true;
-      countryFilter.appendChild(opt);
-    });
-  }
-  function getAvailableStates() {
-    const stateSet = /* @__PURE__ */ new Set();
-    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
-      const st = getUSState(s.locationDesc);
-      if (st) stateSet.add(st);
-    });
-    return [...stateSet].sort();
-  }
-  function updateStateFilter() {
-    const states = getAvailableStates();
-    const current = state_default.activeState;
-    const stateFilter = $("stateFilter");
-    stateFilter.innerHTML = '<option value="">All States</option>';
-    states.forEach((st) => {
-      const opt = document.createElement("option");
-      opt.value = st;
-      opt.textContent = st;
-      if (st === current) opt.selected = true;
-      stateFilter.appendChild(opt);
-    });
-  }
-  function getAvailableGrids() {
-    const gridSet = /* @__PURE__ */ new Set();
-    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
-      if (s.grid4) gridSet.add(s.grid4);
-    });
-    return [...gridSet].sort();
-  }
-  function updateGridFilter() {
-    const grids = getAvailableGrids();
-    const current = state_default.activeGrid;
-    const gridFilter = $("gridFilter");
-    gridFilter.innerHTML = '<option value="">All Grids</option>';
-    grids.forEach((g) => {
-      const opt = document.createElement("option");
-      opt.value = g;
-      opt.textContent = g;
-      if (g === current) opt.selected = true;
-      gridFilter.appendChild(opt);
-    });
-  }
-  function getAvailableContinents() {
-    const contSet = /* @__PURE__ */ new Set();
-    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
-      if (s.continent) contSet.add(s.continent);
-    });
-    const order = ["AF", "AN", "AS", "EU", "NA", "OC", "SA"];
-    return order.filter((c) => contSet.has(c));
-  }
-  function updateContinentFilter() {
-    const continents = getAvailableContinents();
-    const current = state_default.activeContinent;
-    const continentFilter = $("continentFilter");
-    if (!continentFilter) return;
-    continentFilter.innerHTML = '<option value="">All Continents</option>';
-    const labels = { AF: "Africa", AN: "Antarctica", AS: "Asia", EU: "Europe", NA: "N. America", OC: "Oceania", SA: "S. America" };
-    continents.forEach((c) => {
-      const opt = document.createElement("option");
-      opt.value = c;
-      opt.textContent = `${c} - ${labels[c] || c}`;
-      if (c === current) opt.selected = true;
-      continentFilter.appendChild(opt);
-    });
-  }
-  function updatePrivFilterVisibility() {
-    const label = document.querySelector(".priv-filter-label");
-    if (!label) return;
-    const show2 = isUSCallsign(state_default.myCallsign) && !!state_default.licenseClass;
-    label.classList.toggle("hidden", !show2);
-    if (!show2) {
-      state_default.privilegeFilterEnabled = false;
-      const cb = $("privFilter");
-      if (cb) cb.checked = false;
-    }
-  }
-  async function fetchLicenseClass(callsign) {
-    if (!isUSCallsign(callsign)) {
-      state_default.licenseClass = "";
-      localStorage.removeItem("hamtab_license_class");
-      updatePrivFilterVisibility();
-      updateOperatorDisplay();
-      return;
-    }
-    try {
-      const resp = await fetch(`/api/callsign/${encodeURIComponent(callsign)}`);
-      if (!resp.ok) return;
-      const data = await resp.json();
-      if (data.status === "VALID") {
-        state_default.licenseClass = (data.class || "").toUpperCase();
-        if (state_default.licenseClass) localStorage.setItem("hamtab_license_class", state_default.licenseClass);
-        cacheCallsign(callsign.toUpperCase(), data);
-      } else {
-        state_default.licenseClass = "";
-        localStorage.removeItem("hamtab_license_class");
-      }
-    } catch (e) {
-    }
-    updatePrivFilterVisibility();
-    updateOperatorDisplay();
-  }
-  function updateOperatorDisplay() {
-    const { esc: esc2 } = (init_utils(), __toCommonJS(utils_exports));
-    const opCall = $("opCall");
-    const opLoc = $("opLoc");
-    if (state_default.myCallsign) {
-      const qrz = `https://www.qrz.com/db/${encodeURIComponent(state_default.myCallsign)}`;
-      let classLabel = state_default.licenseClass ? `[${state_default.licenseClass}]` : "";
-      opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc2(state_default.myCallsign)}</a>${classLabel ? `<div class="op-class">${esc2(classLabel)}</div>` : ""}`;
-      const info = state_default.callsignCache[state_default.myCallsign.toUpperCase()];
-      const opName = document.getElementById("opName");
-      if (opName) {
-        opName.textContent = info ? info.name : "";
-      }
-    } else {
-      opCall.textContent = "";
-      const opName = document.getElementById("opName");
-      if (opName) opName.textContent = "";
-    }
-    if (state_default.myLat !== null && state_default.myLon !== null) {
-      const { latLonToGrid: latLonToGrid2 } = (init_geo(), __toCommonJS(geo_exports));
-      const grid = latLonToGrid2(state_default.myLat, state_default.myLon);
-      opLoc.textContent = `${state_default.myLat.toFixed(2)}, ${state_default.myLon.toFixed(2)} [${grid}]`;
-    } else {
-      opLoc.textContent = "Location unknown";
-    }
-  }
-  function initFilterListeners() {
-    const countryFilter = $("countryFilter");
-    const stateFilter = $("stateFilter");
-    const gridFilter = $("gridFilter");
-    const continentFilter = $("continentFilter");
-    countryFilter.addEventListener("change", () => {
-      state_default.activeCountry = countryFilter.value || null;
-      saveCurrentFilters();
-      applyFilter();
-      renderSpots();
-      renderMarkers();
-    });
-    stateFilter.addEventListener("change", () => {
-      state_default.activeState = stateFilter.value || null;
-      saveCurrentFilters();
-      applyFilter();
-      renderSpots();
-      renderMarkers();
-    });
-    gridFilter.addEventListener("change", () => {
-      state_default.activeGrid = gridFilter.value || null;
-      saveCurrentFilters();
-      applyFilter();
-      renderSpots();
-      renderMarkers();
-    });
-    if (continentFilter) {
-      continentFilter.addEventListener("change", () => {
-        state_default.activeContinent = continentFilter.value || null;
-        saveCurrentFilters();
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-      });
-    }
-    const privFilterCheckbox = $("privFilter");
-    privFilterCheckbox.checked = state_default.privilegeFilterEnabled;
-    updatePrivFilterVisibility();
-    privFilterCheckbox.addEventListener("change", () => {
-      state_default.privilegeFilterEnabled = privFilterCheckbox.checked;
-      localStorage.setItem("hamtab_privilege_filter", String(state_default.privilegeFilterEnabled));
-      saveCurrentFilters();
-      applyFilter();
-      renderSpots();
-      renderMarkers();
-    });
-    const distanceInput = $("distanceFilter");
-    const distanceUnit = $("distanceUnit");
-    if (distanceInput) {
-      distanceInput.addEventListener("input", () => {
-        const val = distanceInput.value.trim();
-        state_default.activeMaxDistance = val === "" ? null : parseFloat(val);
-        if (isNaN(state_default.activeMaxDistance)) state_default.activeMaxDistance = null;
-        saveCurrentFilters();
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-      });
-    }
-    if (distanceUnit) {
-      distanceUnit.value = state_default.distanceUnit;
-      distanceUnit.addEventListener("change", () => {
-        state_default.distanceUnit = distanceUnit.value;
-        localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
-        saveCurrentFilters();
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-      });
-    }
-    const ageFilter = $("ageFilter");
-    if (ageFilter) {
-      ageFilter.addEventListener("change", () => {
-        const val = ageFilter.value;
-        state_default.activeMaxAge = val === "" ? null : parseInt(val, 10);
-        saveCurrentFilters();
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-      });
-    }
-    const propBtn = $("propFilterBtn");
-    if (propBtn) {
-      propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
-      propBtn.addEventListener("click", () => {
-        state_default.propagationFilterEnabled = !state_default.propagationFilterEnabled;
-        propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
-        saveCurrentFilters();
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-      });
-    }
-    const clearBtn = $("clearFiltersBtn");
-    if (clearBtn) {
-      clearBtn.addEventListener("click", () => {
-        clearAllFilters();
-      });
-    }
-    const presetSelect = $("presetFilter");
-    const savePresetBtn = $("savePresetBtn");
-    const deletePresetBtn = $("deletePresetBtn");
-    if (presetSelect) {
-      presetSelect.addEventListener("change", () => {
-        const name = presetSelect.value;
-        if (name) loadPreset(name);
-        presetSelect.value = "";
-      });
-    }
-    if (savePresetBtn) {
-      savePresetBtn.addEventListener("click", () => {
-        const name = prompt("Preset name:");
-        if (name && name.trim()) savePreset(name.trim());
-      });
-    }
-    if (deletePresetBtn) {
-      deletePresetBtn.addEventListener("click", () => {
-        const name = prompt("Preset name to delete:");
-        if (name && name.trim()) deletePreset(name.trim());
-      });
-    }
-    if (state_default.myCallsign) {
-      fetchLicenseClass(state_default.myCallsign);
-    }
-    const wlToggle = document.getElementById("wlAccordionToggle");
-    if (wlToggle) {
-      wlToggle.addEventListener("click", () => {
-        const body = document.getElementById("wlAccordionBody");
-        const open = body.classList.toggle("open");
-        wlToggle.classList.toggle("open", open);
-        if (open) renderWatchListEditor();
-      });
-    }
-  }
-  function spotId(spot) {
-    return SOURCE_DEFS[state_default.currentSource].spotId(spot);
-  }
-  function saveCurrentFilters() {
-    const source = state_default.currentSource;
-    const filterState = {
-      bands: [...state_default.activeBands],
-      modes: [...state_default.activeModes],
-      maxDistance: state_default.activeMaxDistance,
-      distanceUnit: state_default.distanceUnit,
-      maxAge: state_default.activeMaxAge,
-      country: state_default.activeCountry,
-      state: state_default.activeState,
-      grid: state_default.activeGrid,
-      continent: state_default.activeContinent,
-      privilegeFilter: state_default.privilegeFilterEnabled,
-      propagationFilter: state_default.propagationFilterEnabled,
-      sortColumn: state_default.spotSortColumn,
-      sortDirection: state_default.spotSortDirection
-    };
-    localStorage.setItem(`hamtab_filter_${source}`, JSON.stringify(filterState));
-    updateFilterIndicator();
-  }
-  function loadFiltersForSource(source) {
-    try {
-      const saved = JSON.parse(localStorage.getItem(`hamtab_filter_${source}`));
-      if (saved) {
-        state_default.activeBands = new Set(saved.bands || []);
-        state_default.activeModes = new Set(saved.modes || []);
-        state_default.activeMaxDistance = saved.maxDistance ?? null;
-        state_default.activeMaxAge = saved.maxAge ?? null;
-        state_default.activeCountry = saved.country ?? null;
-        state_default.activeState = saved.state ?? null;
-        state_default.activeGrid = saved.grid ?? null;
-        state_default.activeContinent = saved.continent ?? null;
-        state_default.privilegeFilterEnabled = saved.privilegeFilter ?? false;
-        state_default.propagationFilterEnabled = saved.propagationFilter ?? false;
-        state_default.spotSortColumn = saved.sortColumn ?? null;
-        state_default.spotSortDirection = saved.sortDirection ?? "desc";
-        return;
-      }
-    } catch (e) {
-    }
-    state_default.activeBands = /* @__PURE__ */ new Set();
-    state_default.activeModes = /* @__PURE__ */ new Set();
-    state_default.activeMaxDistance = null;
-    state_default.activeMaxAge = null;
-    state_default.activeCountry = null;
-    state_default.activeState = null;
-    state_default.activeGrid = null;
-    state_default.activeContinent = null;
-    state_default.privilegeFilterEnabled = false;
-    state_default.propagationFilterEnabled = false;
-    state_default.spotSortColumn = null;
-    state_default.spotSortDirection = "desc";
-  }
-  function hasActiveFilters() {
-    return state_default.activeBands.size > 0 || state_default.activeModes.size > 0 || state_default.activeMaxDistance !== null || state_default.activeMaxAge !== null || state_default.activeCountry !== null || state_default.activeState !== null || state_default.activeGrid !== null || state_default.activeContinent !== null || state_default.privilegeFilterEnabled || state_default.propagationFilterEnabled;
-  }
-  function updateFilterIndicator() {
-    const active2 = hasActiveFilters();
-    const header = document.querySelector("#widget-filters .widget-header");
-    if (header) {
-      let badge = header.querySelector(".filter-active-badge");
-      if (active2) {
-        if (!badge) {
-          badge = document.createElement("span");
-          badge.className = "filter-active-badge";
-          badge.title = "Filters active \u2014 some spots may be hidden";
-          header.appendChild(badge);
-        }
-      } else if (badge) {
-        badge.remove();
-      }
-    }
-    const clearBtn = $("clearFiltersBtn");
-    if (clearBtn) {
-      clearBtn.classList.toggle("filters-active", active2);
-    }
-  }
-  function updateAllFilterUI() {
-    updateBandFilterButtons();
-    updateModeFilterButtons();
-    updateCountryFilter();
-    updateStateFilter();
-    updateGridFilter();
-    updateContinentFilter();
-    const distanceInput = $("distanceFilter");
-    if (distanceInput) {
-      distanceInput.value = state_default.activeMaxDistance !== null ? state_default.activeMaxDistance : "";
-    }
-    const distanceUnit = $("distanceUnit");
-    if (distanceUnit) {
-      distanceUnit.value = state_default.distanceUnit;
-    }
-    const ageFilter = $("ageFilter");
-    if (ageFilter) {
-      ageFilter.value = state_default.activeMaxAge !== null ? String(state_default.activeMaxAge) : "";
-    }
-    const privFilterCheckbox = $("privFilter");
-    if (privFilterCheckbox) {
-      privFilterCheckbox.checked = state_default.privilegeFilterEnabled;
-    }
-    const propBtn = $("propFilterBtn");
-    if (propBtn) {
-      propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
-    }
-    updateFilterIndicator();
-  }
-  function clearAllFilters() {
-    state_default.activeBands.clear();
-    state_default.activeModes.clear();
-    state_default.activeMaxDistance = null;
-    state_default.activeMaxAge = null;
-    state_default.activeCountry = null;
-    state_default.activeState = null;
-    state_default.activeGrid = null;
-    state_default.activeContinent = null;
-    state_default.privilegeFilterEnabled = false;
-    state_default.propagationFilterEnabled = false;
-    saveCurrentFilters();
-    applyFilter();
-    renderSpots();
-    renderMarkers();
-    updateAllFilterUI();
-  }
-  function updatePresetDropdown() {
-    const presetSelect = $("presetFilter");
-    if (!presetSelect) return;
-    const source = state_default.currentSource;
-    const presets = state_default.filterPresets[source] || {};
-    const names = Object.keys(presets).sort();
-    presetSelect.innerHTML = '<option value="">Load Preset...</option>';
-    names.forEach((name) => {
-      const opt = document.createElement("option");
-      opt.value = name;
-      opt.textContent = name;
-      presetSelect.appendChild(opt);
-    });
-  }
-  function savePreset(name) {
-    const source = state_default.currentSource;
-    const preset = {
-      bands: [...state_default.activeBands],
-      modes: [...state_default.activeModes],
-      maxDistance: state_default.activeMaxDistance,
-      distanceUnit: state_default.distanceUnit,
-      maxAge: state_default.activeMaxAge,
-      country: state_default.activeCountry,
-      state: state_default.activeState,
-      grid: state_default.activeGrid,
-      continent: state_default.activeContinent,
-      privilegeFilter: state_default.privilegeFilterEnabled,
-      propagationFilter: state_default.propagationFilterEnabled,
-      sortColumn: state_default.spotSortColumn,
-      sortDirection: state_default.spotSortDirection
-    };
-    if (!state_default.filterPresets[source]) state_default.filterPresets[source] = {};
-    state_default.filterPresets[source][name] = preset;
-    localStorage.setItem("hamtab_filter_presets", JSON.stringify(state_default.filterPresets));
-    updatePresetDropdown();
-  }
-  function loadPreset(name) {
-    const source = state_default.currentSource;
-    const preset = state_default.filterPresets[source]?.[name];
-    if (!preset) return;
-    state_default.activeBands = new Set(preset.bands || []);
-    state_default.activeModes = new Set(preset.modes || []);
-    state_default.activeMaxDistance = preset.maxDistance ?? null;
-    state_default.activeMaxAge = preset.maxAge ?? null;
-    state_default.activeCountry = preset.country ?? null;
-    state_default.activeState = preset.state ?? null;
-    state_default.activeGrid = preset.grid ?? null;
-    state_default.activeContinent = preset.continent ?? null;
-    state_default.privilegeFilterEnabled = preset.privilegeFilter ?? false;
-    state_default.propagationFilterEnabled = preset.propagationFilter ?? false;
-    state_default.spotSortColumn = preset.sortColumn ?? null;
-    state_default.spotSortDirection = preset.sortDirection ?? "desc";
-    saveCurrentFilters();
-    applyFilter();
-    renderSpots();
-    renderMarkers();
-    updateAllFilterUI();
-  }
-  function deletePreset(name) {
-    const source = state_default.currentSource;
-    if (state_default.filterPresets[source]?.[name]) {
-      delete state_default.filterPresets[source][name];
-      localStorage.setItem("hamtab_filter_presets", JSON.stringify(state_default.filterPresets));
-      updatePresetDropdown();
-    }
-  }
-  function updateDistanceAgeVisibility() {
-    const allowed = SOURCE_DEFS[state_default.currentSource].filters;
-    const distWrap = $("distanceFilterWrap");
-    const ageWrap = $("ageFilterWrap");
-    const presetWrap = $("presetFilterWrap");
-    if (distWrap) distWrap.style.display = allowed.includes("distance") ? "" : "none";
-    if (ageWrap) ageWrap.style.display = allowed.includes("age") ? "" : "none";
-    if (presetWrap) presetWrap.style.display = "";
-  }
-  var init_filters = __esm({
-    "src/filters.js"() {
-      init_state();
-      init_dom();
-      init_constants();
-      init_utils();
-      init_spots();
-      init_markers();
-      init_geo();
-      init_band_conditions();
-    }
-  });
-
-  // src/solar.js
-  function aColor(val) {
-    const n = parseInt(val);
-    if (isNaN(n)) return "";
-    if (n < 10) return "var(--green)";
-    if (n < 30) return "var(--yellow)";
-    return "var(--red)";
-  }
-  function kColor(val) {
-    const n = parseInt(val);
-    if (isNaN(n)) return "";
-    if (n <= 2) return "var(--green)";
-    if (n <= 4) return "var(--yellow)";
-    return "var(--red)";
-  }
-  function solarWindColor(val) {
-    const n = parseFloat(val);
-    if (isNaN(n)) return "";
-    if (n < 400) return "var(--green)";
-    if (n < 600) return "var(--yellow)";
-    return "var(--red)";
-  }
-  function bzColor(val) {
-    const n = parseFloat(val);
-    if (isNaN(n)) return "";
-    if (n >= 0) return "var(--green)";
-    if (n > -10) return "var(--yellow)";
-    return "var(--red)";
-  }
-  function auroraColor(val) {
-    const n = parseInt(val);
-    if (isNaN(n)) return "";
-    if (n <= 3) return "var(--green)";
-    if (n <= 6) return "var(--yellow)";
-    return "var(--red)";
-  }
-  function geomagColor(val) {
-    const s = (val || "").toLowerCase();
-    if (s.includes("quiet")) return "var(--green)";
-    if (s.includes("unsettled") || s.includes("active")) return "var(--yellow)";
-    if (s.includes("storm") || s.includes("major")) return "var(--red)";
-    return "";
-  }
-  function loadSolarFieldVisibility() {
-    const { SOLAR_FIELD_DEFS: SOLAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
-    try {
-      const saved = JSON.parse(localStorage.getItem(SOLAR_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
-    } catch (e) {
-    }
-    const vis = {};
-    SOLAR_FIELD_DEFS2.forEach((f) => vis[f.key] = f.defaultVisible);
-    return vis;
-  }
-  function saveSolarFieldVisibility() {
-    localStorage.setItem(SOLAR_VIS_KEY, JSON.stringify(state_default.solarFieldVisibility));
-  }
-  function initSolarImage() {
-    const select = $("solarImageType");
-    const canvas = $("solarCanvas");
-    const playBtn = $("solarPlayBtn");
-    if (!select || !canvas) return;
-    const saved = localStorage.getItem("hamtab_sdo_type");
-    if (saved) select.value = saved;
-    select.addEventListener("change", () => {
-      localStorage.setItem("hamtab_sdo_type", select.value);
-      solarFrames = [];
-      solarFrameNames = [];
-      solarCurrentType = "";
-      loadSolarFrames();
-    });
-    if (playBtn) {
-      playBtn.addEventListener("click", () => {
-        solarPlaying = !solarPlaying;
-        playBtn.innerHTML = solarPlaying ? "&#9646;&#9646;" : "&#9654;";
-        if (solarPlaying) startSolarAnimation();
-        else stopSolarAnimation();
-      });
-    }
-    loadSolarFrames();
-  }
-  function startSolarAnimation() {
-    stopSolarAnimation();
-    if (solarFrames.length < 2) return;
-    solarIntervalId = setInterval(() => {
-      solarFrameIndex = (solarFrameIndex + 1) % solarFrames.length;
-      drawSolarFrame();
-    }, 200);
-  }
-  function stopSolarAnimation() {
-    if (solarIntervalId) {
-      clearInterval(solarIntervalId);
-      solarIntervalId = null;
-    }
-  }
-  function drawSolarFrame() {
-    const canvas = $("solarCanvas");
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const img = solarFrames[solarFrameIndex];
-    if (!img || !img.complete || !img.naturalWidth) {
-      ctx.fillStyle = "#000";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      return;
-    }
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-  }
-  function preloadImage(filename) {
-    return new Promise((resolve) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => resolve(null);
-      img.src = "/api/solar/frame/" + encodeURIComponent(filename);
-    });
-  }
-  async function loadSolarFrames() {
-    if (solarLoadingFrames) return;
-    solarLoadingFrames = true;
-    const select = $("solarImageType");
-    const type = select ? select.value : "0193";
-    const isFullReload = type !== solarCurrentType || solarFrames.length === 0;
-    if (isFullReload) stopSolarAnimation();
-    try {
-      const resp = await fetch("/api/solar/frames?type=" + encodeURIComponent(type));
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const filenames = await resp.json();
-      if (!filenames.length) {
-        loadSolarImageFallback(type);
-        return;
-      }
-      if (isFullReload) {
-        const loaded = await Promise.all(filenames.map(preloadImage));
-        solarFrames = loaded.filter(Boolean);
-        solarFrameNames = filenames.filter((fn, i) => loaded[i] !== null);
-        solarFrameIndex = 0;
-        solarCurrentType = type;
-      } else {
-        const existingSet = new Set(solarFrameNames);
-        const newNames = filenames.filter((fn) => !existingSet.has(fn));
-        if (newNames.length > 0) {
-          const newImgs = await Promise.all(newNames.map(preloadImage));
-          for (let i = 0; i < newNames.length; i++) {
-            if (newImgs[i]) {
-              solarFrames.push(newImgs[i]);
-              solarFrameNames.push(newNames[i]);
-            }
-          }
-          if (solarFrames.length > 48) {
-            const excess = solarFrames.length - 48;
-            solarFrames.splice(0, excess);
-            solarFrameNames.splice(0, excess);
-            if (solarFrameIndex >= excess) solarFrameIndex -= excess;
-            else solarFrameIndex = 0;
-          }
-        }
-      }
-      if (solarFrames.length < 2) {
-        loadSolarImageFallback(type);
-        return;
-      }
-      if (isFullReload) {
-        drawSolarFrame();
-        const playBtn = $("solarPlayBtn");
-        if (playBtn) playBtn.innerHTML = "&#9646;&#9646;";
-        solarPlaying = true;
-        startSolarAnimation();
-      }
-    } catch (err2) {
-      console.error("Failed to load SDO frames:", err2);
-      if (solarFrames.length === 0) loadSolarImageFallback(type);
-    } finally {
-      solarLoadingFrames = false;
-    }
-  }
-  function loadSolarImageFallback(type) {
-    solarCurrentType = type;
-    const canvas = $("solarCanvas");
-    if (!canvas) return;
-    const img = new Image();
-    img.onload = () => {
-      solarFrames = [img];
-      solarFrameNames = ["__fallback__"];
-      solarFrameIndex = 0;
-      drawSolarFrame();
-    };
-    img.src = "/api/solar/image?type=" + encodeURIComponent(type) + "&t=" + Date.now();
-  }
-  function loadSolarImage() {
-    loadSolarFrames();
-  }
-  async function fetchSolar() {
-    try {
-      const resp = await fetch("/api/solar");
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      state_default.lastSolarData = data;
-      renderSolar(data);
-      loadSolarImage();
-      const { renderPropagationWidget: renderPropagationWidget2 } = await Promise.resolve().then(() => (init_band_conditions(), band_conditions_exports));
-      renderPropagationWidget2();
-      const { renderVoacapMatrix: renderVoacapMatrix2 } = await Promise.resolve().then(() => (init_voacap(), voacap_exports));
-      renderVoacapMatrix2();
-      checkAutoStormOverlay(data);
-    } catch (err2) {
-      console.error("Failed to fetch solar:", err2);
-    }
-  }
-  function renderSolar(data) {
-    const { SOLAR_FIELD_DEFS: SOLAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
-    const { indices, bands } = data;
-    const solarIndices = $("solarIndices");
-    solarIndices.innerHTML = "";
-    SOLAR_FIELD_DEFS2.forEach((f) => {
-      if (state_default.solarFieldVisibility[f.key] === false) return;
-      const rawVal = indices[f.key];
-      const displayVal = rawVal === "" || rawVal === void 0 || rawVal === "NoRpt" ? "-" : String(rawVal) + (f.unit || "");
-      const color = f.colorFn ? f.colorFn(rawVal) : "";
-      const div = document.createElement("div");
-      div.className = "solar-card";
-      const labelDiv = document.createElement("div");
-      labelDiv.className = "label";
-      labelDiv.textContent = f.label;
-      const valueDiv = document.createElement("div");
-      valueDiv.className = "value";
-      if (color) valueDiv.style.color = color;
-      valueDiv.textContent = displayVal;
-      div.appendChild(labelDiv);
-      div.appendChild(valueDiv);
-      solarIndices.appendChild(div);
-    });
-  }
-  async function fetchPropagation() {
-    if (!state_default.map) return;
-    if (state_default.propLayer) {
-      state_default.map.removeLayer(state_default.propLayer);
-      state_default.propLayer = null;
-    }
-    if (state_default.propLabelLayer) {
-      state_default.map.removeLayer(state_default.propLabelLayer);
-      state_default.propLabelLayer = null;
-    }
-    if (state_default.propMetric === "off") return;
-    try {
-      const resp = await fetch(`/api/propagation?type=${encodeURIComponent(state_default.propMetric)}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      state_default.propLayer = L.geoJSON(data, {
-        pane: "propagation",
-        interactive: false,
-        style: (feature) => ({
-          color: feature.properties.stroke || "#00ff00",
-          weight: 2,
-          opacity: 0.7,
-          fill: false
-        })
-      }).addTo(state_default.map);
-      state_default.propLabelLayer = L.layerGroup({ pane: "propagation" }).addTo(state_default.map);
-      data.features.forEach((feature) => {
-        let coords = feature.geometry.coordinates;
-        if (!coords || coords.length === 0) return;
-        if (feature.geometry.type === "MultiLineString") {
-          coords = coords.reduce((a, b) => a.length >= b.length ? a : b, coords[0]);
-        }
-        if (coords.length < 2) return;
-        const label = feature.properties.title || String(feature.properties["level-value"]);
-        const color = feature.properties.stroke || "#00ff00";
-        const mid = coords[Math.floor(coords.length / 2)];
-        const icon = L.divIcon({
-          className: "prop-label",
-          html: `<span style="color:${color}">${esc(label.trim())} MHz</span>`,
-          iconSize: null
-        });
-        L.marker([mid[1], mid[0]], { icon, pane: "propagation", interactive: false }).addTo(state_default.propLabelLayer);
-      });
-      state_default.map.invalidateSize();
-    } catch (err2) {
-      console.error("Failed to fetch propagation:", err2);
-    }
-  }
-  function updateGrayLine() {
-    if (!state_default.map) return;
-    const now = /* @__PURE__ */ new Date();
-    const start = new Date(now.getFullYear(), 0, 0);
-    const dayOfYear = Math.floor((now - start) / 864e5);
-    const sunDec = -23.44 * Math.cos(2 * Math.PI / 365 * (dayOfYear + 10));
-    const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
-    const sunLon = -(utcHours - 12) * 15;
-    state_default.sunLat = sunDec;
-    state_default.sunLon = sunLon;
-    const rad = Math.PI / 180;
-    const dec = Math.abs(sunDec) < 0.1 ? 0.1 : sunDec;
-    const tanDec = Math.tan(dec * rad);
-    const terminator = [];
-    for (let lon = -180; lon <= 180; lon += 2) {
-      const lat = Math.atan(-Math.cos((lon - sunLon) * rad) / tanDec) / rad;
-      terminator.push([lat, lon]);
-    }
-    const nightPole = dec >= 0 ? -90 : 90;
-    const dayPole = -nightPole;
-    const points = [...terminator, [nightPole, 180], [nightPole, -180]];
-    if (state_default.grayLinePolygon) {
-      state_default.grayLinePolygon.setLatLngs(points);
-    } else {
-      state_default.grayLinePolygon = L.polygon(points, {
-        pane: "grayline",
-        color: "#445",
-        weight: 1,
-        fillColor: "#000",
-        fillOpacity: 0.25,
-        interactive: false
-      }).addTo(state_default.map);
-    }
-    const dayPoints = [...terminator, [dayPole, 180], [dayPole, -180]];
-    if (state_default.dayPolygon) {
-      state_default.dayPolygon.setLatLngs(dayPoints);
-    } else {
-      state_default.dayPolygon = L.polygon(dayPoints, {
-        pane: "grayline",
-        color: "transparent",
-        weight: 0,
-        fillColor: "#ffd54f",
-        fillOpacity: 0.06,
-        interactive: false
-      }).addTo(state_default.map);
-    }
-  }
-  function initPropListeners() {
-    document.querySelectorAll(".prop-metric-btn").forEach((btn) => {
-      btn.addEventListener("mousedown", (e) => e.stopPropagation());
-      btn.addEventListener("click", () => {
-        state_default.propMetric = btn.dataset.metric;
-        localStorage.setItem("hamtab_prop_metric", state_default.propMetric);
-        document.querySelectorAll(".prop-metric-btn").forEach((b) => b.classList.toggle("active", b.dataset.metric === state_default.propMetric));
-        fetchPropagation();
-      });
-    });
-    document.querySelectorAll(".prop-metric-btn").forEach((b) => b.classList.toggle("active", b.dataset.metric === state_default.propMetric));
-    document.querySelectorAll(".map-center-btn").forEach((btn) => {
-      btn.addEventListener("mousedown", (e) => e.stopPropagation());
-      btn.addEventListener("click", () => {
-        state_default.mapCenterMode = btn.dataset.center;
-        localStorage.setItem("hamtab_map_center", state_default.mapCenterMode);
-        document.querySelectorAll(".map-center-btn").forEach((b) => b.classList.toggle("active", b.dataset.center === state_default.mapCenterMode));
-        centerMap();
-      });
-    });
-    document.querySelectorAll(".map-center-btn").forEach((b) => b.classList.toggle("active", b.dataset.center === state_default.mapCenterMode));
-  }
-  function centerMap() {
-    if (!state_default.map) return;
-    if (state_default.mapCenterMode === "qth") {
-      if (state_default.myLat !== null && state_default.myLon !== null) state_default.map.flyTo([state_default.myLat, state_default.myLon], 6, { duration: 0.8 });
-    } else if (state_default.mapCenterMode === "pm") {
-      state_default.map.flyTo([0, 0], 2, { duration: 0.8 });
-    } else if (state_default.mapCenterMode === "spot") {
-      if (state_default.selectedSpotId) {
-        const allSpots = state_default.sourceFiltered[state_default.currentSource] || [];
-        const { spotId: spotId2 } = (init_filters(), __toCommonJS(filters_exports));
-        const spot = allSpots.find((s) => spotId2(s) === state_default.selectedSpotId);
-        if (spot) {
-          const lat = parseFloat(spot.latitude);
-          const lon = parseFloat(spot.longitude);
-          if (!isNaN(lat) && !isNaN(lon)) state_default.map.flyTo([lat, lon], 5, { duration: 0.8 });
-        }
-      }
-    } else if (state_default.mapCenterMode === "cty") {
-      if (state_default.myLat !== null && state_default.myLon !== null) {
-        const bounds = findCountryBounds(state_default.myLat, state_default.myLon);
-        if (bounds) {
-          const [south, west, north, east] = bounds;
-          state_default.map.flyToBounds([[south, west], [north, east]], { maxZoom: 10, padding: [20, 20], duration: 0.8 });
-        }
-      }
-    }
-  }
-  async function checkAutoStormOverlay(data) {
-    const kp = parseInt(data?.indices?.kindex);
-    if (isNaN(kp)) return;
-    if (kp >= 5 && !state_default.mapOverlays.drapOverlay && !lastStormAutoEnabled) {
-      state_default.mapOverlays.drapOverlay = true;
-      lastStormAutoEnabled = true;
-      const { saveMapOverlays: saveMapOverlays2, renderDrapOverlay: renderDrapOverlay2 } = await Promise.resolve().then(() => (init_map_overlays(), map_overlays_exports));
-      saveMapOverlays2();
-      renderDrapOverlay2();
-    } else if (kp < 5) {
-      lastStormAutoEnabled = false;
-    }
-  }
-  var SOLAR_VIS_KEY, solarFrames, solarFrameNames, solarFrameIndex, solarPlaying, solarIntervalId, solarLoadingFrames, solarCurrentType, lastStormAutoEnabled;
-  var init_solar = __esm({
-    "src/solar.js"() {
-      init_state();
-      init_dom();
-      init_utils();
-      init_country_bounds();
-      SOLAR_VIS_KEY = "hamtab_solar_fields";
-      solarFrames = [];
-      solarFrameNames = [];
-      solarFrameIndex = 0;
-      solarPlaying = true;
-      solarIntervalId = null;
-      solarLoadingFrames = false;
-      solarCurrentType = "";
-      lastStormAutoEnabled = false;
-    }
-  });
-
-  // src/lunar.js
-  function loadMoonImage() {
-    if (moonImage || moonImageLoading) return;
-    moonImageLoading = true;
-    const img = new Image();
-    img.onload = () => {
-      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        moonImage = img;
-        if (state_default.lastLunarData) {
-          renderMoonPhase(state_default.lastLunarData.illumination, state_default.lastLunarData.phase);
-        }
-      } else {
-        moonImageLoading = false;
-      }
-    };
-    img.onerror = () => {
-      moonImageLoading = false;
-    };
-    img.src = "/api/lunar/image";
-  }
-  function lunarDecColor(val) {
-    const n = Math.abs(parseFloat(val));
-    if (isNaN(n)) return "";
-    if (n < 15) return "var(--green)";
-    if (n < 25) return "var(--yellow)";
-    return "var(--red)";
-  }
-  function lunarPlColor(val) {
-    const n = parseFloat(val);
-    if (isNaN(n)) return "";
-    if (n < -0.5) return "var(--green)";
-    if (n < 0.5) return "var(--yellow)";
-    return "var(--red)";
-  }
-  function lunarElColor(val) {
-    const n = parseFloat(val);
-    if (isNaN(n)) return "";
-    if (n >= 20) return "var(--green)";
-    if (n >= 0) return "var(--yellow)";
-    return "var(--text-dim)";
-  }
-  function loadLunarFieldVisibility() {
-    try {
-      const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
-    } catch (e) {
-    }
-    const vis = {};
-    LUNAR_FIELD_DEFS.forEach((f) => vis[f.key] = f.defaultVisible);
-    return vis;
-  }
-  function saveLunarFieldVisibility() {
-    localStorage.setItem(LUNAR_VIS_KEY, JSON.stringify(state_default.lunarFieldVisibility));
-  }
-  async function fetchLunar() {
-    try {
-      let url = "/api/lunar";
-      if (state_default.myLat !== null && state_default.myLon !== null) {
-        url += `?lat=${state_default.myLat}&lon=${state_default.myLon}`;
-      }
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      state_default.lastLunarData = data;
-      renderLunar(data);
-      const { updateMoonMarker: updateMoonMarker2 } = await Promise.resolve().then(() => (init_map_init(), map_init_exports));
-      updateMoonMarker2();
-    } catch (err2) {
-      console.error("Failed to fetch lunar:", err2);
-    }
-  }
-  function renderMoonPhase(illumination, phase) {
-    const canvas = $("moonCanvas");
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    const size = canvas.width;
-    const r = size / 2 - 2;
-    const cx = size / 2;
-    const cy = size / 2;
-    ctx.clearRect(0, 0, size, size);
-    loadMoonImage();
-    const illum = Math.max(0, Math.min(100, illumination)) / 100;
-    const waning = (phase || "").toLowerCase().includes("waning") || (phase || "").toLowerCase().includes("last");
-    if (moonImage) {
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.clip();
-      const scale = r * 2 / (moonImage.width * 0.82);
-      const drawSize = moonImage.width * scale;
-      const offset = (drawSize - r * 2) / 2;
-      ctx.drawImage(moonImage, cx - r - offset, cy - r - offset, drawSize, drawSize);
-      ctx.restore();
-    } else {
-      ctx.beginPath();
-      ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = "#1a1a2e";
-      ctx.fill();
-      if (illum >= 0.99) {
-        ctx.beginPath();
-        ctx.arc(cx, cy, r, 0, Math.PI * 2);
-        ctx.fillStyle = "#d4d4d4";
-        ctx.fill();
-      } else if (illum > 0.01) {
-        const terminatorX = Math.abs(1 - 2 * illum) * r;
-        const litOnRight = !waning;
-        ctx.beginPath();
-        if (litOnRight) {
-          ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
-          if (illum <= 0.5) {
-            ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
-          } else {
-            ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, true);
-          }
-        } else {
-          ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2, false);
-          if (illum <= 0.5) {
-            ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, false);
-          } else {
-            ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, true);
-          }
-        }
-        ctx.closePath();
-        ctx.fillStyle = "#d4d4d4";
-        ctx.fill();
-      }
-    }
-    ctx.beginPath();
-    ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.strokeStyle = "#445";
-    ctx.lineWidth = 1;
-    ctx.stroke();
-  }
-  function renderLunar(data) {
-    const lunarCards = $("lunarCards");
-    lunarCards.innerHTML = "";
-    renderMoonPhase(data.illumination, data.phase);
-    LUNAR_FIELD_DEFS.forEach((f) => {
-      if (state_default.lunarFieldVisibility[f.key] === false) return;
-      const rawVal = data[f.key];
-      let displayVal;
-      if (rawVal === void 0 || rawVal === null || rawVal === "") {
-        displayVal = "-";
-      } else if (f.format === "time") {
-        displayVal = fmtTime(new Date(rawVal * 1e3));
-      } else if (f.key === "distance") {
-        displayVal = Number(rawVal).toLocaleString() + f.unit;
-      } else if (f.key === "pathLoss") {
-        displayVal = (rawVal > 0 ? "+" : "") + rawVal + f.unit;
-      } else {
-        displayVal = String(rawVal) + f.unit;
-      }
-      const color = f.colorFn ? f.colorFn(rawVal) : "";
-      const div = document.createElement("div");
-      div.className = "solar-card";
-      const labelDiv = document.createElement("div");
-      labelDiv.className = "label";
-      labelDiv.textContent = f.label;
-      const valueDiv = document.createElement("div");
-      valueDiv.className = "value";
-      if (color) valueDiv.style.color = color;
-      valueDiv.textContent = displayVal;
-      div.appendChild(labelDiv);
-      div.appendChild(valueDiv);
-      lunarCards.appendChild(div);
-    });
-  }
-  var moonImage, moonImageLoading, LUNAR_VIS_KEY;
-  var init_lunar = __esm({
-    "src/lunar.js"() {
-      init_state();
-      init_dom();
-      init_constants();
-      init_utils();
-      moonImage = null;
-      moonImageLoading = false;
-      LUNAR_VIS_KEY = "hamtab_lunar_fields";
-    }
-  });
-
-  // src/constants.js
-  var constants_exports = {};
-  __export(constants_exports, {
-    ALLOW_OVERLAP_KEY: () => ALLOW_OVERLAP_KEY,
-    BREAKPOINT_MOBILE: () => BREAKPOINT_MOBILE,
-    DEFAULT_BAND_COLORS: () => DEFAULT_BAND_COLORS,
-    DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
-    DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
-    GRID_ASSIGN_KEY: () => GRID_ASSIGN_KEY,
-    GRID_DEFAULT_ASSIGNMENTS: () => GRID_DEFAULT_ASSIGNMENTS,
-    GRID_MODE_KEY: () => GRID_MODE_KEY,
-    GRID_PERMUTATIONS: () => GRID_PERMUTATIONS,
-    GRID_PERM_KEY: () => GRID_PERM_KEY,
-    GRID_SIZES_KEY: () => GRID_SIZES_KEY,
-    GRID_SPANS_KEY: () => GRID_SPANS_KEY,
-    HEADER_H: () => HEADER_H,
-    LAYOUTS_KEY: () => LAYOUTS_KEY,
-    LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
-    MAX_LAYOUTS: () => MAX_LAYOUTS,
-    MOBILE_TAB_KEY: () => MOBILE_TAB_KEY,
-    REFERENCE_TABS: () => REFERENCE_TABS,
-    REFLOW_WIDGET_ORDER: () => REFLOW_WIDGET_ORDER,
-    SAT_FREQUENCIES: () => SAT_FREQUENCIES,
-    SCALE_MIN_FACTOR: () => SCALE_MIN_FACTOR,
-    SCALE_REFERENCE_WIDTH: () => SCALE_REFERENCE_WIDTH,
-    SCALE_REFLOW_WIDTH: () => SCALE_REFLOW_WIDTH,
-    SNAP_DIST: () => SNAP_DIST,
-    SNAP_GRID: () => SNAP_GRID,
-    SNAP_GRID_KEY: () => SNAP_GRID_KEY,
-    SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
-    SOURCE_DEFS: () => SOURCE_DEFS,
-    USER_LAYOUT_KEY: () => USER_LAYOUT_KEY,
-    US_PRIVILEGES: () => US_PRIVILEGES,
-    WIDGET_DEFS: () => WIDGET_DEFS,
-    WIDGET_HELP: () => WIDGET_HELP,
-    WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY,
-    getBandColor: () => getBandColor,
-    getBandColorOverrides: () => getBandColorOverrides,
-    getLayoutMode: () => getLayoutMode,
-    saveBandColors: () => saveBandColors
-  });
-  function getLayoutMode() {
-    const w = window.innerWidth;
-    if (w < SCALE_REFLOW_WIDTH) return "mobile";
-    return "desktop";
-  }
-  function getBandColor(band) {
-    return bandColorOverrides[band] || DEFAULT_BAND_COLORS[band] || "#888";
-  }
-  function saveBandColors(overrides) {
-    bandColorOverrides = overrides;
-    localStorage.setItem("hamtab_band_colors", JSON.stringify(overrides));
-  }
-  function getBandColorOverrides() {
-    return { ...bandColorOverrides };
-  }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
-  var init_constants = __esm({
-    "src/constants.js"() {
-      init_solar();
-      init_lunar();
-      WIDGET_DEFS = [
-        { id: "widget-filters", name: "Filters", short: "Filt" },
-        { id: "widget-activations", name: "On the Air", short: "OTA" },
-        { id: "widget-map", name: "HamMap", short: "MAP" },
-        { id: "widget-solar", name: "Solar", short: "Sol" },
-        { id: "widget-spacewx", name: "Space Wx", short: "SpWx" },
-        { id: "widget-propagation", name: "Band Conditions", short: "Band" },
-        { id: "widget-voacap", name: "VOACAP DE\u2192DX", short: "VOA" },
-        { id: "widget-live-spots", name: "Live Spots", short: "Live" },
-        { id: "widget-lunar", name: "Lunar / EME", short: "Moon" },
-        { id: "widget-satellites", name: "Satellites", short: "Sat" },
-        { id: "widget-rst", name: "Reference", short: "Ref" },
-        { id: "widget-spot-detail", name: "DX Detail", short: "DXDt" },
-        { id: "widget-contests", name: "Contests", short: "Cont" },
-        { id: "widget-dxpeditions", name: "DXpeditions", short: "DXpd" },
-        { id: "widget-beacons", name: "NCDXF Beacons", short: "Bcn" },
-        { id: "widget-dedx", name: "DE/DX Info", short: "DEDX" },
-        { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
-        { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" }
-        // { id: 'widget-on-air-rig',  name: 'On-Air Rig',       short: 'Rig' }, // RADIO_HIDDEN
-      ];
-      SAT_FREQUENCIES = {
-        25544: {
-          name: "ISS (ZARYA)",
-          uplinks: [
-            { freq: 145.99, mode: "FM", desc: "V/U Repeater" }
-          ],
-          downlinks: [
-            { freq: 437.8, mode: "FM", desc: "V/U Repeater" },
-            { freq: 145.8, mode: "FM", desc: "Voice/SSTV" },
-            { freq: 145.825, mode: "APRS", desc: "Packet" }
-          ]
-        },
-        43770: {
-          name: "AO-91 (RadFxSat)",
-          uplinks: [
-            { freq: 435.25, mode: "FM", desc: "67 Hz CTCSS" }
-          ],
-          downlinks: [
-            { freq: 145.96, mode: "FM", desc: "FM Voice" }
-          ]
-        },
-        43137: {
-          name: "AO-92 (Fox-1D)",
-          uplinks: [
-            { freq: 435.35, mode: "FM", desc: "67 Hz CTCSS" }
-          ],
-          downlinks: [
-            { freq: 145.88, mode: "FM", desc: "FM Voice" }
-          ]
-        },
-        27607: {
-          name: "SO-50 (SaudiSat-1C)",
-          uplinks: [
-            { freq: 145.85, mode: "FM", desc: "67 Hz arm, 74.4 Hz TX" }
-          ],
-          downlinks: [
-            { freq: 436.795, mode: "FM", desc: "FM Voice" }
-          ]
-        },
-        44909: {
-          name: "CAS-4A (ZHUHAI-1 01)",
-          uplinks: [
-            { freq: 435.21, mode: "SSB/CW", desc: "Linear Transponder" }
-          ],
-          downlinks: [
-            { freq: 145.855, mode: "SSB/CW", desc: "Linear Transponder" }
-          ]
-        },
-        44910: {
-          name: "CAS-4B (ZHUHAI-1 02)",
-          uplinks: [
-            { freq: 435.28, mode: "SSB/CW", desc: "Linear Transponder" }
-          ],
-          downlinks: [
-            { freq: 145.925, mode: "SSB/CW", desc: "Linear Transponder" }
-          ]
-        },
-        47960: {
-          name: "RS-44 (DOSAAF-85)",
-          uplinks: [
-            { freq: 145.935, mode: "SSB/CW", desc: "Linear Transponder" }
-          ],
-          downlinks: [
-            { freq: 435.61, mode: "SSB/CW", desc: "Linear Transponder" }
-          ]
-        },
-        54684: {
-          name: "TEVEL-1",
-          uplinks: [
-            { freq: 145.97, mode: "FM", desc: "FM Transponder" }
-          ],
-          downlinks: [
-            { freq: 436.4, mode: "FM", desc: "FM Transponder" }
-          ]
-        },
-        54685: {
-          name: "TEVEL-2",
-          uplinks: [
-            { freq: 145.97, mode: "FM", desc: "FM Transponder" }
-          ],
-          downlinks: [
-            { freq: 436.4, mode: "FM", desc: "FM Transponder" }
-          ]
-        }
-      };
-      DEFAULT_TRACKED_SATS = [25544];
-      SOURCE_DEFS = {
-        pota: {
-          label: "POTA",
-          endpoint: "/api/spots",
-          columns: [
-            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
-            { key: "frequency", label: "Freq", class: "freq", sortable: true },
-            { key: "mode", label: "Mode", class: "mode", sortable: true },
-            { key: "reference", label: "Park (link)", class: "" },
-            { key: "name", label: "Name", class: "" },
-            { key: "spotTime", label: "Time", class: "", sortable: true },
-            { key: "age", label: "Age", class: "", sortable: true }
-          ],
-          filters: ["band", "mode", "distance", "age", "country", "state", "grid", "privilege"],
-          hasMap: true,
-          spotId: (s) => `${s.activator || s.callsign}-${s.reference}-${s.frequency}`,
-          sortKey: "spotTime"
-        },
-        sota: {
-          label: "SOTA",
-          endpoint: "/api/spots/sota",
-          columns: [
-            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
-            { key: "frequency", label: "Freq", class: "freq", sortable: true },
-            { key: "mode", label: "Mode", class: "mode", sortable: true },
-            { key: "reference", label: "Summit (link)", class: "" },
-            { key: "name", label: "Details", class: "" },
-            { key: "spotTime", label: "Time", class: "", sortable: true },
-            { key: "age", label: "Age", class: "", sortable: true }
-          ],
-          filters: ["band", "mode", "distance", "age", "privilege"],
-          hasMap: true,
-          spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
-          sortKey: "spotTime"
-        },
-        dxc: {
-          label: "DXC",
-          endpoint: "/api/spots/dxc",
-          columns: [
-            { key: "callsign", label: "DX Station", class: "callsign", sortable: true },
-            { key: "frequency", label: "Freq", class: "freq", sortable: true },
-            { key: "mode", label: "Mode", class: "mode", sortable: true },
-            { key: "spotter", label: "Spotter", class: "" },
-            { key: "name", label: "Country", class: "" },
-            { key: "continent", label: "Cont", class: "" },
-            { key: "spotTime", label: "Time", class: "", sortable: true },
-            { key: "age", label: "Age", class: "", sortable: true }
-          ],
-          filters: ["band", "mode", "distance", "age", "continent", "privilege"],
-          hasMap: true,
-          spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
-          sortKey: "spotTime"
-        },
-        wwff: {
-          label: "WWFF",
-          endpoint: "/api/spots/wwff",
-          columns: [
-            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
-            { key: "frequency", label: "Freq", class: "freq", sortable: true },
-            { key: "mode", label: "Mode", class: "mode", sortable: true },
-            { key: "reference", label: "Ref (link)", class: "" },
-            { key: "name", label: "Name", class: "" },
-            { key: "spotTime", label: "Time", class: "", sortable: true },
-            { key: "age", label: "Age", class: "", sortable: true }
-          ],
-          filters: ["band", "mode", "distance", "age", "privilege"],
-          hasMap: true,
-          spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
-          sortKey: "spotTime"
-        },
-        psk: {
-          label: "PSK",
-          endpoint: "/api/spots/psk",
-          columns: [
-            { key: "callsign", label: "TX Call", class: "callsign", sortable: true },
-            { key: "frequency", label: "Freq", class: "freq", sortable: true },
-            { key: "mode", label: "Mode", class: "mode", sortable: true },
-            { key: "reporter", label: "RX Call", class: "" },
-            { key: "snr", label: "SNR", class: "" },
-            { key: "senderLocator", label: "TX Grid", class: "" },
-            { key: "reporterLocator", label: "RX Grid", class: "" },
-            { key: "spotTime", label: "Time", class: "", sortable: true },
-            { key: "age", label: "Age", class: "", sortable: true }
-          ],
-          filters: ["band", "mode", "distance", "age", "privilege"],
-          hasMap: true,
-          spotId: (s) => `${s.callsign}-${s.reporter}-${s.frequency}-${s.spotTime}`,
-          sortKey: "spotTime"
-        }
-      };
-      SOLAR_FIELD_DEFS = [
-        { key: "sfi", label: "Solar Flux", unit: "", colorFn: null, defaultVisible: true },
-        { key: "sunspots", label: "Sunspots", unit: "", colorFn: null, defaultVisible: true },
-        { key: "aindex", label: "A-Index", unit: "", colorFn: aColor, defaultVisible: true },
-        { key: "kindex", label: "K-Index", unit: "", colorFn: kColor, defaultVisible: true },
-        { key: "xray", label: "X-Ray", unit: "", colorFn: null, defaultVisible: true },
-        { key: "signalnoise", label: "Signal Noise", unit: "", colorFn: null, defaultVisible: true },
-        { key: "solarwind", label: "Solar Wind", unit: " km/s", colorFn: solarWindColor, defaultVisible: false },
-        { key: "magneticfield", label: "Bz (IMF)", unit: " nT", colorFn: bzColor, defaultVisible: false },
-        { key: "protonflux", label: "Proton Flux", unit: "", colorFn: null, defaultVisible: false },
-        { key: "electonflux", label: "Electron Flux", unit: "", colorFn: null, defaultVisible: false },
-        { key: "aurora", label: "Aurora", unit: "", colorFn: auroraColor, defaultVisible: false },
-        { key: "latdegree", label: "Aurora Lat", unit: "\xB0", colorFn: null, defaultVisible: false },
-        { key: "heliumline", label: "He 10830\xC5", unit: "", colorFn: null, defaultVisible: false },
-        { key: "geomagfield", label: "Geomag Field", unit: "", colorFn: geomagColor, defaultVisible: false },
-        { key: "kindexnt", label: "K-Index (Night)", unit: "", colorFn: kColor, defaultVisible: false },
-        { key: "muf", label: "MUF", unit: " MHz", colorFn: null, defaultVisible: false },
-        { key: "fof2", label: "foF2", unit: " MHz", colorFn: null, defaultVisible: false },
-        { key: "muffactor", label: "MUF Factor", unit: "", colorFn: null, defaultVisible: false }
-      ];
-      LUNAR_FIELD_DEFS = [
-        { key: "phase", label: "Moon Phase", unit: "", colorFn: null, defaultVisible: true },
-        { key: "illumination", label: "Illumination", unit: "%", colorFn: null, defaultVisible: true },
-        { key: "elevation", label: "Elevation", unit: "\xB0", colorFn: lunarElColor, defaultVisible: true },
-        { key: "azimuth", label: "Azimuth", unit: "\xB0", colorFn: null, defaultVisible: true },
-        { key: "moonrise", label: "Moonrise", unit: "", colorFn: null, defaultVisible: true, format: "time" },
-        { key: "moonset", label: "Moonset", unit: "", colorFn: null, defaultVisible: true, format: "time" },
-        { key: "declination", label: "Declination", unit: "\xB0", colorFn: lunarDecColor, defaultVisible: true },
-        { key: "distance", label: "Distance", unit: " km", colorFn: null, defaultVisible: true },
-        { key: "pathLoss", label: "Path Loss", unit: " dB", colorFn: lunarPlColor, defaultVisible: true },
-        { key: "elongation", label: "Elongation", unit: "\xB0", colorFn: null, defaultVisible: false },
-        { key: "eclipticLon", label: "Ecl. Longitude", unit: "\xB0", colorFn: null, defaultVisible: false },
-        { key: "eclipticLat", label: "Ecl. Latitude", unit: "\xB0", colorFn: null, defaultVisible: false },
-        { key: "rightAscension", label: "Right Ascension", unit: "\xB0", colorFn: null, defaultVisible: false }
-      ];
-      US_PRIVILEGES = {
-        EXTRA: [
-          [1.8, 2, "all"],
-          [3.5, 4, "all"],
-          [5.3, 5.4, "all"],
-          [7, 7.3, "all"],
-          [10.1, 10.15, "all"],
-          [14, 14.35, "all"],
-          [18.068, 18.168, "all"],
-          [21, 21.45, "all"],
-          [24.89, 24.99, "all"],
-          [28, 29.7, "all"],
-          [50, 54, "all"],
-          [144, 148, "all"],
-          [420, 450, "all"]
-        ],
-        GENERAL: [
-          [1.8, 2, "all"],
-          [3.525, 3.6, "cwdig"],
-          [3.8, 4, "phone"],
-          [5.3, 5.4, "all"],
-          [7.025, 7.125, "cwdig"],
-          [7.175, 7.3, "phone"],
-          [10.1, 10.15, "cwdig"],
-          [14.025, 14.15, "cwdig"],
-          [14.225, 14.35, "phone"],
-          [18.068, 18.11, "cwdig"],
-          [18.11, 18.168, "phone"],
-          [21.025, 21.2, "cwdig"],
-          [21.275, 21.45, "phone"],
-          [24.89, 24.93, "cwdig"],
-          [24.93, 24.99, "phone"],
-          [28, 29.7, "all"],
-          [50, 54, "all"],
-          [144, 148, "all"],
-          [420, 450, "all"]
-        ],
-        TECHNICIAN: [
-          [3.525, 3.6, "cw"],
-          [7.025, 7.125, "cw"],
-          [21.025, 21.2, "cw"],
-          [28, 28.3, "cwdig"],
-          [28.3, 28.5, "phone"],
-          [50, 54, "all"],
-          [144, 148, "all"],
-          [420, 450, "all"]
-        ],
-        NOVICE: [
-          [3.525, 3.6, "cw"],
-          [7.025, 7.125, "cw"],
-          [21.025, 21.2, "cw"],
-          [28, 28.3, "cwdig"],
-          [28.3, 28.5, "phone"],
-          [222, 225, "all"],
-          [420, 450, "all"]
-        ]
-      };
-      WIDGET_HELP = {
-        "widget-filters": {
-          title: "Filters",
-          description: "Narrow down the spot list to find exactly what you're looking for. Filters let you focus on specific bands, modes, nearby stations, or recent activity. Watch lists add per-source highlighting and include/exclude rules.",
-          sections: [
-            { heading: "Band & Mode Filters", content: "Click one or more bands (like 20m, 40m) or modes (like FT8, SSB) to show only those spots. Click again to deselect. You can select as many as you want." },
-            { heading: "Distance Filter", content: "Show only spots within a certain distance from your location (QTH). You'll need to set your location in Config first. Great for finding nearby activations you can reach." },
-            { heading: "Age Filter", content: "Show only spots posted within the last N minutes. Older spots may no longer be active, so this helps you find stations that are on the air right now." },
-            { heading: "Propagation Filter", content: `Click the "Prop" button to hide spots on bands with poor predicted propagation. Uses your current solar indices and location to estimate which HF bands are likely open. Spots on bands rated below "Fair" (less than 30% reliability) are filtered out. VHF/UHF spots are never filtered since they don't depend on HF propagation.` },
-            { heading: "Watch Lists", content: 'Click the "Watch Lists" accordion below the presets to add rules for the active source tab. Three modes: Red highlights matching spots with a tinted row, Only shows ONLY matching spots (everything else hidden), Not excludes matching spots. Match by callsign (strips /P, /M suffixes), DXCC entity, grid prefix, or park/summit reference. Rules apply per source tab and persist across sessions.' },
-            { heading: "Presets", content: 'Save your favorite filter combinations and switch between them quickly. For example, save a "Local FT8" preset for nearby digital spots, and a "DX SSB" preset for long-distance voice contacts.' }
-          ]
-        },
-        "widget-activations": {
-          title: "On the Air",
-          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from five sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), and PSKReporter (digital mode reception reports).",
-          sections: [
-            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, SOTA, DXC, WWFF, and PSK sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
-            { heading: "POTA", content: "Shows operators activating parks for the Parks on the Air program. Click the park reference link to see park details on the POTA website." },
-            { heading: "SOTA", content: "Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details." },
-            { heading: "DX Cluster", content: "Worldwide spots from the DX Cluster network. Great for finding rare or distant (DX) stations." },
-            { heading: "WWFF", content: "Shows operators activating nature reserves for the World Wide Flora & Fauna program. Similar to POTA but with a worldwide scope \u2014 especially popular in Europe. Click the reference link for reserve details." },
-            { heading: "PSK Reporter", content: "Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions." }
-          ]
-        },
-        "widget-map": {
-          title: "HamMap",
-          description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
-          sections: [
-            { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
-            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), Cloud Cover (OpenWeatherMap \u2014 useful for satellite and EME ops), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (\u22655). Cloud Cover requires an OpenWeatherMap API key (enter in Config > Services)." },
-            { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
-            { heading: "Center Mode", content: "Use the QTH/PM/DX/CTY buttons in the map header to control centering. QTH centers on your home location. PM (Prime Meridian) shows the whole world. DX follows the selected spot. CTY zooms to fit your country's boundaries, determined automatically from your location." },
-            { heading: "Fullscreen", content: "Click the \u26F6 button in the map header to expand the map to fill the entire screen. Click the \u2715 button or press Escape to return to the normal layout." }
-          ]
-        },
-        "widget-solar": {
-          title: "Solar",
-          description: "Real-time space weather data that affects radio propagation. The sun's activity directly determines which bands are open and how far your signal can travel.",
-          sections: [
-            { heading: "What This Shows", content: "Solar Flux (SFI) and Sunspot Number indicate overall solar activity \u2014 higher values generally mean better HF propagation. The A-Index and K-Index measure geomagnetic disturbance \u2014 lower is better for radio." },
-            { heading: "Color Coding", content: "Values are color-coded: green means good conditions for radio, yellow means fair, and red means poor or disturbed. Watch the K-Index especially \u2014 values above 4 can shut down HF bands." },
-            { heading: "Customize Fields", content: "Click the gear icon to show or hide individual fields. By default, the most useful metrics are shown. Advanced users can enable additional fields like solar wind speed, Bz component, and aurora activity." }
-          ],
-          links: [
-            { label: "HamQSL Space Weather", url: "https://www.hamqsl.com/solar.html" }
-          ]
-        },
-        "widget-spacewx": {
-          title: "Space Weather History",
-          description: "Historical graphs of key space weather indices over the past week (or 90 days for Solar Flux). These charts help you spot trends and understand how conditions are changing \u2014 not just a single snapshot, but the bigger picture.",
-          sections: [
-            { heading: "Tabs", content: "Five tabs let you switch between different measurements: Kp index (geomagnetic activity), X-Ray flux (solar flare intensity), SFI (Solar Flux Index \u2014 overall solar activity), Solar Wind speed, and Bz (interplanetary magnetic field direction)." },
-            { heading: "What the graphs show", content: "Kp: Bar chart colored green/yellow/red \u2014 values above 4 mean geomagnetic storms that can disrupt HF. X-Ray: Line chart on a log scale \u2014 C/M/X class flares marked. SFI: 90-day trend \u2014 higher values (100+) mean better HF propagation. Wind: Solar wind speed \u2014 above 400 km/s can disturb conditions. Bz: Southward (negative) Bz opens Earth's magnetosphere to solar wind, worsening conditions." },
-            { heading: "Data source", content: "All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 15 minutes." }
-          ],
-          links: [
-            { label: "NOAA SWPC", url: "https://www.swpc.noaa.gov/" }
-          ]
-        },
-        "widget-propagation": {
-          title: "Band Conditions",
-          description: "HF and 6m band conditions plus VHF propagation status. Shows per-band reliability predictions for both day and night simultaneously, plus VHF phenomena like Aurora and E-Skip.",
-          sections: [
-            { heading: "HF Bands", content: "Each band shows a reliability percentage and condition (Excellent/Good/Fair/Poor/Closed). Day and night are shown side by side \u2014 day conditions appear in the left column (orange border), night in the right column (blue border). Green means the band is likely open, yellow means marginal, red means closed." },
-            { heading: "6m (Magic Band)", content: "6m is included because it has meaningful propagation modes \u2014 sporadic E (Es) and F2 skip during high solar activity. The prediction combines the MUF model with live E-Skip data from HamQSL. When E-Skip is reported as active, 6m reliability gets a boost. During quiet conditions, 6m may show as closed even though brief Es openings can still occur unpredictably." },
-            { heading: "VHF Conditions", content: "Below the HF bands, VHF propagation phenomena are shown: Aurora (affects 2m and above in northern latitudes) and E-Skip (sporadic E-layer openings on 6m/4m/2m by region). Data comes directly from HamQSL." },
-            { heading: "How It Works", content: "HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model. Higher SFI means better HF conditions. K-index above 4 can shut down HF bands. The summary bar shows current MUF (Maximum Usable Frequency), SFI, and K-index." }
-          ],
-          links: [
-            { label: "NOAA Space Weather", url: "https://www.swpc.noaa.gov/" },
-            { label: "HamQSL Solar Data", url: "https://www.hamqsl.com/solar.html" }
-          ]
-        },
-        "widget-lunar": {
-          title: "Lunar / EME",
-          description: 'Moon tracking data for Earth-Moon-Earth (EME or "moonbounce") communication. EME is an advanced technique where operators bounce radio signals off the moon to make contacts over very long distances.',
-          sections: [
-            { heading: "Moon Phase & Position", content: "Shows the current moon phase, illumination, and sky position. The moon needs to be above the horizon at both your location and the other station's location for EME to work." },
-            { heading: "Azimuth & Elevation", content: "Shows where the moon is in your sky right now. Elevation is the angle above your horizon \u2014 green (20\xB0+) is ideal for EME, yellow (0-20\xB0) is marginal, dim means below the horizon. Azimuth is the compass bearing (0\xB0 = North, 90\xB0 = East, etc.)." },
-            { heading: "Moonrise & Moonset", content: "Shows the next moonrise and moonset times for your location. These help you plan EME operating windows. Requires your location to be set in Configuration." },
-            { heading: "EME Path Loss", content: "Shows how much signal is lost on the round trip to the moon and back, calculated at 144 MHz (2m band). Lower path loss means better EME conditions. Loss varies with moon distance \u2014 closer moon (perigee) means less loss." },
-            { heading: "Declination", content: "The moon's angle relative to the equator. Higher declination generally means longer EME windows (more time with the moon above the horizon)." },
-            { heading: "Customize Fields", content: "Click the gear icon to show additional data like elongation, ecliptic coordinates, and right ascension for advanced planning." }
-          ],
-          links: [
-            { label: "ARRL EME Guide", url: "https://www.arrl.org/eme" },
-            { label: "NASA Moon Visualization", url: "https://svs.gsfc.nasa.gov/5187" }
-          ]
-        },
-        "widget-satellites": {
-          title: "Satellites",
-          description: "Track amateur radio satellites in real time and predict when they'll pass over your location. Many satellites carry amateur radio repeaters that anyone with a ham license can use to make contacts.",
-          sections: [
-            { heading: "ISS Tracking", content: "The ISS (International Space Station) is tracked automatically \u2014 no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard." },
-            { heading: "Adding More Satellites", content: "To track additional satellites like AO-91, SO-50, and others, you'll need a free API key from N2YO.com \u2014 enter it in Config. Click the gear icon to search for and add satellites." },
-            { heading: "Live Position", content: "See where each satellite is right now on the map, along with its altitude, speed, and whether it's above your horizon (visible to you)." },
-            { heading: "TLE Age", content: 'Each satellite row shows the age of its TLE (orbital element) data in days. Color thresholds are based on the configurable "Max TLE Age" setting (default: 7 days) \u2014 green = fresh, yellow = aging, red + \u26A0 = exceeds max age. Stale TLEs reduce position accuracy. The ISS TLE is refreshed from CelesTrak every 6 hours. Set the max age in the satellite config (gear icon).' },
-            { heading: "Pass Predictions", content: "Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work." }
-          ],
-          links: [
-            { label: "N2YO Satellite Tracker", url: "https://www.n2yo.com/" },
-            { label: "AMSAT \u2014 Amateur Satellites", url: "https://www.amsat.org/" }
-          ]
-        },
-        "widget-rst": {
-          title: "Reference",
-          description: "Quick-reference tables for common ham radio information. Use the tabs to switch between RST signal reports, NATO phonetic alphabet, Morse code, Q-codes, and US band privileges.",
-          sections: [
-            { heading: "RST Reports", content: "The RST tab shows readability (R), signal strength (S), and tone (T) values. During a contact, you exchange signal reports so each station knows how well they're being received." },
-            { heading: "Phonetic & Morse", content: "The Phonetic tab has the NATO phonetic alphabet for spelling callsigns clearly. The Morse tab shows dit/dah patterns for each character." },
-            { heading: "Q-Codes", content: "Common three-letter abbreviations starting with Q, originally for CW but now used on voice too. QTH = your location, QSO = a contact, QSL = confirmed." },
-            { heading: "Bands", content: 'US amateur band privileges by license class (Extra, General, Technician, Novice). Check "My privileges only" to show just your class. Requires a US callsign set in Config.' }
-          ],
-          links: [
-            { label: "Ham Radio School \u2014 Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
-          ]
-        },
-        "widget-rst:phonetic": {
-          title: "Phonetic Alphabet",
-          description: `The NATO phonetic alphabet is used by hams to spell out callsigns and words clearly, especially when signals are weak or noisy. Instead of saying the letter "B", you say "Bravo" so it can't be confused with "D", "E", or "P".`,
-          sections: [
-            { heading: "When to Use It", content: `Use the phonetic alphabet whenever you give your callsign on the air. For example, W1AW would be spoken as "Whiskey One Alpha Whiskey". It's also used to spell names, locations, or any word that needs to be communicated clearly.` },
-            { heading: "Tips", content: `You'll quickly memorize the phonetics for your own callsign. Practice saying it aloud before your first contact! Some hams use creative alternatives (like "Kilowatt" for K), but the standard NATO alphabet is always understood.` }
-          ]
-        },
-        "widget-rst:morse": {
-          title: "Morse Code",
-          description: "Morse code (CW) is one of the oldest and most effective modes in ham radio. It uses short signals (dits, shown as dots) and long signals (dahs, shown as dashes) to represent letters and numbers. CW can get through when voice and digital modes can't.",
-          sections: [
-            { heading: "Learning Morse", content: 'The best way to learn Morse code is by sound, not by memorizing the dot-dash patterns visually. Apps like "Morse Trainer" or the Koch method help you learn by listening to characters at full speed.' },
-            { heading: "Prosigns", content: 'Prosigns are special Morse sequences with specific meanings: AR (.-.-.) means "end of message", BT (-...-) means "pause/break", SK (...-.-) means "end of contact", and 73 means "best regards".' },
-            { heading: "On the Air", content: "CW is popular for QRP (low power) operating because it's very efficient. A 5-watt CW signal can often be copied when a 100-watt voice signal cannot. Many hams enjoy CW contesting and DX." }
-          ],
-          links: [
-            { label: "LCWO \u2014 Learn CW Online", url: "https://lcwo.net/" }
-          ]
-        },
-        "widget-rst:qcodes": {
-          title: "Q-Codes",
-          description: `Q-codes are three-letter abbreviations starting with "Q" that were originally created for CW (Morse code) to save time. Many are now commonly used in voice conversations too. As a question, they end with a "?"; as a statement, they're a direct answer.`,
-          sections: [
-            { heading: "Most Common for New Hams", content: 'QTH = your location ("My QTH is Denver"). QSO = a contact/conversation. QSL = confirmation ("QSL" means "I confirm" or "received"). QRZ = "who is calling?" (also the name of a popular callsign lookup website).' },
-            { heading: "Power & Interference", content: "QRP = low power (5W or less) \u2014 a popular challenge mode. QRO = high power. QRM = man-made interference. QRN = natural noise (static). QSB = signal fading in and out." },
-            { heading: "Operating", content: `QSY = change frequency ("Let's QSY to 14.250"). QRT = shutting down for the day ("I'm going QRT"). QRV = ready to receive. QRL = the frequency is in use (always ask "QRL?" before transmitting on a frequency!).` }
-          ]
-        },
-        "widget-rst:bands": {
-          title: "US Band Privileges",
-          description: "A reference chart showing which frequencies and modes are available to each US license class. This is based on FCC Part 97.301\u201397.305.",
-          sections: [
-            { heading: "License Classes", content: "US ham licenses come in four classes: Technician (entry level), General (expanded HF access), Amateur Extra (full privileges), and Novice (legacy, no longer issued). Each class has different frequency allocations." },
-            { heading: "My Privileges Only", content: 'Check "My privileges only" to filter the table to show just your license class. This requires a US callsign to be set in Config \u2014 your license class is looked up automatically.' },
-            { heading: "Mode Groups", content: "All = any mode allowed. CW = Morse code only. CW/Digital = CW and digital modes (FT8, PSK31, etc.). Phone = voice modes (SSB, FM, AM)." }
-          ]
-        },
-        "widget-spot-detail": {
-          title: "DX Detail",
-          description: "Shows detailed information about whichever station you've selected. Click any row in the On the Air table or any marker on the map to see that station's details here.",
-          sections: [
-            { heading: "Station Info", content: "Displays the operator's name, location, license class, and grid square (looked up from their callsign). US callsigns are looked up via the FCC database; non-US callsigns use HamQTH.com (configure credentials in Config > Services). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown." },
-            { heading: "Distance & Bearing", content: "Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config." },
-            { heading: "Frequency & Mode", content: "The frequency and mode the station is operating on, so you know exactly where to tune your radio." },
-            { heading: "Weather", content: "Shows current weather conditions at the station's location. US stations use NWS data; stations worldwide use OpenWeatherMap (configure your OWM API key in Config > Services)." }
-          ]
-        },
-        "widget-contests": {
-          title: "Contests",
-          description: "A calendar of upcoming and active amateur radio contests. Contests are time-limited on-air competitions where operators try to make as many contacts as possible. They're a great way to fill your logbook and practice your operating skills.",
-          sections: [
-            { heading: "What Are Contests?", content: "Ham radio contests run for a set period (usually a weekend). Operators exchange brief messages and try to contact as many stations or regions as possible. Contests happen nearly every weekend \u2014 from casual events to major international competitions." },
-            { heading: "Reading the List", content: 'Each card shows the contest name, date/time window, and operating mode. Contests update in real time \u2014 when a contest starts, it moves to the top with a green "NOW" badge. When it ends, it disappears automatically. Click any card to view the full rules and exchange format on the contest website.' },
-            { heading: "Mode Badges", content: "CW = Morse code only. PHONE = voice modes (SSB/FM). DIGITAL = digital modes (RTTY, FT8, etc.). Contests without a badge accept mixed modes." }
-          ],
-          links: [
-            { label: "WA7BNM Contest Calendar", url: "https://www.contestcalendar.com/" }
-          ]
-        },
-        "widget-dxpeditions": {
-          title: "DXpeditions",
-          description: "Track upcoming and active DXpeditions \u2014 organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.",
-          sections: [
-            { heading: "What Is a DXpedition?", content: "A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade." },
-            { heading: "Reading the Cards", content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map (toggle via Map Overlays gear icon) \u2014 bright orange for active, dimmer for upcoming.' },
-            { heading: "Time Filter", content: "Use the dropdown in the widget header to filter DXpeditions by time window: Active Now, Within 1 Week, Within 1 Month, Within 6 Months, or All. Active DXpeditions always appear regardless of the filter. The map markers match whatever the widget shows." },
-            { heading: "Hiding DXpeditions", content: 'Hover over any card and click the \xD7 button to hide it. Hidden DXpeditions are also removed from the map. A "Show N hidden" button appears at the bottom to restore all hidden items at once.' },
-            { heading: "QSL Information", content: `QSL means "I confirm" \u2014 it's how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).` }
-          ],
-          links: [
-            { label: "NG3K DXpedition Calendar", url: "https://www.ng3k.com/Misc/adxo.html" }
-          ]
-        },
-        "widget-beacons": {
-          title: "NCDXF Beacons",
-          description: "Real-time display of the NCDXF/IARU International Beacon Project \u2014 a network of 18 synchronized beacons worldwide that transmit on 5 HF frequencies in a repeating 3-minute cycle. Listening for these beacons is the quickest way to check which bands are open to which parts of the world.",
-          sections: [
-            { heading: "How It Works", content: "Every 3 minutes, each of the 18 beacons transmits for 10 seconds on each of 5 frequencies (14.100, 18.110, 21.150, 24.930, and 28.200 MHz). Five beacons transmit simultaneously \u2014 one per frequency. The table shows which beacon is active on each frequency right now, with a countdown to the next rotation." },
-            { heading: "Checking Propagation", content: "Tune your radio to one of the beacon frequencies and listen. If you hear a beacon, the band is open to that beacon's location. Scan all five frequencies to quickly map which bands are open to which parts of the world." },
-            { heading: "Beacon Transmission", content: "Each beacon transmits its callsign in CW (Morse code) at 100 watts, followed by four 1-second dashes at decreasing power levels (100W, 10W, 1W, 0.1W). If you can copy the callsign but not the last dashes, you know the band is open but marginal to that location." }
-          ],
-          links: [
-            { label: "NCDXF Beacon Project", url: "https://www.ncdxf.org/beacon/" }
-          ]
-        },
-        "widget-dedx": {
-          title: "DE/DX Info",
-          description: "A side-by-side display of your station (DE) and the currently selected distant station (DX) with live clocks. Inspired by the classic HamClock dual-pane layout, this widget shows large local time displays at each location plus key contact information at a glance.",
-          sections: [
-            { heading: "DE (Your Station)", content: "The left panel shows a large live clock for your local time, plus your callsign, grid square, and sunrise/sunset countdowns. Requires your callsign and location to be set in Config." },
-            { heading: "DX (Selected Station)", content: "The right panel shows the approximate local time at the selected DX station's location (calculated from longitude), plus their callsign, frequency, mode, grid square, bearing, distance, and sunrise/sunset. When no spot is selected, the DX side shows UTC." },
-            { heading: "Why Two Clocks?", content: "Knowing the local time at both ends of a path is essential for scheduling contacts and understanding propagation. A station in Japan is unlikely to be on the air at 3 AM their local time, and gray line propagation depends on sunrise/sunset at both locations." },
-            { heading: "Bearing & Distance", content: "The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact." }
-          ]
-        },
-        "widget-analog-clock": {
-          title: "Analog Clock",
-          description: "A customizable round analog clock showing your local time at a glance. Choose from 6 clock face styles and add up to 4 complications (sub-dials) for UTC time, Solar Flux, stopwatch mirror, and sunrise/sunset countdown \u2014 inspired by luxury watch complications.",
-          sections: [
-            { heading: "Clock Faces", content: "Click the gear icon to choose from 6 face styles: Classic (Arabic numerals), Minimal (clean index bars), Roman (Roman numerals), Pilot (bold indices with luminous triangle at 12), Railroad (double concentric track ring), and Digital (analog hands plus a digital time readout). Your selection is saved and persists across sessions." },
-            { heading: "Complications", content: "Complications are optional sub-dials that embed useful data directly on the clock face. Enable them in the gear menu:\n\n\u2022 Sunrise/Sunset (12 o'clock) \u2014 countdown to next sunrise or sunset with color-coded icon\n\u2022 Solar SFI (3 o'clock) \u2014 arc gauge showing Solar Flux Index, colored green/yellow/red\n\u2022 Stopwatch (6 o'clock) \u2014 mirrors the Stopwatch widget's elapsed time with running indicator\n\u2022 UTC 24h (9 o'clock) \u2014 24-hour sub-dial showing current UTC time" },
-            { heading: "Sunrise/Sunset Arc", content: "When your location (QTH) is set in Config, a golden arc appears on the clock face showing the daylight hours. The arc spans from sunrise to sunset on the 12-hour dial. This helps you visualize how much daylight remains and when gray line propagation windows occur." },
-            { heading: "Theme Support", content: "The clock colors automatically adapt to your selected theme. All face styles, hands, complications, and numbers use your theme's color scheme." }
-          ]
-        },
-        "widget-stopwatch": {
-          title: "Stopwatch / Timer",
-          description: "A dual-mode timer for contest operations and general use. Switch between Stopwatch (count up with laps) and Countdown (preset timers including the 10-minute FCC station ID reminder).",
-          sections: [
-            { heading: "Stopwatch Mode", content: "Click Start to begin counting up. Use Lap to mark split times during a contest (e.g., tracking contacts per minute). Stop pauses the timer; Reset clears everything." },
-            { heading: "Countdown Mode", content: "Click the Countdown tab and select a preset duration. The 10m ID button is a quick shortcut for the FCC 10-minute station identification requirement. The display flashes when the countdown reaches zero." },
-            { heading: "Station ID Timer", content: "FCC Part 97.119 requires US hams to identify every 10 minutes during a contact and at the end. Use the 10m ID preset as a reminder \u2014 when it flashes, give your callsign!" }
-          ]
-        },
-        "widget-live-spots": {
-          title: "Live Spots",
-          description: "See where YOUR signal is being received right now! When you transmit on digital modes like FT8 or FT4, stations around the world automatically report hearing you to PSKReporter. This widget shows those reports so you can see how far your signal is reaching.",
-          sections: [
-            { heading: "Getting Started", content: "Enter your callsign in Config, then transmit on a digital mode (FT8, FT4, JS8Call, etc.). Within a few minutes, you should see band cards appear showing who is hearing you." },
-            { heading: "Band Cards", content: "Each card represents a band where you're being heard. It shows either how many stations are receiving you or the distance to your farthest receiver. Click a card to show those stations on the map." },
-            { heading: "Display Mode", content: 'Click the gear icon to switch between "count" (number of stations hearing you) and "distance" (farthest reach per band). Distance mode also shows the callsign of your farthest contact.' },
-            { heading: "Map Lines", content: "When you click a band card, lines are drawn on the map from your location to each receiving station, giving you a visual picture of your signal coverage." }
-          ],
-          links: [
-            { label: "PSKReporter", url: "https://pskreporter.info/" }
-          ]
-        },
-        "widget-voacap": {
-          title: "VOACAP DE\u2192DX",
-          description: "A dense 24-hour propagation grid showing predicted band reliability from your station (DE) to the world (DX). The current hour starts at the left edge so you can instantly see what's open right now.",
-          sections: [
-            { heading: "Reading the Grid", content: `Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Cell colors show predicted reliability as a continuous gradient:
-
-\u2022 Closed (black) \u2014 Below 5% reliability. The band is not usable on this path. Signals cannot propagate because the frequency is above the MUF or ionospheric conditions block it entirely.
-\u2022 Poor (red) \u2014 5\u201330% reliability. The band may open briefly or weakly. You might make a contact with persistence and good timing, but don't count on it.
-\u2022 Fair (yellow/orange) \u2014 30\u201365% reliability. The band is usable but inconsistent. Signals may fade in and out. Good for CW and digital modes; SSB may be marginal.
-\u2022 Good (green) \u2014 Above 65% reliability. The band is solidly open. Expect workable signals for the predicted mode and power level.` },
-            { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows more green because its low SNR threshold means signals are decodable in conditions where SSB would be unusable." },
-            { heading: "Overview vs Spot", content: `Click OVW/SPOT to toggle target mode. "OVW" (overview) shows the average predicted reliability across four worldwide targets (Europe, East Asia, South America, North America). "SPOT" calculates predictions specifically to the station you've selected in the On the Air table, so you can see exactly when a band will open to that DX.` },
-            { heading: "Auto-SPOT", content: "Click the AUTO button to enable automatic SPOT updates. When AUTO is on (highlighted green), clicking any spot in the table or on the map instantly switches VOACAP to SPOT mode and recalculates the grid for the path to that station. This lets you quickly scan propagation to different DX stations by clicking through spots. AUTO is off by default \u2014 enable it when you want live per-spot predictions." },
-            { heading: "Engine Badge", content: 'The green "VOACAP" or gray "SIM" badge shows which prediction engine is active. VOACAP uses the real Voice of America Coverage Analysis Program \u2014 a professional ionospheric ray-tracing model used by broadcasters and militaries worldwide. It computes multi-hop propagation paths through actual ionospheric layers, accounting for D-layer absorption, MUF, takeoff angle, power, and mode. SIM is a lightweight approximation based on solar flux and time of day \u2014 useful as a fallback but significantly less accurate. The engine switches automatically; no user action needed.' },
-            { heading: "Map Overlay", content: "Click any band row to show propagation on the map. Two modes are available \u2014 click the \u25CB/REL toggle in the param bar to switch. Circle mode (\u25CB) draws concentric range rings from your QTH. REL heatmap mode paints the entire map with a color gradient showing predicted reliability to every point: green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels." },
-            { heading: "About the Data", content: "Predictions are monthly median values based on the current smoothed sunspot number (SSN) from NOAA. They represent typical conditions for this month, not real-time ionospheric state. Use them for planning which bands to try at different times of day, rather than as guarantees of what's open right now." }
-          ],
-          links: [
-            { label: "NOAA Space Weather & Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
-          ]
-        }
-      };
-      REFERENCE_TABS = {
-        rst: {
-          label: "RST",
-          content: {
-            description: "Signal reporting system for readability, strength, and tone.",
-            table: {
-              headers: ["", "Readability", "Strength", "Tone (CW)"],
-              rows: [
-                ["1", "Unreadable", "Faint", "Harsh, hum"],
-                ["2", "Barely readable", "Very weak", "Harsh, modulation"],
-                ["3", "Readable with difficulty", "Weak", "Rough, hum"],
-                ["4", "Almost perfectly readable", "Fair", "Rough, modulation"],
-                ["5", "Perfectly readable", "Fairly good", "Wavering, strong hum"],
-                ["6", "\u2014", "Good", "Wavering, strong mod"],
-                ["7", "\u2014", "Moderately strong", "Good, slight hum"],
-                ["8", "\u2014", "Strong", "Good, slight mod"],
-                ["9", "\u2014", "Very strong", "Perfect tone"]
-              ]
-            },
-            note: "Phone: RS only (e.g. 59) \xB7 CW: RST (e.g. 599)",
-            link: { text: "Ham Radio School \u2014 Practical Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
-          }
-        },
-        phonetic: {
-          label: "Phonetic",
-          content: {
-            description: "NATO phonetic alphabet for clear letter pronunciation.",
-            table: {
-              headers: ["Letter", "Phonetic", "Letter", "Phonetic"],
-              rows: [
-                ["A", "Alpha", "N", "November"],
-                ["B", "Bravo", "O", "Oscar"],
-                ["C", "Charlie", "P", "Papa"],
-                ["D", "Delta", "Q", "Quebec"],
-                ["E", "Echo", "R", "Romeo"],
-                ["F", "Foxtrot", "S", "Sierra"],
-                ["G", "Golf", "T", "Tango"],
-                ["H", "Hotel", "U", "Uniform"],
-                ["I", "India", "V", "Victor"],
-                ["J", "Juliet", "W", "Whiskey"],
-                ["K", "Kilo", "X", "X-ray"],
-                ["L", "Lima", "Y", "Yankee"],
-                ["M", "Mike", "Z", "Zulu"]
-              ]
-            }
-          }
-        },
-        morse: {
-          label: "Morse",
-          content: {
-            description: "International Morse code \u2014 dits (.) and dahs (-) for each character.",
-            table: {
-              headers: ["Char", "Morse", "Char", "Morse"],
-              rows: [
-                ["A", ".-", "N", "-."],
-                ["B", "-...", "O", "---"],
-                ["C", "-.-.", "P", ".--."],
-                ["D", "-..", "Q", "--.-"],
-                ["E", ".", "R", ".-."],
-                ["F", "..-.", "S", "..."],
-                ["G", "--.", "T", "-"],
-                ["H", "....", "U", "..-"],
-                ["I", "..", "V", "...-"],
-                ["J", ".---", "W", ".--"],
-                ["K", "-.-", "X", "-..-"],
-                ["L", ".-..", "Y", "-.--"],
-                ["M", "--", "Z", "--.."],
-                ["0", "-----", "5", "....."],
-                ["1", ".----", "6", "-...."],
-                ["2", "..---", "7", "--..."],
-                ["3", "...--", "8", "---.."],
-                ["4", "....-", "9", "----."]
-              ]
-            },
-            note: "Prosigns: AR (end of message) = .-.-.  BT (pause) = -...-  SK (end of contact) = ...-.-"
-          }
-        },
-        qcodes: {
-          label: "Q-Codes",
-          content: {
-            description: "Common Q-codes used in amateur radio. Originally for CW, now widely used on voice too.",
-            table: {
-              headers: ["Code", "Meaning", "Code", "Meaning"],
-              rows: [
-                ["QRG", "Your exact frequency", "QRS", "Send more slowly"],
-                ["QRL", "Frequency is busy", "QRT", "Stop sending / shutting down"],
-                ["QRM", "Man-made interference", "QRV", "I am ready"],
-                ["QRN", "Natural interference", "QRX", "Stand by / wait"],
-                ["QRO", "Increase power", "QRZ", "Who is calling me?"],
-                ["QRP", "Reduce power / low power", "QSB", "Signal is fading"],
-                ["QSL", "I confirm / received", "QSO", "A contact (conversation)"],
-                ["QSY", "Change frequency", "QTH", "My location"]
-              ]
-            },
-            note: "QRP = operating at 5 watts or less \xB7 QRO = running high power \xB7 QSL cards confirm contacts"
-          }
-        },
-        bands: {
-          label: "Bands",
-          custom: true
-          // rendered by bandref logic, not generic table renderer
-        }
-      };
-      DEFAULT_REFERENCE_TAB = "rst";
-      BREAKPOINT_MOBILE = 1200;
-      SCALE_REFERENCE_WIDTH = 1200;
-      SCALE_MIN_FACTOR = 0.55;
-      SCALE_REFLOW_WIDTH = 1200;
-      REFLOW_WIDGET_ORDER = [
-        "widget-map",
-        "widget-activations",
-        "widget-filters",
-        "widget-solar",
-        "widget-propagation",
-        "widget-voacap",
-        "widget-live-spots",
-        "widget-spacewx",
-        "widget-spot-detail",
-        "widget-lunar",
-        "widget-satellites",
-        "widget-rst",
-        "widget-contests",
-        "widget-dxpeditions",
-        "widget-beacons",
-        "widget-dedx",
-        "widget-stopwatch",
-        "widget-analog-clock"
-      ];
-      DEFAULT_BAND_COLORS = {
-        "160m": "#9c27b0",
-        "80m": "#673ab7",
-        "60m": "#3f51b5",
-        "40m": "#2196f3",
-        "30m": "#00bcd4",
-        "20m": "#4caf50",
-        "17m": "#8bc34a",
-        "15m": "#cddc39",
-        "12m": "#ffeb3b",
-        "10m": "#ff9800",
-        "6m": "#ff5722",
-        "2m": "#f44336",
-        "70cm": "#e91e63"
-      };
-      bandColorOverrides = {};
-      try {
-        const saved = JSON.parse(localStorage.getItem("hamtab_band_colors"));
-        if (saved && typeof saved === "object") bandColorOverrides = saved;
-      } catch (e) {
-      }
-      MOBILE_TAB_KEY = "hamtab_active_tab";
-      WIDGET_STORAGE_KEY = "hamtab_widgets";
-      USER_LAYOUT_KEY = "hamtab_widgets_user";
-      LAYOUTS_KEY = "hamtab_layouts";
-      MAX_LAYOUTS = 20;
-      SNAP_DIST = 20;
-      SNAP_GRID = 20;
-      SNAP_GRID_KEY = "hamtab_snap_grid";
-      ALLOW_OVERLAP_KEY = "hamtab_allow_overlap";
-      HEADER_H = 30;
-      GRID_MODE_KEY = "hamtab_grid_mode";
-      GRID_PERM_KEY = "hamtab_grid_permutation";
-      GRID_ASSIGN_KEY = "hamtab_grid_assignments";
-      GRID_SIZES_KEY = "hamtab_grid_sizes";
-      GRID_SPANS_KEY = "hamtab_grid_spans";
-      GRID_PERMUTATIONS = [
-        {
-          id: "2L-2R",
-          name: "2 Left / 2 Right",
-          slots: 4,
-          // Legacy fields — used by config preview (splash.js:renderGridPreview)
-          areas: '"L1 map R1" "L2 map R2"',
-          columns: "1fr 2fr 1fr",
-          rows: "1fr 1fr",
-          cellNames: ["L1", "L2", "R1", "R2"],
-          // Flex-column hybrid fields — used by grid-layout.js at runtime
-          left: ["L1", "L2"],
-          right: ["R1", "R2"],
-          top: [],
-          bottom: [],
-          outerAreas: '"left map right"',
-          outerColumns: "1fr 2fr 1fr",
-          outerRows: "1fr"
-        },
-        {
-          id: "3L-3R",
-          name: "3 Left / 3 Right",
-          slots: 6,
-          areas: '"L1 map R1" "L2 map R2" "L3 map R3"',
-          columns: "1fr 2fr 1fr",
-          rows: "1fr 1fr 1fr",
-          cellNames: ["L1", "L2", "L3", "R1", "R2", "R3"],
-          left: ["L1", "L2", "L3"],
-          right: ["R1", "R2", "R3"],
-          top: [],
-          bottom: [],
-          outerAreas: '"left map right"',
-          outerColumns: "1fr 2fr 1fr",
-          outerRows: "1fr"
-        },
-        {
-          id: "1T-2L-2R-1B",
-          name: "Top + 2L/2R + Bottom",
-          slots: 6,
-          areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "B1 B1 B1"',
-          columns: "1fr 2fr 1fr",
-          rows: "auto 1fr 1fr auto",
-          cellNames: ["T1", "L1", "L2", "R1", "R2", "B1"],
-          left: ["L1", "L2"],
-          right: ["R1", "R2"],
-          top: ["T1"],
-          bottom: ["B1"],
-          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
-          outerColumns: "1fr 2fr 1fr",
-          outerRows: "auto 1fr auto"
-        },
-        {
-          id: "1T-3L-3R-1B",
-          name: "Top + 3L/3R + Bottom",
-          slots: 8,
-          areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "L3 map R3" "B1 B1 B1"',
-          columns: "1fr 2fr 1fr",
-          rows: "auto 1fr 1fr 1fr auto",
-          cellNames: ["T1", "L1", "L2", "L3", "R1", "R2", "R3", "B1"],
-          left: ["L1", "L2", "L3"],
-          right: ["R1", "R2", "R3"],
-          top: ["T1"],
-          bottom: ["B1"],
-          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
-          outerColumns: "1fr 2fr 1fr",
-          outerRows: "auto 1fr auto"
-        },
-        {
-          id: "2T-3L-3R-2B",
-          name: "2 Top + 3L/3R + 2 Bottom",
-          slots: 10,
-          areas: '"T1 T1 T2 T2" "L1 map map R1" "L2 map map R2" "L3 map map R3" "B1 B1 B2 B2"',
-          columns: "1fr 1fr 1fr 1fr",
-          rows: "auto 1fr 1fr 1fr auto",
-          cellNames: ["T1", "T2", "L1", "L2", "L3", "R1", "R2", "R3", "B1", "B2"],
-          left: ["L1", "L2", "L3"],
-          right: ["R1", "R2", "R3"],
-          top: ["T1", "T2"],
-          bottom: ["B1", "B2"],
-          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
-          outerColumns: "1fr 2fr 1fr",
-          outerRows: "auto 1fr auto"
-        }
-      ];
-      GRID_DEFAULT_ASSIGNMENTS = {
-        "2L-2R": {
-          L1: "widget-filters",
-          L2: "widget-activations",
-          R1: "widget-solar",
-          R2: "widget-propagation"
-        },
-        "3L-3R": {
-          L1: "widget-filters",
-          L2: "widget-activations",
-          L3: "widget-live-spots",
-          R1: "widget-solar",
-          R2: "widget-propagation",
-          R3: "widget-voacap"
-        },
-        "1T-2L-2R-1B": {
-          T1: "widget-solar",
-          L1: "widget-filters",
-          L2: "widget-activations",
-          R1: "widget-propagation",
-          R2: "widget-voacap",
-          B1: "widget-live-spots"
-        },
-        "1T-3L-3R-1B": {
-          T1: "widget-solar",
-          L1: "widget-filters",
-          L2: "widget-activations",
-          L3: "widget-live-spots",
-          R1: "widget-propagation",
-          R2: "widget-voacap",
-          R3: "widget-spot-detail",
-          B1: "widget-lunar"
-        },
-        "2T-3L-3R-2B": {
-          T1: "widget-solar",
-          T2: "widget-propagation",
-          L1: "widget-filters",
-          L2: "widget-activations",
-          L3: "widget-live-spots",
-          R1: "widget-voacap",
-          R2: "widget-spot-detail",
-          R3: "widget-satellites",
-          B1: "widget-lunar",
-          B2: "widget-rst"
-        }
-      };
-    }
-  });
-
   // src/grid-layout.js
   function loadCustomTrackSizes(permId) {
     try {
@@ -10431,6 +6410,4107 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     }
   });
 
+  // src/dedx-info.js
+  function initDedxListeners() {
+  }
+  function setDedxSpot(spot) {
+    selectedSpot = spot;
+    renderDedxInfo();
+  }
+  function clearDedxSpot() {
+    selectedSpot = null;
+    renderDedxInfo();
+  }
+  function startDedxTimer() {
+    renderDedxInfo();
+    if (state_default.dedxTimer) return;
+    state_default.dedxTimer = setInterval(renderDedxInfo, 1e3);
+  }
+  function stopDedxTimer() {
+    if (state_default.dedxTimer) {
+      clearInterval(state_default.dedxTimer);
+      state_default.dedxTimer = null;
+    }
+  }
+  function fmtTime2(date, use24h) {
+    const h = date.getHours();
+    const m = String(date.getMinutes()).padStart(2, "0");
+    const s = String(date.getSeconds()).padStart(2, "0");
+    if (use24h) return `${String(h).padStart(2, "0")}:${m}:${s}`;
+    const h12 = h % 12 || 12;
+    const ampm = h < 12 ? "AM" : "PM";
+    return `${h12}:${m}:${s} ${ampm}`;
+  }
+  function localTimeAtLonDate(lon) {
+    const now = /* @__PURE__ */ new Date();
+    const utcMs = now.getTime() + now.getTimezoneOffset() * 6e4;
+    const offsetMs = lon / 15 * 36e5;
+    return new Date(utcMs + offsetMs);
+  }
+  function fmtSunCountdown(target, now, prefix) {
+    if (!target) return null;
+    const diffMs = target.getTime() - now.getTime();
+    const absDiff = Math.abs(diffMs);
+    const h = Math.floor(absDiff / 36e5);
+    const m = Math.floor(absDiff % 36e5 / 6e4);
+    const mm = String(m).padStart(2, "0");
+    if (diffMs > 0) {
+      return `${prefix} in ${h}:${mm}`;
+    }
+    return `${prefix} ${h}:${mm} ago`;
+  }
+  function renderDedxInfo() {
+    if (!isWidgetVisible("widget-dedx")) return;
+    renderDedxDe();
+    renderDedxDx();
+  }
+  function renderDedxDe() {
+    const timeEl = $("dedxDeTime");
+    const el2 = $("dedxDeContent");
+    if (!el2) return;
+    const now = /* @__PURE__ */ new Date();
+    if (timeEl) timeEl.textContent = fmtTime2(now, state_default.use24h);
+    const call = state_default.myCallsign || "\u2014";
+    const lat = state_default.myLat;
+    const lon = state_default.myLon;
+    let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
+    if (lat !== null && lon !== null) {
+      const grid = latLonToGrid(lat, lon).substring(0, 6).toUpperCase();
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
+      const cardinal = latLonToCardinal(lat, lon);
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
+      const sun = getSunTimes(lat, lon, now);
+      const rise = fmtSunCountdown(sun.sunrise, now, "R");
+      const set = fmtSunCountdown(sun.sunset, now, "S");
+      if (rise) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunrise">${rise}</span></div>`;
+      }
+      if (set) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunset">${set}</span></div>`;
+      }
+    } else {
+      rows += `<div class="dedx-row dedx-empty">Set location in Config</div>`;
+    }
+    el2.innerHTML = rows;
+  }
+  function renderDedxDx() {
+    const timeEl = $("dedxDxTime");
+    const el2 = $("dedxDxContent");
+    if (!el2) return;
+    if (!selectedSpot) {
+      if (timeEl) {
+        const now = /* @__PURE__ */ new Date();
+        const h = String(now.getUTCHours()).padStart(2, "0");
+        const m = String(now.getUTCMinutes()).padStart(2, "0");
+        const s = String(now.getUTCSeconds()).padStart(2, "0");
+        timeEl.textContent = `${h}:${m}:${s}`;
+      }
+      el2.innerHTML = '<div class="dedx-utc-label">UTC</div><div class="dedx-row dedx-empty">Select a spot</div>';
+      return;
+    }
+    const spot = selectedSpot;
+    const call = spot.callsign || spot.activator || "\u2014";
+    const freq = spot.frequency || "";
+    const mode2 = spot.mode || "";
+    const band = freqToBand(freq) || "";
+    const lat = parseFloat(spot.latitude);
+    const lon = parseFloat(spot.longitude);
+    if (timeEl) {
+      if (!isNaN(lat) && !isNaN(lon)) {
+        const dxLocal = localTimeAtLonDate(lon);
+        timeEl.textContent = fmtTime2(dxLocal, state_default.use24h);
+      } else {
+        timeEl.textContent = "--:--:--";
+      }
+    }
+    let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
+    if (freq) {
+      const parts = [freq];
+      if (band) parts.push(`(${band})`);
+      if (mode2) parts.push(mode2);
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Freq</span><span class="dedx-value">${esc(parts.join(" "))}</span></div>`;
+    } else if (mode2) {
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Mode</span><span class="dedx-value">${esc(mode2)}</span></div>`;
+    }
+    if (!isNaN(lat) && !isNaN(lon)) {
+      const grid = latLonToGrid(lat, lon).substring(0, 4).toUpperCase();
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Grid</span><span class="dedx-value">${esc(grid)}</span></div>`;
+      const cardinal = latLonToCardinal(lat, lon);
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
+        const mi = distanceMi(state_default.myLat, state_default.myLon, lat, lon);
+        const dist = state_default.distanceUnit === "km" ? Math.round(mi * 1.60934) : Math.round(mi);
+        const card = bearingToCardinal(deg);
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">D/B</span><span class="dedx-value dedx-compact">${dist.toLocaleString()}${state_default.distanceUnit}@${Math.round(deg)}\xB0${card}</span></div>`;
+      }
+      const now = /* @__PURE__ */ new Date();
+      const sun = getSunTimes(lat, lon, now);
+      const rise = fmtSunCountdown(sun.sunrise, now, "R");
+      const set = fmtSunCountdown(sun.sunset, now, "S");
+      if (rise) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunrise">${rise}</span></div>`;
+      }
+      if (set) {
+        rows += `<div class="dedx-row"><span class="dedx-label-sm">Sun</span><span class="dedx-value dedx-sunset">${set}</span></div>`;
+      }
+      const offset = utcOffsetFromLon(lon);
+      const sign = offset >= 0 ? "+" : "";
+      rows += `<div class="dedx-row"><span class="dedx-label-sm">TZ</span><span class="dedx-value dedx-utc-badge">UTC${sign}${offset}</span></div>`;
+    }
+    el2.innerHTML = rows;
+  }
+  var selectedSpot;
+  var init_dedx_info = __esm({
+    "src/dedx-info.js"() {
+      init_state();
+      init_dom();
+      init_widgets();
+      init_geo();
+      init_utils();
+      init_filters();
+      selectedSpot = null;
+    }
+  });
+
+  // src/markers.js
+  function ensureIcons() {
+    if (defaultIcon) return;
+    defaultIcon = L.icon({
+      iconUrl: "vendor/images/marker-icon.png",
+      iconRetinaUrl: "vendor/images/marker-icon-2x.png",
+      shadowUrl: "vendor/images/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41]
+    });
+    selectedIcon = L.icon({
+      iconUrl: "data:image/svg+xml," + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="25" height="41" viewBox="0 0 25 41"><path d="M12.5 0C5.6 0 0 5.6 0 12.5C0 22 12.5 41 12.5 41S25 22 25 12.5C25 5.6 19.4 0 12.5 0z" fill="#ff9800"/><circle cx="12.5" cy="12.5" r="5" fill="#fff"/></svg>'),
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowUrl: "vendor/images/marker-shadow.png",
+      shadowSize: [41, 41]
+    });
+  }
+  function clearGeodesicLine() {
+    if (state_default.geodesicLine) {
+      state_default.map.removeLayer(state_default.geodesicLine);
+      state_default.geodesicLine = null;
+    }
+    if (state_default.geodesicLineLong) {
+      state_default.map.removeLayer(state_default.geodesicLineLong);
+      state_default.geodesicLineLong = null;
+    }
+  }
+  function drawGeodesicLine(spot) {
+    if (state_default.myLat == null || state_default.myLon == null || !state_default.map) return;
+    let spotLat, spotLon;
+    let fromGrid = false;
+    const lat = parseFloat(spot.latitude);
+    const lon = parseFloat(spot.longitude);
+    if (!isNaN(lat) && !isNaN(lon)) {
+      spotLat = lat;
+      spotLon = lon;
+    } else if (spot.grid4) {
+      const center = gridToLatLon(spot.grid4);
+      if (!center) return;
+      spotLat = center.lat;
+      spotLon = center.lon;
+      fromGrid = true;
+    } else {
+      return;
+    }
+    const pts = geodesicPoints(state_default.myLat, state_default.myLon, spotLat, spotLon, 64);
+    function splitAtDateline2(points) {
+      const segments = [[]];
+      for (let i = 0; i < points.length; i++) {
+        segments[segments.length - 1].push(points[i]);
+        if (i < points.length - 1) {
+          if (Math.abs(points[i + 1][1] - points[i][1]) > 180) {
+            segments.push([]);
+          }
+        }
+      }
+      return segments;
+    }
+    state_default.geodesicLine = L.polyline(splitAtDateline2(pts), {
+      color: "#ff9800",
+      weight: 2,
+      opacity: 0.7,
+      dashArray: "6 4"
+    });
+    state_default.geodesicLine.addTo(state_default.map);
+    const midIdx = Math.floor(pts.length / 2);
+    const midPt = pts[midIdx];
+    const antiLat = -midPt[0];
+    let antiLon = midPt[1] + 180;
+    if (antiLon > 180) antiLon -= 360;
+    const ptsToAnti = geodesicPoints(state_default.myLat, state_default.myLon, antiLat, antiLon, 48);
+    const ptsFromAnti = geodesicPoints(antiLat, antiLon, spotLat, spotLon, 48);
+    const longPts = [...ptsToAnti.slice(0, -1), ...ptsFromAnti];
+    state_default.geodesicLineLong = L.polyline(splitAtDateline2(longPts), {
+      color: "#ff9800",
+      weight: 1.5,
+      opacity: 0.35,
+      dashArray: "4 6"
+    });
+    state_default.geodesicLineLong.addTo(state_default.map);
+  }
+  function clearBandPaths() {
+    for (const line of state_default.dxPathLines) {
+      state_default.map.removeLayer(line);
+    }
+    state_default.dxPathLines = [];
+  }
+  function drawBandPaths() {
+    clearBandPaths();
+    if (!state_default.mapOverlays.bandPaths) return;
+    if (state_default.myLat == null || state_default.myLon == null || !state_default.map) return;
+    const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
+    function splitAtDateline2(points) {
+      const segments = [[]];
+      for (let i = 0; i < points.length; i++) {
+        segments[segments.length - 1].push(points[i]);
+        if (i < points.length - 1 && Math.abs(points[i + 1][1] - points[i][1]) > 180) {
+          segments.push([]);
+        }
+      }
+      return segments;
+    }
+    for (const spot of filtered) {
+      let spotLat, spotLon;
+      const lat = parseFloat(spot.latitude);
+      const lon = parseFloat(spot.longitude);
+      if (!isNaN(lat) && !isNaN(lon)) {
+        spotLat = lat;
+        spotLon = lon;
+      } else if (spot.grid4) {
+        const center = gridToLatLon(spot.grid4);
+        if (!center) continue;
+        spotLat = center.lat;
+        spotLon = center.lon;
+      } else {
+        continue;
+      }
+      const band = freqToBand(spot.frequency);
+      const color = band ? getBandColor(band) : "#888";
+      const pts = geodesicPoints(state_default.myLat, state_default.myLon, spotLat, spotLon, 32);
+      const line = L.polyline(splitAtDateline2(pts), {
+        color,
+        weight: 1.5,
+        opacity: 0.45,
+        interactive: false
+      });
+      line.addTo(state_default.map);
+      state_default.dxPathLines.push(line);
+    }
+  }
+  function renderMarkers() {
+    if (!state_default.map) return;
+    ensureIcons();
+    clearGeodesicLine();
+    clearBandPaths();
+    state_default.clusterGroup.clearLayers();
+    state_default.markers = {};
+    if (!SOURCE_DEFS[state_default.currentSource].hasMap) return;
+    const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
+    filtered.forEach((spot) => {
+      const lat = parseFloat(spot.latitude);
+      const lon = parseFloat(spot.longitude);
+      if (isNaN(lat) || isNaN(lon)) return;
+      const sid = spotId(spot);
+      const marker = L.marker([lat, lon], { icon: sid === state_default.selectedSpotId ? selectedIcon : defaultIcon });
+      const displayCall = spot.callsign || spot.activator || "";
+      const callsign = esc(displayCall);
+      const qrzUrl = `https://www.qrz.com/db/${encodeURIComponent(displayCall)}`;
+      let dirLine = "";
+      let distLine = "";
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
+        const longPath = (Math.round(deg) + 180) % 360;
+        const mi = distanceMi(state_default.myLat, state_default.myLon, lat, lon);
+        const dist = state_default.distanceUnit === "km" ? Math.round(mi * 1.60934) : Math.round(mi);
+        dirLine = `<div class="popup-dir">SP: ${Math.round(deg)}\xB0 ${bearingToCardinal(deg)} \xB7 LP: ${longPath}\xB0 ${bearingToCardinal(longPath)}</div>`;
+        distLine = `<div class="popup-dist">Distance: ~${dist.toLocaleString()} ${state_default.distanceUnit}</div>`;
+      }
+      const localTime = localTimeAtLon(lon, state_default.use24h);
+      marker.bindPopup(`
+      <div class="popup-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${callsign}</a></div>
+      <div class="popup-freq">${esc(spot.frequency || "")} ${esc(spot.mode || "")}</div>
+      <div class="popup-park"><strong>${esc(spot.reference || "")}</strong> ${esc(spot.name || "")}</div>
+      ${dirLine}
+      ${distLine}
+      <div class="popup-time">Local time: ${esc(localTime)}</div>
+      ${spot.comments ? '<div style="margin-top:4px;font-size:0.78rem;color:#8899aa;">' + esc(spot.comments) + "</div>" : ""}
+    `);
+      marker.on("click", () => {
+        selectSpot(sid);
+      });
+      state_default.markers[sid] = marker;
+      state_default.clusterGroup.addLayer(marker);
+    });
+    drawBandPaths();
+  }
+  function selectSpot(sid) {
+    ensureIcons();
+    clearGeodesicLine();
+    const oldSid = state_default.selectedSpotId;
+    const newSid = sid && sid === oldSid ? null : sid;
+    if (oldSid && state_default.markers[oldSid]) {
+      state_default.markers[oldSid].setIcon(defaultIcon);
+    }
+    state_default.selectedSpotId = newSid;
+    if (newSid && state_default.markers[newSid]) {
+      state_default.markers[newSid].setIcon(selectedIcon);
+    }
+    if (state_default.clusterGroup) {
+      if (oldSid && state_default.markers[oldSid]) {
+        const oldParent = state_default.clusterGroup.getVisibleParent(state_default.markers[oldSid]);
+        if (oldParent && oldParent !== state_default.markers[oldSid] && oldParent._icon) {
+          oldParent._icon.classList.remove("marker-cluster-selected");
+        }
+      }
+      if (newSid && state_default.markers[newSid]) {
+        const newParent = state_default.clusterGroup.getVisibleParent(state_default.markers[newSid]);
+        if (newParent && newParent !== state_default.markers[newSid] && newParent._icon) {
+          newParent._icon.classList.add("marker-cluster-selected");
+        }
+      }
+    }
+    document.querySelectorAll("#spotsBody tr").forEach((tr) => {
+      tr.classList.toggle("selected", tr.dataset.spotId === newSid);
+    });
+    if (newSid) {
+      const selectedRow = document.querySelector(`#spotsBody tr[data-spot-id="${CSS.escape(newSid)}"]`);
+      if (selectedRow) {
+        selectedRow.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+    if (newSid) {
+      const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
+      const spot = filtered.find((s) => spotId(s) === newSid);
+      if (spot) {
+        updateSpotDetail(spot);
+        setDedxSpot(spot);
+        drawGeodesicLine(spot);
+      } else {
+        clearSpotDetail();
+        clearDedxSpot();
+      }
+      onSpotSelected();
+    } else {
+      clearSpotDetail();
+      clearDedxSpot();
+      onSpotDeselected();
+    }
+  }
+  function flyToSpot(spot) {
+    const sid = spotId(spot);
+    selectSpot(sid);
+    const lat = parseFloat(spot.latitude);
+    const lon = parseFloat(spot.longitude);
+    if (!state_default.map || isNaN(lat) || isNaN(lon)) return;
+    if (state_default.mapCenterMode === "spot") {
+      state_default.map.flyTo([lat, lon], 5, { duration: 0.8 });
+    }
+    const marker = state_default.markers[sid];
+    if (marker) {
+      marker.openPopup();
+    }
+  }
+  var defaultIcon, selectedIcon;
+  var init_markers = __esm({
+    "src/markers.js"() {
+      init_state();
+      init_constants();
+      init_utils();
+      init_geo();
+      init_filters();
+      init_spot_detail();
+      init_dedx_info();
+      init_voacap();
+      defaultIcon = null;
+      selectedIcon = null;
+    }
+  });
+
+  // src/spots.js
+  function loadSpotColumnVisibility() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
+      if (saved && typeof saved === "object") return saved;
+    } catch (e) {
+    }
+    const vis = {};
+    SOURCE_DEFS.pota.columns.forEach((c) => vis[c.key] = true);
+    return vis;
+  }
+  function saveSpotColumnVisibility() {
+    localStorage.setItem(SPOT_COL_VIS_KEY, JSON.stringify(state_default.spotColumnVisibility));
+  }
+  function toggleSort(colKey) {
+    if (state_default.spotSortColumn === colKey) {
+      state_default.spotSortDirection = state_default.spotSortDirection === "asc" ? "desc" : "asc";
+    } else {
+      state_default.spotSortColumn = colKey;
+      state_default.spotSortDirection = colKey === "spotTime" || colKey === "age" ? "desc" : "asc";
+    }
+    saveCurrentFilters();
+    renderSpots();
+  }
+  function renderSpotsHeader() {
+    const cols = SOURCE_DEFS[state_default.currentSource].columns.filter((c) => state_default.spotColumnVisibility[c.key] !== false);
+    const thead = $("spotsHead");
+    thead.innerHTML = "";
+    const tr = document.createElement("tr");
+    cols.forEach((col) => {
+      const th = document.createElement("th");
+      th.textContent = col.label;
+      if (col.sortable) {
+        th.classList.add("sortable");
+        th.addEventListener("click", () => toggleSort(col.key));
+        const effectiveCol = state_default.spotSortColumn || SOURCE_DEFS[state_default.currentSource].sortKey;
+        if (effectiveCol === col.key || col.key === "age" && effectiveCol === "spotTime" && !state_default.spotSortColumn) {
+          th.classList.add(state_default.spotSortDirection === "asc" ? "sort-asc" : "sort-desc");
+        }
+      }
+      tr.appendChild(th);
+    });
+    thead.appendChild(tr);
+  }
+  function renderSpots() {
+    const filtered = state_default.sourceFiltered[state_default.currentSource] || [];
+    const spotsBody = $("spotsBody");
+    spotsBody.innerHTML = "";
+    $("spotCount").textContent = `(${filtered.length})`;
+    renderSpotsHeader();
+    const cols = SOURCE_DEFS[state_default.currentSource].columns.filter((c) => state_default.spotColumnVisibility[c.key] !== false);
+    const sortCol = state_default.spotSortColumn || SOURCE_DEFS[state_default.currentSource].sortKey;
+    const dir = state_default.spotSortDirection === "asc" ? 1 : -1;
+    const sorted = [...filtered].sort((a, b) => {
+      if (sortCol === "spotTime" || sortCol === "age") {
+        return dir * (new Date(a.spotTime) - new Date(b.spotTime));
+      } else if (sortCol === "frequency") {
+        return dir * ((parseFloat(a.frequency) || 0) - (parseFloat(b.frequency) || 0));
+      } else {
+        const aVal = (a[sortCol] || a.activator || "").toString().toLowerCase();
+        const bVal = (b[sortCol] || b.activator || "").toString().toLowerCase();
+        return dir * aVal.localeCompare(bVal);
+      }
+    });
+    sorted.forEach((spot) => {
+      const tr = document.createElement("tr");
+      const sid = spotId(spot);
+      tr.dataset.spotId = sid;
+      if (sid === state_default.selectedSpotId) tr.classList.add("selected");
+      const spotCall = (spot.activator || spot.callsign || "").toUpperCase();
+      if (state_default.myCallsign && spotCall === state_default.myCallsign.toUpperCase()) {
+        tr.classList.add("my-spot");
+      }
+      if (state_default.watchRedSpotIds.has(sid)) {
+        tr.classList.add("spot-watch-red");
+      }
+      cols.forEach((col) => {
+        const td = document.createElement("td");
+        if (col.class) td.className = col.class;
+        if (col.key === "spotTime") {
+          const time = spot.spotTime ? new Date(spot.spotTime) : null;
+          td.textContent = time ? fmtTime(time, { hour: "2-digit", minute: "2-digit" }) : "";
+        } else if (col.key === "age") {
+          td.textContent = formatAge(spot.spotTime);
+        } else if (col.key === "callsign") {
+          td.textContent = spot.activator || spot.callsign || "";
+        } else if (col.key === "reference") {
+          const ref = spot[col.key] || "";
+          if (ref) {
+            const a = document.createElement("a");
+            a.textContent = ref;
+            a.target = "_blank";
+            a.rel = "noopener";
+            if (state_default.currentSource === "sota") {
+              a.href = `https://www.sota.org.uk/Summit/${ref}`;
+            } else if (state_default.currentSource === "wwff") {
+              a.href = `https://wwff.co/directory/?showRef=${encodeURIComponent(ref)}`;
+            } else {
+              a.href = `https://pota.app/#/park/${ref}`;
+            }
+            a.addEventListener("click", (e) => e.stopPropagation());
+            td.appendChild(a);
+          }
+        } else if (col.key === "spotter" && state_default.currentSource === "dxc") {
+          const spotter = spot.spotter || "";
+          if (spotter) {
+            const a = document.createElement("a");
+            a.textContent = spotter;
+            a.href = `https://www.qrz.com/db/${encodeURIComponent(spotter)}`;
+            a.target = "_blank";
+            a.rel = "noopener";
+            a.addEventListener("click", (e) => e.stopPropagation());
+            td.appendChild(a);
+          }
+        } else if (col.key === "name") {
+          const val = spot[col.key] || "";
+          td.textContent = val;
+          td.title = val;
+        } else {
+          td.textContent = spot[col.key] || "";
+        }
+        tr.appendChild(td);
+      });
+      tr.addEventListener("click", () => flyToSpot(spot));
+      spotsBody.appendChild(tr);
+    });
+  }
+  var SPOT_COL_VIS_KEY;
+  var init_spots = __esm({
+    "src/spots.js"() {
+      init_state();
+      init_dom();
+      init_constants();
+      init_utils();
+      init_filters();
+      init_markers();
+      SPOT_COL_VIS_KEY = "hamtab_spot_columns";
+    }
+  });
+
+  // src/filters.js
+  var filters_exports = {};
+  __export(filters_exports, {
+    applyFilter: () => applyFilter,
+    clearAllFilters: () => clearAllFilters,
+    deletePreset: () => deletePreset,
+    fetchLicenseClass: () => fetchLicenseClass,
+    filterByAge: () => filterByAge,
+    filterByDistance: () => filterByDistance,
+    filterByPrivileges: () => filterByPrivileges,
+    filterByPropagation: () => filterByPropagation,
+    freqToBand: () => freqToBand,
+    getAvailableBands: () => getAvailableBands,
+    getAvailableContinents: () => getAvailableContinents,
+    getAvailableCountries: () => getAvailableCountries,
+    getAvailableGrids: () => getAvailableGrids,
+    getAvailableModes: () => getAvailableModes,
+    getAvailableStates: () => getAvailableStates,
+    hasActiveFilters: () => hasActiveFilters,
+    initFilterListeners: () => initFilterListeners,
+    isUSCallsign: () => isUSCallsign,
+    loadFiltersForSource: () => loadFiltersForSource,
+    loadPreset: () => loadPreset,
+    normalizeMode: () => normalizeMode,
+    renderWatchListEditor: () => renderWatchListEditor,
+    saveCurrentFilters: () => saveCurrentFilters,
+    savePreset: () => savePreset,
+    saveWatchLists: () => saveWatchLists,
+    spotId: () => spotId,
+    updateAllFilterUI: () => updateAllFilterUI,
+    updateBandFilterButtons: () => updateBandFilterButtons,
+    updateContinentFilter: () => updateContinentFilter,
+    updateCountryFilter: () => updateCountryFilter,
+    updateDistanceAgeVisibility: () => updateDistanceAgeVisibility,
+    updateGridFilter: () => updateGridFilter,
+    updateModeFilterButtons: () => updateModeFilterButtons,
+    updatePresetDropdown: () => updatePresetDropdown,
+    updatePrivFilterVisibility: () => updatePrivFilterVisibility,
+    updateStateFilter: () => updateStateFilter
+  });
+  function freqToBand(freqStr) {
+    let freq = parseFloat(freqStr);
+    if (isNaN(freq)) return null;
+    if (freq > 1e3) freq = freq / 1e3;
+    if (freq >= 1.8 && freq <= 2) return "160m";
+    if (freq >= 3.5 && freq <= 4) return "80m";
+    if (freq >= 5.3 && freq <= 5.4) return "60m";
+    if (freq >= 7 && freq <= 7.3) return "40m";
+    if (freq >= 10.1 && freq <= 10.15) return "30m";
+    if (freq >= 14 && freq <= 14.35) return "20m";
+    if (freq >= 18.068 && freq <= 18.168) return "17m";
+    if (freq >= 21 && freq <= 21.45) return "15m";
+    if (freq >= 24.89 && freq <= 24.99) return "12m";
+    if (freq >= 28 && freq <= 29.7) return "10m";
+    if (freq >= 50 && freq <= 54) return "6m";
+    if (freq >= 144 && freq <= 148) return "2m";
+    if (freq >= 420 && freq <= 450) return "70cm";
+    return null;
+  }
+  function isUSCallsign(call) {
+    if (!call) return false;
+    return /^[AKNW][A-Z]?\d/.test(call.toUpperCase());
+  }
+  function normalizeMode(mode2) {
+    if (!mode2) return "phone";
+    const m = mode2.toUpperCase();
+    if (m === "CW") return "cw";
+    if (m === "SSB" || m === "FM" || m === "AM" || m === "LSB" || m === "USB") return "phone";
+    return "digital";
+  }
+  function filterByPrivileges(spot) {
+    if (!state_default.licenseClass) return true;
+    const privs = US_PRIVILEGES[state_default.licenseClass.toUpperCase()];
+    if (!privs) return true;
+    let freq = parseFloat(spot.frequency);
+    if (isNaN(freq)) return true;
+    if (freq > 1e3) freq = freq / 1e3;
+    const spotMode = normalizeMode(spot.mode);
+    for (const [lo, hi, allowed] of privs) {
+      if (freq >= lo && freq <= hi) {
+        if (allowed === "all") return true;
+        if (allowed === "cw" && spotMode === "cw") return true;
+        if (allowed === "cwdig" && (spotMode === "cw" || spotMode === "digital")) return true;
+        if (allowed === "phone" && spotMode === "phone") return true;
+      }
+    }
+    return false;
+  }
+  function filterByDistance(spot) {
+    if (state_default.activeMaxDistance === null) return true;
+    if (state_default.myLat === null || state_default.myLon === null) return true;
+    if (spot.latitude == null || spot.longitude == null) return true;
+    const dist = distanceMi(state_default.myLat, state_default.myLon, spot.latitude, spot.longitude);
+    const thresholdMi = state_default.distanceUnit === "km" ? state_default.activeMaxDistance * 0.621371 : state_default.activeMaxDistance;
+    return dist <= thresholdMi;
+  }
+  function filterByAge(spot) {
+    if (state_default.activeMaxAge === null) return true;
+    if (!spot.spotTime) return true;
+    const ageMs = Date.now() - new Date(spot.spotTime).getTime();
+    const ageMin = ageMs / 6e4;
+    return ageMin <= state_default.activeMaxAge;
+  }
+  function filterByPropagation(spot) {
+    if (!state_default.propagationFilterEnabled) return true;
+    if (!state_default.lastSolarData?.indices) return true;
+    const band = freqToBand(spot.frequency);
+    if (!band) return true;
+    const bandDef = HF_BANDS.find((b) => b.name === band);
+    if (!bandDef) return true;
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const dayFrac = dayFraction(state_default.myLat, state_default.myLon, utcHour);
+    const muf = calculateMUF(sfi, dayFrac);
+    const isDay = dayFrac > 0.5;
+    const rel = calculateBandReliability(bandDef.freqMHz, muf, kIndex, aIndex, isDay);
+    return rel >= 30;
+  }
+  function getCountryPrefix(ref) {
+    if (!ref) return "";
+    return ref.split("-")[0];
+  }
+  function getUSState(locationDesc) {
+    if (!locationDesc) return "";
+    if (locationDesc.startsWith("US-")) return locationDesc.substring(3);
+    return "";
+  }
+  function normalizeCallsign(raw) {
+    const call = (raw || "").toUpperCase().trim();
+    const slash = call.lastIndexOf("/");
+    return slash > 0 ? call.substring(0, slash) : call;
+  }
+  function matchWatchRule(rule, spot) {
+    const val = (rule.value || "").toUpperCase();
+    if (!val) return false;
+    switch (rule.type) {
+      case "callsign": {
+        const spotCall = normalizeCallsign(spot.activator || spot.callsign);
+        return spotCall === val;
+      }
+      case "dxcc": {
+        const country = (spot.name || "").toUpperCase();
+        const locPrefix = (spot.locationDesc || "").split("-")[0].toUpperCase();
+        return country.includes(val) || locPrefix === val;
+      }
+      case "grid": {
+        const grid = (spot.grid4 || spot.senderLocator || "").toUpperCase();
+        return grid.startsWith(val);
+      }
+      case "ref": {
+        const ref = (spot.reference || "").toUpperCase();
+        return ref === val;
+      }
+      default:
+        return false;
+    }
+  }
+  function saveWatchLists() {
+    localStorage.setItem("hamtab_watchlists", JSON.stringify(state_default.watchLists));
+  }
+  function renderWatchListEditor() {
+    const container = document.getElementById("watchListEditor");
+    if (!container) return;
+    container.innerHTML = "";
+    const key = state_default.currentSource;
+    if (!SOURCE_DEFS[key]) return;
+    const rules = state_default.watchLists[key] || [];
+    if (rules.length > 0) {
+      const list = document.createElement("div");
+      list.className = "wl-rule-list";
+      rules.forEach((rule, idx) => {
+        const row = document.createElement("div");
+        row.className = "wl-rule";
+        const badge = document.createElement("span");
+        badge.className = `wl-rule-mode ${rule.mode}`;
+        badge.textContent = rule.mode;
+        row.appendChild(badge);
+        const val = document.createElement("span");
+        val.className = "wl-rule-value";
+        val.textContent = rule.value;
+        row.appendChild(val);
+        const type = document.createElement("span");
+        type.className = "wl-rule-type";
+        type.textContent = `(${rule.type})`;
+        row.appendChild(type);
+        const del = document.createElement("span");
+        del.className = "wl-rule-delete";
+        del.textContent = "\xD7";
+        del.title = "Remove rule";
+        del.addEventListener("click", () => {
+          state_default.watchLists[key].splice(idx, 1);
+          saveWatchLists();
+          applyFilter();
+          renderSpots();
+          renderMarkers();
+          renderWatchListEditor();
+        });
+        row.appendChild(del);
+        list.appendChild(row);
+      });
+      container.appendChild(list);
+    }
+    const form = document.createElement("div");
+    form.className = "wl-add-form";
+    const modes = ["red", "only", "not"];
+    const radioName = `wl-mode-${key}`;
+    modes.forEach((m, i) => {
+      const radio = document.createElement("input");
+      radio.type = "radio";
+      radio.name = radioName;
+      radio.value = m;
+      if (i === 0) radio.checked = true;
+      const label = document.createElement("label");
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(m.charAt(0).toUpperCase() + m.slice(1)));
+      form.appendChild(label);
+    });
+    const typeSelect = document.createElement("select");
+    const types = ["callsign", "dxcc", "grid"];
+    if (key === "pota" || key === "sota" || key === "wwff") types.push("ref");
+    types.forEach((t) => {
+      const opt = document.createElement("option");
+      opt.value = t;
+      opt.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+      typeSelect.appendChild(opt);
+    });
+    form.appendChild(typeSelect);
+    const valueInput = document.createElement("input");
+    valueInput.type = "text";
+    valueInput.placeholder = "Value";
+    form.appendChild(valueInput);
+    const addBtn = document.createElement("button");
+    addBtn.type = "button";
+    addBtn.textContent = "Add";
+    addBtn.addEventListener("click", () => {
+      const val = valueInput.value.trim().toUpperCase();
+      if (!val) return;
+      const mode2 = form.querySelector(`input[name="${radioName}"]:checked`).value;
+      const type = typeSelect.value;
+      const existing = state_default.watchLists[key] || [];
+      if (existing.some((r) => r.mode === mode2 && r.type === type && r.value === val)) return;
+      if (!state_default.watchLists[key]) state_default.watchLists[key] = [];
+      state_default.watchLists[key].push({ mode: mode2, type, value: val });
+      saveWatchLists();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+      renderWatchListEditor();
+    });
+    form.appendChild(addBtn);
+    container.appendChild(form);
+  }
+  function applyFilter() {
+    state_default.watchRedSpotIds = /* @__PURE__ */ new Set();
+    const allowed = SOURCE_DEFS[state_default.currentSource].filters;
+    const wlRules = state_default.watchLists[state_default.currentSource] || [];
+    const onlyRules = wlRules.filter((r) => r.mode === "only");
+    const notRules = wlRules.filter((r) => r.mode === "not");
+    const redRules = wlRules.filter((r) => r.mode === "red");
+    state_default.sourceFiltered[state_default.currentSource] = (state_default.sourceData[state_default.currentSource] || []).filter((s) => {
+      if (allowed.includes("band") && state_default.activeBands.size > 0) {
+        const spotBand = freqToBand(s.frequency);
+        if (!spotBand || !state_default.activeBands.has(spotBand)) return false;
+      }
+      if (allowed.includes("mode") && state_default.activeModes.size > 0) {
+        if (!state_default.activeModes.has((s.mode || "").toUpperCase())) return false;
+      }
+      if (allowed.includes("distance") && !filterByDistance(s)) return false;
+      if (allowed.includes("age") && !filterByAge(s)) return false;
+      if (state_default.propagationFilterEnabled && !filterByPropagation(s)) return false;
+      if (allowed.includes("country") && state_default.activeCountry && getCountryPrefix(s.reference) !== state_default.activeCountry) return false;
+      if (allowed.includes("state") && state_default.activeState && getUSState(s.locationDesc) !== state_default.activeState) return false;
+      if (allowed.includes("grid") && state_default.activeGrid && (s.grid4 || "") !== state_default.activeGrid) return false;
+      if (allowed.includes("continent") && state_default.activeContinent && (s.continent || "") !== state_default.activeContinent) return false;
+      if (allowed.includes("privilege") && state_default.privilegeFilterEnabled && !filterByPrivileges(s)) return false;
+      if (wlRules.length > 0) {
+        if (onlyRules.length > 0 && !onlyRules.some((r) => matchWatchRule(r, s))) return false;
+        if (notRules.some((r) => matchWatchRule(r, s))) return false;
+        if (redRules.length > 0 && redRules.some((r) => matchWatchRule(r, s))) {
+          state_default.watchRedSpotIds.add(SOURCE_DEFS[state_default.currentSource].spotId(s));
+        }
+      }
+      return true;
+    });
+  }
+  function getAvailableBands() {
+    const bandSet = /* @__PURE__ */ new Set();
+    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
+      const band = freqToBand(s.frequency);
+      if (band) bandSet.add(band);
+    });
+    const order = ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm"];
+    return order.filter((b) => bandSet.has(b));
+  }
+  function updateBandFilterButtons() {
+    const bands = getAvailableBands();
+    const bandFilters = $("bandFilters");
+    bandFilters.innerHTML = "";
+    const allBtn = document.createElement("button");
+    allBtn.textContent = "All";
+    allBtn.className = state_default.activeBands.size === 0 ? "active" : "";
+    allBtn.addEventListener("click", () => {
+      state_default.activeBands.clear();
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+      updateBandFilterButtons();
+    });
+    bandFilters.appendChild(allBtn);
+    bands.forEach((band) => {
+      const btn = document.createElement("button");
+      btn.textContent = band;
+      btn.className = state_default.activeBands.has(band) ? "active" : "";
+      btn.addEventListener("click", () => {
+        if (state_default.activeBands.has(band)) {
+          state_default.activeBands.delete(band);
+        } else {
+          state_default.activeBands.add(band);
+        }
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+        updateBandFilterButtons();
+      });
+      bandFilters.appendChild(btn);
+    });
+  }
+  function getAvailableModes() {
+    const modeSet = /* @__PURE__ */ new Set();
+    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
+      if (s.mode) modeSet.add(s.mode.toUpperCase());
+    });
+    return [...modeSet].sort();
+  }
+  function updateModeFilterButtons() {
+    const modes = getAvailableModes();
+    const modeFilters = $("modeFilters");
+    modeFilters.innerHTML = "";
+    const allBtn = document.createElement("button");
+    allBtn.textContent = "All";
+    allBtn.className = state_default.activeModes.size === 0 ? "active" : "";
+    allBtn.addEventListener("click", () => {
+      state_default.activeModes.clear();
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+      updateModeFilterButtons();
+    });
+    modeFilters.appendChild(allBtn);
+    modes.forEach((mode2) => {
+      const btn = document.createElement("button");
+      btn.textContent = mode2;
+      btn.className = state_default.activeModes.has(mode2) ? "active" : "";
+      btn.addEventListener("click", () => {
+        if (state_default.activeModes.has(mode2)) {
+          state_default.activeModes.delete(mode2);
+        } else {
+          state_default.activeModes.add(mode2);
+        }
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+        updateModeFilterButtons();
+      });
+      modeFilters.appendChild(btn);
+    });
+  }
+  function getAvailableCountries() {
+    const countrySet = /* @__PURE__ */ new Set();
+    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
+      const prefix = getCountryPrefix(s.reference);
+      if (prefix) countrySet.add(prefix);
+    });
+    return [...countrySet].sort();
+  }
+  function updateCountryFilter() {
+    const countries = getAvailableCountries();
+    const current = state_default.activeCountry;
+    const countryFilter = $("countryFilter");
+    countryFilter.innerHTML = '<option value="">All Countries</option>';
+    countries.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.textContent = c;
+      if (c === current) opt.selected = true;
+      countryFilter.appendChild(opt);
+    });
+  }
+  function getAvailableStates() {
+    const stateSet = /* @__PURE__ */ new Set();
+    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
+      const st = getUSState(s.locationDesc);
+      if (st) stateSet.add(st);
+    });
+    return [...stateSet].sort();
+  }
+  function updateStateFilter() {
+    const states = getAvailableStates();
+    const current = state_default.activeState;
+    const stateFilter = $("stateFilter");
+    stateFilter.innerHTML = '<option value="">All States</option>';
+    states.forEach((st) => {
+      const opt = document.createElement("option");
+      opt.value = st;
+      opt.textContent = st;
+      if (st === current) opt.selected = true;
+      stateFilter.appendChild(opt);
+    });
+  }
+  function getAvailableGrids() {
+    const gridSet = /* @__PURE__ */ new Set();
+    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
+      if (s.grid4) gridSet.add(s.grid4);
+    });
+    return [...gridSet].sort();
+  }
+  function updateGridFilter() {
+    const grids = getAvailableGrids();
+    const current = state_default.activeGrid;
+    const gridFilter = $("gridFilter");
+    gridFilter.innerHTML = '<option value="">All Grids</option>';
+    grids.forEach((g) => {
+      const opt = document.createElement("option");
+      opt.value = g;
+      opt.textContent = g;
+      if (g === current) opt.selected = true;
+      gridFilter.appendChild(opt);
+    });
+  }
+  function getAvailableContinents() {
+    const contSet = /* @__PURE__ */ new Set();
+    (state_default.sourceData[state_default.currentSource] || []).forEach((s) => {
+      if (s.continent) contSet.add(s.continent);
+    });
+    const order = ["AF", "AN", "AS", "EU", "NA", "OC", "SA"];
+    return order.filter((c) => contSet.has(c));
+  }
+  function updateContinentFilter() {
+    const continents = getAvailableContinents();
+    const current = state_default.activeContinent;
+    const continentFilter = $("continentFilter");
+    if (!continentFilter) return;
+    continentFilter.innerHTML = '<option value="">All Continents</option>';
+    const labels = { AF: "Africa", AN: "Antarctica", AS: "Asia", EU: "Europe", NA: "N. America", OC: "Oceania", SA: "S. America" };
+    continents.forEach((c) => {
+      const opt = document.createElement("option");
+      opt.value = c;
+      opt.textContent = `${c} - ${labels[c] || c}`;
+      if (c === current) opt.selected = true;
+      continentFilter.appendChild(opt);
+    });
+  }
+  function updatePrivFilterVisibility() {
+    const label = document.querySelector(".priv-filter-label");
+    if (!label) return;
+    const show2 = isUSCallsign(state_default.myCallsign) && !!state_default.licenseClass;
+    label.classList.toggle("hidden", !show2);
+    if (!show2) {
+      state_default.privilegeFilterEnabled = false;
+      const cb = $("privFilter");
+      if (cb) cb.checked = false;
+    }
+  }
+  async function fetchLicenseClass(callsign) {
+    if (!isUSCallsign(callsign)) {
+      state_default.licenseClass = "";
+      localStorage.removeItem("hamtab_license_class");
+      updatePrivFilterVisibility();
+      updateOperatorDisplay();
+      return;
+    }
+    try {
+      const resp = await fetch(`/api/callsign/${encodeURIComponent(callsign)}`);
+      if (!resp.ok) return;
+      const data = await resp.json();
+      if (data.status === "VALID") {
+        state_default.licenseClass = (data.class || "").toUpperCase();
+        if (state_default.licenseClass) localStorage.setItem("hamtab_license_class", state_default.licenseClass);
+        cacheCallsign(callsign.toUpperCase(), data);
+      } else {
+        state_default.licenseClass = "";
+        localStorage.removeItem("hamtab_license_class");
+      }
+    } catch (e) {
+    }
+    updatePrivFilterVisibility();
+    updateOperatorDisplay();
+  }
+  function updateOperatorDisplay() {
+    const { esc: esc2 } = (init_utils(), __toCommonJS(utils_exports));
+    const opCall = $("opCall");
+    const opLoc = $("opLoc");
+    if (state_default.myCallsign) {
+      const qrz = `https://www.qrz.com/db/${encodeURIComponent(state_default.myCallsign)}`;
+      let classLabel = state_default.licenseClass ? `[${state_default.licenseClass}]` : "";
+      opCall.innerHTML = `<a href="${qrz}" target="_blank" rel="noopener">${esc2(state_default.myCallsign)}</a>${classLabel ? `<div class="op-class">${esc2(classLabel)}</div>` : ""}`;
+      const info = state_default.callsignCache[state_default.myCallsign.toUpperCase()];
+      const opName = document.getElementById("opName");
+      if (opName) {
+        opName.textContent = info ? info.name : "";
+      }
+    } else {
+      opCall.textContent = "";
+      const opName = document.getElementById("opName");
+      if (opName) opName.textContent = "";
+    }
+    if (state_default.myLat !== null && state_default.myLon !== null) {
+      const { latLonToGrid: latLonToGrid2 } = (init_geo(), __toCommonJS(geo_exports));
+      const grid = latLonToGrid2(state_default.myLat, state_default.myLon);
+      opLoc.textContent = `${state_default.myLat.toFixed(2)}, ${state_default.myLon.toFixed(2)} [${grid}]`;
+    } else {
+      opLoc.textContent = "Location unknown";
+    }
+  }
+  function initFilterListeners() {
+    const countryFilter = $("countryFilter");
+    const stateFilter = $("stateFilter");
+    const gridFilter = $("gridFilter");
+    const continentFilter = $("continentFilter");
+    countryFilter.addEventListener("change", () => {
+      state_default.activeCountry = countryFilter.value || null;
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+    stateFilter.addEventListener("change", () => {
+      state_default.activeState = stateFilter.value || null;
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+    gridFilter.addEventListener("change", () => {
+      state_default.activeGrid = gridFilter.value || null;
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+    if (continentFilter) {
+      continentFilter.addEventListener("change", () => {
+        state_default.activeContinent = continentFilter.value || null;
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
+    const privFilterCheckbox = $("privFilter");
+    privFilterCheckbox.checked = state_default.privilegeFilterEnabled;
+    updatePrivFilterVisibility();
+    privFilterCheckbox.addEventListener("change", () => {
+      state_default.privilegeFilterEnabled = privFilterCheckbox.checked;
+      localStorage.setItem("hamtab_privilege_filter", String(state_default.privilegeFilterEnabled));
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+    const distanceInput = $("distanceFilter");
+    const distanceUnit = $("distanceUnit");
+    if (distanceInput) {
+      distanceInput.addEventListener("input", () => {
+        const val = distanceInput.value.trim();
+        state_default.activeMaxDistance = val === "" ? null : parseFloat(val);
+        if (isNaN(state_default.activeMaxDistance)) state_default.activeMaxDistance = null;
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
+    if (distanceUnit) {
+      distanceUnit.value = state_default.distanceUnit;
+      distanceUnit.addEventListener("change", () => {
+        state_default.distanceUnit = distanceUnit.value;
+        localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
+    const ageFilter = $("ageFilter");
+    if (ageFilter) {
+      ageFilter.addEventListener("change", () => {
+        const val = ageFilter.value;
+        state_default.activeMaxAge = val === "" ? null : parseInt(val, 10);
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
+    const propBtn = $("propFilterBtn");
+    if (propBtn) {
+      propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
+      propBtn.addEventListener("click", () => {
+        state_default.propagationFilterEnabled = !state_default.propagationFilterEnabled;
+        propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
+    const clearBtn = $("clearFiltersBtn");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        clearAllFilters();
+      });
+    }
+    const presetSelect = $("presetFilter");
+    const savePresetBtn = $("savePresetBtn");
+    const deletePresetBtn = $("deletePresetBtn");
+    if (presetSelect) {
+      presetSelect.addEventListener("change", () => {
+        const name = presetSelect.value;
+        if (name) loadPreset(name);
+        presetSelect.value = "";
+      });
+    }
+    if (savePresetBtn) {
+      savePresetBtn.addEventListener("click", () => {
+        const name = prompt("Preset name:");
+        if (name && name.trim()) savePreset(name.trim());
+      });
+    }
+    if (deletePresetBtn) {
+      deletePresetBtn.addEventListener("click", () => {
+        const name = prompt("Preset name to delete:");
+        if (name && name.trim()) deletePreset(name.trim());
+      });
+    }
+    if (state_default.myCallsign) {
+      fetchLicenseClass(state_default.myCallsign);
+    }
+    const wlToggle = document.getElementById("wlAccordionToggle");
+    if (wlToggle) {
+      wlToggle.addEventListener("click", () => {
+        const body = document.getElementById("wlAccordionBody");
+        const open = body.classList.toggle("open");
+        wlToggle.classList.toggle("open", open);
+        if (open) renderWatchListEditor();
+      });
+    }
+  }
+  function spotId(spot) {
+    return SOURCE_DEFS[state_default.currentSource].spotId(spot);
+  }
+  function saveCurrentFilters() {
+    const source = state_default.currentSource;
+    const filterState = {
+      bands: [...state_default.activeBands],
+      modes: [...state_default.activeModes],
+      maxDistance: state_default.activeMaxDistance,
+      distanceUnit: state_default.distanceUnit,
+      maxAge: state_default.activeMaxAge,
+      country: state_default.activeCountry,
+      state: state_default.activeState,
+      grid: state_default.activeGrid,
+      continent: state_default.activeContinent,
+      privilegeFilter: state_default.privilegeFilterEnabled,
+      propagationFilter: state_default.propagationFilterEnabled,
+      sortColumn: state_default.spotSortColumn,
+      sortDirection: state_default.spotSortDirection
+    };
+    localStorage.setItem(`hamtab_filter_${source}`, JSON.stringify(filterState));
+    updateFilterIndicator();
+  }
+  function loadFiltersForSource(source) {
+    try {
+      const saved = JSON.parse(localStorage.getItem(`hamtab_filter_${source}`));
+      if (saved) {
+        state_default.activeBands = new Set(saved.bands || []);
+        state_default.activeModes = new Set(saved.modes || []);
+        state_default.activeMaxDistance = saved.maxDistance ?? null;
+        state_default.activeMaxAge = saved.maxAge ?? null;
+        state_default.activeCountry = saved.country ?? null;
+        state_default.activeState = saved.state ?? null;
+        state_default.activeGrid = saved.grid ?? null;
+        state_default.activeContinent = saved.continent ?? null;
+        state_default.privilegeFilterEnabled = saved.privilegeFilter ?? false;
+        state_default.propagationFilterEnabled = saved.propagationFilter ?? false;
+        state_default.spotSortColumn = saved.sortColumn ?? null;
+        state_default.spotSortDirection = saved.sortDirection ?? "desc";
+        return;
+      }
+    } catch (e) {
+    }
+    state_default.activeBands = /* @__PURE__ */ new Set();
+    state_default.activeModes = /* @__PURE__ */ new Set();
+    state_default.activeMaxDistance = null;
+    state_default.activeMaxAge = null;
+    state_default.activeCountry = null;
+    state_default.activeState = null;
+    state_default.activeGrid = null;
+    state_default.activeContinent = null;
+    state_default.privilegeFilterEnabled = false;
+    state_default.propagationFilterEnabled = false;
+    state_default.spotSortColumn = null;
+    state_default.spotSortDirection = "desc";
+  }
+  function hasActiveFilters() {
+    return state_default.activeBands.size > 0 || state_default.activeModes.size > 0 || state_default.activeMaxDistance !== null || state_default.activeMaxAge !== null || state_default.activeCountry !== null || state_default.activeState !== null || state_default.activeGrid !== null || state_default.activeContinent !== null || state_default.privilegeFilterEnabled || state_default.propagationFilterEnabled;
+  }
+  function updateFilterIndicator() {
+    const active2 = hasActiveFilters();
+    const header = document.querySelector("#widget-filters .widget-header");
+    if (header) {
+      let badge = header.querySelector(".filter-active-badge");
+      if (active2) {
+        if (!badge) {
+          badge = document.createElement("span");
+          badge.className = "filter-active-badge";
+          badge.title = "Filters active \u2014 some spots may be hidden";
+          header.appendChild(badge);
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+    }
+    const clearBtn = $("clearFiltersBtn");
+    if (clearBtn) {
+      clearBtn.classList.toggle("filters-active", active2);
+    }
+  }
+  function updateAllFilterUI() {
+    updateBandFilterButtons();
+    updateModeFilterButtons();
+    updateCountryFilter();
+    updateStateFilter();
+    updateGridFilter();
+    updateContinentFilter();
+    const distanceInput = $("distanceFilter");
+    if (distanceInput) {
+      distanceInput.value = state_default.activeMaxDistance !== null ? state_default.activeMaxDistance : "";
+    }
+    const distanceUnit = $("distanceUnit");
+    if (distanceUnit) {
+      distanceUnit.value = state_default.distanceUnit;
+    }
+    const ageFilter = $("ageFilter");
+    if (ageFilter) {
+      ageFilter.value = state_default.activeMaxAge !== null ? String(state_default.activeMaxAge) : "";
+    }
+    const privFilterCheckbox = $("privFilter");
+    if (privFilterCheckbox) {
+      privFilterCheckbox.checked = state_default.privilegeFilterEnabled;
+    }
+    const propBtn = $("propFilterBtn");
+    if (propBtn) {
+      propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
+    }
+    updateFilterIndicator();
+  }
+  function clearAllFilters() {
+    state_default.activeBands.clear();
+    state_default.activeModes.clear();
+    state_default.activeMaxDistance = null;
+    state_default.activeMaxAge = null;
+    state_default.activeCountry = null;
+    state_default.activeState = null;
+    state_default.activeGrid = null;
+    state_default.activeContinent = null;
+    state_default.privilegeFilterEnabled = false;
+    state_default.propagationFilterEnabled = false;
+    saveCurrentFilters();
+    applyFilter();
+    renderSpots();
+    renderMarkers();
+    updateAllFilterUI();
+  }
+  function updatePresetDropdown() {
+    const presetSelect = $("presetFilter");
+    if (!presetSelect) return;
+    const source = state_default.currentSource;
+    const presets = state_default.filterPresets[source] || {};
+    const names = Object.keys(presets).sort();
+    presetSelect.innerHTML = '<option value="">Load Preset...</option>';
+    names.forEach((name) => {
+      const opt = document.createElement("option");
+      opt.value = name;
+      opt.textContent = name;
+      presetSelect.appendChild(opt);
+    });
+  }
+  function savePreset(name) {
+    const source = state_default.currentSource;
+    const preset = {
+      bands: [...state_default.activeBands],
+      modes: [...state_default.activeModes],
+      maxDistance: state_default.activeMaxDistance,
+      distanceUnit: state_default.distanceUnit,
+      maxAge: state_default.activeMaxAge,
+      country: state_default.activeCountry,
+      state: state_default.activeState,
+      grid: state_default.activeGrid,
+      continent: state_default.activeContinent,
+      privilegeFilter: state_default.privilegeFilterEnabled,
+      propagationFilter: state_default.propagationFilterEnabled,
+      sortColumn: state_default.spotSortColumn,
+      sortDirection: state_default.spotSortDirection
+    };
+    if (!state_default.filterPresets[source]) state_default.filterPresets[source] = {};
+    state_default.filterPresets[source][name] = preset;
+    localStorage.setItem("hamtab_filter_presets", JSON.stringify(state_default.filterPresets));
+    updatePresetDropdown();
+  }
+  function loadPreset(name) {
+    const source = state_default.currentSource;
+    const preset = state_default.filterPresets[source]?.[name];
+    if (!preset) return;
+    state_default.activeBands = new Set(preset.bands || []);
+    state_default.activeModes = new Set(preset.modes || []);
+    state_default.activeMaxDistance = preset.maxDistance ?? null;
+    state_default.activeMaxAge = preset.maxAge ?? null;
+    state_default.activeCountry = preset.country ?? null;
+    state_default.activeState = preset.state ?? null;
+    state_default.activeGrid = preset.grid ?? null;
+    state_default.activeContinent = preset.continent ?? null;
+    state_default.privilegeFilterEnabled = preset.privilegeFilter ?? false;
+    state_default.propagationFilterEnabled = preset.propagationFilter ?? false;
+    state_default.spotSortColumn = preset.sortColumn ?? null;
+    state_default.spotSortDirection = preset.sortDirection ?? "desc";
+    saveCurrentFilters();
+    applyFilter();
+    renderSpots();
+    renderMarkers();
+    updateAllFilterUI();
+  }
+  function deletePreset(name) {
+    const source = state_default.currentSource;
+    if (state_default.filterPresets[source]?.[name]) {
+      delete state_default.filterPresets[source][name];
+      localStorage.setItem("hamtab_filter_presets", JSON.stringify(state_default.filterPresets));
+      updatePresetDropdown();
+    }
+  }
+  function updateDistanceAgeVisibility() {
+    const allowed = SOURCE_DEFS[state_default.currentSource].filters;
+    const distWrap = $("distanceFilterWrap");
+    const ageWrap = $("ageFilterWrap");
+    const presetWrap = $("presetFilterWrap");
+    if (distWrap) distWrap.style.display = allowed.includes("distance") ? "" : "none";
+    if (ageWrap) ageWrap.style.display = allowed.includes("age") ? "" : "none";
+    if (presetWrap) presetWrap.style.display = "";
+  }
+  var init_filters = __esm({
+    "src/filters.js"() {
+      init_state();
+      init_dom();
+      init_constants();
+      init_utils();
+      init_spots();
+      init_markers();
+      init_geo();
+      init_band_conditions();
+    }
+  });
+
+  // src/solar.js
+  function aColor(val) {
+    const n = parseInt(val);
+    if (isNaN(n)) return "";
+    if (n < 10) return "var(--green)";
+    if (n < 30) return "var(--yellow)";
+    return "var(--red)";
+  }
+  function kColor(val) {
+    const n = parseInt(val);
+    if (isNaN(n)) return "";
+    if (n <= 2) return "var(--green)";
+    if (n <= 4) return "var(--yellow)";
+    return "var(--red)";
+  }
+  function solarWindColor(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return "";
+    if (n < 400) return "var(--green)";
+    if (n < 600) return "var(--yellow)";
+    return "var(--red)";
+  }
+  function bzColor(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return "";
+    if (n >= 0) return "var(--green)";
+    if (n > -10) return "var(--yellow)";
+    return "var(--red)";
+  }
+  function auroraColor(val) {
+    const n = parseInt(val);
+    if (isNaN(n)) return "";
+    if (n <= 3) return "var(--green)";
+    if (n <= 6) return "var(--yellow)";
+    return "var(--red)";
+  }
+  function geomagColor(val) {
+    const s = (val || "").toLowerCase();
+    if (s.includes("quiet")) return "var(--green)";
+    if (s.includes("unsettled") || s.includes("active")) return "var(--yellow)";
+    if (s.includes("storm") || s.includes("major")) return "var(--red)";
+    return "";
+  }
+  function loadSolarFieldVisibility() {
+    const { SOLAR_FIELD_DEFS: SOLAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
+    try {
+      const saved = JSON.parse(localStorage.getItem(SOLAR_VIS_KEY));
+      if (saved && typeof saved === "object") return saved;
+    } catch (e) {
+    }
+    const vis = {};
+    SOLAR_FIELD_DEFS2.forEach((f) => vis[f.key] = f.defaultVisible);
+    return vis;
+  }
+  function saveSolarFieldVisibility() {
+    localStorage.setItem(SOLAR_VIS_KEY, JSON.stringify(state_default.solarFieldVisibility));
+  }
+  function initSolarImage() {
+    const select = $("solarImageType");
+    const canvas = $("solarCanvas");
+    const playBtn = $("solarPlayBtn");
+    if (!select || !canvas) return;
+    const saved = localStorage.getItem("hamtab_sdo_type");
+    if (saved) select.value = saved;
+    select.addEventListener("change", () => {
+      localStorage.setItem("hamtab_sdo_type", select.value);
+      solarFrames = [];
+      solarFrameNames = [];
+      solarCurrentType = "";
+      loadSolarFrames();
+    });
+    if (playBtn) {
+      playBtn.addEventListener("click", () => {
+        solarPlaying = !solarPlaying;
+        playBtn.innerHTML = solarPlaying ? "&#9646;&#9646;" : "&#9654;";
+        if (solarPlaying) startSolarAnimation();
+        else stopSolarAnimation();
+      });
+    }
+    loadSolarFrames();
+  }
+  function startSolarAnimation() {
+    stopSolarAnimation();
+    if (solarFrames.length < 2) return;
+    solarIntervalId = setInterval(() => {
+      solarFrameIndex = (solarFrameIndex + 1) % solarFrames.length;
+      drawSolarFrame();
+    }, 200);
+  }
+  function stopSolarAnimation() {
+    if (solarIntervalId) {
+      clearInterval(solarIntervalId);
+      solarIntervalId = null;
+    }
+  }
+  function drawSolarFrame() {
+    const canvas = $("solarCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const img = solarFrames[solarFrameIndex];
+    if (!img || !img.complete || !img.naturalWidth) {
+      ctx.fillStyle = "#000";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      return;
+    }
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  }
+  function preloadImage(filename) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+      img.src = "/api/solar/frame/" + encodeURIComponent(filename);
+    });
+  }
+  async function loadSolarFrames() {
+    if (solarLoadingFrames) return;
+    solarLoadingFrames = true;
+    const select = $("solarImageType");
+    const type = select ? select.value : "0193";
+    const isFullReload = type !== solarCurrentType || solarFrames.length === 0;
+    if (isFullReload) stopSolarAnimation();
+    try {
+      const resp = await fetch("/api/solar/frames?type=" + encodeURIComponent(type));
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const filenames = await resp.json();
+      if (!filenames.length) {
+        loadSolarImageFallback(type);
+        return;
+      }
+      if (isFullReload) {
+        const loaded = await Promise.all(filenames.map(preloadImage));
+        solarFrames = loaded.filter(Boolean);
+        solarFrameNames = filenames.filter((fn, i) => loaded[i] !== null);
+        solarFrameIndex = 0;
+        solarCurrentType = type;
+      } else {
+        const existingSet = new Set(solarFrameNames);
+        const newNames = filenames.filter((fn) => !existingSet.has(fn));
+        if (newNames.length > 0) {
+          const newImgs = await Promise.all(newNames.map(preloadImage));
+          for (let i = 0; i < newNames.length; i++) {
+            if (newImgs[i]) {
+              solarFrames.push(newImgs[i]);
+              solarFrameNames.push(newNames[i]);
+            }
+          }
+          if (solarFrames.length > 48) {
+            const excess = solarFrames.length - 48;
+            solarFrames.splice(0, excess);
+            solarFrameNames.splice(0, excess);
+            if (solarFrameIndex >= excess) solarFrameIndex -= excess;
+            else solarFrameIndex = 0;
+          }
+        }
+      }
+      if (solarFrames.length < 2) {
+        loadSolarImageFallback(type);
+        return;
+      }
+      if (isFullReload) {
+        drawSolarFrame();
+        const playBtn = $("solarPlayBtn");
+        if (playBtn) playBtn.innerHTML = "&#9646;&#9646;";
+        solarPlaying = true;
+        startSolarAnimation();
+      }
+    } catch (err2) {
+      console.error("Failed to load SDO frames:", err2);
+      if (solarFrames.length === 0) loadSolarImageFallback(type);
+    } finally {
+      solarLoadingFrames = false;
+    }
+  }
+  function loadSolarImageFallback(type) {
+    solarCurrentType = type;
+    const canvas = $("solarCanvas");
+    if (!canvas) return;
+    const img = new Image();
+    img.onload = () => {
+      solarFrames = [img];
+      solarFrameNames = ["__fallback__"];
+      solarFrameIndex = 0;
+      drawSolarFrame();
+    };
+    img.src = "/api/solar/image?type=" + encodeURIComponent(type) + "&t=" + Date.now();
+  }
+  function loadSolarImage() {
+    loadSolarFrames();
+  }
+  async function fetchSolar() {
+    try {
+      const resp = await fetch("/api/solar");
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.lastSolarData = data;
+      renderSolar(data);
+      loadSolarImage();
+      const { renderPropagationWidget: renderPropagationWidget2 } = await Promise.resolve().then(() => (init_band_conditions(), band_conditions_exports));
+      renderPropagationWidget2();
+      const { renderVoacapMatrix: renderVoacapMatrix2 } = await Promise.resolve().then(() => (init_voacap(), voacap_exports));
+      renderVoacapMatrix2();
+      checkAutoStormOverlay(data);
+      const { renderPropagationHeatmapOverlay: renderPropagationHeatmapOverlay2 } = await Promise.resolve().then(() => (init_map_overlays(), map_overlays_exports));
+      renderPropagationHeatmapOverlay2();
+    } catch (err2) {
+      console.error("Failed to fetch solar:", err2);
+    }
+  }
+  function renderSolar(data) {
+    const { SOLAR_FIELD_DEFS: SOLAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
+    const { indices, bands } = data;
+    const solarIndices = $("solarIndices");
+    solarIndices.innerHTML = "";
+    SOLAR_FIELD_DEFS2.forEach((f) => {
+      if (state_default.solarFieldVisibility[f.key] === false) return;
+      const rawVal = indices[f.key];
+      const displayVal = rawVal === "" || rawVal === void 0 || rawVal === "NoRpt" ? "-" : String(rawVal) + (f.unit || "");
+      const color = f.colorFn ? f.colorFn(rawVal) : "";
+      const div = document.createElement("div");
+      div.className = "solar-card";
+      const labelDiv = document.createElement("div");
+      labelDiv.className = "label";
+      labelDiv.textContent = f.label;
+      const valueDiv = document.createElement("div");
+      valueDiv.className = "value";
+      if (color) valueDiv.style.color = color;
+      valueDiv.textContent = displayVal;
+      div.appendChild(labelDiv);
+      div.appendChild(valueDiv);
+      solarIndices.appendChild(div);
+    });
+  }
+  async function fetchPropagation() {
+    if (!state_default.map) return;
+    if (state_default.propLayer) {
+      state_default.map.removeLayer(state_default.propLayer);
+      state_default.propLayer = null;
+    }
+    if (state_default.propLabelLayer) {
+      state_default.map.removeLayer(state_default.propLabelLayer);
+      state_default.propLabelLayer = null;
+    }
+    if (state_default.propMetric === "off") return;
+    try {
+      const resp = await fetch(`/api/propagation?type=${encodeURIComponent(state_default.propMetric)}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.propLayer = L.geoJSON(data, {
+        pane: "propagation",
+        interactive: false,
+        style: (feature) => ({
+          color: feature.properties.stroke || "#00ff00",
+          weight: 2,
+          opacity: 0.7,
+          fill: false
+        })
+      }).addTo(state_default.map);
+      state_default.propLabelLayer = L.layerGroup({ pane: "propagation" }).addTo(state_default.map);
+      data.features.forEach((feature) => {
+        let coords = feature.geometry.coordinates;
+        if (!coords || coords.length === 0) return;
+        if (feature.geometry.type === "MultiLineString") {
+          coords = coords.reduce((a, b) => a.length >= b.length ? a : b, coords[0]);
+        }
+        if (coords.length < 2) return;
+        const label = feature.properties.title || String(feature.properties["level-value"]);
+        const color = feature.properties.stroke || "#00ff00";
+        const mid = coords[Math.floor(coords.length / 2)];
+        const icon = L.divIcon({
+          className: "prop-label",
+          html: `<span style="color:${color}">${esc(label.trim())} MHz</span>`,
+          iconSize: null
+        });
+        L.marker([mid[1], mid[0]], { icon, pane: "propagation", interactive: false }).addTo(state_default.propLabelLayer);
+      });
+      state_default.map.invalidateSize();
+    } catch (err2) {
+      console.error("Failed to fetch propagation:", err2);
+    }
+  }
+  function updateGrayLine() {
+    if (!state_default.map) return;
+    const now = /* @__PURE__ */ new Date();
+    const start = new Date(now.getFullYear(), 0, 0);
+    const dayOfYear = Math.floor((now - start) / 864e5);
+    const sunDec = -23.44 * Math.cos(2 * Math.PI / 365 * (dayOfYear + 10));
+    const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+    const sunLon = -(utcHours - 12) * 15;
+    state_default.sunLat = sunDec;
+    state_default.sunLon = sunLon;
+    const rad = Math.PI / 180;
+    const dec = Math.abs(sunDec) < 0.1 ? 0.1 : sunDec;
+    const tanDec = Math.tan(dec * rad);
+    const terminator = [];
+    for (let lon = -180; lon <= 180; lon += 2) {
+      const lat = Math.atan(-Math.cos((lon - sunLon) * rad) / tanDec) / rad;
+      terminator.push([lat, lon]);
+    }
+    const nightPole = dec >= 0 ? -90 : 90;
+    const dayPole = -nightPole;
+    const points = [...terminator, [nightPole, 180], [nightPole, -180]];
+    if (state_default.grayLinePolygon) {
+      state_default.grayLinePolygon.setLatLngs(points);
+    } else {
+      state_default.grayLinePolygon = L.polygon(points, {
+        pane: "grayline",
+        color: "#445",
+        weight: 1,
+        fillColor: "#000",
+        fillOpacity: 0.25,
+        interactive: false
+      }).addTo(state_default.map);
+    }
+    const dayPoints = [...terminator, [dayPole, 180], [dayPole, -180]];
+    if (state_default.dayPolygon) {
+      state_default.dayPolygon.setLatLngs(dayPoints);
+    } else {
+      state_default.dayPolygon = L.polygon(dayPoints, {
+        pane: "grayline",
+        color: "transparent",
+        weight: 0,
+        fillColor: "#ffd54f",
+        fillOpacity: 0.06,
+        interactive: false
+      }).addTo(state_default.map);
+    }
+  }
+  function initPropListeners() {
+    document.querySelectorAll(".prop-metric-btn").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => e.stopPropagation());
+      btn.addEventListener("click", () => {
+        state_default.propMetric = btn.dataset.metric;
+        localStorage.setItem("hamtab_prop_metric", state_default.propMetric);
+        document.querySelectorAll(".prop-metric-btn").forEach((b) => b.classList.toggle("active", b.dataset.metric === state_default.propMetric));
+        fetchPropagation();
+      });
+    });
+    document.querySelectorAll(".prop-metric-btn").forEach((b) => b.classList.toggle("active", b.dataset.metric === state_default.propMetric));
+    document.querySelectorAll(".map-center-btn").forEach((btn) => {
+      btn.addEventListener("mousedown", (e) => e.stopPropagation());
+      btn.addEventListener("click", () => {
+        state_default.mapCenterMode = btn.dataset.center;
+        localStorage.setItem("hamtab_map_center", state_default.mapCenterMode);
+        document.querySelectorAll(".map-center-btn").forEach((b) => b.classList.toggle("active", b.dataset.center === state_default.mapCenterMode));
+        centerMap();
+      });
+    });
+    document.querySelectorAll(".map-center-btn").forEach((b) => b.classList.toggle("active", b.dataset.center === state_default.mapCenterMode));
+  }
+  function centerMap() {
+    if (!state_default.map) return;
+    if (state_default.mapCenterMode === "qth") {
+      if (state_default.myLat !== null && state_default.myLon !== null) state_default.map.flyTo([state_default.myLat, state_default.myLon], 6, { duration: 0.8 });
+    } else if (state_default.mapCenterMode === "pm") {
+      state_default.map.flyTo([0, 0], 2, { duration: 0.8 });
+    } else if (state_default.mapCenterMode === "spot") {
+      if (state_default.selectedSpotId) {
+        const allSpots = state_default.sourceFiltered[state_default.currentSource] || [];
+        const { spotId: spotId2 } = (init_filters(), __toCommonJS(filters_exports));
+        const spot = allSpots.find((s) => spotId2(s) === state_default.selectedSpotId);
+        if (spot) {
+          const lat = parseFloat(spot.latitude);
+          const lon = parseFloat(spot.longitude);
+          if (!isNaN(lat) && !isNaN(lon)) state_default.map.flyTo([lat, lon], 5, { duration: 0.8 });
+        }
+      }
+    } else if (state_default.mapCenterMode === "cty") {
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        const bounds = findCountryBounds(state_default.myLat, state_default.myLon);
+        if (bounds) {
+          const [south, west, north, east] = bounds;
+          state_default.map.flyToBounds([[south, west], [north, east]], { maxZoom: 10, padding: [20, 20], duration: 0.8 });
+        }
+      }
+    }
+  }
+  async function checkAutoStormOverlay(data) {
+    const kp = parseInt(data?.indices?.kindex);
+    if (isNaN(kp)) return;
+    if (kp >= 5 && !state_default.mapOverlays.drapOverlay && !lastStormAutoEnabled) {
+      state_default.mapOverlays.drapOverlay = true;
+      lastStormAutoEnabled = true;
+      const { saveMapOverlays: saveMapOverlays2, renderDrapOverlay: renderDrapOverlay2 } = await Promise.resolve().then(() => (init_map_overlays(), map_overlays_exports));
+      saveMapOverlays2();
+      renderDrapOverlay2();
+    } else if (kp < 5) {
+      lastStormAutoEnabled = false;
+    }
+  }
+  var SOLAR_VIS_KEY, solarFrames, solarFrameNames, solarFrameIndex, solarPlaying, solarIntervalId, solarLoadingFrames, solarCurrentType, lastStormAutoEnabled;
+  var init_solar = __esm({
+    "src/solar.js"() {
+      init_state();
+      init_dom();
+      init_utils();
+      init_country_bounds();
+      SOLAR_VIS_KEY = "hamtab_solar_fields";
+      solarFrames = [];
+      solarFrameNames = [];
+      solarFrameIndex = 0;
+      solarPlaying = true;
+      solarIntervalId = null;
+      solarLoadingFrames = false;
+      solarCurrentType = "";
+      lastStormAutoEnabled = false;
+    }
+  });
+
+  // src/lunar.js
+  function loadMoonImage() {
+    if (moonImage || moonImageLoading) return;
+    moonImageLoading = true;
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+        moonImage = img;
+        if (state_default.lastLunarData) {
+          renderMoonPhase(state_default.lastLunarData.illumination, state_default.lastLunarData.phase);
+        }
+      } else {
+        moonImageLoading = false;
+      }
+    };
+    img.onerror = () => {
+      moonImageLoading = false;
+    };
+    img.src = "/api/lunar/image";
+  }
+  function lunarDecColor(val) {
+    const n = Math.abs(parseFloat(val));
+    if (isNaN(n)) return "";
+    if (n < 15) return "var(--green)";
+    if (n < 25) return "var(--yellow)";
+    return "var(--red)";
+  }
+  function lunarPlColor(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return "";
+    if (n < -0.5) return "var(--green)";
+    if (n < 0.5) return "var(--yellow)";
+    return "var(--red)";
+  }
+  function lunarElColor(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return "";
+    if (n >= 20) return "var(--green)";
+    if (n >= 0) return "var(--yellow)";
+    return "var(--text-dim)";
+  }
+  function loadLunarFieldVisibility() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(LUNAR_VIS_KEY));
+      if (saved && typeof saved === "object") return saved;
+    } catch (e) {
+    }
+    const vis = {};
+    LUNAR_FIELD_DEFS.forEach((f) => vis[f.key] = f.defaultVisible);
+    return vis;
+  }
+  function saveLunarFieldVisibility() {
+    localStorage.setItem(LUNAR_VIS_KEY, JSON.stringify(state_default.lunarFieldVisibility));
+  }
+  async function fetchLunar() {
+    try {
+      let url = "/api/lunar";
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        url += `?lat=${state_default.myLat}&lon=${state_default.myLon}`;
+      }
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      state_default.lastLunarData = data;
+      renderLunar(data);
+      const { updateMoonMarker: updateMoonMarker2 } = await Promise.resolve().then(() => (init_map_init(), map_init_exports));
+      updateMoonMarker2();
+    } catch (err2) {
+      console.error("Failed to fetch lunar:", err2);
+    }
+  }
+  function renderMoonPhase(illumination, phase) {
+    const canvas = $("moonCanvas");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const size = canvas.width;
+    const r = size / 2 - 2;
+    const cx = size / 2;
+    const cy = size / 2;
+    ctx.clearRect(0, 0, size, size);
+    loadMoonImage();
+    const illum = Math.max(0, Math.min(100, illumination)) / 100;
+    const waning = (phase || "").toLowerCase().includes("waning") || (phase || "").toLowerCase().includes("last");
+    if (moonImage) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.clip();
+      const scale = r * 2 / (moonImage.width * 0.82);
+      const drawSize = moonImage.width * scale;
+      const offset = (drawSize - r * 2) / 2;
+      ctx.drawImage(moonImage, cx - r - offset, cy - r - offset, drawSize, drawSize);
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#1a1a2e";
+      ctx.fill();
+      if (illum >= 0.99) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, r, 0, Math.PI * 2);
+        ctx.fillStyle = "#d4d4d4";
+        ctx.fill();
+      } else if (illum > 0.01) {
+        const terminatorX = Math.abs(1 - 2 * illum) * r;
+        const litOnRight = !waning;
+        ctx.beginPath();
+        if (litOnRight) {
+          ctx.arc(cx, cy, r, -Math.PI / 2, Math.PI / 2, false);
+          if (illum <= 0.5) {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, false);
+          } else {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, Math.PI / 2, -Math.PI / 2, true);
+          }
+        } else {
+          ctx.arc(cx, cy, r, Math.PI / 2, -Math.PI / 2, false);
+          if (illum <= 0.5) {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, false);
+          } else {
+            ctx.ellipse(cx, cy, terminatorX, r, 0, -Math.PI / 2, Math.PI / 2, true);
+          }
+        }
+        ctx.closePath();
+        ctx.fillStyle = "#d4d4d4";
+        ctx.fill();
+      }
+    }
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#445";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  function renderLunar(data) {
+    const lunarCards = $("lunarCards");
+    lunarCards.innerHTML = "";
+    renderMoonPhase(data.illumination, data.phase);
+    LUNAR_FIELD_DEFS.forEach((f) => {
+      if (state_default.lunarFieldVisibility[f.key] === false) return;
+      const rawVal = data[f.key];
+      let displayVal;
+      if (rawVal === void 0 || rawVal === null || rawVal === "") {
+        displayVal = "-";
+      } else if (f.format === "time") {
+        displayVal = fmtTime(new Date(rawVal * 1e3));
+      } else if (f.key === "distance") {
+        displayVal = Number(rawVal).toLocaleString() + f.unit;
+      } else if (f.key === "pathLoss") {
+        displayVal = (rawVal > 0 ? "+" : "") + rawVal + f.unit;
+      } else {
+        displayVal = String(rawVal) + f.unit;
+      }
+      const color = f.colorFn ? f.colorFn(rawVal) : "";
+      const div = document.createElement("div");
+      div.className = "solar-card";
+      const labelDiv = document.createElement("div");
+      labelDiv.className = "label";
+      labelDiv.textContent = f.label;
+      const valueDiv = document.createElement("div");
+      valueDiv.className = "value";
+      if (color) valueDiv.style.color = color;
+      valueDiv.textContent = displayVal;
+      div.appendChild(labelDiv);
+      div.appendChild(valueDiv);
+      lunarCards.appendChild(div);
+    });
+  }
+  var moonImage, moonImageLoading, LUNAR_VIS_KEY;
+  var init_lunar = __esm({
+    "src/lunar.js"() {
+      init_state();
+      init_dom();
+      init_constants();
+      init_utils();
+      moonImage = null;
+      moonImageLoading = false;
+      LUNAR_VIS_KEY = "hamtab_lunar_fields";
+    }
+  });
+
+  // src/constants.js
+  var constants_exports = {};
+  __export(constants_exports, {
+    ALLOW_OVERLAP_KEY: () => ALLOW_OVERLAP_KEY,
+    BREAKPOINT_MOBILE: () => BREAKPOINT_MOBILE,
+    DEFAULT_BAND_COLORS: () => DEFAULT_BAND_COLORS,
+    DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
+    DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
+    GRID_ASSIGN_KEY: () => GRID_ASSIGN_KEY,
+    GRID_DEFAULT_ASSIGNMENTS: () => GRID_DEFAULT_ASSIGNMENTS,
+    GRID_MODE_KEY: () => GRID_MODE_KEY,
+    GRID_PERMUTATIONS: () => GRID_PERMUTATIONS,
+    GRID_PERM_KEY: () => GRID_PERM_KEY,
+    GRID_SIZES_KEY: () => GRID_SIZES_KEY,
+    GRID_SPANS_KEY: () => GRID_SPANS_KEY,
+    HEADER_H: () => HEADER_H,
+    LAYOUTS_KEY: () => LAYOUTS_KEY,
+    LUNAR_FIELD_DEFS: () => LUNAR_FIELD_DEFS,
+    MAX_LAYOUTS: () => MAX_LAYOUTS,
+    MOBILE_TAB_KEY: () => MOBILE_TAB_KEY,
+    REFERENCE_TABS: () => REFERENCE_TABS,
+    REFLOW_WIDGET_ORDER: () => REFLOW_WIDGET_ORDER,
+    SAT_FREQUENCIES: () => SAT_FREQUENCIES,
+    SCALE_MIN_FACTOR: () => SCALE_MIN_FACTOR,
+    SCALE_REFERENCE_WIDTH: () => SCALE_REFERENCE_WIDTH,
+    SCALE_REFLOW_WIDTH: () => SCALE_REFLOW_WIDTH,
+    SNAP_DIST: () => SNAP_DIST,
+    SNAP_GRID: () => SNAP_GRID,
+    SNAP_GRID_KEY: () => SNAP_GRID_KEY,
+    SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
+    SOURCE_DEFS: () => SOURCE_DEFS,
+    USER_LAYOUT_KEY: () => USER_LAYOUT_KEY,
+    US_PRIVILEGES: () => US_PRIVILEGES,
+    WIDGET_DEFS: () => WIDGET_DEFS,
+    WIDGET_HELP: () => WIDGET_HELP,
+    WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY,
+    getBandColor: () => getBandColor,
+    getBandColorOverrides: () => getBandColorOverrides,
+    getLayoutMode: () => getLayoutMode,
+    saveBandColors: () => saveBandColors
+  });
+  function getLayoutMode() {
+    const w = window.innerWidth;
+    if (w < SCALE_REFLOW_WIDTH) return "mobile";
+    return "desktop";
+  }
+  function getBandColor(band) {
+    return bandColorOverrides[band] || DEFAULT_BAND_COLORS[band] || "#888";
+  }
+  function saveBandColors(overrides) {
+    bandColorOverrides = overrides;
+    localStorage.setItem("hamtab_band_colors", JSON.stringify(overrides));
+  }
+  function getBandColorOverrides() {
+    return { ...bandColorOverrides };
+  }
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
+  var init_constants = __esm({
+    "src/constants.js"() {
+      init_solar();
+      init_lunar();
+      WIDGET_DEFS = [
+        { id: "widget-filters", name: "Filters", short: "Filt" },
+        { id: "widget-activations", name: "On the Air", short: "OTA" },
+        { id: "widget-map", name: "HamMap", short: "MAP" },
+        { id: "widget-solar", name: "Solar", short: "Sol" },
+        { id: "widget-spacewx", name: "Space Wx", short: "SpWx" },
+        { id: "widget-propagation", name: "Band Conditions", short: "Band" },
+        { id: "widget-voacap", name: "VOACAP DE\u2192DX", short: "VOA" },
+        { id: "widget-live-spots", name: "Live Spots", short: "Live" },
+        { id: "widget-lunar", name: "Lunar / EME", short: "Moon" },
+        { id: "widget-satellites", name: "Satellites", short: "Sat" },
+        { id: "widget-rst", name: "Reference", short: "Ref" },
+        { id: "widget-spot-detail", name: "DX Detail", short: "DXDt" },
+        { id: "widget-contests", name: "Contests", short: "Cont" },
+        { id: "widget-dxpeditions", name: "DXpeditions", short: "DXpd" },
+        { id: "widget-beacons", name: "NCDXF Beacons", short: "Bcn" },
+        { id: "widget-dedx", name: "DE/DX Info", short: "DEDX" },
+        { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
+        { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" }
+        // { id: 'widget-on-air-rig',  name: 'On-Air Rig',       short: 'Rig' }, // RADIO_HIDDEN
+      ];
+      SAT_FREQUENCIES = {
+        25544: {
+          name: "ISS (ZARYA)",
+          uplinks: [
+            { freq: 145.99, mode: "FM", desc: "V/U Repeater" }
+          ],
+          downlinks: [
+            { freq: 437.8, mode: "FM", desc: "V/U Repeater" },
+            { freq: 145.8, mode: "FM", desc: "Voice/SSTV" },
+            { freq: 145.825, mode: "APRS", desc: "Packet" }
+          ]
+        },
+        43770: {
+          name: "AO-91 (RadFxSat)",
+          uplinks: [
+            { freq: 435.25, mode: "FM", desc: "67 Hz CTCSS" }
+          ],
+          downlinks: [
+            { freq: 145.96, mode: "FM", desc: "FM Voice" }
+          ]
+        },
+        43137: {
+          name: "AO-92 (Fox-1D)",
+          uplinks: [
+            { freq: 435.35, mode: "FM", desc: "67 Hz CTCSS" }
+          ],
+          downlinks: [
+            { freq: 145.88, mode: "FM", desc: "FM Voice" }
+          ]
+        },
+        27607: {
+          name: "SO-50 (SaudiSat-1C)",
+          uplinks: [
+            { freq: 145.85, mode: "FM", desc: "67 Hz arm, 74.4 Hz TX" }
+          ],
+          downlinks: [
+            { freq: 436.795, mode: "FM", desc: "FM Voice" }
+          ]
+        },
+        44909: {
+          name: "CAS-4A (ZHUHAI-1 01)",
+          uplinks: [
+            { freq: 435.21, mode: "SSB/CW", desc: "Linear Transponder" }
+          ],
+          downlinks: [
+            { freq: 145.855, mode: "SSB/CW", desc: "Linear Transponder" }
+          ]
+        },
+        44910: {
+          name: "CAS-4B (ZHUHAI-1 02)",
+          uplinks: [
+            { freq: 435.28, mode: "SSB/CW", desc: "Linear Transponder" }
+          ],
+          downlinks: [
+            { freq: 145.925, mode: "SSB/CW", desc: "Linear Transponder" }
+          ]
+        },
+        47960: {
+          name: "RS-44 (DOSAAF-85)",
+          uplinks: [
+            { freq: 145.935, mode: "SSB/CW", desc: "Linear Transponder" }
+          ],
+          downlinks: [
+            { freq: 435.61, mode: "SSB/CW", desc: "Linear Transponder" }
+          ]
+        },
+        54684: {
+          name: "TEVEL-1",
+          uplinks: [
+            { freq: 145.97, mode: "FM", desc: "FM Transponder" }
+          ],
+          downlinks: [
+            { freq: 436.4, mode: "FM", desc: "FM Transponder" }
+          ]
+        },
+        54685: {
+          name: "TEVEL-2",
+          uplinks: [
+            { freq: 145.97, mode: "FM", desc: "FM Transponder" }
+          ],
+          downlinks: [
+            { freq: 436.4, mode: "FM", desc: "FM Transponder" }
+          ]
+        }
+      };
+      DEFAULT_TRACKED_SATS = [25544];
+      SOURCE_DEFS = {
+        pota: {
+          label: "POTA",
+          endpoint: "/api/spots",
+          columns: [
+            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "reference", label: "Park (link)", class: "" },
+            { key: "name", label: "Name", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age", "country", "state", "grid", "privilege"],
+          hasMap: true,
+          spotId: (s) => `${s.activator || s.callsign}-${s.reference}-${s.frequency}`,
+          sortKey: "spotTime"
+        },
+        sota: {
+          label: "SOTA",
+          endpoint: "/api/spots/sota",
+          columns: [
+            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "reference", label: "Summit (link)", class: "" },
+            { key: "name", label: "Details", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age", "privilege"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
+          sortKey: "spotTime"
+        },
+        dxc: {
+          label: "DXC",
+          endpoint: "/api/spots/dxc",
+          columns: [
+            { key: "callsign", label: "DX Station", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "spotter", label: "Spotter", class: "" },
+            { key: "name", label: "Country", class: "" },
+            { key: "continent", label: "Cont", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age", "continent", "privilege"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.frequency}-${s.spotTime}`,
+          sortKey: "spotTime"
+        },
+        wwff: {
+          label: "WWFF",
+          endpoint: "/api/spots/wwff",
+          columns: [
+            { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "reference", label: "Ref (link)", class: "" },
+            { key: "name", label: "Name", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age", "privilege"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.reference}-${s.frequency}`,
+          sortKey: "spotTime"
+        },
+        psk: {
+          label: "PSK",
+          endpoint: "/api/spots/psk",
+          columns: [
+            { key: "callsign", label: "TX Call", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "reporter", label: "RX Call", class: "" },
+            { key: "snr", label: "SNR", class: "" },
+            { key: "senderLocator", label: "TX Grid", class: "" },
+            { key: "reporterLocator", label: "RX Grid", class: "" },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "distance", "age", "privilege"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.reporter}-${s.frequency}-${s.spotTime}`,
+          sortKey: "spotTime"
+        }
+      };
+      SOLAR_FIELD_DEFS = [
+        { key: "sfi", label: "Solar Flux", unit: "", colorFn: null, defaultVisible: true },
+        { key: "sunspots", label: "Sunspots", unit: "", colorFn: null, defaultVisible: true },
+        { key: "aindex", label: "A-Index", unit: "", colorFn: aColor, defaultVisible: true },
+        { key: "kindex", label: "K-Index", unit: "", colorFn: kColor, defaultVisible: true },
+        { key: "xray", label: "X-Ray", unit: "", colorFn: null, defaultVisible: true },
+        { key: "signalnoise", label: "Signal Noise", unit: "", colorFn: null, defaultVisible: true },
+        { key: "solarwind", label: "Solar Wind", unit: " km/s", colorFn: solarWindColor, defaultVisible: false },
+        { key: "magneticfield", label: "Bz (IMF)", unit: " nT", colorFn: bzColor, defaultVisible: false },
+        { key: "protonflux", label: "Proton Flux", unit: "", colorFn: null, defaultVisible: false },
+        { key: "electonflux", label: "Electron Flux", unit: "", colorFn: null, defaultVisible: false },
+        { key: "aurora", label: "Aurora", unit: "", colorFn: auroraColor, defaultVisible: false },
+        { key: "latdegree", label: "Aurora Lat", unit: "\xB0", colorFn: null, defaultVisible: false },
+        { key: "heliumline", label: "He 10830\xC5", unit: "", colorFn: null, defaultVisible: false },
+        { key: "geomagfield", label: "Geomag Field", unit: "", colorFn: geomagColor, defaultVisible: false },
+        { key: "kindexnt", label: "K-Index (Night)", unit: "", colorFn: kColor, defaultVisible: false },
+        { key: "muf", label: "MUF", unit: " MHz", colorFn: null, defaultVisible: false },
+        { key: "fof2", label: "foF2", unit: " MHz", colorFn: null, defaultVisible: false },
+        { key: "muffactor", label: "MUF Factor", unit: "", colorFn: null, defaultVisible: false }
+      ];
+      LUNAR_FIELD_DEFS = [
+        { key: "phase", label: "Moon Phase", unit: "", colorFn: null, defaultVisible: true },
+        { key: "illumination", label: "Illumination", unit: "%", colorFn: null, defaultVisible: true },
+        { key: "elevation", label: "Elevation", unit: "\xB0", colorFn: lunarElColor, defaultVisible: true },
+        { key: "azimuth", label: "Azimuth", unit: "\xB0", colorFn: null, defaultVisible: true },
+        { key: "moonrise", label: "Moonrise", unit: "", colorFn: null, defaultVisible: true, format: "time" },
+        { key: "moonset", label: "Moonset", unit: "", colorFn: null, defaultVisible: true, format: "time" },
+        { key: "declination", label: "Declination", unit: "\xB0", colorFn: lunarDecColor, defaultVisible: true },
+        { key: "distance", label: "Distance", unit: " km", colorFn: null, defaultVisible: true },
+        { key: "pathLoss", label: "Path Loss", unit: " dB", colorFn: lunarPlColor, defaultVisible: true },
+        { key: "elongation", label: "Elongation", unit: "\xB0", colorFn: null, defaultVisible: false },
+        { key: "eclipticLon", label: "Ecl. Longitude", unit: "\xB0", colorFn: null, defaultVisible: false },
+        { key: "eclipticLat", label: "Ecl. Latitude", unit: "\xB0", colorFn: null, defaultVisible: false },
+        { key: "rightAscension", label: "Right Ascension", unit: "\xB0", colorFn: null, defaultVisible: false }
+      ];
+      US_PRIVILEGES = {
+        EXTRA: [
+          [1.8, 2, "all"],
+          [3.5, 4, "all"],
+          [5.3, 5.4, "all"],
+          [7, 7.3, "all"],
+          [10.1, 10.15, "all"],
+          [14, 14.35, "all"],
+          [18.068, 18.168, "all"],
+          [21, 21.45, "all"],
+          [24.89, 24.99, "all"],
+          [28, 29.7, "all"],
+          [50, 54, "all"],
+          [144, 148, "all"],
+          [420, 450, "all"]
+        ],
+        GENERAL: [
+          [1.8, 2, "all"],
+          [3.525, 3.6, "cwdig"],
+          [3.8, 4, "phone"],
+          [5.3, 5.4, "all"],
+          [7.025, 7.125, "cwdig"],
+          [7.175, 7.3, "phone"],
+          [10.1, 10.15, "cwdig"],
+          [14.025, 14.15, "cwdig"],
+          [14.225, 14.35, "phone"],
+          [18.068, 18.11, "cwdig"],
+          [18.11, 18.168, "phone"],
+          [21.025, 21.2, "cwdig"],
+          [21.275, 21.45, "phone"],
+          [24.89, 24.93, "cwdig"],
+          [24.93, 24.99, "phone"],
+          [28, 29.7, "all"],
+          [50, 54, "all"],
+          [144, 148, "all"],
+          [420, 450, "all"]
+        ],
+        TECHNICIAN: [
+          [3.525, 3.6, "cw"],
+          [7.025, 7.125, "cw"],
+          [21.025, 21.2, "cw"],
+          [28, 28.3, "cwdig"],
+          [28.3, 28.5, "phone"],
+          [50, 54, "all"],
+          [144, 148, "all"],
+          [420, 450, "all"]
+        ],
+        NOVICE: [
+          [3.525, 3.6, "cw"],
+          [7.025, 7.125, "cw"],
+          [21.025, 21.2, "cw"],
+          [28, 28.3, "cwdig"],
+          [28.3, 28.5, "phone"],
+          [222, 225, "all"],
+          [420, 450, "all"]
+        ]
+      };
+      WIDGET_HELP = {
+        "widget-filters": {
+          title: "Filters",
+          description: "Narrow down the spot list to find exactly what you're looking for. Filters let you focus on specific bands, modes, nearby stations, or recent activity. Watch lists add per-source highlighting and include/exclude rules.",
+          sections: [
+            { heading: "Band & Mode Filters", content: "Click one or more bands (like 20m, 40m) or modes (like FT8, SSB) to show only those spots. Click again to deselect. You can select as many as you want." },
+            { heading: "Distance Filter", content: "Show only spots within a certain distance from your location (QTH). You'll need to set your location in Config first. Great for finding nearby activations you can reach." },
+            { heading: "Age Filter", content: "Show only spots posted within the last N minutes. Older spots may no longer be active, so this helps you find stations that are on the air right now." },
+            { heading: "Propagation Filter", content: `Click the "Prop" button to hide spots on bands with poor predicted propagation. Uses your current solar indices and location to estimate which HF bands are likely open. Spots on bands rated below "Fair" (less than 30% reliability) are filtered out. VHF/UHF spots are never filtered since they don't depend on HF propagation.` },
+            { heading: "Watch Lists", content: 'Click the "Watch Lists" accordion below the presets to add rules for the active source tab. Three modes: Red highlights matching spots with a tinted row, Only shows ONLY matching spots (everything else hidden), Not excludes matching spots. Match by callsign (strips /P, /M suffixes), DXCC entity, grid prefix, or park/summit reference. Rules apply per source tab and persist across sessions.' },
+            { heading: "Presets", content: 'Save your favorite filter combinations and switch between them quickly. For example, save a "Local FT8" preset for nearby digital spots, and a "DX SSB" preset for long-distance voice contacts.' }
+          ]
+        },
+        "widget-activations": {
+          title: "On the Air",
+          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from five sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), and PSKReporter (digital mode reception reports).",
+          sections: [
+            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, SOTA, DXC, WWFF, and PSK sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
+            { heading: "POTA", content: "Shows operators activating parks for the Parks on the Air program. Click the park reference link to see park details on the POTA website." },
+            { heading: "SOTA", content: "Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details." },
+            { heading: "DX Cluster", content: "Worldwide spots from the DX Cluster network. Great for finding rare or distant (DX) stations." },
+            { heading: "WWFF", content: "Shows operators activating nature reserves for the World Wide Flora & Fauna program. Similar to POTA but with a worldwide scope \u2014 especially popular in Europe. Click the reference link for reserve details." },
+            { heading: "PSK Reporter", content: "Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions." }
+          ]
+        },
+        "widget-map": {
+          title: "HamMap",
+          description: "An interactive world map showing the locations of spotted stations, your location, satellite tracks, and optional overlays. This gives you a visual picture of who's on the air and where.",
+          sections: [
+            { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
+            { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), Propagation Heatmap (colored map showing predicted band reliability from your QTH \u2014 pick a band from the dropdown), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), Cloud Cover (OpenWeatherMap \u2014 useful for satellite and EME ops), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (\u22655). Cloud Cover requires an OpenWeatherMap API key (enter in Config > Services)." },
+            { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
+            { heading: "Center Mode", content: "Use the QTH/PM/DX/CTY buttons in the map header to control centering. QTH centers on your home location. PM (Prime Meridian) shows the whole world. DX follows the selected spot. CTY zooms to fit your country's boundaries, determined automatically from your location." },
+            { heading: "Fullscreen", content: "Click the \u26F6 button in the map header to expand the map to fill the entire screen. Click the \u2715 button or press Escape to return to the normal layout." }
+          ]
+        },
+        "widget-solar": {
+          title: "Solar",
+          description: "Real-time space weather data that affects radio propagation. The sun's activity directly determines which bands are open and how far your signal can travel.",
+          sections: [
+            { heading: "What This Shows", content: "Solar Flux (SFI) and Sunspot Number indicate overall solar activity \u2014 higher values generally mean better HF propagation. The A-Index and K-Index measure geomagnetic disturbance \u2014 lower is better for radio." },
+            { heading: "Color Coding", content: "Values are color-coded: green means good conditions for radio, yellow means fair, and red means poor or disturbed. Watch the K-Index especially \u2014 values above 4 can shut down HF bands." },
+            { heading: "Customize Fields", content: "Click the gear icon to show or hide individual fields. By default, the most useful metrics are shown. Advanced users can enable additional fields like solar wind speed, Bz component, and aurora activity." }
+          ],
+          links: [
+            { label: "HamQSL Space Weather", url: "https://www.hamqsl.com/solar.html" }
+          ]
+        },
+        "widget-spacewx": {
+          title: "Space Weather History",
+          description: "Historical graphs of key space weather indices over the past week (or 90 days for Solar Flux). These charts help you spot trends and understand how conditions are changing \u2014 not just a single snapshot, but the bigger picture.",
+          sections: [
+            { heading: "Tabs", content: "Five tabs let you switch between different measurements: Kp index (geomagnetic activity), X-Ray flux (solar flare intensity), SFI (Solar Flux Index \u2014 overall solar activity), Solar Wind speed, and Bz (interplanetary magnetic field direction)." },
+            { heading: "What the graphs show", content: "Kp: Bar chart colored green/yellow/red \u2014 values above 4 mean geomagnetic storms that can disrupt HF. X-Ray: Line chart on a log scale \u2014 C/M/X class flares marked. SFI: 90-day trend \u2014 higher values (100+) mean better HF propagation. Wind: Solar wind speed \u2014 above 400 km/s can disturb conditions. Bz: Southward (negative) Bz opens Earth's magnetosphere to solar wind, worsening conditions." },
+            { heading: "Data source", content: "All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 15 minutes." }
+          ],
+          links: [
+            { label: "NOAA SWPC", url: "https://www.swpc.noaa.gov/" }
+          ]
+        },
+        "widget-propagation": {
+          title: "Band Conditions",
+          description: "HF and 6m band conditions plus VHF propagation status. Shows per-band reliability predictions for both day and night simultaneously, plus VHF phenomena like Aurora and E-Skip.",
+          sections: [
+            { heading: "HF Bands", content: "Each band shows a reliability percentage and condition (Excellent/Good/Fair/Poor/Closed). Day and night are shown side by side \u2014 day conditions appear in the left column (orange border), night in the right column (blue border). Green means the band is likely open, yellow means marginal, red means closed." },
+            { heading: "6m (Magic Band)", content: "6m is included because it has meaningful propagation modes \u2014 sporadic E (Es) and F2 skip during high solar activity. The prediction combines the MUF model with live E-Skip data from HamQSL. When E-Skip is reported as active, 6m reliability gets a boost. During quiet conditions, 6m may show as closed even though brief Es openings can still occur unpredictably." },
+            { heading: "VHF Conditions", content: "Below the HF bands, VHF propagation phenomena are shown: Aurora (affects 2m and above in northern latitudes) and E-Skip (sporadic E-layer openings on 6m/4m/2m by region). Data comes directly from HamQSL." },
+            { heading: "How It Works", content: "HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model. Higher SFI means better HF conditions. K-index above 4 can shut down HF bands. The summary bar shows current MUF (Maximum Usable Frequency), SFI, and K-index." }
+          ],
+          links: [
+            { label: "NOAA Space Weather", url: "https://www.swpc.noaa.gov/" },
+            { label: "HamQSL Solar Data", url: "https://www.hamqsl.com/solar.html" }
+          ]
+        },
+        "widget-lunar": {
+          title: "Lunar / EME",
+          description: 'Moon tracking data for Earth-Moon-Earth (EME or "moonbounce") communication. EME is an advanced technique where operators bounce radio signals off the moon to make contacts over very long distances.',
+          sections: [
+            { heading: "Moon Phase & Position", content: "Shows the current moon phase, illumination, and sky position. The moon needs to be above the horizon at both your location and the other station's location for EME to work." },
+            { heading: "Azimuth & Elevation", content: "Shows where the moon is in your sky right now. Elevation is the angle above your horizon \u2014 green (20\xB0+) is ideal for EME, yellow (0-20\xB0) is marginal, dim means below the horizon. Azimuth is the compass bearing (0\xB0 = North, 90\xB0 = East, etc.)." },
+            { heading: "Moonrise & Moonset", content: "Shows the next moonrise and moonset times for your location. These help you plan EME operating windows. Requires your location to be set in Configuration." },
+            { heading: "EME Path Loss", content: "Shows how much signal is lost on the round trip to the moon and back, calculated at 144 MHz (2m band). Lower path loss means better EME conditions. Loss varies with moon distance \u2014 closer moon (perigee) means less loss." },
+            { heading: "Declination", content: "The moon's angle relative to the equator. Higher declination generally means longer EME windows (more time with the moon above the horizon)." },
+            { heading: "Customize Fields", content: "Click the gear icon to show additional data like elongation, ecliptic coordinates, and right ascension for advanced planning." }
+          ],
+          links: [
+            { label: "ARRL EME Guide", url: "https://www.arrl.org/eme" },
+            { label: "NASA Moon Visualization", url: "https://svs.gsfc.nasa.gov/5187" }
+          ]
+        },
+        "widget-satellites": {
+          title: "Satellites",
+          description: "Track amateur radio satellites in real time and predict when they'll pass over your location. Many satellites carry amateur radio repeaters that anyone with a ham license can use to make contacts.",
+          sections: [
+            { heading: "ISS Tracking", content: "The ISS (International Space Station) is tracked automatically \u2014 no API key needed! Its position, footprint, and predicted orbit path appear on the map as a dashed cyan line. The ISS has an amateur radio station (ARISS) onboard." },
+            { heading: "Adding More Satellites", content: "To track additional satellites like AO-91, SO-50, and others, you'll need a free API key from N2YO.com \u2014 enter it in Config. Click the gear icon to search for and add satellites." },
+            { heading: "Live Position", content: "See where each satellite is right now on the map, along with its altitude, speed, and whether it's above your horizon (visible to you)." },
+            { heading: "TLE Age", content: 'Each satellite row shows the age of its TLE (orbital element) data in days. Color thresholds are based on the configurable "Max TLE Age" setting (default: 7 days) \u2014 green = fresh, yellow = aging, red + \u26A0 = exceeds max age. Stale TLEs reduce position accuracy. The ISS TLE is refreshed from CelesTrak every 6 hours. Set the max age in the satellite config (gear icon).' },
+            { heading: "Pass Predictions", content: "Click a satellite to see when it will next pass over your location. AOS (Acquisition of Signal) is when it rises, LOS (Loss of Signal) is when it sets. Higher max elevation passes are easier to work." }
+          ],
+          links: [
+            { label: "N2YO Satellite Tracker", url: "https://www.n2yo.com/" },
+            { label: "AMSAT \u2014 Amateur Satellites", url: "https://www.amsat.org/" }
+          ]
+        },
+        "widget-rst": {
+          title: "Reference",
+          description: "Quick-reference tables for common ham radio information. Use the tabs to switch between RST signal reports, NATO phonetic alphabet, Morse code, Q-codes, and US band privileges.",
+          sections: [
+            { heading: "RST Reports", content: "The RST tab shows readability (R), signal strength (S), and tone (T) values. During a contact, you exchange signal reports so each station knows how well they're being received." },
+            { heading: "Phonetic & Morse", content: "The Phonetic tab has the NATO phonetic alphabet for spelling callsigns clearly. The Morse tab shows dit/dah patterns for each character." },
+            { heading: "Q-Codes", content: "Common three-letter abbreviations starting with Q, originally for CW but now used on voice too. QTH = your location, QSO = a contact, QSL = confirmed." },
+            { heading: "Bands", content: 'US amateur band privileges by license class (Extra, General, Technician, Novice). Check "My privileges only" to show just your class. Requires a US callsign set in Config.' }
+          ],
+          links: [
+            { label: "Ham Radio School \u2014 Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
+          ]
+        },
+        "widget-rst:phonetic": {
+          title: "Phonetic Alphabet",
+          description: `The NATO phonetic alphabet is used by hams to spell out callsigns and words clearly, especially when signals are weak or noisy. Instead of saying the letter "B", you say "Bravo" so it can't be confused with "D", "E", or "P".`,
+          sections: [
+            { heading: "When to Use It", content: `Use the phonetic alphabet whenever you give your callsign on the air. For example, W1AW would be spoken as "Whiskey One Alpha Whiskey". It's also used to spell names, locations, or any word that needs to be communicated clearly.` },
+            { heading: "Tips", content: `You'll quickly memorize the phonetics for your own callsign. Practice saying it aloud before your first contact! Some hams use creative alternatives (like "Kilowatt" for K), but the standard NATO alphabet is always understood.` }
+          ]
+        },
+        "widget-rst:morse": {
+          title: "Morse Code",
+          description: "Morse code (CW) is one of the oldest and most effective modes in ham radio. It uses short signals (dits, shown as dots) and long signals (dahs, shown as dashes) to represent letters and numbers. CW can get through when voice and digital modes can't.",
+          sections: [
+            { heading: "Learning Morse", content: 'The best way to learn Morse code is by sound, not by memorizing the dot-dash patterns visually. Apps like "Morse Trainer" or the Koch method help you learn by listening to characters at full speed.' },
+            { heading: "Prosigns", content: 'Prosigns are special Morse sequences with specific meanings: AR (.-.-.) means "end of message", BT (-...-) means "pause/break", SK (...-.-) means "end of contact", and 73 means "best regards".' },
+            { heading: "On the Air", content: "CW is popular for QRP (low power) operating because it's very efficient. A 5-watt CW signal can often be copied when a 100-watt voice signal cannot. Many hams enjoy CW contesting and DX." }
+          ],
+          links: [
+            { label: "LCWO \u2014 Learn CW Online", url: "https://lcwo.net/" }
+          ]
+        },
+        "widget-rst:qcodes": {
+          title: "Q-Codes",
+          description: `Q-codes are three-letter abbreviations starting with "Q" that were originally created for CW (Morse code) to save time. Many are now commonly used in voice conversations too. As a question, they end with a "?"; as a statement, they're a direct answer.`,
+          sections: [
+            { heading: "Most Common for New Hams", content: 'QTH = your location ("My QTH is Denver"). QSO = a contact/conversation. QSL = confirmation ("QSL" means "I confirm" or "received"). QRZ = "who is calling?" (also the name of a popular callsign lookup website).' },
+            { heading: "Power & Interference", content: "QRP = low power (5W or less) \u2014 a popular challenge mode. QRO = high power. QRM = man-made interference. QRN = natural noise (static). QSB = signal fading in and out." },
+            { heading: "Operating", content: `QSY = change frequency ("Let's QSY to 14.250"). QRT = shutting down for the day ("I'm going QRT"). QRV = ready to receive. QRL = the frequency is in use (always ask "QRL?" before transmitting on a frequency!).` }
+          ]
+        },
+        "widget-rst:bands": {
+          title: "US Band Privileges",
+          description: "A reference chart showing which frequencies and modes are available to each US license class. This is based on FCC Part 97.301\u201397.305.",
+          sections: [
+            { heading: "License Classes", content: "US ham licenses come in four classes: Technician (entry level), General (expanded HF access), Amateur Extra (full privileges), and Novice (legacy, no longer issued). Each class has different frequency allocations." },
+            { heading: "My Privileges Only", content: 'Check "My privileges only" to filter the table to show just your license class. This requires a US callsign to be set in Config \u2014 your license class is looked up automatically.' },
+            { heading: "Mode Groups", content: "All = any mode allowed. CW = Morse code only. CW/Digital = CW and digital modes (FT8, PSK31, etc.). Phone = voice modes (SSB, FM, AM)." }
+          ]
+        },
+        "widget-spot-detail": {
+          title: "DX Detail",
+          description: "Shows detailed information about whichever station you've selected. Click any row in the On the Air table or any marker on the map to see that station's details here.",
+          sections: [
+            { heading: "Station Info", content: "Displays the operator's name, location, license class, and grid square (looked up from their callsign). US callsigns are looked up via the FCC database; non-US callsigns use HamQTH.com (configure credentials in Config > Services). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown." },
+            { heading: "Distance & Bearing", content: "Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config." },
+            { heading: "Frequency & Mode", content: "The frequency and mode the station is operating on, so you know exactly where to tune your radio." },
+            { heading: "Weather", content: "Shows current weather conditions at the station's location. US stations use NWS data; stations worldwide use OpenWeatherMap (configure your OWM API key in Config > Services)." }
+          ]
+        },
+        "widget-contests": {
+          title: "Contests",
+          description: "A calendar of upcoming and active amateur radio contests. Contests are time-limited on-air competitions where operators try to make as many contacts as possible. They're a great way to fill your logbook and practice your operating skills.",
+          sections: [
+            { heading: "What Are Contests?", content: "Ham radio contests run for a set period (usually a weekend). Operators exchange brief messages and try to contact as many stations or regions as possible. Contests happen nearly every weekend \u2014 from casual events to major international competitions." },
+            { heading: "Reading the List", content: 'Each card shows the contest name, date/time window, and operating mode. Contests update in real time \u2014 when a contest starts, it moves to the top with a green "NOW" badge. When it ends, it disappears automatically. Click any card to view the full rules and exchange format on the contest website.' },
+            { heading: "Mode Badges", content: "CW = Morse code only. PHONE = voice modes (SSB/FM). DIGITAL = digital modes (RTTY, FT8, etc.). Contests without a badge accept mixed modes." }
+          ],
+          links: [
+            { label: "WA7BNM Contest Calendar", url: "https://www.contestcalendar.com/" }
+          ]
+        },
+        "widget-dxpeditions": {
+          title: "DXpeditions",
+          description: "Track upcoming and active DXpeditions \u2014 organized trips to rare or hard-to-reach locations (remote islands, territories, etc.) specifically to get on the air for other hams to contact. Working a DXpedition is often the only way to log a new DXCC entity.",
+          sections: [
+            { heading: "What Is a DXpedition?", content: "A DXpedition is when a team of operators travels to a rare location and sets up amateur radio stations. They operate around the clock so as many hams as possible can make contact. Some DXpeditions are to uninhabited islands that might only be activated once a decade." },
+            { heading: "Reading the Cards", content: 'Each card shows the callsign being used, the location (DXCC entity), operating dates, and QSL information. Cards marked "ACTIVE" are on the air right now. Click any card for more details. DXpeditions with known locations also appear as orange circle markers on the map (toggle via Map Overlays gear icon) \u2014 bright orange for active, dimmer for upcoming.' },
+            { heading: "Time Filter", content: "Use the dropdown in the widget header to filter DXpeditions by time window: Active Now, Within 1 Week, Within 1 Month, Within 6 Months, or All. Active DXpeditions always appear regardless of the filter. The map markers match whatever the widget shows." },
+            { heading: "Hiding DXpeditions", content: 'Hover over any card and click the \xD7 button to hide it. Hidden DXpeditions are also removed from the map. A "Show N hidden" button appears at the bottom to restore all hidden items at once.' },
+            { heading: "QSL Information", content: `QSL means "I confirm" \u2014 it's how you verify a contact. The QSL field shows how to confirm: LoTW (Logbook of the World, an electronic system), direct (mail a card to the QSL manager), or bureau (via the QSL bureau, slower but cheaper).` }
+          ],
+          links: [
+            { label: "NG3K DXpedition Calendar", url: "https://www.ng3k.com/Misc/adxo.html" }
+          ]
+        },
+        "widget-beacons": {
+          title: "NCDXF Beacons",
+          description: "Real-time display of the NCDXF/IARU International Beacon Project \u2014 a network of 18 synchronized beacons worldwide that transmit on 5 HF frequencies in a repeating 3-minute cycle. Listening for these beacons is the quickest way to check which bands are open to which parts of the world.",
+          sections: [
+            { heading: "How It Works", content: "Every 3 minutes, each of the 18 beacons transmits for 10 seconds on each of 5 frequencies (14.100, 18.110, 21.150, 24.930, and 28.200 MHz). Five beacons transmit simultaneously \u2014 one per frequency. The table shows which beacon is active on each frequency right now, with a countdown to the next rotation." },
+            { heading: "Checking Propagation", content: "Tune your radio to one of the beacon frequencies and listen. If you hear a beacon, the band is open to that beacon's location. Scan all five frequencies to quickly map which bands are open to which parts of the world." },
+            { heading: "Beacon Transmission", content: "Each beacon transmits its callsign in CW (Morse code) at 100 watts, followed by four 1-second dashes at decreasing power levels (100W, 10W, 1W, 0.1W). If you can copy the callsign but not the last dashes, you know the band is open but marginal to that location." }
+          ],
+          links: [
+            { label: "NCDXF Beacon Project", url: "https://www.ncdxf.org/beacon/" }
+          ]
+        },
+        "widget-dedx": {
+          title: "DE/DX Info",
+          description: "A side-by-side display of your station (DE) and the currently selected distant station (DX) with live clocks. Inspired by the classic HamClock dual-pane layout, this widget shows large local time displays at each location plus key contact information at a glance.",
+          sections: [
+            { heading: "DE (Your Station)", content: "The left panel shows a large live clock for your local time, plus your callsign, grid square, and sunrise/sunset countdowns. Requires your callsign and location to be set in Config." },
+            { heading: "DX (Selected Station)", content: "The right panel shows the approximate local time at the selected DX station's location (calculated from longitude), plus their callsign, frequency, mode, grid square, bearing, distance, and sunrise/sunset. When no spot is selected, the DX side shows UTC." },
+            { heading: "Why Two Clocks?", content: "Knowing the local time at both ends of a path is essential for scheduling contacts and understanding propagation. A station in Japan is unlikely to be on the air at 3 AM their local time, and gray line propagation depends on sunrise/sunset at both locations." },
+            { heading: "Bearing & Distance", content: "The bearing tells you which compass direction to point a directional antenna. Distance helps estimate signal path loss and whether your power level is sufficient for the contact." }
+          ]
+        },
+        "widget-analog-clock": {
+          title: "Analog Clock",
+          description: "A customizable round analog clock showing your local time at a glance. Choose from 6 clock face styles and add up to 4 complications (sub-dials) for UTC time, Solar Flux, stopwatch mirror, and sunrise/sunset countdown \u2014 inspired by luxury watch complications.",
+          sections: [
+            { heading: "Clock Faces", content: "Click the gear icon to choose from 6 face styles: Classic (Arabic numerals), Minimal (clean index bars), Roman (Roman numerals), Pilot (bold indices with luminous triangle at 12), Railroad (double concentric track ring), and Digital (analog hands plus a digital time readout). Your selection is saved and persists across sessions." },
+            { heading: "Complications", content: "Complications are optional sub-dials that embed useful data directly on the clock face. Enable them in the gear menu:\n\n\u2022 Sunrise/Sunset (12 o'clock) \u2014 countdown to next sunrise or sunset with color-coded icon\n\u2022 Solar SFI (3 o'clock) \u2014 arc gauge showing Solar Flux Index, colored green/yellow/red\n\u2022 Stopwatch (6 o'clock) \u2014 mirrors the Stopwatch widget's elapsed time with running indicator\n\u2022 UTC 24h (9 o'clock) \u2014 24-hour sub-dial showing current UTC time" },
+            { heading: "Sunrise/Sunset Arc", content: "When your location (QTH) is set in Config, a golden arc appears on the clock face showing the daylight hours. The arc spans from sunrise to sunset on the 12-hour dial. This helps you visualize how much daylight remains and when gray line propagation windows occur." },
+            { heading: "Theme Support", content: "The clock colors automatically adapt to your selected theme. All face styles, hands, complications, and numbers use your theme's color scheme." }
+          ]
+        },
+        "widget-stopwatch": {
+          title: "Stopwatch / Timer",
+          description: "A dual-mode timer for contest operations and general use. Switch between Stopwatch (count up with laps) and Countdown (preset timers including the 10-minute FCC station ID reminder).",
+          sections: [
+            { heading: "Stopwatch Mode", content: "Click Start to begin counting up. Use Lap to mark split times during a contest (e.g., tracking contacts per minute). Stop pauses the timer; Reset clears everything." },
+            { heading: "Countdown Mode", content: "Click the Countdown tab and select a preset duration. The 10m ID button is a quick shortcut for the FCC 10-minute station identification requirement. The display flashes when the countdown reaches zero." },
+            { heading: "Station ID Timer", content: "FCC Part 97.119 requires US hams to identify every 10 minutes during a contact and at the end. Use the 10m ID preset as a reminder \u2014 when it flashes, give your callsign!" }
+          ]
+        },
+        "widget-live-spots": {
+          title: "Live Spots",
+          description: "See where YOUR signal is being received right now! When you transmit on digital modes like FT8 or FT4, stations around the world automatically report hearing you to PSKReporter. This widget shows those reports so you can see how far your signal is reaching.",
+          sections: [
+            { heading: "Getting Started", content: "Enter your callsign in Config, then transmit on a digital mode (FT8, FT4, JS8Call, etc.). Within a few minutes, you should see band cards appear showing who is hearing you." },
+            { heading: "Band Cards", content: "Each card represents a band where you're being heard. It shows either how many stations are receiving you or the distance to your farthest receiver. Click a card to show those stations on the map." },
+            { heading: "Display Mode", content: 'Click the gear icon to switch between "count" (number of stations hearing you) and "distance" (farthest reach per band). Distance mode also shows the callsign of your farthest contact.' },
+            { heading: "Map Lines", content: "When you click a band card, lines are drawn on the map from your location to each receiving station, giving you a visual picture of your signal coverage." }
+          ],
+          links: [
+            { label: "PSKReporter", url: "https://pskreporter.info/" }
+          ]
+        },
+        "widget-voacap": {
+          title: "VOACAP DE\u2192DX",
+          description: "A dense 24-hour propagation grid showing predicted band reliability from your station (DE) to the world (DX). The current hour starts at the left edge so you can instantly see what's open right now.",
+          sections: [
+            { heading: "Reading the Grid", content: `Each row is an HF band (10m at top, 80m at bottom). Each column is one hour in UTC, starting from "now" at the left. Cell colors show predicted reliability as a continuous gradient:
+
+\u2022 Closed (black) \u2014 Below 5% reliability. The band is not usable on this path. Signals cannot propagate because the frequency is above the MUF or ionospheric conditions block it entirely.
+\u2022 Poor (red) \u2014 5\u201330% reliability. The band may open briefly or weakly. You might make a contact with persistence and good timing, but don't count on it.
+\u2022 Fair (yellow/orange) \u2014 30\u201365% reliability. The band is usable but inconsistent. Signals may fade in and out. Good for CW and digital modes; SSB may be marginal.
+\u2022 Good (green) \u2014 Above 65% reliability. The band is solidly open. Expect workable signals for the predicted mode and power level.` },
+            { heading: "Interactive Parameters", content: "The bottom bar shows clickable settings. Click any value to cycle through options: Power (5W/100W/1kW), Mode (CW/SSB/FT8), Takeoff Angle (3\xB0/5\xB0/10\xB0/15\xB0), and Path (SP=short, LP=long). FT8 mode shows more green because its low SNR threshold means signals are decodable in conditions where SSB would be unusable." },
+            { heading: "Overview vs Spot", content: `Click OVW/SPOT to toggle target mode. "OVW" (overview) shows the average predicted reliability across four worldwide targets (Europe, East Asia, South America, North America). "SPOT" calculates predictions specifically to the station you've selected in the On the Air table, so you can see exactly when a band will open to that DX.` },
+            { heading: "Auto-SPOT", content: "Click the AUTO button to enable automatic SPOT updates. When AUTO is on (highlighted green), clicking any spot in the table or on the map instantly switches VOACAP to SPOT mode and recalculates the grid for the path to that station. This lets you quickly scan propagation to different DX stations by clicking through spots. AUTO is off by default \u2014 enable it when you want live per-spot predictions." },
+            { heading: "Engine Badge", content: 'The green "VOACAP" or gray "SIM" badge shows which prediction engine is active. VOACAP uses the real Voice of America Coverage Analysis Program \u2014 a professional ionospheric ray-tracing model used by broadcasters and militaries worldwide. It computes multi-hop propagation paths through actual ionospheric layers, accounting for D-layer absorption, MUF, takeoff angle, power, and mode. SIM is a lightweight approximation based on solar flux and time of day \u2014 useful as a fallback but significantly less accurate. The engine switches automatically; no user action needed.' },
+            { heading: "Map Overlay", content: "Click any band row to show propagation on the map. Two modes are available \u2014 click the \u25CB/REL toggle in the param bar to switch. Circle mode (\u25CB) draws concentric range rings from your QTH. REL heatmap mode paints the entire map with a color gradient showing predicted reliability to every point: green = good, yellow = fair, red = poor, dark = closed. The heatmap re-renders as you pan and zoom, with finer detail at higher zoom levels." },
+            { heading: "About the Data", content: "Predictions are monthly median values based on the current smoothed sunspot number (SSN) from NOAA. They represent typical conditions for this month, not real-time ionospheric state. Use them for planning which bands to try at different times of day, rather than as guarantees of what's open right now." }
+          ],
+          links: [
+            { label: "NOAA Space Weather & Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
+          ]
+        }
+      };
+      REFERENCE_TABS = {
+        rst: {
+          label: "RST",
+          content: {
+            description: "Signal reporting system for readability, strength, and tone.",
+            table: {
+              headers: ["", "Readability", "Strength", "Tone (CW)"],
+              rows: [
+                ["1", "Unreadable", "Faint", "Harsh, hum"],
+                ["2", "Barely readable", "Very weak", "Harsh, modulation"],
+                ["3", "Readable with difficulty", "Weak", "Rough, hum"],
+                ["4", "Almost perfectly readable", "Fair", "Rough, modulation"],
+                ["5", "Perfectly readable", "Fairly good", "Wavering, strong hum"],
+                ["6", "\u2014", "Good", "Wavering, strong mod"],
+                ["7", "\u2014", "Moderately strong", "Good, slight hum"],
+                ["8", "\u2014", "Strong", "Good, slight mod"],
+                ["9", "\u2014", "Very strong", "Perfect tone"]
+              ]
+            },
+            note: "Phone: RS only (e.g. 59) \xB7 CW: RST (e.g. 599)",
+            link: { text: "Ham Radio School \u2014 Practical Signal Reports", url: "https://www.hamradioschool.com/post/practical-signal-reports" }
+          }
+        },
+        phonetic: {
+          label: "Phonetic",
+          content: {
+            description: "NATO phonetic alphabet for clear letter pronunciation.",
+            table: {
+              headers: ["Letter", "Phonetic", "Letter", "Phonetic"],
+              rows: [
+                ["A", "Alpha", "N", "November"],
+                ["B", "Bravo", "O", "Oscar"],
+                ["C", "Charlie", "P", "Papa"],
+                ["D", "Delta", "Q", "Quebec"],
+                ["E", "Echo", "R", "Romeo"],
+                ["F", "Foxtrot", "S", "Sierra"],
+                ["G", "Golf", "T", "Tango"],
+                ["H", "Hotel", "U", "Uniform"],
+                ["I", "India", "V", "Victor"],
+                ["J", "Juliet", "W", "Whiskey"],
+                ["K", "Kilo", "X", "X-ray"],
+                ["L", "Lima", "Y", "Yankee"],
+                ["M", "Mike", "Z", "Zulu"]
+              ]
+            }
+          }
+        },
+        morse: {
+          label: "Morse",
+          content: {
+            description: "International Morse code \u2014 dits (.) and dahs (-) for each character.",
+            table: {
+              headers: ["Char", "Morse", "Char", "Morse"],
+              rows: [
+                ["A", ".-", "N", "-."],
+                ["B", "-...", "O", "---"],
+                ["C", "-.-.", "P", ".--."],
+                ["D", "-..", "Q", "--.-"],
+                ["E", ".", "R", ".-."],
+                ["F", "..-.", "S", "..."],
+                ["G", "--.", "T", "-"],
+                ["H", "....", "U", "..-"],
+                ["I", "..", "V", "...-"],
+                ["J", ".---", "W", ".--"],
+                ["K", "-.-", "X", "-..-"],
+                ["L", ".-..", "Y", "-.--"],
+                ["M", "--", "Z", "--.."],
+                ["0", "-----", "5", "....."],
+                ["1", ".----", "6", "-...."],
+                ["2", "..---", "7", "--..."],
+                ["3", "...--", "8", "---.."],
+                ["4", "....-", "9", "----."]
+              ]
+            },
+            note: "Prosigns: AR (end of message) = .-.-.  BT (pause) = -...-  SK (end of contact) = ...-.-"
+          }
+        },
+        qcodes: {
+          label: "Q-Codes",
+          content: {
+            description: "Common Q-codes used in amateur radio. Originally for CW, now widely used on voice too.",
+            table: {
+              headers: ["Code", "Meaning", "Code", "Meaning"],
+              rows: [
+                ["QRG", "Your exact frequency", "QRS", "Send more slowly"],
+                ["QRL", "Frequency is busy", "QRT", "Stop sending / shutting down"],
+                ["QRM", "Man-made interference", "QRV", "I am ready"],
+                ["QRN", "Natural interference", "QRX", "Stand by / wait"],
+                ["QRO", "Increase power", "QRZ", "Who is calling me?"],
+                ["QRP", "Reduce power / low power", "QSB", "Signal is fading"],
+                ["QSL", "I confirm / received", "QSO", "A contact (conversation)"],
+                ["QSY", "Change frequency", "QTH", "My location"]
+              ]
+            },
+            note: "QRP = operating at 5 watts or less \xB7 QRO = running high power \xB7 QSL cards confirm contacts"
+          }
+        },
+        bands: {
+          label: "Bands",
+          custom: true
+          // rendered by bandref logic, not generic table renderer
+        }
+      };
+      DEFAULT_REFERENCE_TAB = "rst";
+      BREAKPOINT_MOBILE = 1200;
+      SCALE_REFERENCE_WIDTH = 1200;
+      SCALE_MIN_FACTOR = 0.55;
+      SCALE_REFLOW_WIDTH = 1200;
+      REFLOW_WIDGET_ORDER = [
+        "widget-map",
+        "widget-activations",
+        "widget-filters",
+        "widget-solar",
+        "widget-propagation",
+        "widget-voacap",
+        "widget-live-spots",
+        "widget-spacewx",
+        "widget-spot-detail",
+        "widget-lunar",
+        "widget-satellites",
+        "widget-rst",
+        "widget-contests",
+        "widget-dxpeditions",
+        "widget-beacons",
+        "widget-dedx",
+        "widget-stopwatch",
+        "widget-analog-clock"
+      ];
+      DEFAULT_BAND_COLORS = {
+        "160m": "#9c27b0",
+        "80m": "#673ab7",
+        "60m": "#3f51b5",
+        "40m": "#2196f3",
+        "30m": "#00bcd4",
+        "20m": "#4caf50",
+        "17m": "#8bc34a",
+        "15m": "#cddc39",
+        "12m": "#ffeb3b",
+        "10m": "#ff9800",
+        "6m": "#ff5722",
+        "2m": "#f44336",
+        "70cm": "#e91e63"
+      };
+      bandColorOverrides = {};
+      try {
+        const saved = JSON.parse(localStorage.getItem("hamtab_band_colors"));
+        if (saved && typeof saved === "object") bandColorOverrides = saved;
+      } catch (e) {
+      }
+      MOBILE_TAB_KEY = "hamtab_active_tab";
+      WIDGET_STORAGE_KEY = "hamtab_widgets";
+      USER_LAYOUT_KEY = "hamtab_widgets_user";
+      LAYOUTS_KEY = "hamtab_layouts";
+      MAX_LAYOUTS = 20;
+      SNAP_DIST = 20;
+      SNAP_GRID = 20;
+      SNAP_GRID_KEY = "hamtab_snap_grid";
+      ALLOW_OVERLAP_KEY = "hamtab_allow_overlap";
+      HEADER_H = 30;
+      GRID_MODE_KEY = "hamtab_grid_mode";
+      GRID_PERM_KEY = "hamtab_grid_permutation";
+      GRID_ASSIGN_KEY = "hamtab_grid_assignments";
+      GRID_SIZES_KEY = "hamtab_grid_sizes";
+      GRID_SPANS_KEY = "hamtab_grid_spans";
+      GRID_PERMUTATIONS = [
+        {
+          id: "2L-2R",
+          name: "2 Left / 2 Right",
+          slots: 4,
+          // Legacy fields — used by config preview (splash.js:renderGridPreview)
+          areas: '"L1 map R1" "L2 map R2"',
+          columns: "1fr 2fr 1fr",
+          rows: "1fr 1fr",
+          cellNames: ["L1", "L2", "R1", "R2"],
+          // Flex-column hybrid fields — used by grid-layout.js at runtime
+          left: ["L1", "L2"],
+          right: ["R1", "R2"],
+          top: [],
+          bottom: [],
+          outerAreas: '"left map right"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "1fr"
+        },
+        {
+          id: "3L-3R",
+          name: "3 Left / 3 Right",
+          slots: 6,
+          areas: '"L1 map R1" "L2 map R2" "L3 map R3"',
+          columns: "1fr 2fr 1fr",
+          rows: "1fr 1fr 1fr",
+          cellNames: ["L1", "L2", "L3", "R1", "R2", "R3"],
+          left: ["L1", "L2", "L3"],
+          right: ["R1", "R2", "R3"],
+          top: [],
+          bottom: [],
+          outerAreas: '"left map right"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "1fr"
+        },
+        {
+          id: "1T-2L-2R-1B",
+          name: "Top + 2L/2R + Bottom",
+          slots: 6,
+          areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "B1 B1 B1"',
+          columns: "1fr 2fr 1fr",
+          rows: "auto 1fr 1fr auto",
+          cellNames: ["T1", "L1", "L2", "R1", "R2", "B1"],
+          left: ["L1", "L2"],
+          right: ["R1", "R2"],
+          top: ["T1"],
+          bottom: ["B1"],
+          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "auto 1fr auto"
+        },
+        {
+          id: "1T-3L-3R-1B",
+          name: "Top + 3L/3R + Bottom",
+          slots: 8,
+          areas: '"T1 T1 T1" "L1 map R1" "L2 map R2" "L3 map R3" "B1 B1 B1"',
+          columns: "1fr 2fr 1fr",
+          rows: "auto 1fr 1fr 1fr auto",
+          cellNames: ["T1", "L1", "L2", "L3", "R1", "R2", "R3", "B1"],
+          left: ["L1", "L2", "L3"],
+          right: ["R1", "R2", "R3"],
+          top: ["T1"],
+          bottom: ["B1"],
+          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "auto 1fr auto"
+        },
+        {
+          id: "2T-3L-3R-2B",
+          name: "2 Top + 3L/3R + 2 Bottom",
+          slots: 10,
+          areas: '"T1 T1 T2 T2" "L1 map map R1" "L2 map map R2" "L3 map map R3" "B1 B1 B2 B2"',
+          columns: "1fr 1fr 1fr 1fr",
+          rows: "auto 1fr 1fr 1fr auto",
+          cellNames: ["T1", "T2", "L1", "L2", "L3", "R1", "R2", "R3", "B1", "B2"],
+          left: ["L1", "L2", "L3"],
+          right: ["R1", "R2", "R3"],
+          top: ["T1", "T2"],
+          bottom: ["B1", "B2"],
+          outerAreas: '"top top top" "left map right" "bottom bottom bottom"',
+          outerColumns: "1fr 2fr 1fr",
+          outerRows: "auto 1fr auto"
+        }
+      ];
+      GRID_DEFAULT_ASSIGNMENTS = {
+        "2L-2R": {
+          L1: "widget-filters",
+          L2: "widget-activations",
+          R1: "widget-solar",
+          R2: "widget-propagation"
+        },
+        "3L-3R": {
+          L1: "widget-filters",
+          L2: "widget-activations",
+          L3: "widget-live-spots",
+          R1: "widget-solar",
+          R2: "widget-propagation",
+          R3: "widget-voacap"
+        },
+        "1T-2L-2R-1B": {
+          T1: "widget-solar",
+          L1: "widget-filters",
+          L2: "widget-activations",
+          R1: "widget-propagation",
+          R2: "widget-voacap",
+          B1: "widget-live-spots"
+        },
+        "1T-3L-3R-1B": {
+          T1: "widget-solar",
+          L1: "widget-filters",
+          L2: "widget-activations",
+          L3: "widget-live-spots",
+          R1: "widget-propagation",
+          R2: "widget-voacap",
+          R3: "widget-spot-detail",
+          B1: "widget-lunar"
+        },
+        "2T-3L-3R-2B": {
+          T1: "widget-solar",
+          T2: "widget-propagation",
+          L1: "widget-filters",
+          L2: "widget-activations",
+          L3: "widget-live-spots",
+          R1: "widget-voacap",
+          R2: "widget-spot-detail",
+          R3: "widget-satellites",
+          B1: "widget-lunar",
+          B2: "widget-rst"
+        }
+      };
+    }
+  });
+
+  // src/voacap.js
+  var voacap_exports = {};
+  __export(voacap_exports, {
+    clearVoacapOverlay: () => clearVoacapOverlay,
+    fetchVoacapMatrix: () => fetchVoacapMatrix,
+    fetchVoacapMatrixThrottled: () => fetchVoacapMatrixThrottled,
+    getVoacapOpts: () => getVoacapOpts,
+    initVoacapListeners: () => initVoacapListeners,
+    onSpotDeselected: () => onSpotDeselected,
+    onSpotSelected: () => onSpotSelected,
+    renderVoacapMatrix: () => renderVoacapMatrix,
+    toggleBandOverlay: () => toggleBandOverlay
+  });
+  function initVoacapListeners() {
+    const matrix = $("voacapMatrix");
+    if (!matrix) return;
+    matrix.addEventListener("click", (e) => {
+      const param = e.target.closest(".voacap-param");
+      if (param && param.dataset.param) {
+        if (param.dataset.param === "sensitivity" && e.shiftKey) {
+          cycleParam("sensitivity-reset");
+        } else {
+          cycleParam(param.dataset.param);
+        }
+        return;
+      }
+      const row = e.target.closest(".voacap-row");
+      if (row && row.dataset.band) {
+        toggleBandOverlay(row.dataset.band);
+      }
+    });
+  }
+  function cycleParam(name) {
+    if (name === "overlay") {
+      const next2 = state_default.heatmapOverlayMode === "circles" ? "heatmap" : "circles";
+      state_default.heatmapOverlayMode = next2;
+      localStorage.setItem("hamtab_heatmap_mode", next2);
+      renderVoacapMatrix();
+      if (state_default.hfPropOverlayBand) {
+        clearBandOverlay();
+        clearHeatmap();
+        if (next2 === "heatmap") {
+          renderHeatmapCanvas(state_default.hfPropOverlayBand);
+        } else {
+          drawBandOverlay(state_default.hfPropOverlayBand);
+        }
+      }
+      return;
+    }
+    if (name === "autospot") {
+      state_default.voacapAutoSpot = !state_default.voacapAutoSpot;
+      localStorage.setItem("hamtab_voacap_auto_spot", state_default.voacapAutoSpot);
+      renderVoacapMatrix();
+      return;
+    }
+    if (name === "sensitivity-reset") {
+      state_default.voacapSensitivity = DEFAULT_SENSITIVITY;
+      localStorage.setItem("hamtab_voacap_sensitivity", DEFAULT_SENSITIVITY);
+      renderVoacapMatrix();
+      renderPropagationHeatmapOverlay();
+      clearTimeout(state_default.voacapParamTimer);
+      state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
+      return;
+    }
+    if (name === "sensitivity") {
+      const current2 = state_default.voacapSensitivity;
+      const next2 = current2 >= MAX_SENSITIVITY ? 1 : current2 + 1;
+      state_default.voacapSensitivity = next2;
+      localStorage.setItem("hamtab_voacap_sensitivity", next2);
+      renderVoacapMatrix();
+      renderPropagationHeatmapOverlay();
+      clearTimeout(state_default.voacapParamTimer);
+      state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
+      return;
+    }
+    if (name === "target") {
+      const current2 = state_default.voacapTarget;
+      const next2 = current2 === "overview" ? "spot" : "overview";
+      state_default.voacapTarget = next2;
+      localStorage.setItem("hamtab_voacap_target", next2);
+      fetchVoacapMatrix();
+      return;
+    }
+    let options, key, stateKey;
+    if (name === "power") {
+      options = POWER_OPTIONS;
+      key = "hamtab_voacap_power";
+      stateKey = "voacapPower";
+    } else if (name === "mode") {
+      options = MODE_OPTIONS;
+      key = "hamtab_voacap_mode";
+      stateKey = "voacapMode";
+    } else if (name === "toa") {
+      options = TOA_OPTIONS;
+      key = "hamtab_voacap_toa";
+      stateKey = "voacapToa";
+    } else if (name === "path") {
+      options = PATH_OPTIONS;
+      key = "hamtab_voacap_path";
+      stateKey = "voacapPath";
+    } else return;
+    const current = state_default[stateKey];
+    const idx = options.indexOf(current);
+    const next = options[(idx + 1) % options.length];
+    state_default[stateKey] = next;
+    localStorage.setItem(key, next);
+    renderVoacapMatrix();
+    clearTimeout(state_default.voacapParamTimer);
+    state_default.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
+    if (state_default.hfPropOverlayBand) {
+      clearBandOverlay();
+      clearHeatmap();
+      if (state_default.heatmapOverlayMode === "heatmap") {
+        renderHeatmapCanvas(state_default.hfPropOverlayBand);
+      } else {
+        drawBandOverlay(state_default.hfPropOverlayBand);
+      }
+    } else {
+      renderPropagationHeatmapOverlay();
+    }
+  }
+  function getVoacapOpts() {
+    return {
+      lat: state_default.myLat,
+      lon: state_default.myLon,
+      mode: state_default.voacapMode,
+      powerWatts: parseInt(state_default.voacapPower, 10),
+      toaDeg: parseInt(state_default.voacapToa, 10),
+      longPath: state_default.voacapPath === "LP"
+    };
+  }
+  async function fetchVoacapMatrix() {
+    if (state_default.myLat == null || state_default.myLon == null) {
+      renderVoacapMatrix();
+      return;
+    }
+    console.log(`[VOACAP] fetchVoacapMatrix called, target=${state_default.voacapTarget}, selectedSpot=${state_default.selectedSpotId}, sensitivity=${state_default.voacapSensitivity}`);
+    if (activeFetchController) activeFetchController.abort();
+    if (retryTimer) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    const controller = new AbortController();
+    activeFetchController = controller;
+    const sensLevel = SENSITIVITY_LEVELS[state_default.voacapSensitivity] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
+    const currentSnr = sensLevel[state_default.voacapMode] ?? sensLevel.SSB;
+    const params = new URLSearchParams({
+      txLat: state_default.myLat,
+      txLon: state_default.myLon,
+      power: state_default.voacapPower,
+      mode: state_default.voacapMode,
+      toa: state_default.voacapToa,
+      path: state_default.voacapPath,
+      snr: currentSnr
+    });
+    if (state_default.voacapTarget === "spot" && state_default.selectedSpotId) {
+      try {
+        const spot = findSelectedSpot();
+        const spotLat = parseFloat(spot?.latitude);
+        const spotLon = parseFloat(spot?.longitude);
+        console.log(`[VOACAP] Spot lookup: found=${!!spot}, lat=${spotLat}, lon=${spotLon}`);
+        if (!isNaN(spotLat) && !isNaN(spotLon)) {
+          params.set("rxLat", spotLat);
+          params.set("rxLon", spotLon);
+        }
+      } catch (err2) {
+        console.warn("[VOACAP] Spot lookup error:", err2);
+      }
+    }
+    try {
+      const timeout = setTimeout(() => controller.abort(), 25e3);
+      const resp = await fetch(`/api/voacap?${params}`, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (activeFetchController === controller) {
+        state_default.voacapServerData = data;
+        state_default.voacapEngine = data.engine || "simplified";
+        state_default.voacapLastFetch = Date.now();
+        retryCount = 0;
+        if (state_default.voacapTarget === "spot") {
+          const hasSignal = matrixHasSignal(data.matrix);
+          const peakRel = Math.max(...data.matrix.flatMap(
+            (e) => Object.values(e.bands).map((b) => typeof b === "object" ? b.rel || 0 : b || 0)
+          ));
+          console.log(`[VOACAP] SPOT fetch: engine=${data.engine}, rxLat=${params.get("rxLat")}, rxLon=${params.get("rxLon")}, peakRel=${peakRel}%, hasSignal=${hasSignal}${data.fallbackReason ? ", fallback=" + data.fallbackReason : ""}`);
+        }
+      }
+    } catch (err2) {
+      if (err2.name === "AbortError") {
+        console.log("[VOACAP] Fetch aborted (superseded)");
+        return;
+      }
+      console.warn(`[VOACAP] Fetch error: ${err2.message}`);
+      if (retryCount < MAX_RETRIES && activeFetchController === controller) {
+        retryCount++;
+        console.log(`[VOACAP] Retry ${retryCount}/${MAX_RETRIES} in ${FETCH_RETRY_MS / 1e3}s`);
+        retryTimer = setTimeout(() => {
+          retryTimer = null;
+          fetchVoacapMatrix();
+        }, FETCH_RETRY_MS);
+      }
+    }
+    renderVoacapMatrix();
+  }
+  function fetchVoacapMatrixThrottled() {
+    const throttle = state_default.voacapEngine === "dvoacap" ? FETCH_THROTTLE_MS : FETCH_RETRY_MS;
+    if (Date.now() - state_default.voacapLastFetch < throttle) return;
+    fetchVoacapMatrix();
+  }
+  function findSelectedSpot() {
+    if (!state_default.selectedSpotId) return null;
+    const source = state_default.currentSource;
+    const spots = state_default.sourceData[source] || [];
+    const def = SOURCE_DEFS[source];
+    if (!def || !def.spotId) return null;
+    return spots.find((s) => def.spotId(s) === state_default.selectedSpotId);
+  }
+  function matrixHasSignal(matrix) {
+    for (const entry of matrix) {
+      for (const val of Object.values(entry.bands)) {
+        const rel = typeof val === "object" ? val.rel || 0 : val || 0;
+        if (rel >= 5) return true;
+      }
+    }
+    return false;
+  }
+  function getActiveMatrix() {
+    if (state_default.voacapServerData && state_default.voacapServerData.matrix) {
+      const serverMatrix = state_default.voacapServerData.matrix;
+      if (state_default.voacapTarget === "spot" && !matrixHasSignal(serverMatrix)) {
+        const opts2 = getVoacapOpts();
+        return calculate24HourMatrix(opts2);
+      }
+      return serverMatrix;
+    }
+    const opts = getVoacapOpts();
+    return calculate24HourMatrix(opts);
+  }
+  function getBandReliability(hourData, bandName) {
+    const bandVal = hourData.bands[bandName];
+    if (bandVal == null) return 0;
+    if (typeof bandVal === "object") return bandVal.rel || 0;
+    return bandVal;
+  }
+  function renderVoacapMatrix() {
+    const container = $("voacapMatrix");
+    if (!container) return;
+    const matrix = getActiveMatrix();
+    const hasData = matrix.some((entry) => Object.keys(entry.bands).length > 0);
+    if (!hasData) {
+      container.innerHTML = '<div class="voacap-no-data">Waiting for solar data...</div>';
+      return;
+    }
+    const spotPathDead = state_default.voacapTarget === "spot" && state_default.voacapServerData?.matrix && !matrixHasSignal(state_default.voacapServerData.matrix);
+    const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const hourOrder = [];
+    for (let i = 0; i < 24; i++) {
+      hourOrder.push((nowHour + i) % 24);
+    }
+    const bandsReversed = [...VOACAP_BANDS].reverse();
+    let html = '<table class="voacap-table"><tbody>';
+    for (const band of bandsReversed) {
+      const isOverlayActive = state_default.hfPropOverlayBand === band.name;
+      const activeClass = isOverlayActive ? "voacap-row-active" : "";
+      html += `<tr class="voacap-row ${activeClass}" data-band="${band.name}">`;
+      html += `<td class="voacap-band-label">${band.label}</td>`;
+      for (let i = 0; i < 24; i++) {
+        const h = hourOrder[i];
+        const hourData = matrix[h];
+        const reliability = getBandReliability(hourData, band.name);
+        const color = getReliabilityColor(reliability);
+        const isNow = i === 0;
+        const nowClass = isNow ? "voacap-cell-now" : "";
+        html += `<td class="voacap-cell ${nowClass}" style="background-color: ${color}" title="${band.label} @ ${String(h).padStart(2, "0")}z: ${reliability}%"></td>`;
+      }
+      html += "</tr>";
+    }
+    html += '<tr class="voacap-hour-row"><td class="voacap-band-label"></td>';
+    for (let i = 0; i < 24; i++) {
+      const h = hourOrder[i];
+      if (i % 3 === 0) {
+        const isNow = i === 0;
+        const nowClass = isNow ? "voacap-hour-now" : "";
+        html += `<td class="voacap-hour-label ${nowClass}" colspan="3">${String(h).padStart(2, "0")}</td>`;
+      }
+    }
+    html += "</tr>";
+    html += "</tbody></table>";
+    const engineLabel = state_default.voacapEngine === "dvoacap" ? "VOACAP" : "SIM";
+    const engineClass = state_default.voacapEngine === "dvoacap" ? "voacap-engine-real" : "voacap-engine-sim";
+    const engineTitle = state_default.voacapEngine === "dvoacap" ? "Using real VOACAP propagation model" : "Using simplified propagation model";
+    const targetLabel = state_default.voacapTarget === "spot" ? "SPOT" : "OVW";
+    const targetTitle = state_default.voacapTarget === "spot" ? "Showing prediction to selected spot (click for overview)" : "Showing average worldwide prediction (click for spot mode)";
+    const serverData = state_default.voacapServerData;
+    const effectiveSSN = serverData?.ssn ? Math.round(serverData.ssn) : null;
+    const baseSSN = serverData?.ssnBase ? Math.round(serverData.ssnBase) : null;
+    const kIndex = serverData?.kIndex;
+    const kDegradation = serverData?.kDegradation || 0;
+    const ssnDisplay = effectiveSSN ?? (state_default.lastSolarData?.indices?.sunspots || "--");
+    const isStorm = kIndex !== null && kIndex >= 4;
+    const ssnWarningClass = isStorm ? " voacap-k-warning" : "";
+    const ssnWarningIndicator = isStorm ? "!" : "";
+    let ssnTitle = "Smoothed sunspot number";
+    if (kIndex !== null && baseSSN !== null) {
+      if (kDegradation > 0) {
+        ssnTitle = `K-index ${kIndex}: Base SSN ${baseSSN} \u2192 ${effectiveSSN} (-${kDegradation}%)`;
+      } else {
+        ssnTitle = `K-index ${kIndex}: SSN ${baseSSN} (no degradation)`;
+      }
+    }
+    const overlayLabel = state_default.heatmapOverlayMode === "heatmap" ? "REL" : "\u25CB";
+    const overlayTitle = state_default.heatmapOverlayMode === "heatmap" ? "Overlay: REL heatmap (click for circles)" : "Overlay: circles (click for REL heatmap)";
+    html += `<div class="voacap-params">`;
+    html += `<span class="voacap-engine-badge ${engineClass}" title="${engineTitle}">${engineLabel}</span>`;
+    html += `<span class="voacap-param" data-param="target" title="${targetTitle}">${targetLabel}</span>`;
+    const autoClass = state_default.voacapAutoSpot ? " voacap-param-active" : "";
+    const autoTitle = state_default.voacapAutoSpot ? "Auto-SPOT: ON \u2014 clicking a spot refreshes VOACAP to that path (click to disable)" : "Auto-SPOT: OFF \u2014 click to auto-refresh VOACAP when selecting a spot";
+    html += `<span class="voacap-param${autoClass}" data-param="autospot" title="${autoTitle}">AUTO</span>`;
+    html += `<span class="voacap-param" data-param="overlay" title="${overlayTitle}">${overlayLabel}</span>`;
+    html += `<span class="voacap-param" data-param="power" title="TX Power (click to cycle)">${POWER_LABELS[state_default.voacapPower] || state_default.voacapPower}</span>`;
+    html += `<span class="voacap-param" data-param="mode" title="Mode (click to cycle)">${state_default.voacapMode}</span>`;
+    html += `<span class="voacap-param" data-param="toa" title="Takeoff angle (click to cycle)">${state_default.voacapToa}\xB0</span>`;
+    html += `<span class="voacap-param" data-param="path" title="Path type (click to cycle)">${state_default.voacapPath}</span>`;
+    html += `<span class="voacap-param-static${ssnWarningClass}" title="${ssnTitle}">S=${ssnDisplay}${ssnWarningIndicator}</span>`;
+    const sensLvl = state_default.voacapSensitivity;
+    const sensInfo = SENSITIVITY_LEVELS[sensLvl] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
+    const sensDefault = sensLvl === DEFAULT_SENSITIVITY;
+    const sensActiveClass = !sensDefault ? " voacap-param-active" : "";
+    const sensTooltip = `SNR Sensitivity: ${sensInfo.label} (${sensLvl}/${MAX_SENSITIVITY})
+${sensInfo.desc}
+
+Required S/N for ${state_default.voacapMode}: ${sensInfo[state_default.voacapMode]}dB
+
+Higher = stricter (fewer paths workable)
+Lower = more lenient (more paths workable)
+
+Click to cycle \u2022 Shift+click to reset to Normal`;
+    html += `<span class="voacap-param${sensActiveClass}" data-param="sensitivity" title="${sensTooltip}">SN${sensLvl}</span>`;
+    html += `</div>`;
+    if (spotPathDead) {
+      html += `<div class="voacap-no-prop">No HF path to this station \u2014 showing overview</div>`;
+    }
+    html += `<div class="voacap-legend">`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(0)}"></span>Closed</span>`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(20)}"></span>Poor</span>`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(50)}"></span>Fair</span>`;
+    html += `<span class="voacap-legend-item"><span class="voacap-legend-swatch" style="background:${getReliabilityColor(80)}"></span>Good</span>`;
+    html += `</div>`;
+    container.innerHTML = html;
+  }
+  function toggleBandOverlay(band) {
+    clearBandOverlay();
+    clearHeatmap();
+    if (state_default.hfPropOverlayBand === band) {
+      state_default.hfPropOverlayBand = null;
+      renderVoacapMatrix();
+      renderPropagationHeatmapOverlay();
+      return;
+    }
+    state_default.hfPropOverlayBand = band;
+    renderVoacapMatrix();
+    if (state_default.heatmapOverlayMode === "heatmap") {
+      renderHeatmapCanvas(band);
+    } else {
+      drawBandOverlay(band);
+    }
+  }
+  function clearBandOverlay() {
+    if (!state_default.map) return;
+    for (const circle of bandOverlayCircles) {
+      state_default.map.removeLayer(circle);
+    }
+    bandOverlayCircles = [];
+  }
+  function drawBandOverlay(band) {
+    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
+    const L2 = window.L;
+    const matrix = getActiveMatrix();
+    const nowHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const hourData = matrix[nowHour];
+    const reliability = getBandReliability(hourData, band);
+    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
+    if (!bandDef) return;
+    const baseRadius = 500;
+    const maxRadius = 15e3;
+    const radius = baseRadius + (maxRadius - baseRadius) * (reliability / 100);
+    if (reliability < 10) {
+      const circle = L2.circle([state_default.myLat, state_default.myLon], {
+        radius: 500 * 1e3,
+        // 500 km in meters
+        color: "#c0392b",
+        fillColor: "#c0392b",
+        fillOpacity: 0.1,
+        weight: 1
+      });
+      circle.addTo(state_default.map);
+      bandOverlayCircles.push(circle);
+      return;
+    }
+    const steps = 4;
+    for (let i = steps; i >= 1; i--) {
+      const stepRadius = radius / steps * i;
+      const stepReliability = reliability * (i / steps);
+      const color = getReliabilityColor(stepReliability);
+      const circle = L2.circle([state_default.myLat, state_default.myLon], {
+        radius: stepRadius * 1e3,
+        // km → meters
+        color,
+        fillColor: color,
+        fillOpacity: 0.05 + 0.1 * (steps - i) / steps,
+        weight: 1,
+        dashArray: i === steps ? null : "4 4"
+      });
+      circle.addTo(state_default.map);
+      bandOverlayCircles.push(circle);
+    }
+    const marker = L2.marker([state_default.myLat, state_default.myLon], {
+      icon: L2.divIcon({
+        className: "voacap-center-marker",
+        html: `<div class="voacap-center-label">${band}: ${reliability}%</div>`,
+        iconSize: [80, 20],
+        iconAnchor: [40, 10]
+      })
+    });
+    marker.addTo(state_default.map);
+    bandOverlayCircles.push(marker);
+  }
+  function clearVoacapOverlay() {
+    clearBandOverlay();
+    clearHeatmap();
+    state_default.hfPropOverlayBand = null;
+    renderPropagationHeatmapOverlay();
+  }
+  function onSpotSelected() {
+    if (!state_default.voacapAutoSpot) return;
+    if (state_default.voacapTarget !== "spot") {
+      state_default.voacapTarget = "spot";
+      localStorage.setItem("hamtab_voacap_target", "spot");
+    }
+    fetchVoacapMatrix();
+  }
+  function onSpotDeselected() {
+    if (!state_default.voacapAutoSpot) return;
+    if (state_default.voacapTarget === "spot") {
+      state_default.voacapTarget = "overview";
+      localStorage.setItem("hamtab_voacap_target", "overview");
+    }
+    state_default.voacapServerData = null;
+    fetchVoacapMatrix();
+  }
+  var bandOverlayCircles, activeFetchController, retryTimer, retryCount, MAX_RETRIES, FETCH_THROTTLE_MS, FETCH_RETRY_MS, POWER_OPTIONS, POWER_LABELS, MODE_OPTIONS, TOA_OPTIONS, PATH_OPTIONS, SENSITIVITY_LEVELS, DEFAULT_SENSITIVITY, MAX_SENSITIVITY;
+  var init_voacap = __esm({
+    "src/voacap.js"() {
+      init_state();
+      init_dom();
+      init_constants();
+      init_band_conditions();
+      init_rel_heatmap();
+      init_map_overlays();
+      bandOverlayCircles = [];
+      activeFetchController = null;
+      retryTimer = null;
+      retryCount = 0;
+      MAX_RETRIES = 3;
+      FETCH_THROTTLE_MS = 5 * 60 * 1e3;
+      FETCH_RETRY_MS = 30 * 1e3;
+      POWER_OPTIONS = ["5", "100", "1000"];
+      POWER_LABELS = { "5": "5W", "100": "100W", "1000": "1kW" };
+      MODE_OPTIONS = ["CW", "SSB", "FT8"];
+      TOA_OPTIONS = ["3", "5", "10", "15"];
+      PATH_OPTIONS = ["SP", "LP"];
+      SENSITIVITY_LEVELS = {
+        1: { SSB: 42, CW: 18, FT8: -4, label: "Optimistic", desc: "Beam antenna, low noise \u2014 most paths show as workable" },
+        2: { SSB: 48, CW: 24, FT8: 0, label: "Relaxed", desc: "Good antenna, reasonable noise floor" },
+        3: { SSB: 54, CW: 30, FT8: 2, label: "Normal", desc: "Typical amateur station (default)" },
+        4: { SSB: 60, CW: 36, FT8: 8, label: "Conservative", desc: "Compromise antenna, urban noise" },
+        5: { SSB: 66, CW: 42, FT8: 14, label: "Strict", desc: "Small antenna, high noise \u2014 only strong paths show" }
+      };
+      DEFAULT_SENSITIVITY = 3;
+      MAX_SENSITIVITY = 5;
+    }
+  });
+
+  // src/rel-heatmap.js
+  var rel_heatmap_exports = {};
+  __export(rel_heatmap_exports, {
+    clearHeatmap: () => clearHeatmap,
+    clearHeatmapLegend: () => clearHeatmapLegend,
+    initHeatmapListeners: () => initHeatmapListeners,
+    renderHeatmapCanvas: () => renderHeatmapCanvas,
+    renderHeatmapLegend: () => renderHeatmapLegend
+  });
+  function greatCircleMidpoint(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const lat1r = lat1 * r, lon1r = lon1 * r;
+    const lat2r = lat2 * r, lon2r = lon2 * r;
+    const dLon = lon2r - lon1r;
+    const Bx = Math.cos(lat2r) * Math.cos(dLon);
+    const By = Math.cos(lat2r) * Math.sin(dLon);
+    const midLat = Math.atan2(
+      Math.sin(lat1r) + Math.sin(lat2r),
+      Math.sqrt((Math.cos(lat1r) + Bx) ** 2 + By ** 2)
+    );
+    const midLon = lon1r + Math.atan2(By, Math.cos(lat1r) + Bx);
+    return { lat: midLat / r, lon: midLon / r };
+  }
+  function distanceKm(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const R3 = 6371;
+    const dLat = (lat2 - lat1) * r;
+    const dLon = (lon2 - lon1) * r;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
+    return R3 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  function distanceModifier(distKm) {
+    if (distKm < 100) return 0.3;
+    if (distKm < 500) return 0.5;
+    if (distKm < 1e3) return 0.85;
+    if (distKm < 4e3) return 1;
+    if (distKm < 8e3) return 0.85;
+    if (distKm < 15e3) return 0.7;
+    return 0.5;
+  }
+  function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex, aIndex, utcHour, opts) {
+    const mid = greatCircleMidpoint(deLat, deLon, dxLat, dxLon);
+    const df = dayFraction(mid.lat, mid.lon, utcHour);
+    const muf = calculateMUF(sfi, df);
+    const dist = distanceKm(deLat, deLon, dxLat, dxLon);
+    let rel;
+    const ratio = freqMHz / muf;
+    if (ratio > 1) {
+      rel = Math.max(0, 15 - (ratio - 1) * 150);
+    } else if (ratio > 0.85) {
+      rel = 90 - (ratio - 0.85) * 300;
+    } else if (ratio >= 0.25) {
+      const peak = 0.5;
+      const distFromPeak = Math.abs(ratio - peak);
+      const baseRel = 95 - distFromPeak * 60;
+      const dLayerPenalty = df * Math.max(0, 0.5 - ratio) * 80;
+      rel = baseRel - dLayerPenalty;
+    } else {
+      const nightBoost = (1 - df) * 30;
+      rel = 20 + nightBoost - (0.25 - ratio) * 100;
+    }
+    if (kIndex >= 6) rel -= (kIndex - 5) * 12;
+    else if (kIndex >= 3) rel -= (kIndex - 2) * 5;
+    if (aIndex > 30) rel -= Math.min(20, (aIndex - 30) / 2);
+    else if (aIndex > 10) rel -= (aIndex - 10) / 4;
+    if (opts) {
+      if (opts.mode === "CW") rel += 8;
+      else if (opts.mode === "FT8") rel += 15;
+      if (opts.powerWatts && opts.powerWatts !== 100) {
+        rel += 10 * Math.log10(opts.powerWatts / 100) * 1.5;
+      }
+      if (opts.longPath) rel -= 30;
+    }
+    const sens = state_default.voacapSensitivity || 3;
+    rel += (3 - sens) * 10;
+    const distMod = distanceModifier(dist);
+    rel *= distMod;
+    return Math.max(0, Math.min(100, Math.round(rel)));
+  }
+  function hslToRgb(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(h / 60 % 2 - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) {
+      r = c;
+      g = x;
+    } else if (h < 120) {
+      r = x;
+      g = c;
+    } else if (h < 180) {
+      g = c;
+      b = x;
+    } else if (h < 240) {
+      g = x;
+      b = c;
+    } else if (h < 300) {
+      r = x;
+      b = c;
+    } else {
+      r = c;
+      b = x;
+    }
+    return {
+      r: Math.round((r + m) * 255),
+      g: Math.round((g + m) * 255),
+      b: Math.round((b + m) * 255)
+    };
+  }
+  function reliabilityToRGBA(rel) {
+    if (rel < 3) return { r: 20, g: 0, b: 40, a: 60 };
+    const hue = (Math.min(rel, 100) - 3) / 97 * 120;
+    const { r, g, b } = hslToRgb(hue, 1, 0.5);
+    const alpha = Math.min(210, 140 + rel / 100 * 70);
+    return { r, g, b, a: Math.round(alpha) };
+  }
+  function cellSizeForZoom(zoom) {
+    if (zoom <= 3) return 4;
+    if (zoom <= 5) return 2;
+    if (zoom <= 7) return 1;
+    return 0.5;
+  }
+  function renderHeatmapCanvas(band) {
+    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
+    if (!state_default.lastSolarData || !state_default.lastSolarData.indices) return;
+    const L2 = window.L;
+    const map = state_default.map;
+    clearHeatmap();
+    const bandDef = VOACAP_BANDS.find((b) => b.name === band) || HF_BANDS.find((b) => b.name === band);
+    if (!bandDef) return;
+    const { indices } = state_default.lastSolarData;
+    const sfi = parseFloat(indices.sfi) || 70;
+    const kIndex = parseInt(indices.kindex) || 2;
+    const aIndex = parseInt(indices.aindex) || 5;
+    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours();
+    const opts = getVoacapOpts();
+    const bounds = map.getBounds();
+    const south = Math.max(-85, bounds.getSouth());
+    const north = Math.min(85, bounds.getNorth());
+    const west = bounds.getWest();
+    const east = bounds.getEast();
+    const zoom = map.getZoom();
+    const cellSize = cellSizeForZoom(zoom);
+    const cols = Math.ceil((east - west) / cellSize);
+    const rows = Math.ceil((north - south) / cellSize);
+    if (cols <= 0 || rows <= 0) return;
+    const canvas = document.createElement("canvas");
+    canvas.width = cols;
+    canvas.height = rows;
+    const ctx = canvas.getContext("2d");
+    const imageData = ctx.createImageData(cols, rows);
+    const data = imageData.data;
+    for (let row = 0; row < rows; row++) {
+      const dxLat = north - (row + 0.5) * cellSize;
+      for (let col = 0; col < cols; col++) {
+        const dxLon = west + (col + 0.5) * cellSize;
+        const rel = computeCellReliability(
+          state_default.myLat,
+          state_default.myLon,
+          dxLat,
+          dxLon,
+          bandDef.freqMHz,
+          sfi,
+          kIndex,
+          aIndex,
+          utcHour,
+          opts
+        );
+        const px = reliabilityToRGBA(rel);
+        const idx = (row * cols + col) * 4;
+        data[idx] = px.r;
+        data[idx + 1] = px.g;
+        data[idx + 2] = px.b;
+        data[idx + 3] = px.a;
+      }
+    }
+    ctx.putImageData(imageData, 0, 0);
+    const dataUrl = canvas.toDataURL();
+    const imageBounds = [[south, west], [north, east]];
+    state_default.heatmapLayer = L2.imageOverlay(dataUrl, imageBounds, {
+      opacity: 0.7,
+      pane: "propagation"
+    });
+    state_default.heatmapLayer.addTo(map);
+  }
+  function clearHeatmap() {
+    if (state_default.heatmapLayer && state_default.map) {
+      state_default.map.removeLayer(state_default.heatmapLayer);
+      state_default.heatmapLayer = null;
+    }
+  }
+  function renderHeatmapLegend(band) {
+    clearHeatmapLegend();
+    if (!state_default.map) return;
+    const L2 = window.L;
+    const HeatmapLegend = L2.Control.extend({
+      options: { position: "bottomleft" },
+      onAdd() {
+        const div = L2.DomUtil.create("div", "prop-heatmap-legend");
+        L2.DomEvent.disableClickPropagation(div);
+        L2.DomEvent.disableScrollPropagation(div);
+        div.innerHTML = '<div class="prop-heatmap-legend-title">' + (band || "20m") + ' from QTH</div><div class="prop-heatmap-legend-bar"></div><div class="prop-heatmap-legend-labels"><span>0%</span><span>50%</span><span>100%</span></div>';
+        return div;
+      }
+    });
+    heatmapLegendControl = new HeatmapLegend();
+    state_default.map.addControl(heatmapLegendControl);
+  }
+  function clearHeatmapLegend() {
+    if (heatmapLegendControl && state_default.map) {
+      state_default.map.removeControl(heatmapLegendControl);
+      heatmapLegendControl = null;
+    }
+  }
+  function initHeatmapListeners() {
+  }
+  var heatmapLegendControl;
+  var init_rel_heatmap = __esm({
+    "src/rel-heatmap.js"() {
+      init_state();
+      init_band_conditions();
+      init_voacap();
+      heatmapLegendControl = null;
+    }
+  });
+
+  // src/map-overlays.js
+  var map_overlays_exports = {};
+  __export(map_overlays_exports, {
+    renderAllMapOverlays: () => renderAllMapOverlays,
+    renderCloudCover: () => renderCloudCover,
+    renderDrapOverlay: () => renderDrapOverlay,
+    renderLatLonGrid: () => renderLatLonGrid,
+    renderMaidenheadGrid: () => renderMaidenheadGrid,
+    renderMufImageOverlay: () => renderMufImageOverlay,
+    renderPropagationHeatmapOverlay: () => renderPropagationHeatmapOverlay,
+    renderSymbolLegend: () => renderSymbolLegend,
+    renderTimezoneGrid: () => renderTimezoneGrid,
+    renderTropicsLines: () => renderTropicsLines,
+    renderWeatherRadar: () => renderWeatherRadar,
+    saveMapOverlays: () => saveMapOverlays
+  });
+  function renderAllMapOverlays() {
+    if (!state_default.map) return;
+    renderLatLonGrid();
+    renderMaidenheadGrid();
+    renderTimezoneGrid();
+    renderMufImageOverlay();
+    renderDrapOverlay();
+    renderTropicsLines();
+    renderWeatherRadar();
+    renderCloudCover();
+    renderSymbolLegend();
+    renderPropagationHeatmapOverlay();
+  }
+  function renderLatLonGrid() {
+    if (state_default.latLonLayer) {
+      state_default.map.removeLayer(state_default.latLonLayer);
+      state_default.latLonLayer = null;
+    }
+    if (!state_default.mapOverlays.latLonGrid) return;
+    state_default.latLonLayer = L.layerGroup().addTo(state_default.map);
+    const zoom = state_default.map.getZoom();
+    let spacing = 30;
+    if (zoom >= 8) spacing = 1;
+    else if (zoom >= 6) spacing = 5;
+    else if (zoom >= 3) spacing = 10;
+    const bounds = state_default.map.getBounds();
+    const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.01;
+    const labelLat = bounds.getSouth() + (bounds.getNorth() - bounds.getSouth()) * 0.01;
+    const lineStyle = { color: "#4a90e2", weight: 1, opacity: 0.3, pane: "mapOverlays", interactive: false };
+    const equatorStyle = { color: "#4a90e2", weight: 3, opacity: 0.6, pane: "mapOverlays", interactive: false };
+    const pmStyle = { color: "#4a90e2", weight: 2, opacity: 0.5, pane: "mapOverlays", interactive: false };
+    for (let lat = -90; lat <= 90; lat += spacing) {
+      const style = lat === 0 ? equatorStyle : lineStyle;
+      L.polyline([[lat, -180], [lat, 180]], style).addTo(state_default.latLonLayer);
+      if (lat >= bounds.getSouth() && lat <= bounds.getNorth()) {
+        const ns = lat === 0 ? "EQ" : lat > 0 ? lat + "\xB0N" : Math.abs(lat) + "\xB0S";
+        L.marker([lat, labelLon], {
+          icon: L.divIcon({ className: "grid-label latlon-label" + (lat === 0 ? " latlon-equator" : ""), html: ns, iconSize: null }),
+          pane: "mapOverlays",
+          interactive: false
+        }).addTo(state_default.latLonLayer);
+      }
+    }
+    for (let lon = -180; lon <= 180; lon += spacing) {
+      const style = lon === 0 ? pmStyle : lineStyle;
+      L.polyline([[-85, lon], [85, lon]], style).addTo(state_default.latLonLayer);
+      if (lon >= bounds.getWest() && lon <= bounds.getEast()) {
+        const ew = lon === 0 ? "PM" : lon > 0 ? lon + "\xB0E" : Math.abs(lon) + "\xB0W";
+        L.marker([labelLat, lon], {
+          icon: L.divIcon({ className: "grid-label latlon-label", html: ew, iconSize: null }),
+          pane: "mapOverlays",
+          interactive: false
+        }).addTo(state_default.latLonLayer);
+      }
+    }
+  }
+  function renderMaidenheadGrid() {
+    if (state_default.maidenheadLayer) {
+      state_default.map.removeLayer(state_default.maidenheadLayer);
+      state_default.maidenheadLayer = null;
+    }
+    if (!state_default.mapOverlays.maidenheadGrid) return;
+    state_default.maidenheadLayer = L.layerGroup().addTo(state_default.map);
+    const zoom = state_default.map.getZoom();
+    const bounds = state_default.map.getBounds();
+    const south = bounds.getSouth(), north = bounds.getNorth();
+    const west = bounds.getWest(), east = bounds.getEast();
+    if (zoom <= 5) {
+      const lonStep = 20, latStep = 10;
+      const lonStart = Math.floor((west + 180) / lonStep) * lonStep - 180;
+      const latStart = Math.floor((south + 90) / latStep) * latStep - 90;
+      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
+        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
+          const fieldLon = Math.floor((lon + 180) / 20);
+          const fieldLat = Math.floor((lat + 90) / 10);
+          if (fieldLon < 0 || fieldLon > 17 || fieldLat < 0 || fieldLat > 17) continue;
+          const label = String.fromCharCode(65 + fieldLon) + String.fromCharCode(65 + fieldLat);
+          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
+            color: "#ff6b35",
+            weight: 1.5,
+            fill: false,
+            pane: "mapOverlays",
+            interactive: false
+          }).addTo(state_default.maidenheadLayer);
+          L.marker([lat + latStep / 2, lon + lonStep / 2], {
+            icon: L.divIcon({ className: "grid-label maidenhead-label", html: label, iconSize: null }),
+            pane: "mapOverlays",
+            interactive: false
+          }).addTo(state_default.maidenheadLayer);
+        }
+      }
+    } else if (zoom <= 9) {
+      const lonStep = 2, latStep = 1;
+      const lonStart = Math.floor((west + 180) / lonStep) * lonStep - 180;
+      const latStart = Math.floor((south + 90) / latStep) * latStep - 90;
+      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
+        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
+          const fieldLon = Math.floor((lon + 180) / 20);
+          const fieldLat = Math.floor((lat + 90) / 10);
+          if (fieldLon < 0 || fieldLon > 17 || fieldLat < 0 || fieldLat > 17) continue;
+          const sqLon = Math.floor((lon + 180) % 20 / 2);
+          const sqLat = Math.floor((lat + 90) % 10 / 1);
+          const label = String.fromCharCode(65 + fieldLon) + String.fromCharCode(65 + fieldLat) + sqLon + sqLat;
+          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
+            color: "#ff6b35",
+            weight: 1,
+            fill: false,
+            pane: "mapOverlays",
+            interactive: false
+          }).addTo(state_default.maidenheadLayer);
+          L.marker([lat + latStep / 2, lon + lonStep / 2], {
+            icon: L.divIcon({ className: "grid-label maidenhead-label-sm", html: label, iconSize: null }),
+            pane: "mapOverlays",
+            interactive: false
+          }).addTo(state_default.maidenheadLayer);
+        }
+      }
+    } else {
+      const lonStep = 5 / 60, latStep = 2.5 / 60;
+      const lonStart = Math.floor(west / lonStep) * lonStep;
+      const latStart = Math.floor(south / latStep) * latStep;
+      for (let lon = lonStart; lon < east && lon < 180; lon += lonStep) {
+        for (let lat = latStart; lat < north && lat < 90; lat += latStep) {
+          const aLon = lon + 180, aLat = lat + 90;
+          if (aLon < 0 || aLon >= 360 || aLat < 0 || aLat >= 180) continue;
+          const fLon = Math.floor(aLon / 20), fLat = Math.floor(aLat / 10);
+          const sLon = Math.floor(aLon % 20 / 2), sLat = Math.floor(aLat % 10 / 1);
+          const ssLon = Math.floor(aLon % 2 / (5 / 60)), ssLat = Math.floor(aLat % 1 / (2.5 / 60));
+          L.rectangle([[lat, lon], [lat + latStep, lon + lonStep]], {
+            color: "#ff6b35",
+            weight: 0.5,
+            fill: false,
+            opacity: 0.5,
+            pane: "mapOverlays",
+            interactive: false
+          }).addTo(state_default.maidenheadLayer);
+          if (zoom >= 12) {
+            const label = String.fromCharCode(65 + fLon) + String.fromCharCode(65 + fLat) + sLon + sLat + String.fromCharCode(97 + Math.min(ssLon, 23)) + String.fromCharCode(97 + Math.min(ssLat, 23));
+            L.marker([lat + latStep / 2, lon + lonStep / 2], {
+              icon: L.divIcon({ className: "grid-label maidenhead-label-xs", html: label, iconSize: null }),
+              pane: "mapOverlays",
+              interactive: false
+            }).addTo(state_default.maidenheadLayer);
+          }
+        }
+      }
+    }
+  }
+  function renderTimezoneGrid() {
+    if (state_default.timezoneLayer) {
+      state_default.map.removeLayer(state_default.timezoneLayer);
+      state_default.timezoneLayer = null;
+    }
+    if (!state_default.mapOverlays.timezoneGrid) return;
+    state_default.timezoneLayer = L.layerGroup().addTo(state_default.map);
+    const lineStyle = { color: "#9b59b6", weight: 1.5, opacity: 0.4, dashArray: "5,5", pane: "mapOverlays", interactive: false };
+    for (let i = -12; i <= 12; i++) {
+      const lon = i * 15;
+      L.polyline([[-85, lon], [85, lon]], lineStyle).addTo(state_default.timezoneLayer);
+      const label = "UTC" + (i === 0 ? "" : i > 0 ? "+" + i : "" + i);
+      L.marker([70, lon], {
+        icon: L.divIcon({ className: "grid-label timezone-label", html: label, iconSize: null }),
+        pane: "mapOverlays",
+        interactive: false
+      }).addTo(state_default.timezoneLayer);
+    }
+  }
+  function renderMufImageOverlay() {
+    if (mufImageLayer) {
+      state_default.map.removeLayer(mufImageLayer);
+      mufImageLayer = null;
+    }
+    if (mufImageRefreshTimer) {
+      clearInterval(mufImageRefreshTimer);
+      mufImageRefreshTimer = null;
+    }
+    if (!state_default.mapOverlays.mufImageOverlay) return;
+    const L2 = window.L;
+    const type = state_default.propMetric === "fof2" ? "fof2" : "mufd";
+    const url = `/api/propagation/image?type=${type}&_t=${Date.now()}`;
+    const bounds = [[-90, -180], [90, 180]];
+    mufImageLayer = L2.imageOverlay(url, bounds, {
+      opacity: 0.45,
+      pane: "propagation",
+      // z-index 300, below mapOverlays (350)
+      interactive: false
+    }).addTo(state_default.map);
+    mufImageRefreshTimer = setInterval(() => {
+      if (!state_default.mapOverlays.mufImageOverlay || !mufImageLayer) return;
+      const freshUrl = `/api/propagation/image?type=${type}&_t=${Date.now()}`;
+      mufImageLayer.setUrl(freshUrl);
+    }, 15 * 60 * 1e3);
+  }
+  function drapColor(mhz, maxVal) {
+    if (mhz <= 0) return { r: 0, g: 0, b: 0, a: 0 };
+    const ceil = Math.max(maxVal, 5);
+    const t = Math.min(mhz / ceil, 1);
+    let r, g, b;
+    if (t < 0.2) {
+      const s = t / 0.2;
+      r = Math.round(80 * (1 - s));
+      g = 0;
+      b = Math.round(128 + 127 * s);
+    } else if (t < 0.4) {
+      const s = (t - 0.2) / 0.2;
+      r = 0;
+      g = Math.round(255 * s);
+      b = 255;
+    } else if (t < 0.6) {
+      const s = (t - 0.4) / 0.2;
+      r = 0;
+      g = 255;
+      b = Math.round(255 * (1 - s));
+    } else if (t < 0.8) {
+      const s = (t - 0.6) / 0.2;
+      r = Math.round(255 * s);
+      g = 255;
+      b = 0;
+    } else {
+      const s = (t - 0.8) / 0.2;
+      r = 255;
+      g = Math.round(255 * (1 - s));
+      b = 0;
+    }
+    return { r, g, b, a: 180 };
+  }
+  function renderDrapOverlay() {
+    if (drapImageLayer) {
+      state_default.map.removeLayer(drapImageLayer);
+      drapImageLayer = null;
+    }
+    if (drapImageRefreshTimer) {
+      clearInterval(drapImageRefreshTimer);
+      drapImageRefreshTimer = null;
+    }
+    if (!state_default.mapOverlays.drapOverlay) return;
+    const L2 = window.L;
+    async function fetchAndRender() {
+      try {
+        const resp = await fetch("/api/drap/data");
+        if (!resp.ok) return;
+        const { lons, rows } = await resp.json();
+        if (!lons || !rows || rows.length === 0) return;
+        const cols = lons.length;
+        const numRows = rows.length;
+        let maxVal = 0;
+        for (let r = 0; r < numRows; r++) {
+          for (let c = 0; c < cols; c++) {
+            const v = rows[r].values[c] || 0;
+            if (v > maxVal) maxVal = v;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = cols;
+        canvas.height = numRows;
+        const ctx = canvas.getContext("2d");
+        const imageData = ctx.createImageData(cols, numRows);
+        const data = imageData.data;
+        for (let r = 0; r < numRows; r++) {
+          const values = rows[r].values;
+          for (let c = 0; c < cols; c++) {
+            const px = drapColor(values[c] || 0, maxVal);
+            const idx = (r * cols + c) * 4;
+            data[idx] = px.r;
+            data[idx + 1] = px.g;
+            data[idx + 2] = px.b;
+            data[idx + 3] = px.a;
+          }
+        }
+        ctx.putImageData(imageData, 0, 0);
+        const bounds = [[-90, -180], [90, 180]];
+        if (drapImageLayer) state_default.map.removeLayer(drapImageLayer);
+        drapImageLayer = L2.imageOverlay(canvas.toDataURL(), bounds, {
+          opacity: 0.55,
+          pane: "propagation",
+          interactive: false
+        }).addTo(state_default.map);
+      } catch (err2) {
+        if (state_default.debug) console.error("D-RAP render error:", err2);
+      }
+    }
+    fetchAndRender();
+    drapImageRefreshTimer = setInterval(() => {
+      if (!state_default.mapOverlays.drapOverlay) return;
+      fetchAndRender();
+    }, 15 * 60 * 1e3);
+  }
+  function renderTropicsLines() {
+    if (tropicsLayer) {
+      state_default.map.removeLayer(tropicsLayer);
+      tropicsLayer = null;
+    }
+    if (!state_default.mapOverlays.tropicsLines) return;
+    tropicsLayer = L.layerGroup().addTo(state_default.map);
+    const lines = [
+      { lat: 66.5634, name: "Arctic Circle", color: "#6ec6ff", dash: "8,6" },
+      { lat: 23.4362, name: "Tropic of Cancer", color: "#f0a050", dash: "8,6" },
+      { lat: 0, name: "Equator", color: "#f0d060", dash: null },
+      { lat: -23.4362, name: "Tropic of Capricorn", color: "#f0a050", dash: "8,6" },
+      { lat: -66.5634, name: "Antarctic Circle", color: "#6ec6ff", dash: "8,6" }
+    ];
+    const bounds = state_default.map.getBounds();
+    const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.02;
+    for (const ln of lines) {
+      const style = {
+        color: ln.color,
+        weight: ln.dash ? 1.5 : 2,
+        opacity: 0.6,
+        dashArray: ln.dash || void 0,
+        pane: "mapOverlays",
+        interactive: false
+      };
+      L.polyline([[ln.lat, -180], [ln.lat, 180]], style).addTo(tropicsLayer);
+      if (ln.lat >= bounds.getSouth() && ln.lat <= bounds.getNorth()) {
+        const isArctic = Math.abs(ln.lat) > 60;
+        L.marker([ln.lat, labelLon], {
+          icon: L.divIcon({
+            className: "grid-label tropics-label" + (isArctic ? " tropics-arctic" : ""),
+            html: ln.name,
+            iconSize: null
+          }),
+          pane: "mapOverlays",
+          interactive: false
+        }).addTo(tropicsLayer);
+      }
+    }
+  }
+  function renderWeatherRadar() {
+    if (weatherRadarLayer) {
+      state_default.map.removeLayer(weatherRadarLayer);
+      weatherRadarLayer = null;
+    }
+    if (weatherRadarTimer) {
+      clearInterval(weatherRadarTimer);
+      weatherRadarTimer = null;
+    }
+    if (!state_default.mapOverlays.weatherRadar) return;
+    fetchRadarAndShow();
+    weatherRadarTimer = setInterval(fetchRadarAndShow, 5 * 60 * 1e3);
+  }
+  async function fetchRadarAndShow() {
+    try {
+      const res = await fetch("/api/weather/radar");
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.host || !data.path) return;
+      const tileUrl = `${data.host}${data.path}/256/{z}/{x}/{y}/2/1_1.png`;
+      if (weatherRadarLayer) state_default.map.removeLayer(weatherRadarLayer);
+      weatherRadarLayer = L.tileLayer(tileUrl, {
+        opacity: 0.35,
+        pane: "propagation",
+        // z-300, below mapOverlays (350)
+        interactive: false,
+        attribution: "&copy; RainViewer"
+      }).addTo(state_default.map);
+    } catch (e) {
+      if (state_default.debug) console.error("Weather radar fetch failed:", e);
+    }
+  }
+  function renderCloudCover() {
+    if (cloudCoverLayer) {
+      state_default.map.removeLayer(cloudCoverLayer);
+      cloudCoverLayer = null;
+    }
+    if (!state_default.mapOverlays.cloudCover) return;
+    cloudCoverLayer = L.tileLayer("/api/weather/clouds/{z}/{x}/{y}", {
+      opacity: 0.4,
+      pane: "propagation",
+      // z-300, below mapOverlays (350)
+      interactive: false,
+      attribution: "&copy; OpenWeatherMap"
+    }).addTo(state_default.map);
+  }
+  function renderSymbolLegend() {
+    if (legendControl) {
+      state_default.map.removeControl(legendControl);
+      legendControl = null;
+    }
+    if (!state_default.mapOverlays.symbolLegend) return;
+    const LegendControl = L.Control.extend({
+      options: { position: "bottomright" },
+      onAdd() {
+        const div = L.DomUtil.create("div", "map-legend");
+        L.DomEvent.disableClickPropagation(div);
+        L.DomEvent.disableScrollPropagation(div);
+        const items = [
+          { symbol: '<span class="legend-dot" style="background:#4CAF50"></span>', label: "POTA" },
+          { symbol: '<span class="legend-dot" style="background:#FF9800"></span>', label: "SOTA" },
+          { symbol: '<span class="legend-dot" style="background:#f44336"></span>', label: "DX Cluster" },
+          { symbol: '<span class="legend-dot" style="background:#009688"></span>', label: "WWFF" },
+          { symbol: '<span class="legend-dot" style="background:#9C27B0"></span>', label: "PSKReporter" },
+          { symbol: '<span class="legend-circle" style="border-color:#FF9800"></span>', label: "DXped (active)" },
+          { symbol: '<span class="legend-circle" style="border-color:#888"></span>', label: "DXped (upcoming)" },
+          { symbol: '<span class="legend-dot legend-sun"></span>', label: "Sun sub-point" },
+          { symbol: '<span class="legend-dot legend-moon"></span>', label: "Moon sub-point" },
+          { symbol: '<span class="legend-line" style="border-color:#666"></span>', label: "Gray line" },
+          { symbol: '<span class="legend-line" style="border-color:#4a90e2"></span>', label: "Geodesic path" },
+          { symbol: '<span class="legend-dot legend-beacon"></span>', label: "NCDXF beacon" }
+        ];
+        div.innerHTML = '<div class="legend-title">Legend</div>' + items.map((i) => `<div class="legend-row">${i.symbol}<span class="legend-label">${i.label}</span></div>`).join("");
+        return div;
+      }
+    });
+    legendControl = new LegendControl();
+    state_default.map.addControl(legendControl);
+  }
+  function renderPropagationHeatmapOverlay() {
+    if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") return;
+    if (state_default.mapOverlays.propagationHeatmap) {
+      renderHeatmapCanvas(state_default.propagationHeatmapBand);
+      renderHeatmapLegend(state_default.propagationHeatmapBand);
+    } else {
+      clearHeatmap();
+      clearHeatmapLegend();
+    }
+  }
+  function saveMapOverlays() {
+    localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
+  }
+  var mufImageLayer, mufImageRefreshTimer, drapImageLayer, drapImageRefreshTimer, tropicsLayer, weatherRadarLayer, weatherRadarTimer, cloudCoverLayer, legendControl;
+  var init_map_overlays = __esm({
+    "src/map-overlays.js"() {
+      init_state();
+      init_rel_heatmap();
+      mufImageLayer = null;
+      mufImageRefreshTimer = null;
+      drapImageLayer = null;
+      drapImageRefreshTimer = null;
+      tropicsLayer = null;
+      weatherRadarLayer = null;
+      weatherRadarTimer = null;
+      cloudCoverLayer = null;
+      legendControl = null;
+    }
+  });
+
   // src/beacons.js
   function getActiveBeacons() {
     const now = /* @__PURE__ */ new Date();
@@ -10597,6 +10677,10 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
           clearTimeout(state_default.heatmapRenderTimer);
           const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
           state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
+        } else if (state_default.mapOverlays.propagationHeatmap) {
+          clearTimeout(state_default.heatmapRenderTimer);
+          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
+          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.propagationHeatmapBand), 200);
         }
       });
       state_default.map.on("moveend", () => {
@@ -10614,6 +10698,10 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
           clearTimeout(state_default.heatmapRenderTimer);
           const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
           state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
+        } else if (state_default.mapOverlays.propagationHeatmap) {
+          clearTimeout(state_default.heatmapRenderTimer);
+          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
+          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.propagationHeatmapBand), 200);
         }
       });
       window.addEventListener("orientationchange", () => {
@@ -18074,8 +18162,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.55.1";
-    $("aboutVersion").textContent = "0.55.1";
+    $("splashVersion").textContent = "0.56.0";
+    $("aboutVersion").textContent = "0.56.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -19175,6 +19263,8 @@ ${beacon.location}`);
         $("mapOvWeatherRadar").checked = state_default.mapOverlays.weatherRadar;
         $("mapOvCloudCover").checked = state_default.mapOverlays.cloudCover;
         $("mapOvLegend").checked = state_default.mapOverlays.symbolLegend;
+        $("mapOvPropHeatmap").checked = state_default.mapOverlays.propagationHeatmap;
+        $("mapOvPropHeatmapBand").value = state_default.propagationHeatmapBand;
         mapOverlayCfgSplash.classList.remove("hidden");
       });
     }
@@ -19191,9 +19281,13 @@ ${beacon.location}`);
         state_default.mapOverlays.weatherRadar = $("mapOvWeatherRadar").checked;
         state_default.mapOverlays.cloudCover = $("mapOvCloudCover").checked;
         state_default.mapOverlays.symbolLegend = $("mapOvLegend").checked;
+        state_default.mapOverlays.propagationHeatmap = $("mapOvPropHeatmap").checked;
+        state_default.propagationHeatmapBand = $("mapOvPropHeatmapBand").value;
+        localStorage.setItem("hamtab_prop_heatmap_band", state_default.propagationHeatmapBand);
         saveMapOverlays();
         mapOverlayCfgSplash.classList.add("hidden");
         renderAllMapOverlays();
+        renderPropagationHeatmapOverlay();
         renderMarkers();
         renderDxpeditions();
       });

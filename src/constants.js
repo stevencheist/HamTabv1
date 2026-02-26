@@ -20,6 +20,7 @@ export const WIDGET_DEFS = [
   { id: 'widget-dedx',         name: 'DE/DX Info',       short: 'DEDX' },
   { id: 'widget-stopwatch',    name: 'Stopwatch / Timer', short: 'Tmr' },
   { id: 'widget-analog-clock', name: 'Analog Clock',     short: 'Clk' },
+  { id: 'widget-on-air-rig',  name: 'On-Air Rig',       short: 'Rig' },
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)

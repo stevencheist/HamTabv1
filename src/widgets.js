@@ -5,6 +5,10 @@ import { switchTab, rebuildTabs, getActiveTabWidgets } from './tabs.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
 
+// --- Widget hide callbacks: called when a widget is hidden via close button ---
+const widgetHideCallbacks = {};
+export function onWidgetHide(widgetId, fn) { widgetHideCallbacks[widgetId] = fn; }
+
 export function loadWidgetVisibility() {
   try {
     const saved = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
@@ -784,6 +788,8 @@ export function initWidgets() {
         state.widgetVisibility[widget.id] = false;
         saveWidgetVisibility();
         applyWidgetVisibility();
+        // Fire hide callback if registered (e.g., rig widget teardown)
+        if (widgetHideCallbacks[widget.id]) widgetHideCallbacks[widget.id]();
       });
       header.insertBefore(closeBtn, header.firstChild);
 

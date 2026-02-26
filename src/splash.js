@@ -27,6 +27,8 @@ import { fetchDxpeditions } from './dxpeditions.js';
 import { fetchContests } from './contests.js';
 import { startDedxTimer, stopDedxTimer } from './dedx-info.js';
 import { exportConfig, importConfig, checkSyncCapability, pushConfig, isSyncEnabled, setSyncEnabled } from './config-sync.js';
+import { getAvailableProfiles } from './cat/index.js';
+import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
 
 // --- Staged grid assignments (working copy during config modal session) ---
 let stagedAssignments = {};
@@ -549,7 +551,293 @@ export function showSplash() {
     });
   }
 
+  // --- Radio tab state ---
+  loadRadioConfig();
+
   $('splashCallsign').focus();
+}
+
+// --- Radio config: load state into form ---
+function loadRadioConfig() {
+  const connReal = $('radioConnReal');
+  const connDemo = $('radioConnDemo');
+  if (connReal) connReal.checked = state.radioConnectionType === 'real';
+  if (connDemo) connDemo.checked = state.radioConnectionType !== 'real';
+
+  // Protocol family
+  const protocolFamily = $('radioProtocolFamily');
+  if (protocolFamily) protocolFamily.value = state.radioProtocolFamily;
+
+  // Populate model preset dropdown filtered by protocol family
+  populateModelPresets();
+
+  // Port mode
+  const portMode = $('radioPortMode');
+  if (portMode) portMode.value = state.radioPortMode;
+
+  // Serial settings
+  const baudRate = $('radioBaudRate');
+  const dataBits = $('radioDataBits');
+  const stopBits = $('radioStopBits');
+  const parity = $('radioParity');
+  const flowControl = $('radioFlowControl');
+  if (baudRate) baudRate.value = state.radioBaudRate;
+  if (dataBits) dataBits.value = String(state.radioDataBits);
+  if (stopBits) stopBits.value = String(state.radioStopBits);
+  if (parity) parity.value = state.radioParity;
+  if (flowControl) flowControl.value = state.radioFlowControl;
+
+  // Control
+  const pttMethod = $('radioPttMethod');
+  const pollingInterval = $('radioPollingInterval');
+  const civAddress = $('radioCivAddress');
+  if (pttMethod) pttMethod.value = state.radioPttMethod;
+  if (pollingInterval) pollingInterval.value = state.radioPollingInterval;
+  if (civAddress) civAddress.value = state.radioCivAddress;
+
+  // Safety checkboxes
+  const txIntent = $('radioSafetyTxIntent');
+  const bandLockout = $('radioSafetyBandLockout');
+  const autoPower = $('radioSafetyAutoPower');
+  if (txIntent) txIntent.checked = state.radioSafetyTxIntent;
+  if (bandLockout) bandLockout.checked = state.radioSafetyBandLockout;
+  if (autoPower) autoPower.checked = state.radioSafetyAutoPower;
+
+  const swrLimit = $('radioSwrLimit');
+  const safePower = $('radioSafePower');
+  if (swrLimit) swrLimit.value = state.radioSwrLimit;
+  if (safePower) safePower.value = state.radioSafePower;
+
+  // Demo propagation
+  const propOff = $('radioPropOff');
+  const propBasic = $('radioPropBasic');
+  const propLocation = $('radioPropLocation');
+  if (propOff) propOff.checked = state.radioDemoPropagation === 'off';
+  if (propBasic) propBasic.checked = state.radioDemoPropagation === 'basic';
+  if (propLocation) propLocation.checked = state.radioDemoPropagation === 'location';
+
+  // Show/hide sections based on connection type
+  updateRadioSections();
+}
+
+// --- Populate model preset dropdown filtered by selected protocol family ---
+function populateModelPresets() {
+  const presetSelect = $('radioModelPreset');
+  if (!presetSelect) return;
+
+  const familySelect = $('radioProtocolFamily');
+  const selectedFamily = familySelect ? familySelect.value : 'auto';
+
+  // Clear existing options except the first "(None)" option
+  while (presetSelect.options.length > 1) presetSelect.remove(1);
+
+  const profs = getAvailableProfiles();
+  for (const p of profs) {
+    if (p.id === 'demo') continue; // Skip demo profile
+    // Filter by protocol family (show all when 'auto')
+    if (selectedFamily !== 'auto' && p.protocol !== selectedFamily) continue;
+    const opt = document.createElement('option');
+    opt.value = p.id;
+    opt.textContent = `${p.manufacturer} ${p.model}`;
+    presetSelect.appendChild(opt);
+  }
+
+  // Restore saved model preset
+  const saved = state.radioModelPreset;
+  if (saved && presetSelect.querySelector(`option[value="${saved}"]`)) {
+    presetSelect.value = saved;
+  }
+}
+
+// --- Auto-fill serial settings from a model preset ---
+function applyModelPresetDefaults() {
+  const presetSelect = $('radioModelPreset');
+  if (!presetSelect || !presetSelect.value) return;
+
+  const profs = getAvailableProfiles();
+  const profile = profs.find(p => p.id === presetSelect.value);
+  if (!profile || !profile.serial) return;
+
+  // Fill serial settings from profile
+  const baudRate = $('radioBaudRate');
+  const dataBits = $('radioDataBits');
+  const stopBits = $('radioStopBits');
+  const parity = $('radioParity');
+  const flowControl = $('radioFlowControl');
+
+  if (baudRate) baudRate.value = String(profile.serial.baudRate);
+  if (dataBits) dataBits.value = String(profile.serial.dataBits);
+  if (stopBits) stopBits.value = String(profile.serial.stopBits);
+  if (parity) parity.value = profile.serial.parity;
+  if (flowControl) flowControl.value = profile.serial.flowControl;
+
+  // Fill control settings
+  const pttMethod = $('radioPttMethod');
+  const pollingInterval = $('radioPollingInterval');
+  if (pttMethod && profile.control) pttMethod.value = profile.control.pttMethod;
+  if (pollingInterval && profile.control) pollingInterval.value = profile.control.pollingInterval;
+
+  // Fill CI-V address if Icom
+  if (profile.civAddress) {
+    const civAddress = $('radioCivAddress');
+    if (civAddress) civAddress.value = profile.civAddress;
+  }
+
+  // Also set protocol family to match
+  const familySelect = $('radioProtocolFamily');
+  if (familySelect && profile.protocol) {
+    familySelect.value = profile.protocol;
+  }
+}
+
+// --- Refresh authorized port list ---
+async function refreshPortList() {
+  const portList = $('radioPortList');
+  if (!portList) return;
+
+  // Clear existing options
+  portList.innerHTML = '';
+
+  if (!navigator.serial || !navigator.serial.getPorts) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'WebSerial not supported';
+    portList.appendChild(opt);
+    return;
+  }
+
+  try {
+    const ports = await navigator.serial.getPorts();
+    if (ports.length === 0) {
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = 'No authorized ports';
+      portList.appendChild(opt);
+      return;
+    }
+
+    ports.forEach((port, i) => {
+      const info = port.getInfo();
+      const opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = info.usbVendorId
+        ? `USB ${info.usbVendorId.toString(16).toUpperCase()}:${info.usbProductId.toString(16).toUpperCase()}`
+        : `Port ${i + 1}`;
+      portList.appendChild(opt);
+    });
+  } catch {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Error reading ports';
+    portList.appendChild(opt);
+  }
+}
+
+// --- Toggle radio config sections based on real/demo ---
+function updateRadioSections() {
+  const isReal = $('radioConnReal') && $('radioConnReal').checked;
+  const protocolSection = document.getElementById('radioProtocolSection');
+  const portSection = document.getElementById('radioPortSection');
+  const serialSection = document.getElementById('radioSerialSection');
+  const controlSection = document.getElementById('radioControlSection');
+  const safetySection = document.getElementById('radioSafetySection');
+  const demoSection = document.getElementById('radioDemoSection');
+
+  // Real radio: show protocol, port, serial, control, safety; hide demo
+  // Demo: hide all real sections; show demo
+  if (protocolSection) protocolSection.style.display = isReal ? '' : 'none';
+  if (portSection) portSection.style.display = isReal ? '' : 'none';
+  if (serialSection) serialSection.style.display = isReal ? '' : 'none';
+  if (controlSection) controlSection.style.display = isReal ? '' : 'none';
+  if (safetySection) safetySection.style.display = isReal ? '' : 'none';
+  if (demoSection) demoSection.style.display = isReal ? 'none' : '';
+
+  // Port list row: only show when port mode is 'manual'
+  updatePortListVisibility();
+
+  // CI-V row: only show for Icom protocol family
+  updateCivRowVisibility();
+}
+
+// --- Show port list row only when port mode is 'manual' ---
+function updatePortListVisibility() {
+  const portListRow = document.getElementById('radioPortListRow');
+  const portMode = $('radioPortMode');
+  if (!portListRow) return;
+
+  const isManual = portMode && portMode.value === 'manual';
+  portListRow.style.display = isManual ? '' : 'none';
+
+  // Auto-populate port list when switching to manual
+  if (isManual) refreshPortList();
+}
+
+// --- Show CI-V row only when Icom CI-V protocol is selected ---
+function updateCivRowVisibility() {
+  const civRow = document.getElementById('radioCivRow');
+  const familySelect = $('radioProtocolFamily');
+  if (!civRow) return;
+
+  const val = familySelect ? familySelect.value : 'auto';
+  // Show for Icom CI-V or auto-detect (might be Icom)
+  const isIcom = val === 'auto' || val === 'icom_civ';
+  civRow.style.display = isIcom ? '' : 'none';
+}
+
+// --- Save radio config from form to state + localStorage ---
+function saveRadioConfig() {
+  // Connection type
+  state.radioConnectionType = $('radioConnReal') && $('radioConnReal').checked ? 'real' : 'demo';
+  localStorage.setItem('hamtab_radio_conn_type', state.radioConnectionType);
+
+  // Protocol + model preset
+  state.radioProtocolFamily = $('radioProtocolFamily')?.value || 'auto';
+  state.radioModelPreset = $('radioModelPreset')?.value || '';
+  localStorage.setItem('hamtab_radio_protocol', state.radioProtocolFamily);
+  localStorage.setItem('hamtab_radio_model_preset', state.radioModelPreset);
+
+  // Port mode
+  state.radioPortMode = $('radioPortMode')?.value || 'auto';
+  localStorage.setItem('hamtab_radio_port_mode', state.radioPortMode);
+
+  // Serial settings
+  state.radioBaudRate = $('radioBaudRate')?.value || 'auto';
+  state.radioDataBits = parseInt($('radioDataBits')?.value, 10) || 8;
+  state.radioStopBits = parseInt($('radioStopBits')?.value, 10) || 1;
+  state.radioParity = $('radioParity')?.value || 'none';
+  state.radioFlowControl = $('radioFlowControl')?.value || 'none';
+  localStorage.setItem('hamtab_radio_baud', state.radioBaudRate);
+  localStorage.setItem('hamtab_radio_data_bits', String(state.radioDataBits));
+  localStorage.setItem('hamtab_radio_stop_bits', String(state.radioStopBits));
+  localStorage.setItem('hamtab_radio_parity', state.radioParity);
+  localStorage.setItem('hamtab_radio_flow_control', state.radioFlowControl);
+
+  // Control
+  state.radioPttMethod = $('radioPttMethod')?.value || 'cat';
+  state.radioPollingInterval = parseInt($('radioPollingInterval')?.value, 10) || 500;
+  state.radioCivAddress = ($('radioCivAddress')?.value || '0x94').trim();
+  localStorage.setItem('hamtab_radio_ptt_method', state.radioPttMethod);
+  localStorage.setItem('hamtab_radio_polling_interval', String(state.radioPollingInterval));
+  localStorage.setItem('hamtab_radio_civ_address', state.radioCivAddress);
+
+  // Safety
+  state.radioSafetyTxIntent = $('radioSafetyTxIntent') ? $('radioSafetyTxIntent').checked : true;
+  state.radioSafetyBandLockout = $('radioSafetyBandLockout') ? $('radioSafetyBandLockout').checked : true;
+  state.radioSafetyAutoPower = $('radioSafetyAutoPower') ? $('radioSafetyAutoPower').checked : true;
+  localStorage.setItem('hamtab_radio_safety_tx_intent', String(state.radioSafetyTxIntent));
+  localStorage.setItem('hamtab_radio_safety_band_lockout', String(state.radioSafetyBandLockout));
+  localStorage.setItem('hamtab_radio_safety_auto_power', String(state.radioSafetyAutoPower));
+
+  state.radioSwrLimit = parseFloat($('radioSwrLimit')?.value) || 3.0;
+  state.radioSafePower = parseInt($('radioSafePower')?.value, 10) || 20;
+  localStorage.setItem('hamtab_radio_swr_limit', String(state.radioSwrLimit));
+  localStorage.setItem('hamtab_radio_safe_power', String(state.radioSafePower));
+
+  // Demo propagation
+  if ($('radioPropBasic')?.checked) state.radioDemoPropagation = 'basic';
+  else if ($('radioPropLocation')?.checked) state.radioDemoPropagation = 'location';
+  else state.radioDemoPropagation = 'off';
+  localStorage.setItem('hamtab_radio_demo_propagation', state.radioDemoPropagation);
 }
 
 function dismissSplash() {
@@ -571,6 +859,9 @@ function dismissSplash() {
   state.temperatureUnit = $('tempUnitC').checked ? 'C' : 'F';
   localStorage.setItem('hamtab_distance_unit', state.distanceUnit);
   localStorage.setItem('hamtab_temperature_unit', state.temperatureUnit);
+
+  // Save radio config
+  saveRadioConfig();
 
   state.wxStation = ($('splashWxStation').value || '').trim().toUpperCase();
   state.wxApiKey = ($('splashWxApiKey').value || '').trim();
@@ -655,6 +946,10 @@ function dismissSplash() {
   // DE/DX Info timer start/stop — avoid 1 Hz timer running for a hidden widget
   if (justShown('widget-dedx'))  { startDedxTimer(); }
   if (justHidden('widget-dedx')) { stopDedxTimer(); }
+
+  // On-Air Rig — init/destroy: stops all CAT polling, safety, propagation when hidden
+  if (justShown('widget-on-air-rig'))  { initOnAirRig(); }
+  if (justHidden('widget-on-air-rig')) { destroyOnAirRig(); }
 
   // Update interval — lanmode only (element absent in hostedmode)
   const intervalSelect = $('splashUpdateInterval');
@@ -1048,6 +1343,39 @@ export function initSplashListeners() {
         });
       }
     });
+  }
+
+  // --- Radio tab listeners ---
+  const radioConnReal = $('radioConnReal');
+  const radioConnDemo = $('radioConnDemo');
+  if (radioConnReal) radioConnReal.addEventListener('change', updateRadioSections);
+  if (radioConnDemo) radioConnDemo.addEventListener('change', updateRadioSections);
+
+  // Protocol family → filter model presets + update CI-V visibility
+  const radioProtocolFamily = $('radioProtocolFamily');
+  if (radioProtocolFamily) {
+    radioProtocolFamily.addEventListener('change', () => {
+      populateModelPresets();
+      updateCivRowVisibility();
+    });
+  }
+
+  // Model preset → auto-fill serial/control settings from profile
+  const radioModelPreset = $('radioModelPreset');
+  if (radioModelPreset) {
+    radioModelPreset.addEventListener('change', applyModelPresetDefaults);
+  }
+
+  // Port mode → show/hide authorized port list
+  const radioPortMode = $('radioPortMode');
+  if (radioPortMode) {
+    radioPortMode.addEventListener('change', updatePortListVisibility);
+  }
+
+  // Refresh ports button
+  const radioRefreshPorts = $('radioRefreshPorts');
+  if (radioRefreshPorts) {
+    radioRefreshPorts.addEventListener('click', refreshPortList);
   }
 
   $('editCallBtn').addEventListener('click', () => {

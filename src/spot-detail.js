@@ -61,7 +61,9 @@ async function fetchSpotWeather(lat, lon) {
   // OWM fallback — global coverage, requires user-supplied API key
   if (state.owmApiKey) {
     try {
-      const resp = await fetch(`/api/weather/owm?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&apikey=${encodeURIComponent(state.owmApiKey)}`);
+      const resp = await fetch(`/api/weather/owm?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`, {
+        headers: { 'X-Api-Key': state.owmApiKey },
+      });
       if (resp.ok) {
         const data = await resp.json();
         spotDetailWeatherCache[key] = data;

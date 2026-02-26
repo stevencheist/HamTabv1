@@ -33,8 +33,8 @@ function setWxSource(src) {
 
 function doFetchWeather() {
   if (useWU()) {
-    const url = '/api/weather?station=' + encodeURIComponent(state.wxStation) + '&apikey=' + encodeURIComponent(state.wxApiKey);
-    fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+    const url = '/api/weather?station=' + encodeURIComponent(state.wxStation);
+    fetch(url, { headers: { 'X-Api-Key': state.wxApiKey } }).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
       const name = data.neighborhood || state.wxStation;
       const tempStr = data.temp != null ? data.temp + '\u00B0F' : '';
       const cond = data.condition || '';
@@ -84,8 +84,8 @@ function displayConditions(data, source) {
 export function fetchOwmConditions() {
   if (state.myLat === null || state.myLon === null) return;
   if (!state.owmApiKey) return;
-  const url = '/api/weather/owm?lat=' + state.myLat + '&lon=' + state.myLon + '&apikey=' + encodeURIComponent(state.owmApiKey);
-  fetch(url).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
+  const url = '/api/weather/owm?lat=' + state.myLat + '&lon=' + state.myLon;
+  fetch(url, { headers: { 'X-Api-Key': state.owmApiKey } }).then(r => r.ok ? r.json() : Promise.reject()).then(data => {
     displayConditions(data, 'owm');
   }).catch(err => {
     console.warn('OWM conditions fetch failed:', err);

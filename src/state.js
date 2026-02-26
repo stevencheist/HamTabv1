@@ -56,7 +56,10 @@ const state = {
   maidenheadDebounceTimer: null,
 
   // Map overlay config
-  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false },
+  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false, propagationHeatmap: false },
+
+  // Propagation heatmap band (standalone overlay — independent of VOACAP widget)
+  propagationHeatmapBand: localStorage.getItem('hamtab_prop_heatmap_band') || '20m',
 
   // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
   dxpedTimeFilter: localStorage.getItem('hamtab_dxped_time_filter') || 'all',

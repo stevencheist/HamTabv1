@@ -3,7 +3,7 @@ import { $ } from './dom.js';
 import { SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, SOURCE_DEFS } from './constants.js';
 import { renderSolar, saveSolarFieldVisibility } from './solar.js';
 import { renderLunar, saveLunarFieldVisibility } from './lunar.js';
-import { renderAllMapOverlays, saveMapOverlays } from './map-overlays.js';
+import { renderAllMapOverlays, saveMapOverlays, renderPropagationHeatmapOverlay } from './map-overlays.js';
 import { renderMarkers } from './markers.js';
 import { renderSpots, saveSpotColumnVisibility } from './spots.js';
 import { updateTableColumns } from './source.js';
@@ -83,6 +83,8 @@ export function initConfigListeners() {
       $('mapOvWeatherRadar').checked = state.mapOverlays.weatherRadar;
       $('mapOvCloudCover').checked = state.mapOverlays.cloudCover;
       $('mapOvLegend').checked = state.mapOverlays.symbolLegend;
+      $('mapOvPropHeatmap').checked = state.mapOverlays.propagationHeatmap;
+      $('mapOvPropHeatmapBand').value = state.propagationHeatmapBand;
       mapOverlayCfgSplash.classList.remove('hidden');
     });
   }
@@ -100,9 +102,13 @@ export function initConfigListeners() {
       state.mapOverlays.weatherRadar = $('mapOvWeatherRadar').checked;
       state.mapOverlays.cloudCover = $('mapOvCloudCover').checked;
       state.mapOverlays.symbolLegend = $('mapOvLegend').checked;
+      state.mapOverlays.propagationHeatmap = $('mapOvPropHeatmap').checked;
+      state.propagationHeatmapBand = $('mapOvPropHeatmapBand').value;
+      localStorage.setItem('hamtab_prop_heatmap_band', state.propagationHeatmapBand);
       saveMapOverlays();
       mapOverlayCfgSplash.classList.add('hidden');
       renderAllMapOverlays();
+      renderPropagationHeatmapOverlay();
       renderMarkers(); // refresh band path lines
       renderDxpeditions(); // refresh DXpedition markers on map
     });

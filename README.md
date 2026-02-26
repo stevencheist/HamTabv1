@@ -25,7 +25,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 
 ### Propagation & Space Weather
 - **Solar Indices** — Solar flux, sunspot number, A/K indices, X-ray flux, and signal noise level with 18 configurable fields
-- **HF Band Conditions** — Day/night conditions for 80m through 10m displayed in the header
+- **HF Band Conditions** — Day/night conditions for 160m through 6m with reliability percentages, color-coded from green (open) to red (closed). 6m includes sporadic E detection from live HamQSL data
 - **VOACAP DE→DX** — 24-hour propagation prediction grid with adjustable power (5W/100W/1kW), mode (CW/SSB/FT8), and path (short/long). Uses the Voice of America Coverage Analysis Program engine with automatic simplified fallback
 - **Space Weather History** — Historical graphs for Kp index, X-ray flux, SFI, solar wind speed, and Bz over the past week (90 days for SFI)
 
@@ -773,14 +773,15 @@ The header bar shows your callsign, band conditions, and global controls.
 
 ### Band Conditions (center)
 
-Four band groups showing day/night HF conditions from HamQSL solar data:
+Day/night HF + 6m conditions calculated from solar indices:
 
-- 80m–40m
+- 160m–40m
 - 30m–20m
 - 17m–15m
 - 12m–10m
+- 6m (includes sporadic E boost from live HamQSL E-Skip data)
 
-Color coded: **Good** (green), **Fair** (yellow), **Poor** (red).
+Color coded by reliability: **Excellent/Good** (green), **Fair** (yellow), **Poor/Closed** (red).
 
 ### Controls (right)
 

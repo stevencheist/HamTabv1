@@ -340,9 +340,10 @@ export const WIDGET_HELP = {
   },
   'widget-propagation': {
     title: 'Band Conditions',
-    description: 'HF band conditions and VHF propagation status. Shows per-band reliability predictions for both day and night simultaneously, plus VHF phenomena like Aurora and E-Skip.',
+    description: 'HF and 6m band conditions plus VHF propagation status. Shows per-band reliability predictions for both day and night simultaneously, plus VHF phenomena like Aurora and E-Skip.',
     sections: [
       { heading: 'HF Bands', content: 'Each band shows a reliability percentage and condition (Excellent/Good/Fair/Poor/Closed). Day and night are shown side by side — day conditions appear in the left column (orange border), night in the right column (blue border). Green means the band is likely open, yellow means marginal, red means closed.' },
+      { heading: '6m (Magic Band)', content: '6m is included because it has meaningful propagation modes — sporadic E (Es) and F2 skip during high solar activity. The prediction combines the MUF model with live E-Skip data from HamQSL. When E-Skip is reported as active, 6m reliability gets a boost. During quiet conditions, 6m may show as closed even though brief Es openings can still occur unpredictably.' },
       { heading: 'VHF Conditions', content: 'Below the HF bands, VHF propagation phenomena are shown: Aurora (affects 2m and above in northern latitudes) and E-Skip (sporadic E-layer openings on 6m/4m/2m by region). Data comes directly from HamQSL.' },
       { heading: 'How It Works', content: 'HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model. Higher SFI means better HF conditions. K-index above 4 can shut down HF bands. The summary bar shows current MUF (Maximum Usable Frequency), SFI, and K-index.' },
     ],

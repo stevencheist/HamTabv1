@@ -5,7 +5,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
 
-// HF amateur bands (MHz)
+// HF amateur bands (MHz) — includes 6m (VHF but has meaningful HF-style propagation)
 export const HF_BANDS = [
   { name: '160m', freqMHz: 1.9,   label: '160m' },
   { name: '80m',  freqMHz: 3.7,   label: '80m'  },
@@ -17,10 +17,11 @@ export const HF_BANDS = [
   { name: '15m',  freqMHz: 21.2,  label: '15m'  },
   { name: '12m',  freqMHz: 24.93, label: '12m'  },
   { name: '10m',  freqMHz: 28.5,  label: '10m'  },
+  { name: '6m',   freqMHz: 50.1,  label: '6m'   },
 ];
 
-// VOACAP subset — excludes 160m and 60m (8 bands matching VOACAP DE-DX reference)
-export const VOACAP_BANDS = HF_BANDS.filter(b => b.name !== '160m' && b.name !== '60m');
+// VOACAP subset — excludes 160m, 60m, and 6m (8 bands matching VOACAP DE-DX reference)
+export const VOACAP_BANDS = HF_BANDS.filter(b => b.name !== '160m' && b.name !== '60m' && b.name !== '6m');
 
 // --- Solar Zenith & Day Fraction ---
 
@@ -207,6 +208,35 @@ function classifyCondition(reliability) {
   return 'closed';
 }
 
+// --- Sporadic E Boost for 6m ---
+
+/**
+ * Parse HamQSL E-Skip conditions and return a reliability boost for 6m.
+ * Sporadic E (Es) is the primary propagation mode on 6m — the MUF model alone
+ * underestimates 6m openings because Es bypasses normal F-layer propagation.
+ * Data source: HamQSL VHF conditions (state.lastSolarData.vhf).
+ *
+ * @returns {number} - Reliability boost (0-40) to add to 6m's MUF-based score
+ */
+function getSporadicEBoost() {
+  const vhfData = state.lastSolarData?.vhf;
+  if (!vhfData || vhfData.length === 0) return 0;
+
+  // Find the highest E-Skip condition across all regions
+  let maxBoost = 0;
+  for (const item of vhfData) {
+    if (item.name !== 'E-Skip') continue;
+    const c = item.condition.toLowerCase();
+    let boost = 0;
+    if (c.includes('band open') || c === 'open')  boost = 40;
+    else if (c.includes('high'))                   boost = 25;
+    else if (c.includes('good'))                   boost = 15;
+    else if (c.includes('fair'))                   boost = 5;
+    if (boost > maxBoost) maxBoost = boost;
+  }
+  return maxBoost;
+}
+
 // --- Public API ---
 
 /**
@@ -247,15 +277,23 @@ export function calculateBandConditions(timeOfDay = null) {
   // Calculate MUF
   const muf = calculateMUF(sfi, isDay);
 
+  // Sporadic E boost for 6m — Es openings aren't predicted by MUF model
+  const esBoost = getSporadicEBoost();
+
   // Calculate reliability for each band
   return HF_BANDS.map(band => {
-    const reliability = calculateBandReliability(
+    let reliability = calculateBandReliability(
       band.freqMHz,
       muf,
       kIndex,
       aIndex,
       isDay
     );
+
+    // Apply sporadic E boost to 6m based on live HamQSL E-Skip data
+    if (band.name === '6m' && esBoost > 0) {
+      reliability = Math.min(100, reliability + esBoost);
+    }
 
     return {
       ...band,

@@ -254,7 +254,7 @@ All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 1
 
 ## Band Conditions Widget
 
-At-a-glance HF band conditions and VHF propagation status. Shows per-band reliability predictions for day and night simultaneously in a compact color-coded table.
+At-a-glance HF and 6m band conditions plus VHF propagation status. Shows per-band reliability predictions for day and night simultaneously in a compact color-coded table.
 
 ### Propagation Summary
 
@@ -268,7 +268,7 @@ The summary bar at the top shows three key solar metrics:
 
 ### HF Bands Tab
 
-The default view shows a compact table with 10 HF bands (160m through 10m). Each row has:
+The default view shows a compact table with 11 bands (160m through 6m). Each row has:
 
 - **Band label** — The amateur band name
 - **Day column** (orange header) — Predicted daytime reliability percentage
@@ -285,6 +285,15 @@ Cell colors use a continuous gradient:
 
 Hover over any cell to see the band name and condition label (e.g., "20m Day: Excellent").
 
+### 6m — The Magic Band
+
+6m (50 MHz) is included because it has meaningful propagation modes that vary with solar and atmospheric conditions:
+
+- **Sporadic E (Es)** — Unpredictable E-layer patches that can open 6m for hundreds to thousands of miles. Most common May–August. When HamQSL reports E-Skip activity, the 6m reliability score gets a boost.
+- **F2 skip** — During high solar activity (SFI above ~150), the MUF can reach 50 MHz, opening worldwide 6m propagation via the F-layer.
+
+During quiet conditions 6m may show as closed, but brief Es openings can still occur at any time — that's why it's called the Magic Band.
+
 ### VHF Tab
 
 Click the **VHF** tab to see VHF propagation phenomena:
@@ -296,7 +305,7 @@ Each phenomenon shows a condition label color-coded from red (closed) through ye
 
 ### Data Source
 
-All data comes from HamQSL and updates with the solar data refresh cycle. HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model.
+All data comes from HamQSL and updates with the solar data refresh cycle. HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model. The 6m prediction additionally incorporates live E-Skip conditions from HamQSL.
 
 ---
 

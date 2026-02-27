@@ -1076,8 +1076,23 @@
             </div>
             <span class="rig-swr-label" id="rigSWR">SWR ---</span>
           </div>
+          <!-- Spectrum scope + waterfall (demo mode panadapter) -->
+          <div class="rig-scope-section" id="rigScopeSection" style="display:none">
+            <canvas class="rig-scope-spectrum" id="rigScopeSpectrum"></canvas>
+            <canvas class="rig-scope-waterfall" id="rigScopeWaterfall"></canvas>
+          </div>
           <!-- Band plan overlay -->
           <div class="rig-band-overlay" id="rigBandOverlay"></div>
+          <!-- Band + Mode selectors (WIP — needs live radio testing)
+          <div class="rig-band-mode-row hidden" id="rigBandModeRow">
+            <select id="rigBandSelect" class="rig-band-select">
+              <option value="">Band</option>
+            </select>
+            <select id="rigModeSelect" class="rig-mode-select">
+              <option value="">Mode</option>
+            </select>
+          </div>
+          -->
           <!-- Power slider -->
           <div class="rig-power-row hidden" id="rigPowerRow">
             <label>PWR</label>

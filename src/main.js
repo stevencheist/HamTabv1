@@ -107,7 +107,7 @@ initAnalogClock();
 initClockConfigListeners();
 initMobileMenu();
 initTabs();
-// initOnAirRig(); // RADIO_HIDDEN — re-enable when radio hardware available
+initOnAirRig(); // RADIO_HIDDEN — temporarily re-enabled for scope testing
 
 // Wire initApp into splash dismissal
 function initApp() {

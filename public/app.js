@@ -8513,8 +8513,9 @@
         { id: "widget-beacons", name: "NCDXF Beacons", short: "Bcn" },
         { id: "widget-dedx", name: "DE/DX Info", short: "DEDX" },
         { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
-        { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" }
-        // { id: 'widget-on-air-rig',  name: 'On-Air Rig',       short: 'Rig' }, // RADIO_HIDDEN
+        { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" },
+        { id: "widget-on-air-rig", name: "On-Air Rig", short: "Rig" }
+        // RADIO_HIDDEN — temporarily unhidden for scope testing
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -17431,6 +17432,530 @@ ${beacon.location}`);
     return (freqHz - edges.min) / (edges.max - edges.min);
   }
 
+  // src/scope/scope-color-map.js
+  var DEFAULT_FLOOR_DB = -120;
+  var DEFAULT_CEILING_DB = -40;
+  var SDR_PALETTE = [
+    [0, 0, 32],
+    // deep blue (noise floor)
+    [0, 0, 128],
+    // blue
+    [0, 128, 255],
+    // cyan-blue
+    [0, 255, 255],
+    // cyan
+    [0, 255, 128],
+    // cyan-green
+    [128, 255, 0],
+    // yellow-green
+    [255, 255, 0],
+    // yellow
+    [255, 128, 0],
+    // orange
+    [255, 0, 0],
+    // red
+    [255, 255, 255]
+    // white (strongest)
+  ];
+  function createColorMap(palette) {
+    if (!palette) palette = SDR_PALETTE;
+    const lut = new Uint8Array(256 * 4);
+    const stops = palette.length - 1;
+    for (let i = 0; i < 256; i++) {
+      const t = i / 255;
+      const segment = t * stops;
+      const idx = Math.min(Math.floor(segment), stops - 1);
+      const frac = segment - idx;
+      const r0 = palette[idx][0];
+      const g0 = palette[idx][1];
+      const b0 = palette[idx][2];
+      const r1 = palette[idx + 1][0];
+      const g1 = palette[idx + 1][1];
+      const b1 = palette[idx + 1][2];
+      const offset = i * 4;
+      lut[offset] = r0 + (r1 - r0) * frac;
+      lut[offset + 1] = g0 + (g1 - g0) * frac;
+      lut[offset + 2] = b0 + (b1 - b0) * frac;
+      lut[offset + 3] = 255;
+    }
+    return lut;
+  }
+  function dbToIndex(db, floor, ceiling) {
+    if (floor === void 0) floor = DEFAULT_FLOOR_DB;
+    if (ceiling === void 0) ceiling = DEFAULT_CEILING_DB;
+    const normalized = (db - floor) / (ceiling - floor);
+    return Math.max(0, Math.min(255, Math.round(normalized * 255)));
+  }
+
+  // src/scope/scope-spectrum.js
+  var MODE_FILTER_WIDTH = {
+    CW: 500,
+    "CW-R": 500,
+    LSB: 2400,
+    USB: 2400,
+    AM: 6e3,
+    FM: 12e3,
+    RTTY: 500,
+    "RTTY-R": 500,
+    PSK: 500,
+    FT8: 3e3,
+    FT4: 3e3,
+    DATA: 3e3
+  };
+  function createSpectrum(canvas, getState2, options) {
+    if (!options) options = {};
+    const floorDb = options.floorDb !== void 0 ? options.floorDb : DEFAULT_FLOOR_DB;
+    const ceilingDb = options.ceilingDb !== void 0 ? options.ceilingDb : DEFAULT_CEILING_DB;
+    const peakDecay = options.peakDecay || 0.95;
+    const avgAlpha = options.avgAlpha || 0.3;
+    const spanHz = options.spanHz || 48e3;
+    const ctx = canvas.getContext("2d");
+    let width = canvas.width;
+    let height = canvas.height;
+    let peakHold = null;
+    let avgBuffer = null;
+    function dbToY(db) {
+      const normalized = (db - floorDb) / (ceilingDb - floorDb);
+      return height - normalized * height;
+    }
+    function draw(magnitudes) {
+      const bins = magnitudes.length;
+      if (!peakHold || peakHold.length !== bins) {
+        peakHold = new Float32Array(magnitudes);
+      } else {
+        for (let i = 0; i < bins; i++) {
+          peakHold[i] = Math.max(magnitudes[i], peakHold[i] * peakDecay);
+        }
+      }
+      if (!avgBuffer || avgBuffer.length !== bins) {
+        avgBuffer = new Float32Array(magnitudes);
+      } else {
+        for (let i = 0; i < bins; i++) {
+          avgBuffer[i] = avgAlpha * magnitudes[i] + (1 - avgAlpha) * avgBuffer[i];
+        }
+      }
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = "rgba(4, 8, 16, 0.9)";
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = "rgba(26, 42, 68, 0.5)";
+      ctx.lineWidth = 1;
+      const gridStepDb = 10;
+      for (let db = floorDb; db <= ceilingDb; db += gridStepDb) {
+        const y = dbToY(db);
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+      }
+      ctx.fillStyle = "#4a5a7a";
+      ctx.font = "10px Consolas, monospace";
+      ctx.textAlign = "left";
+      for (let db = floorDb; db <= ceilingDb; db += gridStepDb) {
+        const y = dbToY(db);
+        ctx.fillText("" + db, 4, y - 2);
+      }
+      const binWidth = width / bins;
+      const centerX = width / 2;
+      ctx.strokeStyle = "rgba(0, 229, 255, 0.6)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(centerX, 0);
+      ctx.lineTo(centerX, height);
+      ctx.stroke();
+      const state2 = getState2();
+      const mode2 = state2.mode || "USB";
+      const filterHz = MODE_FILTER_WIDTH[mode2] || 2400;
+      const filterPx = filterHz / spanHz * width;
+      ctx.fillStyle = "rgba(0, 229, 255, 0.06)";
+      ctx.fillRect(centerX - filterPx / 2, 0, filterPx, height);
+      ctx.strokeStyle = "rgba(255, 145, 0, 0.4)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i < bins; i++) {
+        const x = i * binWidth;
+        const y = dbToY(peakHold[i]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(0, height);
+      for (let i = 0; i < bins; i++) {
+        const x = i * binWidth;
+        const y = dbToY(avgBuffer[i]);
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(width, height);
+      ctx.closePath();
+      const gradient = ctx.createLinearGradient(0, 0, 0, height);
+      gradient.addColorStop(0, "rgba(0, 229, 255, 0.3)");
+      gradient.addColorStop(1, "rgba(0, 229, 255, 0.02)");
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      ctx.strokeStyle = "#00e5ff";
+      ctx.lineWidth = 1.5;
+      ctx.shadowColor = "rgba(0, 229, 255, 0.4)";
+      ctx.shadowBlur = 4;
+      ctx.beginPath();
+      for (let i = 0; i < bins; i++) {
+        const x = i * binWidth;
+        const y = dbToY(avgBuffer[i]);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      ctx.shadowBlur = 0;
+      drawFrequencyLabels(state2);
+    }
+    function drawFrequencyLabels(state2) {
+      const centerHz = state2.frequency || 14175e3;
+      const startHz = centerHz - spanHz / 2;
+      ctx.fillStyle = "#4a5a7a";
+      ctx.font = "10px Consolas, monospace";
+      ctx.textAlign = "center";
+      const labelCount = 5;
+      for (let i = 0; i <= labelCount; i++) {
+        const x = i / labelCount * width;
+        const freqHz = startHz + i / labelCount * spanHz;
+        const freqMHz = (freqHz / 1e6).toFixed(3);
+        ctx.fillText(freqMHz, x, height - 4);
+      }
+    }
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      width = canvas.width;
+      height = canvas.height;
+    }
+    function destroy() {
+      peakHold = null;
+      avgBuffer = null;
+      ctx.clearRect(0, 0, width, height);
+    }
+    resize();
+    return { draw, resize, destroy };
+  }
+
+  // src/scope/scope-waterfall.js
+  function createWaterfall(canvas, options) {
+    if (!options) options = {};
+    const bins = options.bins || 512;
+    const floorDb = options.floorDb !== void 0 ? options.floorDb : DEFAULT_FLOOR_DB;
+    const ceilingDb = options.ceilingDb !== void 0 ? options.ceilingDb : DEFAULT_CEILING_DB;
+    const ctx = canvas.getContext("2d", { willReadFrequently: false });
+    const lut = createColorMap(options.colorMap);
+    let width = canvas.width;
+    let height = canvas.height;
+    function pushRow(magnitudes) {
+      if (height > 1) {
+        ctx.drawImage(canvas, 0, 0, width, height - 1, 0, 1, width, height - 1);
+      }
+      const imageData = ctx.createImageData(width, 1);
+      const data = imageData.data;
+      const binScale = bins / width;
+      for (let x = 0; x < width; x++) {
+        const binIdx = Math.min(bins - 1, Math.floor(x * binScale));
+        const db = magnitudes[binIdx] !== void 0 ? magnitudes[binIdx] : floorDb;
+        const colorIdx = dbToIndex(db, floorDb, ceilingDb);
+        const lutOffset = colorIdx * 4;
+        const px = x * 4;
+        data[px] = lut[lutOffset];
+        data[px + 1] = lut[lutOffset + 1];
+        data[px + 2] = lut[lutOffset + 2];
+        data[px + 3] = 255;
+      }
+      ctx.putImageData(imageData, 0, 0);
+    }
+    function resize() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.floor(rect.width * dpr);
+      canvas.height = Math.floor(rect.height * dpr);
+      width = canvas.width;
+      height = canvas.height;
+      ctx.fillStyle = "#000509";
+      ctx.fillRect(0, 0, width, height);
+    }
+    function destroy() {
+      ctx.clearRect(0, 0, width, height);
+    }
+    resize();
+    return { pushRow, resize, destroy };
+  }
+
+  // src/scope/scope-signal-gen.js
+  init_propagation_signal_engine();
+  function gaussianRandom() {
+    let u = 0;
+    let v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  function generateNoiseFloor(bins, floorDb, varianceDb) {
+    const buffer = new Float32Array(bins);
+    for (let i = 0; i < bins; i++) {
+      buffer[i] = floorDb + gaussianRandom() * varianceDb;
+    }
+    return buffer;
+  }
+  function addSignal(buffer, centerBin, widthBins, peakDb) {
+    const sigma = widthBins / 2.355;
+    const sigmaSq2 = 2 * sigma * sigma;
+    const peakLinear = Math.pow(10, peakDb / 10);
+    const start = Math.max(0, Math.floor(centerBin - widthBins * 2));
+    const end = Math.min(buffer.length - 1, Math.ceil(centerBin + widthBins * 2));
+    for (let i = start; i <= end; i++) {
+      const d = i - centerBin;
+      const gaussianFactor = Math.exp(-(d * d) / sigmaSq2);
+      const signalLinear = peakLinear * gaussianFactor;
+      const existing = Math.pow(10, buffer[i] / 10);
+      buffer[i] = 10 * Math.log10(existing + signalLinear);
+    }
+  }
+  function blendFrames(prev, current, alpha) {
+    const result = new Float32Array(current.length);
+    for (let i = 0; i < current.length; i++) {
+      result[i] = prev.length === current.length ? alpha * current[i] + (1 - alpha) * prev[i] : current[i];
+    }
+    return result;
+  }
+  var FT8_FREQS = [
+    184e4,
+    3573e3,
+    5357e3,
+    7074e3,
+    10136e3,
+    14074e3,
+    181e5,
+    21074e3,
+    24915e3,
+    28074e3,
+    50313e3
+  ];
+  function hashSeed(str) {
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = (h << 5) - h + str.charCodeAt(i) | 0;
+    }
+    return h;
+  }
+  function seededRandom(seed) {
+    let s = seed | 0;
+    return function() {
+      s = s + 1831565813 | 0;
+      let t = Math.imul(s ^ s >>> 15, 1 | s);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  function createSpectrumDataSource(opts) {
+    if (!opts) opts = {};
+    const bins = opts.bins || 512;
+    const spanHz = opts.spanHz || 48e3;
+    const longitude = opts.longitude || 0;
+    let prevFrame = new Float32Array(bins);
+    let signalCache = null;
+    let cachedBand = null;
+    function detectBand3(freq) {
+      for (const [band, props] of Object.entries(BAND_PROPS)) {
+        if (freq >= props.min && freq <= props.max) return band;
+      }
+      return null;
+    }
+    function noiseFloorToDb(nf) {
+      return -112 + (nf - 6) / 24 * 32;
+    }
+    function buildSignals(band, centerHz) {
+      const props = BAND_PROPS[band];
+      if (!props) return [];
+      const rng = seededRandom(hashSeed(band));
+      const signals = [];
+      const hzPerBin = spanHz / bins;
+      const startHz = centerHz - spanHz / 2;
+      const endHz = centerHz + spanHz / 2;
+      for (const ft8 of FT8_FREQS) {
+        if (ft8 >= startHz && ft8 <= endHz) {
+          const bin = Math.round((ft8 - startHz) / hzPerBin);
+          signals.push({
+            bin,
+            widthBins: Math.max(2, Math.round(3e3 / hzPerBin)),
+            // ~3kHz wide FT8 cluster
+            basePeakDb: -55,
+            qsbPeriod: 8e3 + rng() * 12e3,
+            qsbDepth: 4,
+            seed: rng() * 1e3
+          });
+        }
+      }
+      const cwZoneStart = props.min;
+      const cwZoneEnd = props.min + (props.max - props.min) * 0.15;
+      const cwCount = 2 + Math.floor(rng() * 4);
+      for (let i = 0; i < cwCount; i++) {
+        const freq = cwZoneStart + rng() * (cwZoneEnd - cwZoneStart);
+        if (freq >= startHz && freq <= endHz) {
+          const bin = Math.round((freq - startHz) / hzPerBin);
+          signals.push({
+            bin,
+            widthBins: Math.max(1, Math.round(200 / hzPerBin)),
+            // narrow CW
+            basePeakDb: -65 + rng() * 20,
+            qsbPeriod: 5e3 + rng() * 15e3,
+            qsbDepth: 6,
+            seed: rng() * 1e3
+          });
+        }
+      }
+      const phoneZoneStart = props.min + (props.max - props.min) * 0.3;
+      const phoneZoneEnd = props.max;
+      const ssbCount = 3 + Math.floor(rng() * 5);
+      for (let i = 0; i < ssbCount; i++) {
+        const freq = phoneZoneStart + rng() * (phoneZoneEnd - phoneZoneStart);
+        if (freq >= startHz && freq <= endHz) {
+          const bin = Math.round((freq - startHz) / hzPerBin);
+          signals.push({
+            bin,
+            widthBins: Math.max(2, Math.round(2400 / hzPerBin)),
+            // SSB ~2.4kHz
+            basePeakDb: -60 + rng() * 25,
+            qsbPeriod: 6e3 + rng() * 2e4,
+            qsbDepth: 6,
+            seed: rng() * 1e3
+          });
+        }
+      }
+      return signals;
+    }
+    function generateFrame(centerHz, band) {
+      if (!band) band = detectBand3(centerHz);
+      const props = band ? BAND_PROPS[band] : null;
+      const baseNoiseDb = props ? noiseFloorToDb(props.noiseFloor) : -100;
+      const dayFactor = getDayFactor(longitude);
+      let noiseMod = 0;
+      if (props) {
+        if (props.nightBonus > 0) {
+          noiseMod = (1 - dayFactor) * 8;
+        } else {
+          noiseMod = dayFactor * 3;
+        }
+      }
+      const frame = generateNoiseFloor(bins, baseNoiseDb + noiseMod, 3);
+      if (band !== cachedBand) {
+        signalCache = buildSignals(band || "20m", centerHz);
+        cachedBand = band;
+      }
+      const now = Date.now();
+      for (const sig of signalCache) {
+        const qsb = Math.sin(now / sig.qsbPeriod + sig.seed) * sig.qsbDepth;
+        let dayMod = 0;
+        if (props) {
+          dayMod = (props.dayPenalty * dayFactor + props.nightBonus * (1 - dayFactor)) * 0.15;
+        }
+        addSignal(frame, sig.bin, sig.widthBins, sig.basePeakDb + qsb + dayMod);
+      }
+      const blended = blendFrames(prevFrame, frame, 0.4);
+      prevFrame = blended;
+      return blended;
+    }
+    function destroy() {
+      prevFrame = new Float32Array(bins);
+      signalCache = null;
+      cachedBand = null;
+    }
+    return { generateFrame, destroy };
+  }
+
+  // src/scope/scope-renderer.js
+  init_cat();
+  var BINS = 512;
+  var SPAN_HZ = 48e3;
+  var WATERFALL_INTERVAL = 33;
+  var spectrum = null;
+  var waterfall = null;
+  var dataSource = null;
+  var animFrameId = null;
+  var resizeObserver = null;
+  var lastWaterfallTime = 0;
+  var running = false;
+  function getState() {
+    const store = getRigStore();
+    return store.get();
+  }
+  function renderLoop(timestamp) {
+    if (!running) return;
+    const state2 = getState();
+    const centerHz = state2.frequency || 14175e3;
+    const band = state2.band || null;
+    const frame = dataSource.generateFrame(centerHz, band);
+    spectrum.draw(frame);
+    if (timestamp - lastWaterfallTime >= WATERFALL_INTERVAL) {
+      waterfall.pushRow(frame);
+      lastWaterfallTime = timestamp;
+    }
+    animFrameId = requestAnimationFrame(renderLoop);
+  }
+  function handleResize() {
+    if (!running) return;
+    if (spectrum) spectrum.resize();
+    if (waterfall) waterfall.resize();
+  }
+  function startScope(opts) {
+    if (running) return;
+    if (!opts) opts = {};
+    const section = document.getElementById("rigScopeSection");
+    const specCanvas = document.getElementById("rigScopeSpectrum");
+    const wfCanvas = document.getElementById("rigScopeWaterfall");
+    if (!section || !specCanvas || !wfCanvas) return;
+    section.style.display = "";
+    spectrum = createSpectrum(specCanvas, getState, {
+      spanHz: SPAN_HZ
+    });
+    waterfall = createWaterfall(wfCanvas, {
+      bins: BINS
+    });
+    dataSource = createSpectrumDataSource({
+      bins: BINS,
+      spanHz: SPAN_HZ,
+      longitude: opts.longitude || 0
+    });
+    const container = document.getElementById("widget-on-air-rig");
+    if (container && window.ResizeObserver) {
+      resizeObserver = new ResizeObserver(handleResize);
+      resizeObserver.observe(container);
+    }
+    running = true;
+    lastWaterfallTime = 0;
+    animFrameId = requestAnimationFrame(renderLoop);
+  }
+  function stopScope() {
+    if (!running) return;
+    running = false;
+    if (animFrameId) {
+      cancelAnimationFrame(animFrameId);
+      animFrameId = null;
+    }
+    if (resizeObserver) {
+      resizeObserver.disconnect();
+      resizeObserver = null;
+    }
+    if (spectrum) {
+      spectrum.destroy();
+      spectrum = null;
+    }
+    if (waterfall) {
+      waterfall.destroy();
+      waterfall = null;
+    }
+    if (dataSource) {
+      dataSource.destroy();
+      dataSource = null;
+    }
+    const section = document.getElementById("rigScopeSection");
+    if (section) section.style.display = "none";
+  }
+
   // src/on-air-rig.js
   var unsubscribe = null;
   var initialized2 = false;
@@ -17688,6 +18213,7 @@ ${beacon.location}`);
     if (isRigConnected()) {
       connectBtn.disabled = true;
       statusEl.textContent = "Disconnecting...";
+      stopScope();
       try {
         await disconnectRig();
       } catch (err2) {
@@ -17754,6 +18280,9 @@ ${beacon.location}`);
       console.error("[rig] Connect error:", err2);
       statusEl.textContent = `Error: ${err2.message}`;
     }
+    if (isRigConnected()) {
+      startScope({ longitude: state_default.myLon || 0 });
+    }
     connectBtn.disabled = false;
   }
   function initOnAirRig() {
@@ -17786,6 +18315,7 @@ ${beacon.location}`);
   }
   async function destroyOnAirRig() {
     if (!initialized2) return;
+    stopScope();
     if (isRigConnected()) {
       try {
         await disconnectRig();
@@ -19809,7 +20339,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   init_dom();
   init_widgets();
   var mode = "stopwatch";
-  var running = false;
+  var running2 = false;
   var startTime = 0;
   var elapsed = 0;
   var countdownTotal = 0;
@@ -19842,7 +20372,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     });
   }
   function switchMode(newMode) {
-    if (running) stopTimer();
+    if (running2) stopTimer();
     mode = newMode;
     elapsed = 0;
     countdownTotal = 0;
@@ -19860,9 +20390,9 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     renderLaps();
   }
   function startTimer() {
-    if (running) return;
+    if (running2) return;
     if (mode === "countdown" && countdownTotal === 0) return;
-    running = true;
+    running2 = true;
     alertFired = false;
     if (mode === "stopwatch") {
       startTime = Date.now() - elapsed;
@@ -19872,7 +20402,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     state_default.stopwatchTimer = setInterval(tick, 100);
   }
   function stopTimer() {
-    running = false;
+    running2 = false;
     if (state_default.stopwatchTimer) {
       clearInterval(state_default.stopwatchTimer);
       state_default.stopwatchTimer = null;
@@ -19887,7 +20417,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     renderLaps();
   }
   function recordLap() {
-    if (!running || mode !== "stopwatch") return;
+    if (!running2 || mode !== "stopwatch") return;
     laps.push(elapsed);
     renderLaps();
   }
@@ -19949,7 +20479,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     return elapsed;
   }
   function getStopwatchRunning() {
-    return running;
+    return running2;
   }
   function getStopwatchMode() {
     return mode;
@@ -20433,16 +20963,16 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       refs.hand.setAttribute("transform", `rotate(${angle} ${refs.def.cx} ${refs.def.cy})`);
     } else if (compId === "stopwatch") {
       const elapsed2 = getStopwatchElapsed();
-      const running2 = getStopwatchRunning();
+      const running3 = getStopwatchRunning();
       const swMode = getStopwatchMode();
       const ms = Math.abs(elapsed2);
       const totalSec = Math.floor(ms / 1e3);
       const mm = String(Math.floor(totalSec / 60)).padStart(2, "0");
       const ss = String(totalSec % 60).padStart(2, "0");
       refs.timeText.textContent = `${mm}:${ss}`;
-      refs.timeText.setAttribute("fill", running2 ? "var(--text)" : "var(--text-dim)");
-      refs.statusDot.setAttribute("fill", running2 ? "#4caf50" : "var(--text-dim)");
-      refs.statusDot.setAttribute("opacity", running2 ? "1" : "0.3");
+      refs.timeText.setAttribute("fill", running3 ? "var(--text)" : "var(--text-dim)");
+      refs.statusDot.setAttribute("fill", running3 ? "#4caf50" : "var(--text-dim)");
+      refs.statusDot.setAttribute("opacity", running3 ? "1" : "0.3");
       refs.modeLabel.textContent = swMode === "countdown" ? "CNTDN" : "STOP";
     } else if (compId === "solar") {
       const data = state_default.lastSolarData;
@@ -21030,6 +21560,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initClockConfigListeners();
   initMobileMenu();
   initTabs();
+  initOnAirRig();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

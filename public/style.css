@@ -7370,6 +7370,30 @@ body.grayscale {
 .rig-swr-caution { color: #ffd600; text-shadow: 0 0 4px rgba(255, 214, 0, 0.25); }
 .rig-swr-danger { color: #ff1744; text-shadow: 0 0 4px rgba(255, 23, 68, 0.25); }
 
+/* ── Spectrum Scope + Waterfall ── */
+.rig-scope-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  background: #040810;
+  border: 1px solid #1a2540;
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 4px 0;
+}
+.rig-scope-spectrum {
+  width: 100%;
+  height: 90px;
+  display: block;
+  background: #040810;
+}
+.rig-scope-waterfall {
+  width: 100%;
+  height: 60px;
+  display: block;
+  background: #000509;
+}
+
 /* ── Band Overlay ── */
 .rig-band-overlay {
   position: relative;
@@ -7406,6 +7430,23 @@ body.grayscale {
   box-shadow: 0 0 6px rgba(255,255,255,0.5);
   transition: left 0.15s ease;
   z-index: 2;
+}
+
+/* ── Band + Mode Selectors ── */
+.rig-band-mode-row {
+  display: flex;
+  gap: 6px;
+}
+.rig-band-select,
+.rig-mode-select {
+  flex: 1;
+  background: #080c14;
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 3px;
+  padding: 5px 8px;
+  font-size: 0.7rem;
+  font-weight: 600;
 }
 
 /* ── Power Slider ── */

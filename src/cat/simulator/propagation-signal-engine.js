@@ -7,7 +7,7 @@
 // - Sporadic E openings on 6m
 // - Parabolic SWR model from band center
 
-const BAND_PROPS = {
+export const BAND_PROPS = {
   '160m': { min: 1_800_000, max: 2_000_000, center: 1_900_000, nightBonus: 60, dayPenalty: -40, baseSignal: 40, noiseFloor: 30 },
   '80m':  { min: 3_500_000, max: 4_000_000, center: 3_750_000, nightBonus: 50, dayPenalty: -30, baseSignal: 50, noiseFloor: 25 },
   '40m':  { min: 7_000_000, max: 7_300_000, center: 7_150_000, nightBonus: 30, dayPenalty: -10, baseSignal: 70, noiseFloor: 20 },
@@ -30,7 +30,7 @@ function detectBand(freq) {
 
 // Sinusoidal day factor: 0 = midnight, 1 = noon (smooth transition, not binary)
 // Uses UTC hour + longitude offset to approximate local solar time
-function getDayFactor(longitude) {
+export function getDayFactor(longitude) {
   const now = new Date();
   const utcHour = now.getUTCHours() + now.getUTCMinutes() / 60;
   const solarHour = (utcHour + longitude / 15 + 24) % 24; // local solar time

@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- SEO Meta Tags -->
+  <title>Download HamTab — Self-Hosted Amateur Radio Dashboard</title>
+  <meta name="description" content="Download and install HamTab on your own machine. Self-hosted amateur radio dashboard with POTA, SOTA, DX spots, propagation, and satellite tracking. Free HamClock alternative for macOS, Linux, Windows, Docker, and Raspberry Pi.">
+  <meta name="keywords" content="HamTab download, HamTab install, ham radio dashboard, HamClock alternative, POTA, SOTA, DX cluster, self-hosted, amateur radio">
+  <meta name="author" content="Steven C Heist (KJ5MMO), Francisco J Peebles (KG5DPV)">
+  <meta name="theme-color" content="#1a1a2e">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="Download HamTab — Self-Hosted Amateur Radio Dashboard">
+  <meta property="og:description" content="Install HamTab on your own machine. Real-time POTA, SOTA, DX spots, propagation predictions, and satellite tracking.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://hamtab.net/download">
+  <meta property="og:image" content="https://hamtab.net/og-image.png">
+  <meta property="og:site_name" content="HamTab">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Download HamTab — Self-Hosted Amateur Radio Dashboard">
+  <meta name="twitter:description" content="Install HamTab on your own machine. Real-time POTA, SOTA, DX spots, propagation predictions, and satellite tracking.">
+  <meta name="twitter:image" content="https://hamtab.net/og-image.png">
+
+  <!-- Canonical URL -->
+  <link rel="canonical" href="https://hamtab.net/download">
+
+  <!-- Favicon & App Icons -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+
+  <style>
+    /* Theme vars from HamTab style.css */
+    :root {
+      --bg: #1a1a2e;
+      --surface: #16213e;
+      --surface2: #0f3460;
+      --accent: #e94560;
+      --text: #e0e0e0;
+      --text-dim: #8899aa;
+      --green: #00c853;
+      --yellow: #ffd600;
+      --red: #ff1744;
+      --orange: #ff9100;
+      --border: #2a3a5e;
+      --bg-secondary: #1a1a2e;
+      --bg-tertiary: #252540;
+      --surface3: #1a4a7a;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    /* Header */
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .header-brand {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .header-brand svg {
+      width: 28px;
+      height: 28px;
+    }
+    .header-nav {
+      display: flex;
+      gap: 20px;
+      align-items: center;
+    }
+    .header-nav a {
+      color: var(--text-dim);
+      font-size: 0.95rem;
+      transition: color 0.2s;
+    }
+    .header-nav a:hover {
+      color: var(--text);
+      text-decoration: none;
+    }
+
+    /* Container */
+    .container {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* Hero */
+    .hero {
+      text-align: center;
+      padding: 64px 24px 48px;
+    }
+    .hero h1 {
+      font-size: 2.4rem;
+      font-weight: 700;
+      margin-bottom: 16px;
+      line-height: 1.2;
+    }
+    .hero p {
+      font-size: 1.15rem;
+      color: var(--text-dim);
+      max-width: 600px;
+      margin: 0 auto 32px;
+    }
+    .btn-primary {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      padding: 14px 32px;
+      border-radius: 6px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      transition: opacity 0.2s, transform 0.1s;
+    }
+    .btn-primary:hover {
+      opacity: 0.9;
+      text-decoration: none;
+      transform: translateY(-1px);
+    }
+    .hero-sub {
+      margin-top: 16px;
+      font-size: 0.9rem;
+      color: var(--text-dim);
+    }
+
+    /* Platform tabs */
+    .platform-section {
+      padding-bottom: 48px;
+    }
+    .platform-section h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 24px;
+      text-align: center;
+    }
+    .tab-bar {
+      display: flex;
+      gap: 0;
+      border-bottom: 2px solid var(--border);
+      margin-bottom: 28px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .tab-btn {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      padding: 12px 20px;
+      font-size: 0.95rem;
+      font-family: inherit;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      white-space: nowrap;
+      transition: color 0.2s, border-color 0.2s;
+    }
+    .tab-btn:hover {
+      color: var(--text);
+    }
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+    .tab-panel {
+      display: none;
+    }
+    .tab-panel.active {
+      display: block;
+    }
+
+    /* Content within tabs */
+    .tab-panel h3 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin: 24px 0 12px;
+      color: var(--text);
+    }
+    .tab-panel h3:first-child {
+      margin-top: 0;
+    }
+    .tab-panel p,
+    .tab-panel li {
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+    .tab-panel ul {
+      list-style: disc;
+      padding-left: 24px;
+      margin-bottom: 16px;
+    }
+
+    /* Code blocks */
+    pre {
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 20px;
+      overflow-x: auto;
+      margin: 12px 0 20px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+    code {
+      font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', Consolas, monospace;
+      color: var(--green);
+    }
+    pre code {
+      color: var(--text);
+    }
+    .comment { color: var(--text-dim); }
+
+    /* Inline code */
+    p code, li code {
+      background: var(--bg-tertiary);
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 0.88em;
+    }
+
+    /* Info boxes */
+    .info-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--surface3);
+      border-radius: 4px;
+      padding: 14px 18px;
+      margin: 16px 0;
+      font-size: 0.92rem;
+      color: var(--text-dim);
+    }
+    .info-box strong {
+      color: var(--text);
+    }
+
+    /* VOACAP collapsible */
+    .collapsible-section {
+      margin-top: 48px;
+      padding-top: 32px;
+      border-top: 1px solid var(--border);
+    }
+    .collapsible-toggle {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px 20px;
+      width: 100%;
+      text-align: left;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: inherit;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: var(--text);
+      transition: background 0.2s;
+    }
+    .collapsible-toggle:hover {
+      background: var(--surface2);
+    }
+    .collapsible-toggle .arrow {
+      transition: transform 0.2s;
+      font-size: 0.9rem;
+      color: var(--text-dim);
+    }
+    .collapsible-toggle.open .arrow {
+      transform: rotate(90deg);
+    }
+    .collapsible-body {
+      display: none;
+      padding: 24px 0;
+    }
+    .collapsible-body.open {
+      display: block;
+    }
+
+    /* After install section */
+    .after-install {
+      padding: 48px 0;
+      border-top: 1px solid var(--border);
+    }
+    .after-install h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+    .port-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0 24px;
+    }
+    .port-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+    }
+    .port-card .port {
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--green);
+      font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+    }
+    .port-card .port-label {
+      font-size: 0.9rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* Footer */
+    .footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 24px;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 0.88rem;
+    }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      color: var(--text-dim);
+    }
+    .footer-links a:hover {
+      color: var(--text);
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 20px;
+      font-size: 0.9rem;
+    }
+    th {
+      text-align: left;
+      padding: 10px 12px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-weight: 600;
+    }
+    td {
+      padding: 10px 12px;
+      border: 1px solid var(--border);
+      color: var(--text-dim);
+    }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .hero h1 { font-size: 1.7rem; }
+      .hero p { font-size: 1rem; }
+      .hero { padding: 40px 16px 32px; }
+      .container { padding: 0 16px; }
+      .port-grid { grid-template-columns: 1fr; }
+      .tab-btn { padding: 10px 14px; font-size: 0.88rem; }
+      .header { padding: 12px 16px; }
+      .header-brand { font-size: 1.2rem; }
+      pre { padding: 12px 14px; font-size: 0.82rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Header -->
+  <header class="header">
+    <a href="/" class="header-brand" style="text-decoration:none">
+      <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="100" height="100" rx="18" fill="#e94560"/>
+        <text x="50" y="68" text-anchor="middle" font-family="system-ui,sans-serif" font-weight="800" font-size="52" fill="#fff">H</text>
+      </svg>
+      HamTab
+    </a>
+    <nav class="header-nav">
+      <a href="/">Dashboard</a>
+      <a href="https://github.com/stevencheist/HamTabv1" target="_blank" rel="noopener">GitHub</a>
+    </nav>
+  </header>
+
+  <!-- Hero -->
+  <section class="hero">
+    <h1>Run HamTab on Your Own Machine</h1>
+    <p>Self-host the full amateur radio dashboard on your home network. All the same POTA, SOTA, DX, propagation, satellite, and weather widgets — running locally with zero cloud dependency.</p>
+    <a href="https://github.com/stevencheist/HamTabv1/releases/latest" class="btn-primary" target="_blank" rel="noopener">
+      Download Latest Release
+    </a>
+    <div class="hero-sub">
+      MIT License &middot; Free &amp; open source &middot; Works on any platform with Node.js
+    </div>
+  </section>
+
+  <!-- Platform Install Tabs -->
+  <section class="platform-section">
+    <div class="container">
+      <h2>Installation Guide</h2>
+
+      <div class="tab-bar" role="tablist">
+        <button class="tab-btn active" role="tab" aria-selected="true" data-tab="macos">macOS</button>
+        <button class="tab-btn" role="tab" aria-selected="false" data-tab="linux">Linux</button>
+        <button class="tab-btn" role="tab" aria-selected="false" data-tab="windows">Windows</button>
+        <button class="tab-btn" role="tab" aria-selected="false" data-tab="docker">Docker</button>
+        <button class="tab-btn" role="tab" aria-selected="false" data-tab="rpi">Raspberry Pi</button>
+      </div>
+
+      <!-- macOS -->
+      <div class="tab-panel active" id="tab-macos" role="tabpanel">
+        <h3>Prerequisites</h3>
+        <p>Node.js 18+ and Git. Python 3.11+ is optional (for VOACAP propagation predictions).</p>
+<pre><code><span class="comment"># Install Node.js via Homebrew</span>
+brew install node
+
+<span class="comment"># Or via nvm (recommended)</span>
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+source ~/.zshrc
+nvm install 20
+
+<span class="comment"># Git (if not already installed)</span>
+xcode-select --install</code></pre>
+
+        <h3>Install &amp; Run</h3>
+<pre><code>git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+npm install
+npm start</code></pre>
+        <p>Open <code>http://localhost:3000</code> in your browser.</p>
+      </div>
+
+      <!-- Linux -->
+      <div class="tab-panel" id="tab-linux" role="tabpanel">
+        <h3>Prerequisites (Debian / Ubuntu)</h3>
+<pre><code><span class="comment"># Node.js via NodeSource</span>
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs git
+
+<span class="comment"># Optional: Python 3.11+ for VOACAP propagation</span>
+sudo apt-get install -y python3 python3-pip python3-numpy</code></pre>
+
+        <h3>Prerequisites (Fedora / RHEL)</h3>
+<pre><code>sudo dnf install nodejs git python3 python3-pip python3-numpy</code></pre>
+
+        <h3>Install &amp; Run</h3>
+<pre><code>git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+npm install
+npm start</code></pre>
+        <p>Open <code>http://localhost:3000</code> in your browser.</p>
+
+        <h3>Automated Install (systemd service)</h3>
+        <p>The included install script handles everything — installs Node.js if needed, configures ports, and optionally sets up a systemd service for boot-start with automatic crash recovery.</p>
+<pre><code>git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+sudo bash install.sh</code></pre>
+        <p>The installer prompts you for ports (default 3000/3443), Weather Underground API key (optional), and whether to start on boot.</p>
+
+        <div class="info-box">
+          <strong>Management commands:</strong><br>
+          <code>sudo systemctl status hamtab</code> &middot;
+          <code>sudo systemctl restart hamtab</code> &middot;
+          <code>sudo journalctl -u hamtab -f</code>
+        </div>
+      </div>
+
+      <!-- Windows -->
+      <div class="tab-panel" id="tab-windows" role="tabpanel">
+        <h3>Prerequisites</h3>
+        <p>Install Node.js LTS and Git:</p>
+<pre><code><span class="comment"># PowerShell (or download from nodejs.org / git-scm.com)</span>
+winget install OpenJS.NodeJS.LTS
+winget install Git.Git</code></pre>
+
+        <h3>Install &amp; Run</h3>
+<pre><code>git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+npm install
+npm start</code></pre>
+        <p>Open <code>http://localhost:3000</code> in your browser.</p>
+
+        <h3>Run as a Windows Service</h3>
+        <p>To run HamTab as a Windows service that starts automatically on boot, use the included PowerShell installer. It uses <a href="https://nssm.cc/" target="_blank" rel="noopener">NSSM</a> (downloaded automatically) to register HamTab as a service.</p>
+<pre><code>git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+powershell -ExecutionPolicy Bypass -File install.ps1</code></pre>
+
+        <div class="info-box">
+          <strong>Management:</strong><br>
+          <code>.\tools\nssm\nssm.exe status HamTab</code> &middot;
+          <code>.\tools\nssm\nssm.exe restart HamTab</code><br>
+          <strong>Logs:</strong> <code>logs\hamtab.log</code><br>
+          <strong>Uninstall:</strong> <code>powershell -ExecutionPolicy Bypass -File uninstall.ps1</code>
+        </div>
+
+        <div class="info-box">
+          <strong>WSL2:</strong> If running inside WSL2, follow the Linux instructions instead. HamTab will be accessible from Windows at <code>http://localhost:3000</code>.
+        </div>
+      </div>
+
+      <!-- Docker -->
+      <div class="tab-panel" id="tab-docker" role="tabpanel">
+        <h3>Quick Start</h3>
+        <p>HamTab is available as a Docker image with full VOACAP propagation support. Works on x86-64 and ARM64 (Raspberry Pi 4/5, Synology, TrueNAS, Unraid).</p>
+<pre><code>docker run -d -p 3000:3000 -p 3443:3443 stevencheist/hamtab</code></pre>
+        <p>Open <code>http://localhost:3000</code> in your browser.</p>
+
+        <h3>Docker Compose</h3>
+<pre><code><span class="comment"># docker-compose.yml</span>
+services:
+  hamtab:
+    image: stevencheist/hamtab:latest
+    ports:
+      - "3000:3000"
+      - "3443:3443"
+    volumes:
+      - hamtab-certs:/app/certs
+    environment:
+      - PORT=3000
+      - HTTPS_PORT=3443
+      # - WU_API_KEY=your_key_here
+      # - N2YO_API_KEY=your_key_here
+    restart: unless-stopped
+
+volumes:
+  hamtab-certs:</code></pre>
+<pre><code>docker compose up -d</code></pre>
+
+        <h3>Environment Variables</h3>
+        <table>
+          <thead>
+            <tr><th>Variable</th><th>Default</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr><td><code>PORT</code></td><td>3000</td><td>HTTP port</td></tr>
+            <tr><td><code>HTTPS_PORT</code></td><td>3443</td><td>HTTPS port (self-signed TLS)</td></tr>
+            <tr><td><code>WU_API_KEY</code></td><td>—</td><td>Weather Underground API key (optional)</td></tr>
+            <tr><td><code>N2YO_API_KEY</code></td><td>—</td><td>N2YO satellite tracking API key (optional)</td></tr>
+          </tbody>
+        </table>
+
+        <h3>Updating</h3>
+<pre><code>docker compose pull && docker compose up -d</code></pre>
+
+        <div class="info-box">
+          <strong>Note:</strong> The in-app update checker is disabled in Docker — use <code>docker pull</code> to update. The <code>/app/certs</code> volume persists TLS certificates across container restarts.
+        </div>
+      </div>
+
+      <!-- Raspberry Pi -->
+      <div class="tab-panel" id="tab-rpi" role="tabpanel">
+        <h3>Automated Install (Recommended)</h3>
+        <p>The install script handles everything on Raspberry Pi OS — installs Node.js, configures ports, and optionally sets up a systemd service for boot-start with automatic crash recovery.</p>
+<pre><code>git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+sudo bash install.sh</code></pre>
+        <p>The installer prompts you for ports (default 3000/3443), Weather Underground API key (optional), and whether to start on boot. After install, the app runs from <code>/opt/hamtab</code>.</p>
+
+        <div class="info-box">
+          <strong>Management commands:</strong><br>
+          <code>sudo systemctl status hamtab</code> &middot;
+          <code>sudo systemctl restart hamtab</code> &middot;
+          <code>sudo journalctl -u hamtab -f</code>
+        </div>
+
+        <h3>Manual Install</h3>
+<pre><code><span class="comment"># Install Node.js via NodeSource</span>
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt-get install -y nodejs git
+
+git clone https://github.com/stevencheist/HamTabv1.git
+cd HamTabv1
+git checkout lanmode
+npm install
+npm start</code></pre>
+
+        <h3>Docker on Raspberry Pi</h3>
+        <p>The Docker image supports ARM64 natively. If your Pi runs a 64-bit OS:</p>
+<pre><code>docker run -d -p 3000:3000 -p 3443:3443 stevencheist/hamtab</code></pre>
+
+        <div class="info-box">
+          <strong>Tip:</strong> Raspberry Pi 4 and 5 with 2GB+ RAM run HamTab comfortably. The VOACAP propagation engine is included in the Docker image, or install it manually with <code>sudo apt install python3 python3-pip python3-numpy</code> on Pi OS Bookworm.
+        </div>
+      </div>
+
+      <!-- VOACAP Collapsible -->
+      <div class="collapsible-section">
+        <button class="collapsible-toggle" aria-expanded="false">
+          VOACAP Propagation Setup (Optional / Advanced)
+          <span class="arrow">&#9654;</span>
+        </button>
+        <div class="collapsible-body">
+          <p>HamTab includes a real HF propagation prediction engine powered by <a href="https://github.com/skyelaird/dvoacap-python" target="_blank" rel="noopener">dvoacap-python</a>. When available, it provides accurate 24-hour band reliability predictions, REL heatmap overlays, and circle range overlays on the map.</p>
+          <p><strong>Without Python, HamTab still works</strong> — it falls back to a simplified server-side propagation model.</p>
+
+          <h3>Prerequisites</h3>
+          <p><strong>Python 3.11 or higher</strong> is required. Check with <code>python3 --version</code>.</p>
+
+          <table>
+            <thead>
+              <tr><th>Platform</th><th>Install Python</th></tr>
+            </thead>
+            <tbody>
+              <tr><td>macOS</td><td><code>brew install python@3.12</code></td></tr>
+              <tr><td>Ubuntu / Debian</td><td><code>sudo apt install python3 python3-pip python3-numpy</code></td></tr>
+              <tr><td>Fedora / RHEL</td><td><code>sudo dnf install python3 python3-pip python3-numpy</code></td></tr>
+              <tr><td>Windows</td><td>Download from <a href="https://www.python.org/downloads/" target="_blank" rel="noopener">python.org</a> (check "Add to PATH")</td></tr>
+              <tr><td>Raspberry Pi OS</td><td><code>sudo apt install python3 python3-pip python3-numpy</code></td></tr>
+            </tbody>
+          </table>
+
+          <h3>Install dvoacap-python</h3>
+<pre><code>git clone https://github.com/skyelaird/dvoacap-python.git
+cd dvoacap-python
+pip install -e .</code></pre>
+
+          <div class="info-box">
+            If you get a "pip not found" or "externally-managed-environment" error, try <code>pip install --user -e .</code> or use a venv:<br>
+            <code>python3 -m venv ~/hamtab-venv && source ~/hamtab-venv/bin/activate && pip install -e .</code>
+          </div>
+
+          <h3>Verify</h3>
+          <p>Restart HamTab and check the server logs. You should see:</p>
+<pre><code>VOACAP bridge: dvoacap-python detected (Python X.XX)
+VOACAP bridge: Ready</code></pre>
+          <p>The VOACAP widget in the dashboard will show full 24-hour band predictions and the map will display REL heatmap overlays.</p>
+
+          <div class="info-box">
+            <strong>Docker users:</strong> VOACAP is pre-installed in the Docker image. No additional setup needed.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- After Installation -->
+  <section class="after-install">
+    <div class="container">
+      <h2>After Installation</h2>
+      <p>On first startup, HamTab auto-generates a self-signed TLS certificate and starts two servers:</p>
+
+      <div class="port-grid">
+        <div class="port-card">
+          <div class="port">:3000</div>
+          <div class="port-label">HTTP — localhost / desktop use</div>
+        </div>
+        <div class="port-card">
+          <div class="port">:3443</div>
+          <div class="port-label">HTTPS — LAN / mobile access (required for GPS)</div>
+        </div>
+      </div>
+
+      <p>Ports are configurable during install or by editing the <code>.env</code> file (<code>PORT</code> and <code>HTTPS_PORT</code>).</p>
+      <p>Open <strong>http://localhost:3000</strong> and you'll be prompted to configure your callsign and location.</p>
+
+      <div class="info-box">
+        <strong>Mobile / tablet access:</strong> Browsers require HTTPS for the Geolocation API. From other devices on your LAN, use <code>https://&lt;your-LAN-IP&gt;:3443</code> and accept the self-signed certificate warning.
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-links">
+      <a href="https://github.com/stevencheist/HamTabv1" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/stevencheist/HamTabv1/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="https://discord.gg/hamtab" target="_blank" rel="noopener">Discord</a>
+      <a href="/">hamtab.net</a>
+    </div>
+    <p>MIT License &middot; Built by KJ5MMO &amp; KG5DPV</p>
+  </footer>
+
+  <script>
+    /* Platform tab switching */
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+
+    tabBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.dataset.tab;
+        tabBtns.forEach(b => { b.classList.remove('active'); b.setAttribute('aria-selected', 'false'); });
+        tabPanels.forEach(p => p.classList.remove('active'));
+        btn.classList.add('active');
+        btn.setAttribute('aria-selected', 'true');
+        document.getElementById('tab-' + target).classList.add('active');
+      });
+    });
+
+    /* Collapsible VOACAP section */
+    const toggle = document.querySelector('.collapsible-toggle');
+    const body = document.querySelector('.collapsible-body');
+    toggle.addEventListener('click', () => {
+      const open = toggle.classList.toggle('open');
+      body.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open);
+    });
+  </script>
+
+</body>
+</html>

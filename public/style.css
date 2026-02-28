@@ -726,6 +726,28 @@ header {
   box-shadow: 0 2px 8px rgba(255, 221, 0, 0.3);
 }
 
+/* ---- Download button ---- */
+
+.download-btn {
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  border-radius: 4px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+  white-space: nowrap;
+}
+
+.download-btn:hover {
+  background: #d63050;
+  border-color: #d63050;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(233, 69, 96, 0.3);
+}
+
 /* ---- Discord button ---- */
 
 .discord-btn {
@@ -4362,7 +4384,8 @@ header {
 .theme-lcars .layout-btn,
 .theme-lcars .feedback-btn,
 .theme-lcars .coffee-btn,
-.theme-lcars .discord-btn {
+.theme-lcars .discord-btn,
+.theme-lcars .download-btn {
   border-radius: 12px;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -4755,7 +4778,8 @@ header {
 .theme-terminal .layout-btn,
 .theme-terminal .feedback-btn,
 .theme-terminal .coffee-btn,
-.theme-terminal .discord-btn {
+.theme-terminal .discord-btn,
+.theme-terminal .download-btn {
   border-radius: 2px;
   font-family: 'Courier New', monospace;
   text-transform: uppercase;
@@ -4935,7 +4959,8 @@ header {
 .theme-hamclock #fullscreenBtn,
 .theme-hamclock .feedback-btn,
 .theme-hamclock .coffee-btn,
-.theme-hamclock .discord-btn {
+.theme-hamclock .discord-btn,
+.theme-hamclock .download-btn {
   border-radius: 2px;
   font-family: 'Courier New', monospace;
   text-transform: uppercase;
@@ -6955,6 +6980,11 @@ body.grayscale {
 }
 
 .slim-header .feedback-btn {
+  padding: 2px 6px;
+  font-size: 0.7rem;
+}
+
+.slim-header .download-btn {
   padding: 2px 6px;
   font-size: 0.7rem;
 }

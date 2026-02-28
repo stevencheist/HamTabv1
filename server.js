@@ -129,6 +129,11 @@ app.use((req, res, next) => {
 
 app.use(express.static('public'));
 
+// Clean URL for /download → download.html
+app.get('/download', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'download.html'));
+});
+
 // --- API Documentation (Swagger UI) ---
 const openapiSpec = YAML.load(fs.readFileSync(path.join(__dirname, 'openapi.yaml'), 'utf8'));
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {

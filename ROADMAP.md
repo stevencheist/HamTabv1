@@ -52,6 +52,9 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - Band Opportunity Score widget — composite score (0-100) per band combining VOACAP reliability, PSK/WSPR heard density, and space weather penalties, with "Top 3 bands now" display
 - Centralized fetch scheduler with jitter, exponential backoff, and freshness metadata to reduce burst polling and improve stale-data UX
 - SSE feed channel for lanmode low-latency push updates (`spots:update`, `status:update`, `alerts:update`) with HTTP polling fallback for hostedmode
+- <!-- codex --> Remove default cache-busting query params on cached endpoints (`_t=Date.now()`), keep explicit hard-refresh/debug bypass only
+- <!-- codex --> Incremental spot table age updates (in-place cell patching) instead of full `renderSpots()` rebuild every 30s
+- <!-- codex --> Visibility-priority polling budget: centralized scheduler with per-endpoint concurrency caps and randomized phase offsets
 
 ### Map & Visualization
 - Azimuthal map projection (DE-centered) with bearing rings
@@ -77,6 +80,10 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - Accessibility pass — keyboard navigation, ARIA labels, sort-state announcements, focus-trapped overlays, Escape-close standardization, reduced-motion mode
 - Optimize heavy widget rendering — virtualized row rendering for logbook/spots tables, spatial indexing for float-mode overlap resolution, requestAnimationFrame batching
 - Visual density modes — Simple / Operator / Power-user presets controlling default widget visibility, spacing, and typography scale; includes HamClock transition preset
+- <!-- codex --> Marker diff engine for map updates (add/update/remove by `spotId`) to replace clear-and-rebuild cycles for spot markers and DX paths
+- <!-- codex --> Live-spots adaptive geodesic quality (zoom-based segment counts + line caps/sampling for high-density receiver maps)
+- <!-- codex --> Worker-based WSPR heatmap rasterization (OffscreenCanvas/ImageBitmap path) with zoom/bounds/band tile memoization
+- <!-- codex --> Logbook overlay delta rendering (diffed marker/path updates) instead of full clear/repaint on each filter/sort interaction
 
 ### Platform & Architecture
 - Decompose monolithic `server.js` into domain routers (`routes/spots.js`, `routes/weather.js`, `routes/solar.js`, etc.) and shared services (`services/cache-store.js`, `services/http-fetch.js`)

@@ -620,3 +620,61 @@ When you click a spot in the On the Air table or a marker on the map, the right 
 HF radio propagation changes dramatically at sunrise and sunset. The "gray line" — the band of twilight circling the Earth — often produces enhanced long-distance propagation. By comparing sunrise/sunset times at both ends of a path, you can predict when bands will open or close.
 
 <div class="tip">Compare the sunrise/sunset times on both panels. If both stations are near their gray line at the same time, conditions are often excellent for HF contacts.</div>
+
+---
+
+## Logbook Widget
+
+Import and view contact logs from any logging software that exports ADIF files. The Logbook widget provides a sortable, filterable table of your QSOs and optional map markers showing where you've made contacts — all stored locally in your browser.
+
+### Importing a Log
+
+There are two ways to import an ADIF file:
+
+1. **Drag and drop** — Drag an `.adi` or `.adif` file directly onto the import zone
+2. **Click to browse** — Click the import zone to open a file picker
+
+The parser supports standard ADIF 3.x format, including typed fields and mixed-case tags. Records without a callsign are skipped. Your log is stored in IndexedDB — it persists across browser sessions and can handle large logs (100,000+ QSOs).
+
+### Table Columns
+
+| Column | Description |
+|--------|-------------|
+| Date | QSO date (YYYY-MM-DD format) |
+| Time | Time on (UTC) |
+| Call | Contacted station's callsign |
+| Freq | Frequency in MHz |
+| Band | Amateur band (e.g., 20m) |
+| Mode | Operating mode (SSB, CW, FT8, etc.) |
+| RST S | Signal report sent |
+| RST R | Signal report received |
+| Grid | Maidenhead grid square (if logged) |
+| Name | Operator name (if logged) |
+
+Click any column header to sort by that column. Click again to reverse the sort direction. The active sort column shows a ▲ or ▼ indicator.
+
+### Filtering
+
+Use the dropdowns above the table to filter by band or mode. The filter dropdowns are populated automatically from the bands and modes present in your log.
+
+### Stats Bar
+
+The stats bar to the right of the filters shows:
+- **QSOs** — Total contact count (after filters)
+- **Calls** — Unique callsigns worked
+- **DXCC** — Unique DXCC entity prefixes
+
+### Map Markers
+
+When the **Logbook QSOs** map overlay is enabled (via the map gear icon), each QSO with a grid square is plotted on the map:
+- **Marker color** — Matches the contact's band using the same color palette as Live Spots
+- **Geodesic path** — A curved line from your QTH to the contact's location
+- **Popup** — Click a marker to see the callsign, band, mode, date, and grid
+
+### Clearing the Log
+
+Click the **✕** button in the widget header to clear all imported QSOs. This removes the data from IndexedDB permanently.
+
+<div class="tip">Your log never leaves your browser. ADIF files are parsed and stored entirely client-side using IndexedDB — nothing is uploaded to any server.</div>
+
+<div class="warning">Clearing the log is permanent. If you need the data again, re-import the ADIF file from your logging software.</div>

@@ -136,6 +136,7 @@ Check or uncheck widgets to show or hide them:
 - [ ] DE/DX Info
 - [ ] Reference
 - [ ] DX Detail
+- [ ] Logbook
 
 Hidden widgets can be re-enabled anytime.
 
@@ -173,6 +174,13 @@ Per-source column visibility for POTA, SOTA, DXC, PSK tables.
 
 ### Satellite Selection
 Add or remove satellites from tracking.
+
+### Logbook Widget Settings
+- **Import button** (⤒) — Import an ADIF file from your logging software
+- **Clear button** (✕) — Remove all imported QSOs from IndexedDB
+- **Band filter** — Filter the table to a specific band
+- **Mode filter** — Filter the table to a specific mode
+- **Map overlay** — Enable "Logbook QSOs" in the map gear icon to show contacts on the map
 
 ---
 

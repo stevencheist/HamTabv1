@@ -5,6 +5,7 @@
 // based on actual beacon reports — not predictions.
 
 import state from './state.js';
+import { findCountryBounds } from './country-bounds.js';
 
 // --- Constants ---
 const QTH_RADIUS_KM = 500; // filter spots where TX or RX is within this of user QTH
@@ -64,6 +65,16 @@ function snrToRGBA(snr) {
   return { r, g, b, a: Math.round(alpha) };
 }
 
+// --- Point-in-country-bounds check ---
+// Returns true if (lat, lon) falls within the bounding box [south, west, north, east].
+// Handles antimeridian wrap where west > east.
+function isInBounds(lat, lon, bounds) {
+  const [south, west, north, east] = bounds;
+  if (lat < south || lat > north) return false;
+  if (west <= east) return lon >= west && lon <= east;
+  return lon >= west || lon <= east; // antimeridian wrap
+}
+
 // --- Main render function ---
 export function renderWsprHeatmapCanvas(band) {
   if (!state.map || state.myLat == null || state.myLon == null) return;
@@ -81,9 +92,19 @@ export function renderWsprHeatmapCanvas(band) {
   const bandSpots = wspr.filter(s => s.band === band);
   if (bandSpots.length === 0) return;
 
-  // Collect distant endpoints: for each spot, check if TX or RX is near QTH
-  // If TX near QTH → record RX position (shows where my signal could reach)
-  // If RX near QTH → record TX position (shows who I could hear)
+  const scope = state.wsprHeatmapScope || 'qth';
+
+  // Resolve country bounds once for CTY scope
+  let ctyBounds = null;
+  if (scope === 'cty') {
+    ctyBounds = findCountryBounds(state.myLat, state.myLon);
+    if (!ctyBounds) return; // no country match — can't filter
+  }
+
+  // Collect endpoints based on scope:
+  // QTH: TX or RX within 500km of QTH → paint distant end
+  // CTY: TX or RX within country bounds → paint distant end
+  // World: paint both TX and RX for every spot (no filtering)
   const endpoints = []; // { lat, lon, snr }
 
   for (const spot of bandSpots) {
@@ -96,16 +117,21 @@ export function renderWsprHeatmapCanvas(band) {
     if (isNaN(snr)) continue;
     if (txLat == null || txLon == null || rxLat == null || rxLon == null) continue;
 
-    const txDist = distanceKm(state.myLat, state.myLon, txLat, txLon);
-    const rxDist = distanceKm(state.myLat, state.myLon, rxLat, rxLon);
-
-    // TX near QTH → paint RX location
-    if (txDist <= QTH_RADIUS_KM) {
-      endpoints.push({ lat: rxLat, lon: rxLon, snr });
-    }
-    // RX near QTH → paint TX location
-    if (rxDist <= QTH_RADIUS_KM) {
+    if (scope === 'world') {
+      // Show all endpoints — maximum data density
       endpoints.push({ lat: txLat, lon: txLon, snr });
+      endpoints.push({ lat: rxLat, lon: rxLon, snr });
+    } else if (scope === 'cty') {
+      const txInCty = isInBounds(txLat, txLon, ctyBounds);
+      const rxInCty = isInBounds(rxLat, rxLon, ctyBounds);
+      if (txInCty) endpoints.push({ lat: rxLat, lon: rxLon, snr });
+      if (rxInCty) endpoints.push({ lat: txLat, lon: txLon, snr });
+    } else {
+      // QTH scope — 500km radius
+      const txDist = distanceKm(state.myLat, state.myLon, txLat, txLon);
+      const rxDist = distanceKm(state.myLat, state.myLon, rxLat, rxLon);
+      if (txDist <= QTH_RADIUS_KM) endpoints.push({ lat: rxLat, lon: rxLon, snr });
+      if (rxDist <= QTH_RADIUS_KM) endpoints.push({ lat: txLat, lon: txLon, snr });
     }
   }
 
@@ -192,6 +218,8 @@ export function renderWsprHeatmapLegend(band) {
   if (!state.map) return;
 
   const L = window.L;
+  const scope = state.wsprHeatmapScope || 'qth';
+  const scopeLabel = scope === 'world' ? 'worldwide' : scope === 'cty' ? 'from CTY' : 'from QTH';
 
   const WsprLegend = L.Control.extend({
     options: { position: 'bottomleft' },
@@ -201,7 +229,7 @@ export function renderWsprHeatmapLegend(band) {
       L.DomEvent.disableScrollPropagation(div);
 
       div.innerHTML =
-        '<div class="wspr-heatmap-legend-title">WSPR ' + (band || '20m') + ' from QTH</div>' +
+        '<div class="wspr-heatmap-legend-title">WSPR ' + (band || '20m') + ' ' + scopeLabel + '</div>' +
         '<div class="wspr-heatmap-legend-bar"></div>' +
         '<div class="wspr-heatmap-legend-labels"><span>-30 dB</span><span>-10 dB</span><span>+10 dB</span></div>';
       return div;

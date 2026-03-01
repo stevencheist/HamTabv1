@@ -88,6 +88,8 @@
         propagationHeatmapBand: localStorage.getItem("hamtab_prop_heatmap_band") || "20m",
         // WSPR heatmap band (measured propagation overlay — independent of VOACAP heatmap)
         wsprHeatmapBand: localStorage.getItem("hamtab_wspr_heatmap_band") || "20m",
+        wsprHeatmapScope: localStorage.getItem("hamtab_wspr_heatmap_scope") || "qth",
+        // 'qth' (500km), 'cty' (country bounds), 'world' (all spots)
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
         // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
@@ -10175,6 +10177,12 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     const alpha = Math.min(210, 140 + (clamped - SNR_MIN) / (SNR_MAX - SNR_MIN) * 70);
     return { r, g, b, a: Math.round(alpha) };
   }
+  function isInBounds(lat, lon, bounds) {
+    const [south, west, north, east] = bounds;
+    if (lat < south || lat > north) return false;
+    if (west <= east) return lon >= west && lon <= east;
+    return lon >= west || lon <= east;
+  }
   function renderWsprHeatmapCanvas(band) {
     if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
     const wspr = state_default.sourceData.wspr;
@@ -10184,6 +10192,12 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     clearWsprHeatmap();
     const bandSpots = wspr.filter((s) => s.band === band);
     if (bandSpots.length === 0) return;
+    const scope = state_default.wsprHeatmapScope || "qth";
+    let ctyBounds = null;
+    if (scope === "cty") {
+      ctyBounds = findCountryBounds(state_default.myLat, state_default.myLon);
+      if (!ctyBounds) return;
+    }
     const endpoints = [];
     for (const spot of bandSpots) {
       const txLat = spot.latitude;
@@ -10193,13 +10207,19 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       const snr = parseFloat(spot.snr);
       if (isNaN(snr)) continue;
       if (txLat == null || txLon == null || rxLat == null || rxLon == null) continue;
-      const txDist = distanceKm2(state_default.myLat, state_default.myLon, txLat, txLon);
-      const rxDist = distanceKm2(state_default.myLat, state_default.myLon, rxLat, rxLon);
-      if (txDist <= QTH_RADIUS_KM) {
-        endpoints.push({ lat: rxLat, lon: rxLon, snr });
-      }
-      if (rxDist <= QTH_RADIUS_KM) {
+      if (scope === "world") {
         endpoints.push({ lat: txLat, lon: txLon, snr });
+        endpoints.push({ lat: rxLat, lon: rxLon, snr });
+      } else if (scope === "cty") {
+        const txInCty = isInBounds(txLat, txLon, ctyBounds);
+        const rxInCty = isInBounds(rxLat, rxLon, ctyBounds);
+        if (txInCty) endpoints.push({ lat: rxLat, lon: rxLon, snr });
+        if (rxInCty) endpoints.push({ lat: txLat, lon: txLon, snr });
+      } else {
+        const txDist = distanceKm2(state_default.myLat, state_default.myLon, txLat, txLon);
+        const rxDist = distanceKm2(state_default.myLat, state_default.myLon, rxLat, rxLon);
+        if (txDist <= QTH_RADIUS_KM) endpoints.push({ lat: rxLat, lon: rxLon, snr });
+        if (rxDist <= QTH_RADIUS_KM) endpoints.push({ lat: txLat, lon: txLon, snr });
       }
     }
     if (endpoints.length === 0) return;
@@ -10260,13 +10280,15 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     clearWsprHeatmapLegend();
     if (!state_default.map) return;
     const L2 = window.L;
+    const scope = state_default.wsprHeatmapScope || "qth";
+    const scopeLabel = scope === "world" ? "worldwide" : scope === "cty" ? "from CTY" : "from QTH";
     const WsprLegend = L2.Control.extend({
       options: { position: "bottomleft" },
       onAdd() {
         const div = L2.DomUtil.create("div", "wspr-heatmap-legend");
         L2.DomEvent.disableClickPropagation(div);
         L2.DomEvent.disableScrollPropagation(div);
-        div.innerHTML = '<div class="wspr-heatmap-legend-title">WSPR ' + (band || "20m") + ' from QTH</div><div class="wspr-heatmap-legend-bar"></div><div class="wspr-heatmap-legend-labels"><span>-30 dB</span><span>-10 dB</span><span>+10 dB</span></div>';
+        div.innerHTML = '<div class="wspr-heatmap-legend-title">WSPR ' + (band || "20m") + " " + scopeLabel + '</div><div class="wspr-heatmap-legend-bar"></div><div class="wspr-heatmap-legend-labels"><span>-30 dB</span><span>-10 dB</span><span>+10 dB</span></div>';
         return div;
       }
     });
@@ -10283,6 +10305,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   var init_wspr_heatmap = __esm({
     "src/wspr-heatmap.js"() {
       init_state();
+      init_country_bounds();
       QTH_RADIUS_KM = 500;
       SNR_MIN = -30;
       SNR_MAX = 10;
@@ -20453,6 +20476,7 @@ ${beacon.location}`);
         $("mapOvPropHeatmapBand").value = state_default.propagationHeatmapBand;
         $("mapOvWsprHeatmap").checked = state_default.mapOverlays.wsprHeatmap;
         $("mapOvWsprHeatmapBand").value = state_default.wsprHeatmapBand;
+        $("mapOvWsprHeatmapScope").value = state_default.wsprHeatmapScope;
         mapOverlayCfgSplash.classList.remove("hidden");
       });
     }
@@ -20476,6 +20500,8 @@ ${beacon.location}`);
         state_default.mapOverlays.wsprHeatmap = $("mapOvWsprHeatmap").checked;
         state_default.wsprHeatmapBand = $("mapOvWsprHeatmapBand").value;
         localStorage.setItem("hamtab_wspr_heatmap_band", state_default.wsprHeatmapBand);
+        state_default.wsprHeatmapScope = $("mapOvWsprHeatmapScope").value;
+        localStorage.setItem("hamtab_wspr_heatmap_scope", state_default.wsprHeatmapScope);
         saveMapOverlays();
         mapOverlayCfgSplash.classList.add("hidden");
         renderAllMapOverlays();

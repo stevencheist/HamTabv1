@@ -63,6 +63,7 @@ const state = {
 
   // WSPR heatmap band (measured propagation overlay — independent of VOACAP heatmap)
   wsprHeatmapBand: localStorage.getItem('hamtab_wspr_heatmap_band') || '20m',
+  wsprHeatmapScope: localStorage.getItem('hamtab_wspr_heatmap_scope') || 'qth', // 'qth' (500km), 'cty' (country bounds), 'world' (all spots)
 
   // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
   dxpedTimeFilter: localStorage.getItem('hamtab_dxped_time_filter') || 'all',

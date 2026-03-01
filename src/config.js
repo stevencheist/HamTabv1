@@ -89,6 +89,7 @@ export function initConfigListeners() {
       $('mapOvPropHeatmapBand').value = state.propagationHeatmapBand;
       $('mapOvWsprHeatmap').checked = state.mapOverlays.wsprHeatmap;
       $('mapOvWsprHeatmapBand').value = state.wsprHeatmapBand;
+      $('mapOvWsprHeatmapScope').value = state.wsprHeatmapScope;
       mapOverlayCfgSplash.classList.remove('hidden');
     });
   }
@@ -113,6 +114,8 @@ export function initConfigListeners() {
       state.mapOverlays.wsprHeatmap = $('mapOvWsprHeatmap').checked;
       state.wsprHeatmapBand = $('mapOvWsprHeatmapBand').value;
       localStorage.setItem('hamtab_wspr_heatmap_band', state.wsprHeatmapBand);
+      state.wsprHeatmapScope = $('mapOvWsprHeatmapScope').value;
+      localStorage.setItem('hamtab_wspr_heatmap_scope', state.wsprHeatmapScope);
       saveMapOverlays();
       mapOverlayCfgSplash.classList.add('hidden');
       renderAllMapOverlays();

@@ -114,7 +114,7 @@ Save commonly-used filter combinations:
 
 ## On the Air Widget
 
-Displays live spots in a tabular format with source tabs for POTA, SOTA, DXC, WWFF, and PSK.
+Displays live spots in a tabular format with source tabs for POTA, SOTA, DXC, WWFF, PSK, and WSPR.
 
 ### Source Tabs
 Click tabs to switch between data sources:
@@ -126,6 +126,7 @@ Click tabs to switch between data sources:
 | DXC | DX Cluster | DX spots worldwide |
 | WWFF | World Wide Flora & Fauna | Flora & fauna reserve activations |
 | PSK | PSKReporter | Digital mode reports |
+| WSPR | wspr.live | Weak signal beacon reports |
 
 ### Table Columns
 Each source has different columns. Common columns include:

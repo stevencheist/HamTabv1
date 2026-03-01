@@ -105,6 +105,7 @@ const CACHE_RULES = [
   // Tier 2 — per-endpoint, faster-changing data
   { prefix: '/api/spots/psk/heard',    cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
   { prefix: '/api/spots/psk',          cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
+  { prefix: '/api/spots/wspr',         cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
   { prefix: '/api/spots/dxc',          cc: 'public, max-age=15, s-maxage=30' },        // server caches 10s; browser 15s, edge 30s
   { prefix: '/api/spots/wwff',          cc: 'public, max-age=30, s-maxage=60' },        // no server cache; browser 30s, edge 60s
   { prefix: '/api/spots/sota',         cc: 'public, max-age=30, s-maxage=60' },        // no server cache; browser 30s, edge 60s
@@ -638,6 +639,63 @@ app.get('/api/spots/psk/heard', async (req, res) => {
   } catch (err) {
     console.error('Error fetching PSKReporter heard spots:', err.message);
     res.status(502).json({ error: 'Failed to fetch PSKReporter spots' });
+  }
+});
+
+// --- WSPR Spots (wspr.live ClickHouse) ---
+let wsprCache = { data: null, expires: 0 };
+const WSPR_CACHE_TTL = 5 * 60 * 1000; // 5 min — WSPR 2-min cycle; 20 req/min API limit
+
+app.get('/api/spots/wspr', async (req, res) => {
+  try {
+    if (wsprCache.data && Date.now() < wsprCache.expires) {
+      return res.json(wsprCache.data);
+    }
+
+    const sql = `SELECT time, tx_sign, rx_sign, frequency, snr, power,
+                        distance, drift, tx_lat, tx_lon, rx_lat, rx_lon, tx_loc, rx_loc
+                 FROM wspr.rx
+                 WHERE time > now() - INTERVAL 30 MINUTE
+                 ORDER BY time DESC
+                 LIMIT 500
+                 FORMAT JSON`;
+    const url = `https://db1.wspr.live/?query=${encodeURIComponent(sql)}`;
+    const json = await fetchJSON(url);
+    const rows = json.data || [];
+
+    const spots = rows.map(r => {
+      const freqMHz = (parseInt(r.frequency, 10) / 1e6).toFixed(4);
+      const snrVal = parseInt(r.snr, 10);
+      const snrStr = isNaN(snrVal) ? '' : `${snrVal > 0 ? '+' : ''}${snrVal}`;
+      return {
+        callsign: r.tx_sign || '',
+        rxSign: r.rx_sign || '',
+        frequency: freqMHz,
+        band: freqToBandStr(parseFloat(freqMHz)),
+        mode: 'WSPR',
+        snr: snrStr,
+        power: `${r.power} dBm`,
+        distance: r.distance ? `${r.distance}` : '',
+        drift: r.drift,
+        latitude: parseFloat(r.tx_lat) || null,
+        longitude: parseFloat(r.tx_lon) || null,
+        rxLat: parseFloat(r.rx_lat) || null,
+        rxLon: parseFloat(r.rx_lon) || null,
+        name: `RX: ${r.rx_sign || '?'}`,
+        comments: `SNR: ${snrStr || '?'} dB · Power: ${r.power} dBm · Dist: ${r.distance || '?'} km`,
+        spotTime: r.time || '',
+        reference: '',
+      };
+    });
+
+    // Filter out spots with no valid transmitter coordinates
+    const validSpots = spots.filter(s => s.latitude !== null && s.longitude !== null);
+
+    wsprCache = { data: validSpots, expires: Date.now() + WSPR_CACHE_TTL };
+    res.json(validSpots);
+  } catch (err) {
+    console.error('Error fetching WSPR spots:', err.message);
+    res.status(502).json({ error: 'Failed to fetch WSPR spots' });
   }
 });
 

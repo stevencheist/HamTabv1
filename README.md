@@ -35,6 +35,9 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **DXpeditions** — Active and upcoming DXpedition tracker from NG3K with callsign, DXCC entity, operating dates, and QSL info
 - **NCDXF Beacons** — Real-time NCDXF/IARU International Beacon Project display — 18 synchronized worldwide beacons on 5 HF frequencies with 3-minute cycle countdown timer
 
+### Logging
+- **Logbook** — Import ADIF logs from any logging software via drag-and-drop or file picker. Sortable, filterable table with band/mode dropdowns, QSO count and DXCC stats, and band-colored markers on the map with geodesic paths. Client-side only — your log stays in your browser via IndexedDB
+
 ### Station Info
 - **DE/DX Info** — Side-by-side display of your station (DE) and selected DX station showing callsign, grid square, coordinates, sunrise/sunset, bearing, distance, and frequency
 - **Lunar / EME** — Moon phase, illumination, declination, distance, and relative path loss for EME operators with 9 configurable fields
@@ -522,6 +525,7 @@ Toggle each widget on or off:
 - DXpeditions
 - NCDXF Beacons
 - DE/DX Info
+- Logbook
 
 ### Update Check Interval
 

@@ -122,6 +122,35 @@ PSKReporter is an automatic propagation reporting network. Digital mode software
 
 ---
 
+## WSPR (Weak Signal Propagation Reporter)
+
+### What is WSPR?
+WSPR (pronounced "whisper") is an automated beacon protocol designed to probe HF propagation paths using very low power. WSPR beacons transmit a 2-minute encoded message every cycle on designated frequencies across HF bands. Receiving stations decode these transmissions and report the results to a central database, creating a real-time map of actual propagation conditions worldwide.
+
+### Data Source
+HamTab queries the [wspr.live](https://wspr.live/) ClickHouse database, which mirrors the global WSPR reporting network. Reports from the last 30 minutes are displayed, limited to 500 spots.
+
+### Data Provided
+- **TX callsign** — Station transmitting the WSPR beacon
+- **Frequency** — Transmit frequency in MHz
+- **Band** — HF band derived from frequency
+- **RX callsign** — Station receiving the beacon
+- **SNR** — Signal-to-noise ratio in dB
+- **Power** — Transmit power in dBm
+- **Distance** — Path distance in kilometers
+- **Spot time** — When the reception occurred
+
+### Filtering Options
+- Band, Distance, Age
+
+### Use Cases
+- See which HF bands are actually open right now, based on real beacon data
+- Measure propagation paths and distances without transmitting yourself
+- Compare predicted propagation (VOACAP) against real-world measurements
+- Identify band openings on rarely-used bands (e.g., 60m, 17m, 12m)
+
+---
+
 ## Space Weather (HamQSL)
 
 ### What is HamQSL Space Weather?
@@ -247,6 +276,7 @@ Updated every second (client-side timer). No network requests needed.
 | DX Cluster | 60 seconds |
 | WWFF spots | 60 seconds |
 | PSKReporter | 60 seconds |
+| WSPR | 60 seconds (5-min server cache) |
 | Space weather | 5 minutes |
 | Satellite positions | 5 seconds |
 | Live Spots (your TX) | 60 seconds |

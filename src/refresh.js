@@ -53,6 +53,7 @@ export function refreshAll() {
   fetchSourceData('dxc');
   fetchSourceData('wwff');
   fetchSourceData('psk');
+  fetchSourceData('wspr');
   if (isWidgetVisible('widget-solar') || isWidgetVisible('widget-propagation') || isWidgetVisible('widget-voacap')) fetchSolar();
   if (isWidgetVisible('widget-lunar')) fetchLunar();
   fetchPropagation(); // map overlay, always useful

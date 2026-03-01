@@ -17,11 +17,11 @@ const state = {
   propagationFilterEnabled: false, // session-only — filter spots by predicted band reliability (≥30%)
 
   // Filter presets per source
-  filterPresets: { pota: {}, sota: {}, dxc: {} },
+  filterPresets: { pota: {}, sota: {}, dxc: {}, wspr: {} },
 
   // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
   watchLists: (() => {
-    const def = { pota: [], sota: [], dxc: [], wwff: [], psk: [] };
+    const def = { pota: [], sota: [], dxc: [], wwff: [], psk: [], wspr: [] };
     try {
       const s = JSON.parse(localStorage.getItem('hamtab_watchlists'));
       if (s && typeof s === 'object' && !Array.isArray(s)) {
@@ -75,8 +75,8 @@ const state = {
 
   // Source
   currentSource: localStorage.getItem('hamtab_spot_source') || 'pota',
-  sourceData: { pota: [], sota: [], dxc: [], wwff: [] },
-  sourceFiltered: { pota: [], sota: [], dxc: [], wwff: [] },
+  sourceData: { pota: [], sota: [], dxc: [], wwff: [], wspr: [] },
+  sourceFiltered: { pota: [], sota: [], dxc: [], wwff: [], wspr: [] },
 
   // Widget visibility
   widgetVisibility: null, // loaded in widgets.js
@@ -350,7 +350,7 @@ try {
 try {
   const savedPresets = JSON.parse(localStorage.getItem('hamtab_filter_presets'));
   if (savedPresets && typeof savedPresets === 'object' && !Array.isArray(savedPresets)) {
-    const validSources = ['pota', 'sota', 'dxc', 'wwff', 'psk'];
+    const validSources = ['pota', 'sota', 'dxc', 'wwff', 'psk', 'wspr'];
     for (const k of validSources) {
       if (savedPresets[k] && typeof savedPresets[k] === 'object') state.filterPresets[k] = savedPresets[k];
     }

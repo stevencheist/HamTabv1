@@ -122,6 +122,15 @@ A compact panel in the bottom-right corner showing what each marker and line col
 
 Toggle via the map gear icon → "Map Legend" checkbox.
 
+### Logbook QSOs
+Shows your imported ADIF log contacts on the map as band-colored circle markers. Each marker is positioned at the contact's grid square location with a geodesic path line from your QTH. Click a marker to see the callsign, band, mode, date, and grid square.
+
+- **Toggle:** Map gear icon → "Logbook QSOs" checkbox
+- **Marker color:** Matches the contact's band (same palette as Live Spots)
+- **Requires:** At least one ADIF log imported in the Logbook widget
+
+<div class="tip">Enable the Logbook QSOs overlay to see which parts of the world you've already worked. Combined with the Propagation Heatmap, you can quickly spot new regions to target.</div>
+
 ### Gray Line (Day/Night Terminator)
 Shows the current position of the day/night boundary on Earth. The gray line is the region transitioning between day and night.
 

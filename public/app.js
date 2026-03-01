@@ -6944,6 +6944,8 @@
           const time = spot.spotTime ? new Date(spot.spotTime) : null;
           td.textContent = time ? fmtTime(time, { hour: "2-digit", minute: "2-digit" }) : "";
         } else if (col.key === "age") {
+          td.dataset.col = "age";
+          td.dataset.spotTime = spot.spotTime || "";
           td.textContent = formatAge(spot.spotTime);
         } else if (col.key === "callsign") {
           td.textContent = spot.activator || spot.callsign || "";
@@ -6987,6 +6989,12 @@
       tr.addEventListener("click", () => flyToSpot(spot));
       spotsBody.appendChild(tr);
     });
+  }
+  function updateSpotAges() {
+    const cells = $("spotsBody").querySelectorAll('td[data-col="age"]');
+    for (const td of cells) {
+      td.textContent = formatAge(td.dataset.spotTime);
+    }
   }
   var SPOT_COL_VIS_KEY;
   var init_spots = __esm({
@@ -18975,8 +18983,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.57.0";
-    $("aboutVersion").textContent = "0.57.0";
+    $("splashVersion").textContent = "0.58.0";
+    $("aboutVersion").textContent = "0.58.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -22278,7 +22286,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     updateBigClock();
     updateAnalogClock();
   }, 1e3);
-  setInterval(renderSpots, 3e4);
+  setInterval(updateSpotAges, 3e4);
   initSourceListeners();
   initFilterListeners();
   initTooltipListeners();

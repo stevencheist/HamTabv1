@@ -10,68 +10,66 @@ A high-level overview of where HamTab is headed. For feature requests or feedbac
 - VOACAP propagation predictions with reliability heatmap
 - Space weather history graphs (SFI, Kp, X-ray, solar wind, Bz)
 - Filter system with band, mode, distance, and preset support
-- Theme engine with 4 built-in themes (Default, LCARS, Terminal, HamClock)
-- Mobile-responsive layout
+- Watch list modes (highlight, filter, exclude)
+- Theme engine with 8 built-in themes
+- Grid layout engine with 5 permutations and drag-drop widget swapping
+- Mobile-responsive layout with progressive scaling
 - Weather integration (NWS + Weather Underground)
 - DE/DX operator widget with sunrise/sunset countdowns
 - Reference tables (RST, NATO phonetic, band chart)
+- Contest calendar and DXpedition tracker with map markers
+- NCDXF beacon widget with rotation schedule
+- Analog clock with 6 faces and 4 complications
+- Stopwatch and countdown timer
+- DRAP storm overlay (auto-triggers on Kp >= 5)
 - In-app feedback system
 - Two deployment modes: self-hosted (lanmode) and cloud (hamtab.net)
 
-## In Progress
+## Next Up
 
-- Watch list modes (highlight, filter, exclude)
-- Real-time propagation enhancements
+### ADIF Log Integration (In Progress)
+Import and view contact logs from any logging software. Sortable table with band/mode/date filters, QSO markers on the map, and drag-and-drop file import. Client-side only — your log stays in your browser.
+
+### WSPR Propagation Data
+Real-time WSPR beacon reception reports via wspr.live API. Automated propagation measurement — see which bands are actually open right now, not just what VOACAP predicts. Works in both deployment modes (HTTP polling).
+
+### DX Cluster Live TCP + RBN
+Replace HTTP polling with a direct telnet connection to DX cluster nodes for real-time spot flow. Same architecture extends to Reverse Beacon Network (automated CW/digital skimmer spots). Lanmode first, hostedmode with HTTP fallback.
+
+### WSJT-X and Logger UDP Integration (Lanmode)
+Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging software via UDP. Scrolling decode widget with CQ highlighting. Lanmode only — requires same-network access to logging software.
 
 ## Planned
 
-- ADIF log integration
-- WSJT-X and logger UDP integration (lanmode)
-- Contest calendar and DXpedition tracker
-- Azimuthal map projection
-- Advanced satellite tracking (sky plots, orbit visualization)
+### Data & Propagation
+- Real-time SSN + K-index correction for VOACAP predictions
+- Effective SSN from live foF2 ionosonde measurements
+- WSPR/PSK observation vs. VOACAP prediction comparison
+- PSKReporter MQTT real-time feed (lower latency than polling)
+- RSS feed widget with configurable sources
+- DX news ticker
+- BOTA (Beaches on the Air) spot source
+
+### Map & Visualization
+- Azimuthal map projection (DE-centered) with bearing rings
+- Aurora map overlay (NOAA OVATION)
+- Earthquake overlay (USGS live data)
+- Satellite sky plot visualization
 - Lunar/EME planning tools
-- Grid-based layout engine with activity presets
-- Custom theme builder
-- Configuration export/import
+- CQ/ITU zone overlays
+
+### Hardware Integration
+- CAT rig control via WebSerial (Yaesu, Icom, Kenwood, Elecraft)
+- Click-to-tune from spot table
+- Panadapter / spectrum scope for connected rigs (IC-7300, FT-DX10)
 - hamlib/flrig rig control (lanmode)
-- DX Cluster live TCP connections
-- WSPR and Reverse Beacon Network integration
 
-### Panadapter / Spectrum Scope Widget (lanmode)
-
-Real-time spectrum scope and waterfall display for connected rigs. Ported from VirtualHam's battle-tested canvas renderers.
-
-**Phase 1 — IC-7300 Spectrum Data (CI-V Cmd 0x27)**
-- Extend `src/cat/drivers/icom-civ.js` with `enableScope`, `disableScope`, and scope data parsing
-- IC-7300 streams ~475 bins per sweep via CI-V when scope is enabled
-- Add `spectrumData: Float32Array` and `scopeEnabled: boolean` to `rig-state-store.js`
-- Scope data flows through existing Driver → RigManager → RigStateStore → Widget pipeline
-
-**Phase 2 — Canvas Rendering**
-- Port VirtualHam's `color-map.ts` (256-entry RGBA LUT, SDR palette) to vanilla JS
-- Port `waterfall.ts` (scrolling canvas with `drawImage` shift + `putImageData` row)
-- Port `spectrum.ts` (peak hold, avg smoothing, grid, frequency labels, passband shading)
-- Create `PanadapterWidget` — new draggable/resizable widget with spectrum + waterfall canvases
-- VFO center line and passband overlay synced to rig frequency and filter width
-
-**Phase 3 — Multi-Rig Support**
-- Extend Yaesu NewCAT driver with scope commands (FT-DX10, FTDX101D)
-- Extend Kenwood driver with scope commands (TS-890S)
-- Scope configuration UI (span, reference level, speed)
-
-**Phase 4 — Demo Mode Spectrum**
-- Extend `fake-radio-engine.js` to generate simulated spectrum data
-- Use VirtualHam's band activity engine for realistic signal populations in demo mode
-
-### VirtualHam UI Cross-Pollination
-
-Improvements identified from VirtualHam's RadioFace UI work that can be brought back to HamTab.
-
-- **CSS variable system for 3D buttons** — Extract repeated metallic button styling in RadioFace theme into shared `--btn-gradient`, `--btn-shadow`, `--btn-shadow-active` variables. Reduces duplication across `.rig-connect-btn`, tab buttons, filter buttons, etc.
-- **Slider styling** — Port the cross-browser range input styling (`-webkit-slider-thumb`, `-moz-range-thumb`) with metallic radial-gradient thumb and gradient track. Cleaner than current `.rig-power-slider`.
-- **LED S-meter as pure CSS** — Single gradient fill + one `::after` pseudo-element with `repeating-linear-gradient` for segment separators. Simpler than current JS-based color zone switching.
-- **Shared band plan data** — VirtualHam's engine has structured sub-band zone definitions (CW/digital/phone zones with exact frequency boundaries per band). Could replace HamTab's `band-overlay-engine.js` manually-defined segments with a shared data source to keep both projects in sync.
+### UI/UX
+- Named layout profiles with activity presets (POTA Hunter, DX Contest, EME)
+- Configuration export/import
+- Custom theme builder with live preview
+- HamClock compatibility mode (one-click layout preset)
+- Multi-language support (i18n)
 
 ## Contributing
 

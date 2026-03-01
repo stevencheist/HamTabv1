@@ -83,7 +83,7 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false, propagationHeatmap: false },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false, propagationHeatmap: false, logbookQsos: false },
         // Propagation heatmap band (standalone overlay — independent of VOACAP widget)
         propagationHeatmapBand: localStorage.getItem("hamtab_prop_heatmap_band") || "20m",
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
@@ -261,6 +261,21 @@
         // debounce timer for pan/zoom re-render
         voacapParamTimer: null,
         // debounce timer for power/mode/TOA/path button clicks
+        // Logbook (ADIF import)
+        logbookSortColumn: "qsoDate",
+        // current sort column key
+        logbookSortDirection: "desc",
+        // 'asc' or 'desc'
+        logbookFilterBand: "",
+        // band filter ('' = all)
+        logbookFilterMode: "",
+        // mode filter ('' = all)
+        logbookData: [],
+        // parsed QSO records (loaded from IndexedDB on init)
+        logbookMarkers: [],
+        // L.circleMarker[] for QSO positions on map
+        logbookLines: [],
+        // L.polyline[] for QSO geodesic paths
         // Beacons / DXpeditions / Contests
         beaconTimer: null,
         // setInterval ID for 1-second beacon updates
@@ -8516,8 +8531,9 @@
         { id: "widget-dedx", name: "DE/DX Info", short: "DEDX" },
         { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
         { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" },
-        { id: "widget-on-air-rig", name: "On-Air Rig", short: "Rig" }
+        { id: "widget-on-air-rig", name: "On-Air Rig", short: "Rig" },
         // RADIO_HIDDEN — temporarily unhidden for scope testing
+        { id: "widget-logbook", name: "Logbook", short: "Log" }
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -9052,6 +9068,20 @@
           ],
           links: [
             { label: "NOAA Space Weather & Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
+          ]
+        },
+        "widget-logbook": {
+          title: "Logbook",
+          description: "Import and view your ADIF contact logs. See your QSO history in a sortable table and plot contacts on the map with band-colored paths.",
+          sections: [
+            { heading: "What is ADIF?", content: "ADIF (Amateur Data Interchange Format) is the standard file format for ham radio contact logs. Most logging software \u2014 N1MM+, Log4OM, WSJT-X, Cloudlog, and others \u2014 can export to ADIF (.adi or .adif files)." },
+            { heading: "Importing Your Log", content: "Drag and drop an .adi or .adif file onto the import zone, or click to open a file picker. Your log is parsed and stored locally in your browser \u2014 nothing is uploaded to a server. You can re-import at any time to update." },
+            { heading: "Sorting & Filtering", content: "Click any column header to sort ascending or descending. Use the band and mode dropdowns to filter to specific contacts. The stats bar shows total QSOs, unique callsigns, and DXCC entities." },
+            { heading: "Map View", content: 'Contacts with grid square data are plotted on the map as band-colored markers. Great circle paths connect your QTH to each contact. Toggle the "Logbook" map overlay on or off in Map Overlays config.' },
+            { heading: "Storage", content: `Your log is stored in your browser's IndexedDB \u2014 it persists across sessions and can handle large logs (100,000+ QSOs). Click "Clear" to remove all imported data.` }
+          ],
+          links: [
+            { label: "ADIF Specification", url: "https://www.adif.org/" }
           ]
         }
       };
@@ -19723,6 +19753,403 @@ ${beacon.location}`);
   init_map_overlays();
   init_markers();
   init_spots();
+
+  // src/logbook.js
+  init_state();
+  init_dom();
+  init_utils();
+  init_geo();
+  init_filters();
+  init_constants();
+  function parseADIF(text) {
+    const records = [];
+    const headerEnd = text.search(/<eoh>/i);
+    const body = headerEnd >= 0 ? text.substring(headerEnd + 5) : text;
+    const rawRecords = body.split(/<eor>/i);
+    for (const raw of rawRecords) {
+      const record = {};
+      const fieldRe = /<([A-Za-z_][A-Za-z0-9_]*):(\d+)(?::[A-Za-z])?>/gi;
+      let m;
+      while ((m = fieldRe.exec(raw)) !== null) {
+        const name = m[1].toUpperCase();
+        const len = parseInt(m[2], 10);
+        const valStart = m.index + m[0].length;
+        const val = raw.substring(valStart, valStart + len);
+        record[name] = val;
+      }
+      if (record.CALL) records.push(record);
+    }
+    return records;
+  }
+  function gridToLL(grid) {
+    if (!grid || grid.length < 4) return null;
+    const g = grid.toUpperCase();
+    if (!/^[A-R]{2}[0-9]{2}/.test(g)) return null;
+    let lon = (g.charCodeAt(0) - 65) * 20 + parseInt(g[2]) * 2 - 180;
+    let lat = (g.charCodeAt(1) - 65) * 10 + parseInt(g[3]) - 90;
+    if (g.length >= 6 && /^[A-X]{2}$/.test(g.substring(4, 6))) {
+      lon += (g.charCodeAt(4) - 65) * (2 / 24) + 1 / 24;
+      lat += (g.charCodeAt(5) - 65) * (1 / 24) + 1 / 48;
+    } else {
+      lon += 1;
+      lat += 0.5;
+    }
+    return { lat, lon };
+  }
+  var DB_NAME = "hamtab_logbook";
+  var DB_VERSION = 1;
+  var STORE_NAME = "qsos";
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(STORE_NAME)) {
+          const store = db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+          store.createIndex("call", "CALL", { unique: false });
+          store.createIndex("date", "QSO_DATE", { unique: false });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  async function saveQSOs(records) {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    store.clear();
+    for (const r of records) store.put(r);
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+  }
+  async function loadQSOs() {
+    try {
+      const db = await openDB();
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+      return new Promise((resolve) => {
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+    } catch {
+      return [];
+    }
+  }
+  async function clearQSOs() {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).clear();
+    return new Promise((resolve) => {
+      tx.oncomplete = resolve;
+    });
+  }
+  var LOGBOOK_COLS = [
+    { key: "QSO_DATE", label: "Date", sortable: true },
+    { key: "TIME_ON", label: "Time", sortable: true },
+    { key: "CALL", label: "Call", sortable: true },
+    { key: "FREQ", label: "Freq", sortable: true },
+    { key: "BAND", label: "Band", sortable: true },
+    { key: "MODE", label: "Mode", sortable: true },
+    { key: "RST_SENT", label: "S", sortable: false },
+    { key: "RST_RCVD", label: "R", sortable: false },
+    { key: "GRIDSQUARE", label: "Grid", sortable: true },
+    { key: "NAME", label: "Name", sortable: true }
+  ];
+  function getFilteredData() {
+    let data = state_default.logbookData;
+    if (state_default.logbookFilterBand) {
+      data = data.filter((q) => (q.BAND || "").toUpperCase() === state_default.logbookFilterBand.toUpperCase());
+    }
+    if (state_default.logbookFilterMode) {
+      data = data.filter((q) => (q.MODE || "").toUpperCase() === state_default.logbookFilterMode.toUpperCase());
+    }
+    return data;
+  }
+  function sortData(data) {
+    const col = state_default.logbookSortColumn || "QSO_DATE";
+    const dir = state_default.logbookSortDirection === "asc" ? 1 : -1;
+    return [...data].sort((a, b) => {
+      let aVal = a[col] || "";
+      let bVal = b[col] || "";
+      if (col === "FREQ") {
+        return dir * ((parseFloat(aVal) || 0) - (parseFloat(bVal) || 0));
+      }
+      if (col === "QSO_DATE") {
+        const aKey = (a.QSO_DATE || "") + (a.TIME_ON || "");
+        const bKey = (b.QSO_DATE || "") + (b.TIME_ON || "");
+        return dir * aKey.localeCompare(bKey);
+      }
+      return dir * aVal.toString().localeCompare(bVal.toString());
+    });
+  }
+  function formatDate(d) {
+    if (!d || d.length !== 8) return d || "";
+    return d.substring(0, 4) + "-" + d.substring(4, 6) + "-" + d.substring(6, 8);
+  }
+  function formatTime(t) {
+    if (!t || t.length < 4) return t || "";
+    return t.substring(0, 2) + ":" + t.substring(2, 4);
+  }
+  function renderLogbook() {
+    const tbody = $("logbookBody");
+    const thead = $("logbookHead");
+    const countEl = $("logbookCount");
+    const statsEl = $("logbookStats");
+    if (!tbody) return;
+    const filtered = getFilteredData();
+    const sorted = sortData(filtered);
+    if (thead) {
+      thead.innerHTML = "";
+      const tr = document.createElement("tr");
+      for (const col of LOGBOOK_COLS) {
+        const th = document.createElement("th");
+        th.textContent = col.label;
+        if (col.sortable) {
+          th.classList.add("sortable");
+          const key = col.key;
+          th.addEventListener("click", () => {
+            if (state_default.logbookSortColumn === key) {
+              state_default.logbookSortDirection = state_default.logbookSortDirection === "asc" ? "desc" : "asc";
+            } else {
+              state_default.logbookSortColumn = key;
+              state_default.logbookSortDirection = key === "QSO_DATE" ? "desc" : "asc";
+            }
+            renderLogbook();
+          });
+          if (state_default.logbookSortColumn === key) {
+            th.classList.add(state_default.logbookSortDirection === "asc" ? "sort-asc" : "sort-desc");
+          }
+        }
+        tr.appendChild(th);
+      }
+      thead.appendChild(tr);
+    }
+    const maxRows = 500;
+    tbody.innerHTML = "";
+    const slice = sorted.slice(0, maxRows);
+    for (const q of slice) {
+      const tr = document.createElement("tr");
+      for (const col of LOGBOOK_COLS) {
+        const td = document.createElement("td");
+        let val = q[col.key] || "";
+        if (col.key === "QSO_DATE") val = formatDate(val);
+        else if (col.key === "TIME_ON") val = formatTime(val);
+        td.textContent = val;
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    if (countEl) {
+      countEl.textContent = state_default.logbookData.length > 0 ? `(${filtered.length}${filtered.length !== state_default.logbookData.length ? "/" + state_default.logbookData.length : ""})` : "";
+    }
+    if (statsEl) {
+      if (state_default.logbookData.length === 0) {
+        statsEl.textContent = "";
+      } else {
+        const calls = new Set(filtered.map((q) => q.CALL));
+        const dxcc = new Set(filtered.map((q) => q.DXCC).filter(Boolean));
+        const parts = [filtered.length + " QSOs", calls.size + " calls"];
+        if (dxcc.size > 0) parts.push(dxcc.size + " DXCC");
+        if (sorted.length > maxRows) parts.push("showing first " + maxRows);
+        statsEl.textContent = parts.join(" \xB7 ");
+      }
+    }
+    populateFilterDropdowns();
+  }
+  function populateFilterDropdowns() {
+    const bandSel = $("logbookBandFilter");
+    const modeSel = $("logbookModeFilter");
+    if (!bandSel || !modeSel) return;
+    const bands = /* @__PURE__ */ new Set();
+    const modes = /* @__PURE__ */ new Set();
+    for (const q of state_default.logbookData) {
+      if (q.BAND) bands.add(q.BAND.toUpperCase());
+      if (q.MODE) modes.add(q.MODE.toUpperCase());
+    }
+    const sortedBands = [...bands].sort((a, b) => {
+      const na = parseFloat(a) || 0;
+      const nb = parseFloat(b) || 0;
+      return na - nb;
+    });
+    const sortedModes = [...modes].sort();
+    const bandKey = sortedBands.join(",");
+    const modeKey = sortedModes.join(",");
+    if (bandSel.dataset.keys !== bandKey) {
+      const cur = state_default.logbookFilterBand;
+      bandSel.innerHTML = '<option value="">All Bands</option>';
+      for (const b of sortedBands) {
+        const opt = document.createElement("option");
+        opt.value = b;
+        opt.textContent = b;
+        if (b === cur) opt.selected = true;
+        bandSel.appendChild(opt);
+      }
+      bandSel.dataset.keys = bandKey;
+    }
+    if (modeSel.dataset.keys !== modeKey) {
+      const cur = state_default.logbookFilterMode;
+      modeSel.innerHTML = '<option value="">All Modes</option>';
+      for (const m of sortedModes) {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        if (m === cur) opt.selected = true;
+        modeSel.appendChild(opt);
+      }
+      modeSel.dataset.keys = modeKey;
+    }
+  }
+  function renderLogbookOnMap() {
+    clearLogbookFromMap();
+    if (!state_default.map || state_default.logbookData.length === 0) return;
+    if (!state_default.mapOverlays.logbookQsos) return;
+    const L2 = window.L;
+    const filtered = getFilteredData();
+    for (const q of filtered) {
+      const grid = q.GRIDSQUARE || "";
+      const ll = gridToLL(grid);
+      if (!ll) continue;
+      const band = q.BAND || freqToBand(q.FREQ || "") || "";
+      const color = getBandColor(band) || "#888";
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        const pts = geodesicPoints(state_default.myLat, state_default.myLon, ll.lat, ll.lon, 32);
+        const line = L2.polyline(pts, { color, weight: 1.2, opacity: 0.3, interactive: false });
+        line.addTo(state_default.map);
+        state_default.logbookLines.push(line);
+      }
+      const marker = L2.circleMarker([ll.lat, ll.lon], {
+        radius: 5,
+        fillColor: color,
+        color: "#fff",
+        weight: 1.5,
+        opacity: 0.8,
+        fillOpacity: 0.6
+      });
+      const dateStr = formatDate(q.QSO_DATE);
+      const timeStr = formatTime(q.TIME_ON);
+      marker.bindPopup(
+        '<div class="logbook-popup"><strong>' + esc(q.CALL || "") + "</strong><br>" + esc(dateStr) + " " + esc(timeStr) + "Z<br>" + esc(q.FREQ || "") + " " + esc(q.MODE || "") + (q.RST_SENT ? "<br>RST: " + esc(q.RST_SENT) + "/" + esc(q.RST_RCVD || "") : "") + (q.NAME ? "<br>" + esc(q.NAME) : "") + "</div>"
+      );
+      marker.addTo(state_default.map);
+      state_default.logbookMarkers.push(marker);
+    }
+  }
+  function clearLogbookFromMap() {
+    for (const m of state_default.logbookMarkers) {
+      if (state_default.map) state_default.map.removeLayer(m);
+    }
+    for (const l of state_default.logbookLines) {
+      if (state_default.map) state_default.map.removeLayer(l);
+    }
+    state_default.logbookMarkers = [];
+    state_default.logbookLines = [];
+  }
+  async function handleFile(file) {
+    try {
+      const text = await file.text();
+      const records = parseADIF(text);
+      if (records.length === 0) {
+        alert("No QSO records found in file.");
+        return;
+      }
+      state_default.logbookData = records;
+      await saveQSOs(records);
+      renderLogbook();
+      renderLogbookOnMap();
+      const zone = $("logbookImportZone");
+      const content = $("logbookContent");
+      if (zone) zone.classList.add("hidden");
+      if (content) content.classList.remove("hidden");
+    } catch (err2) {
+      console.error("ADIF import error:", err2);
+      alert("Failed to parse ADIF file: " + err2.message);
+    }
+  }
+  async function initLogbook() {
+    const saved = await loadQSOs();
+    if (saved.length > 0) {
+      state_default.logbookData = saved;
+      const zone2 = $("logbookImportZone");
+      const content = $("logbookContent");
+      if (zone2) zone2.classList.add("hidden");
+      if (content) content.classList.remove("hidden");
+      renderLogbook();
+      renderLogbookOnMap();
+    }
+    const zone = $("logbookImportZone");
+    if (zone) {
+      zone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        zone.classList.add("drag-over");
+      });
+      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        zone.classList.remove("drag-over");
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+      });
+      zone.addEventListener("click", () => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".adi,.adif";
+        input.addEventListener("change", (e) => {
+          if (e.target.files[0]) handleFile(e.target.files[0]);
+        });
+        input.click();
+      });
+    }
+    const importBtn = $("logbookImportBtn");
+    if (importBtn) {
+      importBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".adi,.adif";
+        input.addEventListener("change", (ev) => {
+          if (ev.target.files[0]) handleFile(ev.target.files[0]);
+        });
+        input.click();
+      });
+    }
+    const clearBtn = $("logbookClearBtn");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm("Clear all imported QSO data?")) return;
+        await clearQSOs();
+        state_default.logbookData = [];
+        clearLogbookFromMap();
+        renderLogbook();
+        const zn = $("logbookImportZone");
+        const ct = $("logbookContent");
+        if (zn) zn.classList.remove("hidden");
+        if (ct) ct.classList.add("hidden");
+      });
+    }
+    const bandSel = $("logbookBandFilter");
+    const modeSel = $("logbookModeFilter");
+    if (bandSel) {
+      bandSel.addEventListener("change", () => {
+        state_default.logbookFilterBand = bandSel.value;
+        renderLogbook();
+        renderLogbookOnMap();
+      });
+    }
+    if (modeSel) {
+      modeSel.addEventListener("change", () => {
+        state_default.logbookFilterMode = modeSel.value;
+        renderLogbook();
+        renderLogbookOnMap();
+      });
+    }
+  }
+
+  // src/config.js
   function initConfigListeners() {
     $("solarCfgBtn").addEventListener("mousedown", (e) => {
       e.stopPropagation();
@@ -19795,6 +20222,7 @@ ${beacon.location}`);
         $("mapOvWeatherRadar").checked = state_default.mapOverlays.weatherRadar;
         $("mapOvCloudCover").checked = state_default.mapOverlays.cloudCover;
         $("mapOvLegend").checked = state_default.mapOverlays.symbolLegend;
+        $("mapOvLogbook").checked = state_default.mapOverlays.logbookQsos;
         $("mapOvPropHeatmap").checked = state_default.mapOverlays.propagationHeatmap;
         $("mapOvPropHeatmapBand").value = state_default.propagationHeatmapBand;
         mapOverlayCfgSplash.classList.remove("hidden");
@@ -19813,6 +20241,7 @@ ${beacon.location}`);
         state_default.mapOverlays.weatherRadar = $("mapOvWeatherRadar").checked;
         state_default.mapOverlays.cloudCover = $("mapOvCloudCover").checked;
         state_default.mapOverlays.symbolLegend = $("mapOvLegend").checked;
+        state_default.mapOverlays.logbookQsos = $("mapOvLogbook").checked;
         state_default.mapOverlays.propagationHeatmap = $("mapOvPropHeatmap").checked;
         state_default.propagationHeatmapBand = $("mapOvPropHeatmapBand").value;
         localStorage.setItem("hamtab_prop_heatmap_band", state_default.propagationHeatmapBand);
@@ -19822,6 +20251,7 @@ ${beacon.location}`);
         renderPropagationHeatmapOverlay();
         renderMarkers();
         renderDxpeditions();
+        renderLogbookOnMap();
       });
     }
     $("spotColCfgBtn").addEventListener("mousedown", (e) => {
@@ -21620,6 +22050,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initMobileMenu();
   initTabs();
   initOnAirRig();
+  initLogbook();
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;

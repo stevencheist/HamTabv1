@@ -3,7 +3,7 @@ import { $ } from './dom.js';
 import { SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, SOURCE_DEFS } from './constants.js';
 import { renderSolar, saveSolarFieldVisibility } from './solar.js';
 import { renderLunar, saveLunarFieldVisibility } from './lunar.js';
-import { renderAllMapOverlays, saveMapOverlays, renderPropagationHeatmapOverlay } from './map-overlays.js';
+import { renderAllMapOverlays, saveMapOverlays, renderPropagationHeatmapOverlay, renderWsprHeatmapOverlay } from './map-overlays.js';
 import { renderMarkers } from './markers.js';
 import { renderSpots, saveSpotColumnVisibility } from './spots.js';
 import { updateTableColumns } from './source.js';
@@ -87,6 +87,9 @@ export function initConfigListeners() {
       $('mapOvLogbook').checked = state.mapOverlays.logbookQsos;
       $('mapOvPropHeatmap').checked = state.mapOverlays.propagationHeatmap;
       $('mapOvPropHeatmapBand').value = state.propagationHeatmapBand;
+      $('mapOvWsprHeatmap').checked = state.mapOverlays.wsprHeatmap;
+      $('mapOvWsprHeatmapBand').value = state.wsprHeatmapBand;
+      $('mapOvWsprHeatmapScope').value = state.wsprHeatmapScope;
       mapOverlayCfgSplash.classList.remove('hidden');
     });
   }
@@ -108,10 +111,16 @@ export function initConfigListeners() {
       state.mapOverlays.propagationHeatmap = $('mapOvPropHeatmap').checked;
       state.propagationHeatmapBand = $('mapOvPropHeatmapBand').value;
       localStorage.setItem('hamtab_prop_heatmap_band', state.propagationHeatmapBand);
+      state.mapOverlays.wsprHeatmap = $('mapOvWsprHeatmap').checked;
+      state.wsprHeatmapBand = $('mapOvWsprHeatmapBand').value;
+      localStorage.setItem('hamtab_wspr_heatmap_band', state.wsprHeatmapBand);
+      state.wsprHeatmapScope = $('mapOvWsprHeatmapScope').value;
+      localStorage.setItem('hamtab_wspr_heatmap_scope', state.wsprHeatmapScope);
       saveMapOverlays();
       mapOverlayCfgSplash.classList.add('hidden');
       renderAllMapOverlays();
       renderPropagationHeatmapOverlay();
+      renderWsprHeatmapOverlay();
       renderMarkers(); // refresh band path lines
       renderDxpeditions(); // refresh DXpedition markers on map
       renderLogbookOnMap(); // refresh logbook QSO markers on map

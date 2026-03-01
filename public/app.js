@@ -83,9 +83,13 @@
         timezoneLayer: null,
         maidenheadDebounceTimer: null,
         // Map overlay config
-        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false, propagationHeatmap: false, logbookQsos: false },
+        mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false, propagationHeatmap: false, wsprHeatmap: false, logbookQsos: false },
         // Propagation heatmap band (standalone overlay — independent of VOACAP widget)
         propagationHeatmapBand: localStorage.getItem("hamtab_prop_heatmap_band") || "20m",
+        // WSPR heatmap band (measured propagation overlay — independent of VOACAP heatmap)
+        wsprHeatmapBand: localStorage.getItem("hamtab_wspr_heatmap_band") || "20m",
+        wsprHeatmapScope: localStorage.getItem("hamtab_wspr_heatmap_scope") || "qth",
+        // 'qth' (500km), 'cty' (country bounds), 'world' (all spots)
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
         // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
@@ -259,6 +263,10 @@
         // L.imageOverlay instance
         heatmapRenderTimer: null,
         // debounce timer for pan/zoom re-render
+        wsprHeatmapLayer: null,
+        // L.imageOverlay for WSPR measured-propagation heatmap
+        wsprHeatmapRenderTimer: null,
+        // debounce timer for WSPR heatmap pan/zoom re-render
         voacapParamTimer: null,
         // debounce timer for power/mode/TOA/path button clicks
         // Logbook (ADIF import)
@@ -10112,6 +10120,201 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     }
   });
 
+  // src/wspr-heatmap.js
+  var wspr_heatmap_exports = {};
+  __export(wspr_heatmap_exports, {
+    clearWsprHeatmap: () => clearWsprHeatmap,
+    clearWsprHeatmapLegend: () => clearWsprHeatmapLegend,
+    renderWsprHeatmapCanvas: () => renderWsprHeatmapCanvas,
+    renderWsprHeatmapLegend: () => renderWsprHeatmapLegend
+  });
+  function distanceKm2(lat1, lon1, lat2, lon2) {
+    const r = Math.PI / 180;
+    const R3 = 6371;
+    const dLat = (lat2 - lat1) * r;
+    const dLon = (lon2 - lon1) * r;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(dLon / 2) ** 2;
+    return R3 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  function cellSizeForZoom2(zoom) {
+    if (zoom <= 3) return 4;
+    if (zoom <= 5) return 2;
+    if (zoom <= 7) return 1;
+    return 0.5;
+  }
+  function hslToRgb2(h, s, l) {
+    const c = (1 - Math.abs(2 * l - 1)) * s;
+    const x = c * (1 - Math.abs(h / 60 % 2 - 1));
+    const m = l - c / 2;
+    let r = 0, g = 0, b = 0;
+    if (h < 60) {
+      r = c;
+      g = x;
+    } else if (h < 120) {
+      r = x;
+      g = c;
+    } else if (h < 180) {
+      g = c;
+      b = x;
+    } else if (h < 240) {
+      g = x;
+      b = c;
+    } else if (h < 300) {
+      r = x;
+      b = c;
+    } else {
+      r = c;
+      b = x;
+    }
+    return {
+      r: Math.round((r + m) * 255),
+      g: Math.round((g + m) * 255),
+      b: Math.round((b + m) * 255)
+    };
+  }
+  function snrToRGBA(snr) {
+    const clamped = Math.max(SNR_MIN, Math.min(SNR_MAX, snr));
+    const hue = (clamped - SNR_MIN) / (SNR_MAX - SNR_MIN) * 120;
+    const { r, g, b } = hslToRgb2(hue, 1, 0.5);
+    const alpha = Math.min(210, 140 + (clamped - SNR_MIN) / (SNR_MAX - SNR_MIN) * 70);
+    return { r, g, b, a: Math.round(alpha) };
+  }
+  function isInBounds(lat, lon, bounds) {
+    const [south, west, north, east] = bounds;
+    if (lat < south || lat > north) return false;
+    if (west <= east) return lon >= west && lon <= east;
+    return lon >= west || lon <= east;
+  }
+  function renderWsprHeatmapCanvas(band) {
+    if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
+    const wspr = state_default.sourceData.wspr;
+    if (!wspr || wspr.length === 0) return;
+    const L2 = window.L;
+    const map = state_default.map;
+    clearWsprHeatmap();
+    const bandSpots = wspr.filter((s) => s.band === band);
+    if (bandSpots.length === 0) return;
+    const scope = state_default.wsprHeatmapScope || "qth";
+    let ctyBounds = null;
+    if (scope === "cty") {
+      ctyBounds = findCountryBounds(state_default.myLat, state_default.myLon);
+      if (!ctyBounds) return;
+    }
+    const endpoints = [];
+    for (const spot of bandSpots) {
+      const txLat = spot.latitude;
+      const txLon = spot.longitude;
+      const rxLat = spot.rxLat;
+      const rxLon = spot.rxLon;
+      const snr = parseFloat(spot.snr);
+      if (isNaN(snr)) continue;
+      if (txLat == null || txLon == null || rxLat == null || rxLon == null) continue;
+      if (scope === "world") {
+        endpoints.push({ lat: txLat, lon: txLon, snr });
+        endpoints.push({ lat: rxLat, lon: rxLon, snr });
+      } else if (scope === "cty") {
+        const txInCty = isInBounds(txLat, txLon, ctyBounds);
+        const rxInCty = isInBounds(rxLat, rxLon, ctyBounds);
+        if (txInCty) endpoints.push({ lat: rxLat, lon: rxLon, snr });
+        if (rxInCty) endpoints.push({ lat: txLat, lon: txLon, snr });
+      } else {
+        const txDist = distanceKm2(state_default.myLat, state_default.myLon, txLat, txLon);
+        const rxDist = distanceKm2(state_default.myLat, state_default.myLon, rxLat, rxLon);
+        if (txDist <= QTH_RADIUS_KM) endpoints.push({ lat: rxLat, lon: rxLon, snr });
+        if (rxDist <= QTH_RADIUS_KM) endpoints.push({ lat: txLat, lon: txLon, snr });
+      }
+    }
+    if (endpoints.length === 0) return;
+    const bounds = map.getBounds();
+    const south = Math.max(-85, bounds.getSouth());
+    const north = Math.min(85, bounds.getNorth());
+    const west = bounds.getWest();
+    const east = bounds.getEast();
+    const zoom = map.getZoom();
+    const cellSize = cellSizeForZoom2(zoom);
+    const cols = Math.ceil((east - west) / cellSize);
+    const rows = Math.ceil((north - south) / cellSize);
+    if (cols <= 0 || rows <= 0) return;
+    const grid = {};
+    for (const ep of endpoints) {
+      const col = Math.floor((ep.lon - west) / cellSize);
+      const row = Math.floor((north - ep.lat) / cellSize);
+      if (col < 0 || col >= cols || row < 0 || row >= rows) continue;
+      const key = row * cols + col;
+      if (!grid[key]) grid[key] = { sum: 0, count: 0 };
+      grid[key].sum += ep.snr;
+      grid[key].count++;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = cols;
+    canvas.height = rows;
+    const ctx = canvas.getContext("2d");
+    const imageData = ctx.createImageData(cols, rows);
+    const data = imageData.data;
+    for (const keyStr of Object.keys(grid)) {
+      const key = parseInt(keyStr, 10);
+      const cell = grid[key];
+      const avgSnr = cell.sum / cell.count;
+      const px = snrToRGBA(avgSnr);
+      const idx = key * 4;
+      data[idx] = px.r;
+      data[idx + 1] = px.g;
+      data[idx + 2] = px.b;
+      data[idx + 3] = px.a;
+    }
+    ctx.putImageData(imageData, 0, 0);
+    const dataUrl = canvas.toDataURL();
+    const imageBounds = [[south, west], [north, east]];
+    state_default.wsprHeatmapLayer = L2.imageOverlay(dataUrl, imageBounds, {
+      opacity: 0.7,
+      pane: "propagation"
+      // z-index 300, below mapOverlays (350)
+    });
+    state_default.wsprHeatmapLayer.addTo(map);
+  }
+  function clearWsprHeatmap() {
+    if (state_default.wsprHeatmapLayer && state_default.map) {
+      state_default.map.removeLayer(state_default.wsprHeatmapLayer);
+      state_default.wsprHeatmapLayer = null;
+    }
+  }
+  function renderWsprHeatmapLegend(band) {
+    clearWsprHeatmapLegend();
+    if (!state_default.map) return;
+    const L2 = window.L;
+    const scope = state_default.wsprHeatmapScope || "qth";
+    const scopeLabel = scope === "world" ? "worldwide" : scope === "cty" ? "from CTY" : "from QTH";
+    const WsprLegend = L2.Control.extend({
+      options: { position: "bottomleft" },
+      onAdd() {
+        const div = L2.DomUtil.create("div", "wspr-heatmap-legend");
+        L2.DomEvent.disableClickPropagation(div);
+        L2.DomEvent.disableScrollPropagation(div);
+        div.innerHTML = '<div class="wspr-heatmap-legend-title">WSPR ' + (band || "20m") + " " + scopeLabel + '</div><div class="wspr-heatmap-legend-bar"></div><div class="wspr-heatmap-legend-labels"><span>-30 dB</span><span>-10 dB</span><span>+10 dB</span></div>';
+        return div;
+      }
+    });
+    wsprHeatmapLegendControl = new WsprLegend();
+    state_default.map.addControl(wsprHeatmapLegendControl);
+  }
+  function clearWsprHeatmapLegend() {
+    if (wsprHeatmapLegendControl && state_default.map) {
+      state_default.map.removeControl(wsprHeatmapLegendControl);
+      wsprHeatmapLegendControl = null;
+    }
+  }
+  var QTH_RADIUS_KM, SNR_MIN, SNR_MAX, wsprHeatmapLegendControl;
+  var init_wspr_heatmap = __esm({
+    "src/wspr-heatmap.js"() {
+      init_state();
+      init_country_bounds();
+      QTH_RADIUS_KM = 500;
+      SNR_MIN = -30;
+      SNR_MAX = 10;
+      wsprHeatmapLegendControl = null;
+    }
+  });
+
   // src/map-overlays.js
   var map_overlays_exports = {};
   __export(map_overlays_exports, {
@@ -10126,6 +10329,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     renderTimezoneGrid: () => renderTimezoneGrid,
     renderTropicsLines: () => renderTropicsLines,
     renderWeatherRadar: () => renderWeatherRadar,
+    renderWsprHeatmapOverlay: () => renderWsprHeatmapOverlay,
     saveMapOverlays: () => saveMapOverlays
   });
   function renderAllMapOverlays() {
@@ -10140,6 +10344,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     renderCloudCover();
     renderSymbolLegend();
     renderPropagationHeatmapOverlay();
+    renderWsprHeatmapOverlay();
   }
   function renderLatLonGrid() {
     if (state_default.latLonLayer) {
@@ -10544,6 +10749,15 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       clearHeatmapLegend();
     }
   }
+  function renderWsprHeatmapOverlay() {
+    if (state_default.mapOverlays.wsprHeatmap) {
+      renderWsprHeatmapCanvas(state_default.wsprHeatmapBand);
+      renderWsprHeatmapLegend(state_default.wsprHeatmapBand);
+    } else {
+      clearWsprHeatmap();
+      clearWsprHeatmapLegend();
+    }
+  }
   function saveMapOverlays() {
     localStorage.setItem("hamtab_map_overlays", JSON.stringify(state_default.mapOverlays));
   }
@@ -10552,6 +10766,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     "src/map-overlays.js"() {
       init_state();
       init_rel_heatmap();
+      init_wspr_heatmap();
       mufImageLayer = null;
       mufImageRefreshTimer = null;
       drapImageLayer = null;
@@ -10735,6 +10950,11 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
           const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
           state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.propagationHeatmapBand), 200);
         }
+        if (state_default.mapOverlays.wsprHeatmap) {
+          clearTimeout(state_default.wsprHeatmapRenderTimer);
+          const { renderWsprHeatmapCanvas: renderWsprHeatmapCanvas2 } = (init_wspr_heatmap(), __toCommonJS(wspr_heatmap_exports));
+          state_default.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas2(state_default.wsprHeatmapBand), 200);
+        }
       });
       state_default.map.on("moveend", () => {
         if (state_default.mapOverlays.latLonGrid) {
@@ -10755,6 +10975,11 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
           clearTimeout(state_default.heatmapRenderTimer);
           const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
           state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.propagationHeatmapBand), 200);
+        }
+        if (state_default.mapOverlays.wsprHeatmap) {
+          clearTimeout(state_default.wsprHeatmapRenderTimer);
+          const { renderWsprHeatmapCanvas: renderWsprHeatmapCanvas2 } = (init_wspr_heatmap(), __toCommonJS(wspr_heatmap_exports));
+          state_default.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas2(state_default.wsprHeatmapBand), 200);
         }
       });
       window.addEventListener("orientationchange", () => {
@@ -12286,6 +12511,11 @@ ${beacon.location}`);
         });
       }
       state_default.sourceData[source] = Array.isArray(data) ? data : [];
+      if (source === "wspr" && state_default.mapOverlays.wsprHeatmap) {
+        clearTimeout(state_default.wsprHeatmapRenderTimer);
+        const { renderWsprHeatmapCanvas: renderWsprHeatmapCanvas2 } = (init_wspr_heatmap(), __toCommonJS(wspr_heatmap_exports));
+        state_default.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas2(state_default.wsprHeatmapBand), 200);
+      }
       if (source === state_default.currentSource) {
         applyFilter();
         renderSpots();
@@ -20246,6 +20476,9 @@ ${beacon.location}`);
         $("mapOvLogbook").checked = state_default.mapOverlays.logbookQsos;
         $("mapOvPropHeatmap").checked = state_default.mapOverlays.propagationHeatmap;
         $("mapOvPropHeatmapBand").value = state_default.propagationHeatmapBand;
+        $("mapOvWsprHeatmap").checked = state_default.mapOverlays.wsprHeatmap;
+        $("mapOvWsprHeatmapBand").value = state_default.wsprHeatmapBand;
+        $("mapOvWsprHeatmapScope").value = state_default.wsprHeatmapScope;
         mapOverlayCfgSplash.classList.remove("hidden");
       });
     }
@@ -20266,10 +20499,16 @@ ${beacon.location}`);
         state_default.mapOverlays.propagationHeatmap = $("mapOvPropHeatmap").checked;
         state_default.propagationHeatmapBand = $("mapOvPropHeatmapBand").value;
         localStorage.setItem("hamtab_prop_heatmap_band", state_default.propagationHeatmapBand);
+        state_default.mapOverlays.wsprHeatmap = $("mapOvWsprHeatmap").checked;
+        state_default.wsprHeatmapBand = $("mapOvWsprHeatmapBand").value;
+        localStorage.setItem("hamtab_wspr_heatmap_band", state_default.wsprHeatmapBand);
+        state_default.wsprHeatmapScope = $("mapOvWsprHeatmapScope").value;
+        localStorage.setItem("hamtab_wspr_heatmap_scope", state_default.wsprHeatmapScope);
         saveMapOverlays();
         mapOverlayCfgSplash.classList.add("hidden");
         renderAllMapOverlays();
         renderPropagationHeatmapOverlay();
+        renderWsprHeatmapOverlay();
         renderMarkers();
         renderDxpeditions();
         renderLogbookOnMap();

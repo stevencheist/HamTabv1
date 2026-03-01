@@ -850,10 +850,12 @@ const SAT_POS_TTL = 10 * 1000; // 10 seconds
 // Pass prediction cache (per satellite)
 const satPassCache = {}; // { 'satId:lat:lon': { data, expires } }
 const SAT_PASS_TTL = 5 * 60 * 1000; // 5 minutes
+const SAT_PASS_MAX = 500; // max cached entries
 
 // TLE cache (per satellite)
 const satTleCache = {}; // { satId: { data, expires } }
 const SAT_TLE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+const SAT_TLE_MAX = 500; // max cached entries
 
 // Fetch amateur radio satellite list (N2YO category 18)
 app.get('/api/satellites/list', async (req, res) => {
@@ -1007,6 +1009,12 @@ app.get('/api/satellites/passes', async (req, res) => {
       passes,
     };
 
+    if (Object.keys(satPassCache).length >= SAT_PASS_MAX) {
+      const now = Date.now();
+      for (const k of Object.keys(satPassCache)) {
+        if (satPassCache[k].expires < now) delete satPassCache[k];
+      }
+    }
     satPassCache[cacheKey] = { data: result, expires: Date.now() + SAT_PASS_TTL };
     res.json(result);
   } catch (err) {
@@ -1043,6 +1051,12 @@ app.get('/api/satellites/tle', async (req, res) => {
       tle: data.tle,
     };
 
+    if (Object.keys(satTleCache).length >= SAT_TLE_MAX) {
+      const now = Date.now();
+      for (const k of Object.keys(satTleCache)) {
+        if (satTleCache[k].expires < now) delete satTleCache[k];
+      }
+    }
     satTleCache[id] = { data: result, expires: Date.now() + SAT_TLE_TTL };
     res.json(result);
   } catch (err) {

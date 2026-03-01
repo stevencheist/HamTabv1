@@ -1,18 +1,18 @@
 # HamTab
 
-A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstitute.com/ham/HamClock/) alternative. Displays live POTA, SOTA, DX Cluster, WWFF, and PSKReporter spots on an interactive map with VOACAP propagation predictions, HF band conditions, space weather, satellite tracking, contests, DXpeditions, NCDXF beacons, weather, and lunar/EME data — all in a customizable, themeable widget layout.
+A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstitute.com/ham/HamClock/) alternative. Displays live POTA, SOTA, DX Cluster, WWFF, PSKReporter, and WSPR spots on an interactive map with VOACAP propagation predictions, HF band conditions, space weather, satellite tracking, contests, DXpeditions, NCDXF beacons, weather, and lunar/EME data — all in a customizable, themeable widget layout.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green) ![Express](https://img.shields.io/badge/Express-4.x-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ## Features
 
 ### Spots & Activations
-- **On the Air** — Real-time POTA, SOTA, DX Cluster, WWFF, and PSKReporter spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
+- **On the Air** — Real-time POTA, SOTA, DX Cluster, WWFF, PSKReporter, and WSPR spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
 - **Live Spots** — See where your signal is being received via PSKReporter — band cards show spot count or farthest distance per band with visual map lines
 - **DX Detail** — Detailed view of a selected spot with callsign info, frequency, distance/bearing, and QRZ link
 
 ### Map & Overlays
-- **Interactive Map** — Leaflet map with clustered markers for POTA, SOTA, DX Cluster, WWFF, and PSKReporter spots, dark tiles, and clickable popups with QRZ callsign links
+- **Interactive Map** — Leaflet map with clustered markers for POTA, SOTA, DX Cluster, WWFF, PSKReporter, and WSPR spots, dark tiles, and clickable popups with QRZ callsign links
 - **Map Center Controls** — Quick buttons to center on your QTH, prime meridian, selected spot, or zoom to fit your country
 - **Day/Night Terminator** — Gray line overlay showing the solar terminator with a subtle daylight tint on the illuminated hemisphere
 - **Propagation Contours** — MUF and foF2 HF propagation overlays on the map from prop.kc2g.com
@@ -561,9 +561,9 @@ Displays UTC time, day, date, and year. Shares the same clock style setting as L
 
 ### On the Air
 
-Real-time spots from five data sources.
+Real-time spots from six data sources.
 
-**Source tabs** — Switch between POTA, SOTA, DXC (DX Cluster), WWFF, and PSK (PSKReporter). Active tab is saved across sessions.
+**Source tabs** — Switch between POTA, SOTA, DXC (DX Cluster), WWFF, PSK (PSKReporter), and WSPR. Active tab is saved across sessions.
 
 | Source | Data | Columns |
 |--------|------|---------|
@@ -572,6 +572,7 @@ Real-time spots from five data sources.
 | **DXC** | DX Cluster worldwide spots | Callsign, Freq, Mode, DX, Distance, Age |
 | **WWFF** | World Wide Flora & Fauna activator spots | Callsign, Freq, Mode, Ref, Name, Time |
 | **PSK** | PSKReporter digital mode reports | TX Call, Freq, Mode, RX Call, SNR, Grid |
+| **WSPR** | WSPR weak signal beacon reports | TX Call, Freq, Band, RX Call, SNR, Power, Dist |
 
 Callsign columns link to QRZ. Hover for name/address/class tooltip.
 
@@ -847,6 +848,7 @@ Leaflet maps and marker clustering are bundled locally in the `public/vendor/` d
 | [NG3K ADXO](https://www.ng3k.com/adxo.xml) | Upcoming and active DXpeditions | None |
 | [WA7BNM Contest Calendar](https://www.contestcalendar.com/) | Upcoming and active contests | None |
 | [RainViewer](https://www.rainviewer.com/) | Global weather radar tiles | None |
+| [wspr.live](https://wspr.live/) | WSPR weak signal propagation beacon reports | None |
 
 Lunar/EME data is computed server-side using Meeus astronomical algorithms — no external API needed.
 VOACAP propagation predictions use a Python bridge (dvoacap) when available, with a server-side simplified model as fallback.

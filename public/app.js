@@ -45,10 +45,10 @@
         propagationFilterEnabled: false,
         // session-only — filter spots by predicted band reliability (≥30%)
         // Filter presets per source
-        filterPresets: { pota: {}, sota: {}, dxc: {} },
+        filterPresets: { pota: {}, sota: {}, dxc: {}, wspr: {} },
         // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
         watchLists: (() => {
-          const def = { pota: [], sota: [], dxc: [], wwff: [], psk: [] };
+          const def = { pota: [], sota: [], dxc: [], wwff: [], psk: [], wspr: [] };
           try {
             const s = JSON.parse(localStorage.getItem("hamtab_watchlists"));
             if (s && typeof s === "object" && !Array.isArray(s)) {
@@ -99,8 +99,8 @@
         })(),
         // Source
         currentSource: localStorage.getItem("hamtab_spot_source") || "pota",
-        sourceData: { pota: [], sota: [], dxc: [], wwff: [] },
-        sourceFiltered: { pota: [], sota: [], dxc: [], wwff: [] },
+        sourceData: { pota: [], sota: [], dxc: [], wwff: [], wspr: [] },
+        sourceFiltered: { pota: [], sota: [], dxc: [], wwff: [], wspr: [] },
         // Widget visibility
         widgetVisibility: null,
         // loaded in widgets.js
@@ -402,7 +402,7 @@
       try {
         const savedPresets = JSON.parse(localStorage.getItem("hamtab_filter_presets"));
         if (savedPresets && typeof savedPresets === "object" && !Array.isArray(savedPresets)) {
-          const validSources = ["pota", "sota", "dxc", "wwff", "psk"];
+          const validSources = ["pota", "sota", "dxc", "wwff", "psk", "wspr"];
           for (const k of validSources) {
             if (savedPresets[k] && typeof savedPresets[k] === "object") state.filterPresets[k] = savedPresets[k];
           }
@@ -8704,6 +8704,25 @@
           hasMap: true,
           spotId: (s) => `${s.callsign}-${s.reporter}-${s.frequency}-${s.spotTime}`,
           sortKey: "spotTime"
+        },
+        wspr: {
+          label: "WSPR",
+          endpoint: "/api/spots/wspr",
+          columns: [
+            { key: "callsign", label: "TX Call", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "band", label: "Band", class: "mode", sortable: true },
+            { key: "rxSign", label: "RX Call", class: "" },
+            { key: "snr", label: "SNR", class: "" },
+            { key: "power", label: "Power", class: "" },
+            { key: "distance", label: "Dist(km)", class: "", sortable: true },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "distance", "age"],
+          hasMap: true,
+          spotId: (s) => `${s.callsign}-${s.rxSign}-${s.frequency}-${s.spotTime}`,
+          sortKey: "spotTime"
         }
       };
       SOLAR_FIELD_DEFS = [
@@ -8813,14 +8832,15 @@
         },
         "widget-activations": {
           title: "On the Air",
-          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from five sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), and PSKReporter (digital mode reception reports).",
+          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from six sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), PSKReporter (digital mode reception reports), and WSPR (weak signal propagation beacons).",
           sections: [
-            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, SOTA, DXC, WWFF, and PSK sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
+            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, SOTA, DXC, WWFF, PSK, and WSPR sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
             { heading: "POTA", content: "Shows operators activating parks for the Parks on the Air program. Click the park reference link to see park details on the POTA website." },
             { heading: "SOTA", content: "Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details." },
             { heading: "DX Cluster", content: "Worldwide spots from the DX Cluster network. Great for finding rare or distant (DX) stations." },
             { heading: "WWFF", content: "Shows operators activating nature reserves for the World Wide Flora & Fauna program. Similar to POTA but with a worldwide scope \u2014 especially popular in Europe. Click the reference link for reserve details." },
-            { heading: "PSK Reporter", content: "Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions." }
+            { heading: "PSK Reporter", content: "Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions." },
+            { heading: "WSPR", content: "Weak Signal Propagation Reporter \u2014 automated beacon reports showing which bands are actually open right now. WSPR beacons transmit every 2 minutes on designated frequencies; receiving stations report SNR, power, and distance. Great for seeing real-time propagation without needing to be on the air yourself." }
           ]
         },
         "widget-map": {
@@ -12284,6 +12304,7 @@ ${beacon.location}`);
     fetchSourceData("dxc");
     fetchSourceData("wwff");
     fetchSourceData("psk");
+    fetchSourceData("wspr");
     if (isWidgetVisible("widget-solar") || isWidgetVisible("widget-propagation") || isWidgetVisible("widget-voacap")) fetchSolar();
     if (isWidgetVisible("widget-lunar")) fetchLunar();
     fetchPropagation();

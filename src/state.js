@@ -56,7 +56,7 @@ const state = {
   maidenheadDebounceTimer: null,
 
   // Map overlay config
-  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false, propagationHeatmap: false },
+  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false, propagationHeatmap: false, logbookQsos: false },
 
   // Propagation heatmap band (standalone overlay — independent of VOACAP widget)
   propagationHeatmapBand: localStorage.getItem('hamtab_prop_heatmap_band') || '20m',
@@ -205,6 +205,15 @@ const state = {
   heatmapLayer: null,       // L.imageOverlay instance
   heatmapRenderTimer: null, // debounce timer for pan/zoom re-render
   voacapParamTimer: null,   // debounce timer for power/mode/TOA/path button clicks
+
+  // Logbook (ADIF import)
+  logbookSortColumn: 'qsoDate', // current sort column key
+  logbookSortDirection: 'desc', // 'asc' or 'desc'
+  logbookFilterBand: '', // band filter ('' = all)
+  logbookFilterMode: '', // mode filter ('' = all)
+  logbookData: [], // parsed QSO records (loaded from IndexedDB on init)
+  logbookMarkers: [], // L.circleMarker[] for QSO positions on map
+  logbookLines: [], // L.polyline[] for QSO geodesic paths
 
   // Beacons / DXpeditions / Contests
   beaconTimer: null,          // setInterval ID for 1-second beacon updates

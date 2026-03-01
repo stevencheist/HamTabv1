@@ -8,6 +8,7 @@ import { renderMarkers } from './markers.js';
 import { renderSpots, saveSpotColumnVisibility } from './spots.js';
 import { updateTableColumns } from './source.js';
 import { renderDxpeditions } from './dxpeditions.js';
+import { renderLogbookOnMap } from './logbook.js';
 
 export function initConfigListeners() {
   // Solar config
@@ -83,6 +84,7 @@ export function initConfigListeners() {
       $('mapOvWeatherRadar').checked = state.mapOverlays.weatherRadar;
       $('mapOvCloudCover').checked = state.mapOverlays.cloudCover;
       $('mapOvLegend').checked = state.mapOverlays.symbolLegend;
+      $('mapOvLogbook').checked = state.mapOverlays.logbookQsos;
       $('mapOvPropHeatmap').checked = state.mapOverlays.propagationHeatmap;
       $('mapOvPropHeatmapBand').value = state.propagationHeatmapBand;
       mapOverlayCfgSplash.classList.remove('hidden');
@@ -102,6 +104,7 @@ export function initConfigListeners() {
       state.mapOverlays.weatherRadar = $('mapOvWeatherRadar').checked;
       state.mapOverlays.cloudCover = $('mapOvCloudCover').checked;
       state.mapOverlays.symbolLegend = $('mapOvLegend').checked;
+      state.mapOverlays.logbookQsos = $('mapOvLogbook').checked;
       state.mapOverlays.propagationHeatmap = $('mapOvPropHeatmap').checked;
       state.propagationHeatmapBand = $('mapOvPropHeatmapBand').value;
       localStorage.setItem('hamtab_prop_heatmap_band', state.propagationHeatmapBand);
@@ -111,6 +114,7 @@ export function initConfigListeners() {
       renderPropagationHeatmapOverlay();
       renderMarkers(); // refresh band path lines
       renderDxpeditions(); // refresh DXpedition markers on map
+      renderLogbookOnMap(); // refresh logbook QSO markers on map
     });
   }
 

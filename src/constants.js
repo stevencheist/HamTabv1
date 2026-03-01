@@ -21,6 +21,7 @@ export const WIDGET_DEFS = [
   { id: 'widget-stopwatch',    name: 'Stopwatch / Timer', short: 'Tmr' },
   { id: 'widget-analog-clock', name: 'Analog Clock',     short: 'Clk' },
   { id: 'widget-on-air-rig',  name: 'On-Air Rig',       short: 'Rig' }, // RADIO_HIDDEN — temporarily unhidden for scope testing
+  { id: 'widget-logbook',     name: 'Logbook',           short: 'Log' },
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)
@@ -538,6 +539,20 @@ export const WIDGET_HELP = {
     ],
     links: [
       { label: 'NOAA Space Weather & Propagation', url: 'https://www.swpc.noaa.gov/communities/radio-communications' },
+    ],
+  },
+  'widget-logbook': {
+    title: 'Logbook',
+    description: 'Import and view your ADIF contact logs. See your QSO history in a sortable table and plot contacts on the map with band-colored paths.',
+    sections: [
+      { heading: 'What is ADIF?', content: 'ADIF (Amateur Data Interchange Format) is the standard file format for ham radio contact logs. Most logging software — N1MM+, Log4OM, WSJT-X, Cloudlog, and others — can export to ADIF (.adi or .adif files).' },
+      { heading: 'Importing Your Log', content: 'Drag and drop an .adi or .adif file onto the import zone, or click to open a file picker. Your log is parsed and stored locally in your browser — nothing is uploaded to a server. You can re-import at any time to update.' },
+      { heading: 'Sorting & Filtering', content: 'Click any column header to sort ascending or descending. Use the band and mode dropdowns to filter to specific contacts. The stats bar shows total QSOs, unique callsigns, and DXCC entities.' },
+      { heading: 'Map View', content: 'Contacts with grid square data are plotted on the map as band-colored markers. Great circle paths connect your QTH to each contact. Toggle the "Logbook" map overlay on or off in Map Overlays config.' },
+      { heading: 'Storage', content: 'Your log is stored in your browser\'s IndexedDB — it persists across sessions and can handle large logs (100,000+ QSOs). Click "Clear" to remove all imported data.' },
+    ],
+    links: [
+      { label: 'ADIF Specification', url: 'https://www.adif.org/' },
     ],
   },
 };

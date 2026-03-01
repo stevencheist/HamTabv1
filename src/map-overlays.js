@@ -1,5 +1,6 @@
 import state from './state.js';
 import { renderHeatmapCanvas, clearHeatmap, renderHeatmapLegend, clearHeatmapLegend } from './rel-heatmap.js';
+import { renderWsprHeatmapCanvas, clearWsprHeatmap, renderWsprHeatmapLegend, clearWsprHeatmapLegend } from './wspr-heatmap.js';
 
 export function renderAllMapOverlays() {
   if (!state.map) return;
@@ -13,6 +14,7 @@ export function renderAllMapOverlays() {
   renderCloudCover();
   renderSymbolLegend();
   renderPropagationHeatmapOverlay();
+  renderWsprHeatmapOverlay();
 }
 
 export function renderLatLonGrid() {
@@ -448,6 +450,18 @@ export function renderPropagationHeatmapOverlay() {
   } else {
     clearHeatmap();
     clearHeatmapLegend();
+  }
+}
+
+// --- WSPR Heatmap Overlay (measured propagation from beacon data) ---
+
+export function renderWsprHeatmapOverlay() {
+  if (state.mapOverlays.wsprHeatmap) {
+    renderWsprHeatmapCanvas(state.wsprHeatmapBand);
+    renderWsprHeatmapLegend(state.wsprHeatmapBand);
+  } else {
+    clearWsprHeatmap();
+    clearWsprHeatmapLegend();
   }
 }
 

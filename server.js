@@ -657,7 +657,7 @@ app.get('/api/spots/wspr', async (req, res) => {
                  FROM wspr.rx
                  WHERE time > now() - INTERVAL 30 MINUTE
                  ORDER BY time DESC
-                 LIMIT 500
+                 LIMIT 1000
                  FORMAT JSON`;
     const url = `https://db1.wspr.live/?query=${encodeURIComponent(sql)}`;
     const json = await fetchJSON(url);

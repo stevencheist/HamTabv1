@@ -27,6 +27,12 @@ export async function fetchSourceData(source) {
       });
     }
     state.sourceData[source] = Array.isArray(data) ? data : [];
+    // Re-render WSPR heatmap when fresh WSPR data arrives
+    if (source === 'wspr' && state.mapOverlays.wsprHeatmap) {
+      clearTimeout(state.wsprHeatmapRenderTimer);
+      const { renderWsprHeatmapCanvas } = require('./wspr-heatmap.js');
+      state.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas(state.wsprHeatmapBand), 200);
+    }
     if (source === state.currentSource) {
       applyFilter();
       renderSpots();

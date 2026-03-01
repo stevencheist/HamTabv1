@@ -86,6 +86,11 @@ export function initMap() {
         const { renderHeatmapCanvas } = require('./rel-heatmap.js');
         state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.propagationHeatmapBand), 200);
       }
+      if (state.mapOverlays.wsprHeatmap) {
+        clearTimeout(state.wsprHeatmapRenderTimer);
+        const { renderWsprHeatmapCanvas } = require('./wspr-heatmap.js');
+        state.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas(state.wsprHeatmapBand), 200);
+      }
     });
     state.map.on('moveend', () => {
       if (state.mapOverlays.latLonGrid) {
@@ -106,6 +111,11 @@ export function initMap() {
         clearTimeout(state.heatmapRenderTimer);
         const { renderHeatmapCanvas } = require('./rel-heatmap.js');
         state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.propagationHeatmapBand), 200);
+      }
+      if (state.mapOverlays.wsprHeatmap) {
+        clearTimeout(state.wsprHeatmapRenderTimer);
+        const { renderWsprHeatmapCanvas } = require('./wspr-heatmap.js');
+        state.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas(state.wsprHeatmapBand), 200);
       }
     });
 

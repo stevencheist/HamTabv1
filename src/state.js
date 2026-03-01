@@ -56,10 +56,14 @@ const state = {
   maidenheadDebounceTimer: null,
 
   // Map overlay config
-  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false, propagationHeatmap: false, logbookQsos: false },
+  mapOverlays: { latLonGrid: false, maidenheadGrid: false, timezoneGrid: false, mufImageOverlay: false, drapOverlay: false, bandPaths: false, dxpedMarkers: true, tropicsLines: false, weatherRadar: false, cloudCover: false, symbolLegend: false, propagationHeatmap: false, wsprHeatmap: false, logbookQsos: false },
 
   // Propagation heatmap band (standalone overlay — independent of VOACAP widget)
   propagationHeatmapBand: localStorage.getItem('hamtab_prop_heatmap_band') || '20m',
+
+  // WSPR heatmap band (measured propagation overlay — independent of VOACAP heatmap)
+  wsprHeatmapBand: localStorage.getItem('hamtab_wspr_heatmap_band') || '20m',
+  wsprHeatmapScope: localStorage.getItem('hamtab_wspr_heatmap_scope') || 'qth', // 'qth' (500km), 'cty' (country bounds), 'world' (all spots)
 
   // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
   dxpedTimeFilter: localStorage.getItem('hamtab_dxped_time_filter') || 'all',
@@ -200,6 +204,8 @@ const state = {
   heatmapOverlayMode: localStorage.getItem('hamtab_heatmap_mode') || 'circles', // 'circles' or 'heatmap'
   heatmapLayer: null,       // L.imageOverlay instance
   heatmapRenderTimer: null, // debounce timer for pan/zoom re-render
+  wsprHeatmapLayer: null,       // L.imageOverlay for WSPR measured-propagation heatmap
+  wsprHeatmapRenderTimer: null, // debounce timer for WSPR heatmap pan/zoom re-render
   voacapParamTimer: null,   // debounce timer for power/mode/TOA/path button clicks
 
   // Logbook (ADIF import)

@@ -2897,6 +2897,41 @@ header {
   margin-top: 2px;
 }
 
+/* ---- WSPR Heatmap Legend ---- */
+
+.wspr-heatmap-legend {
+  background: rgba(30, 30, 30, 0.88);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.7rem;
+  color: var(--text);
+  pointer-events: auto;
+  min-width: 120px;
+}
+
+.wspr-heatmap-legend-title {
+  font-weight: 700;
+  font-size: 0.72rem;
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.wspr-heatmap-legend-bar {
+  width: 100%;
+  height: 10px;
+  border-radius: 2px;
+  background: linear-gradient(to right, #ff0000, #ffff00, #00ff00);
+}
+
+.wspr-heatmap-legend-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.6rem;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
 /* ---- Map Overlay Band Selector ---- */
 
 .map-ov-heatmap-row {

@@ -49,8 +49,9 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - RSS feed widget with configurable sources
 - DX news ticker
 - BOTA (Beaches on the Air) spot source
-- <!-- codex --> Band Opportunity Score widget (VOACAP + PSK + WSPR + space weather) with per-band confidence/reason tags. See `ai-workflows/snapshots/2026-03-01-01-codex-hamtab-recommendations.md`.
-- <!-- codex --> Centralized fetch scheduler with jitter/backoff/freshness metadata to reduce burst polling and improve stale-data UX. See `ai-workflows/snapshots/2026-03-01-01-codex-hamtab-recommendations.md`.
+- Band Opportunity Score widget — composite score (0-100) per band combining VOACAP reliability, PSK/WSPR heard density, and space weather penalties, with "Top 3 bands now" display
+- Centralized fetch scheduler with jitter, exponential backoff, and freshness metadata to reduce burst polling and improve stale-data UX
+- SSE feed channel for lanmode low-latency push updates (`spots:update`, `status:update`, `alerts:update`) with HTTP polling fallback for hostedmode
 
 ### Map & Visualization
 - Azimuthal map projection (DE-centered) with bearing rings
@@ -72,12 +73,17 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - Custom theme builder with live preview
 - HamClock compatibility mode (one-click layout preset)
 - Multi-language support (i18n)
-- <!-- codex --> Unified Alert Center (watchlist hits, stale feeds, weather/update events) with suppression windows and severity levels. See `ai-workflows/snapshots/2026-03-01-01-codex-hamtab-recommendations.md`.
-- <!-- codex --> Accessibility pass: keyboard nav, ARIA labels/sort announcements, focus-trapped overlays, and reduced-motion mode. See `ai-workflows/snapshots/2026-03-01-01-codex-hamtab-recommendations.md`.
-<!-- codex: suggested section "Platform & Architecture" -->
-- <!-- codex --> Decompose monolithic `server.js` into domain routers/services and add state schema versioning with declarative migrations. See `ai-workflows/snapshots/2026-03-01-01-codex-hamtab-recommendations.md`.
-<!-- codex: suggested section "Security Hardening" -->
-- <!-- codex --> Tighten `/api/config/env` write controls (token-required auth, audit logging, CSRF protection, route-specific write throttles). See `ai-workflows/snapshots/2026-03-01-01-codex-hamtab-recommendations.md`.
+- Unified Alert Center — in-app alert queue (watchlist hits, stale feeds, NWS weather, update events) with severity levels and per-type suppression windows
+- Accessibility pass — keyboard navigation, ARIA labels, sort-state announcements, focus-trapped overlays, Escape-close standardization, reduced-motion mode
+- Optimize heavy widget rendering — virtualized row rendering for logbook/spots tables, spatial indexing for float-mode overlap resolution, requestAnimationFrame batching
+- Visual density modes — Simple / Operator / Power-user presets controlling default widget visibility, spacing, and typography scale; includes HamClock transition preset
+
+### Platform & Architecture
+- Decompose monolithic `server.js` into domain routers (`routes/spots.js`, `routes/weather.js`, `routes/solar.js`, etc.) and shared services (`services/cache-store.js`, `services/http-fetch.js`)
+- Version and migrate client state schema — `stateSchemaVersion` with declarative migration registry, validation layer, per-subsystem safe reset
+
+### Security Hardening
+- Harden config/admin endpoints — require `CONFIG_ADMIN_TOKEN` for write operations (no IP-only fallback), add request audit log with value redaction, anti-CSRF tokens, endpoint-level strict rate limits
 
 ## Contributing
 

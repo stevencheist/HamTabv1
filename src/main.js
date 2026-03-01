@@ -58,6 +58,7 @@ import { initTabs } from './tabs.js';
 import { initLayoutDropdown } from './layouts.js';
 import { pullConfig, isSyncEnabled } from './config-sync.js';
 import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
+import { initLogbook, renderLogbookOnMap } from './logbook.js';
 
 // Initialize map
 initMap();
@@ -111,6 +112,7 @@ initClockConfigListeners();
 initMobileMenu();
 initTabs();
 initOnAirRig(); // RADIO_HIDDEN — temporarily re-enabled for scope testing
+initLogbook();
 
 // Wire initApp into splash dismissal
 function initApp() {

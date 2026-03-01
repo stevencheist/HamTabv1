@@ -1042,6 +1042,35 @@
       <div class="widget-resize"></div>
     </div>
 
+    <!-- Logbook (ADIF Import) -->
+    <div class="widget" id="widget-logbook">
+      <div class="widget-header">Logbook <span id="logbookCount" class="spot-count"></span>
+        <button class="widget-help-btn" data-widget="widget-logbook" title="Help">?</button>
+        <button class="widget-cfg-btn" id="logbookImportBtn" title="Import ADIF">&#x2912;</button>
+        <button class="widget-cfg-btn" id="logbookClearBtn" title="Clear log">&#x2715;</button>
+      </div>
+      <div class="widget-body">
+        <div id="logbookImportZone" class="logbook-import-zone">
+          <div class="logbook-import-icon">&#x1F4C4;</div>
+          <div>Drop .adi file here or click to import</div>
+        </div>
+        <div id="logbookContent" class="hidden">
+          <div class="logbook-toolbar">
+            <select id="logbookBandFilter" class="logbook-filter-select"><option value="">All Bands</option></select>
+            <select id="logbookModeFilter" class="logbook-filter-select"><option value="">All Modes</option></select>
+            <span id="logbookStats" class="logbook-stats"></span>
+          </div>
+          <div class="table-wrap">
+            <table id="logbookTable" class="logbook-table">
+              <thead id="logbookHead"></thead>
+              <tbody id="logbookBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
     <!-- On-Air Rig Control --><!-- RADIO_HIDDEN -->
     <div class="widget" id="widget-on-air-rig" style="display:none">
       <div class="widget-header">On-Air Rig
@@ -1146,6 +1175,7 @@
         <label><input type="checkbox" id="mapOvWeatherRadar" /> Weather Radar</label>
         <label><input type="checkbox" id="mapOvCloudCover" /> Cloud Cover (OpenWeatherMap)</label>
         <label><input type="checkbox" id="mapOvLegend" /> Map Legend</label>
+        <label><input type="checkbox" id="mapOvLogbook" /> Logbook QSOs</label>
       </div>
       <button id="mapOverlayCfgOk">OK</button>
     </div>

@@ -12,11 +12,169 @@ import {
   isRigConnected,
   getRigStore,
 } from './cat/index.js';
-import { getBandSegments, getBandEdges, getPositionInBand } from './cat/profiles/band-overlay-engine.js';
+import { BAND_SEGMENTS, getBandSegments, getBandEdges, getPositionInBand } from './cat/profiles/band-overlay-engine.js';
+import { startScope, stopScope } from './scope/scope-renderer.js';
 
 let unsubscribe = null;
 let initialized = false;
 let listenersAttached = false; // event listeners persist across show/hide — only attach once
+
+// --- Band/Mode selector data ---
+
+const BAND_IDS = ['160m', '80m', '40m', '30m', '20m', '17m', '15m', '12m', '10m', '6m'];
+
+// User-facing modes → CAT mode strings
+const USER_MODES = [
+  { label: 'LSB',  cat: 'LSB' },
+  { label: 'USB',  cat: 'USB' },
+  { label: 'CW',   cat: 'CW-U' },
+  { label: 'AM',   cat: 'AM' },
+  { label: 'FM',   cat: 'FM' },
+  { label: 'DATA', cat: 'DATA-U' },
+];
+
+// Correct SSB sideband per band (ham convention)
+// 160/80/40 → LSB, 60m → USB (by rule), 20m+ → USB, 30m → no SSB
+const BAND_SIDEBAND = {
+  '160m': 'LSB', '80m': 'LSB', '40m': 'LSB',
+  '30m': null,   // CW/Data only — no SSB voice
+  '20m': 'USB',  '17m': 'USB', '15m': 'USB',
+  '12m': 'USB',  '10m': 'USB', '6m': 'USB',
+};
+
+// FT8 dial frequencies per band (Hz) — used for DATA mode defaults
+const FT8_FREQUENCIES = {
+  '160m': 1_840_000,  '80m': 3_573_000,  '40m': 7_074_000,  '30m': 10_136_000,
+  '20m': 14_074_000,  '17m': 18_100_000, '15m': 21_074_000, '12m': 24_915_000,
+  '10m': 28_074_000,  '6m': 50_313_000,
+};
+
+// --- Compute default frequency for a band+mode combo ---
+// Uses BAND_SEGMENTS zones to land in the right part of the band.
+function getDefaultFrequency(bandId, userMode) {
+  const segments = BAND_SEGMENTS[bandId];
+  if (!segments || segments.length === 0) return null;
+
+  // Find zones by type
+  const cwZone = segments.find(s => s.zone === 'CW');
+  const dataZone = segments.find(s => s.zone === 'DATA');
+  const phoneZone = segments.find(s => s.zone === 'PHONE');
+
+  if (userMode === 'CW') {
+    // CW zone midpoint, offset +25kHz into the zone
+    if (cwZone) return cwZone.min + 25_000;
+    return segments[0].min + 25_000;
+  }
+
+  if (userMode === 'DATA') {
+    // Prefer known FT8 frequency, else DATA zone midpoint
+    const ft8 = FT8_FREQUENCIES[bandId];
+    if (ft8) return ft8;
+    if (dataZone) return Math.round((dataZone.min + dataZone.max) / 2);
+    return segments[0].min + 25_000;
+  }
+
+  // SSB/AM/FM → PHONE zone
+  if (phoneZone) {
+    return Math.round((phoneZone.min + phoneZone.max) / 2);
+  }
+
+  // 30m exception: no phone zone — fall back to CW zone midpoint
+  if (cwZone) {
+    return Math.round((cwZone.min + cwZone.max) / 2);
+  }
+
+  return Math.round((segments[0].min + segments[segments.length - 1].max) / 2);
+}
+
+// --- Map CAT mode string back to user-facing label ---
+function catModeToUserLabel(catMode) {
+  if (!catMode) return '';
+  const upper = catMode.toUpperCase();
+  if (upper === 'CW' || upper === 'CW-U' || upper === 'CW-L' || upper === 'CW-R') return 'CW';
+  if (upper === 'LSB') return 'LSB';
+  if (upper === 'USB') return 'USB';
+  if (upper === 'AM') return 'AM';
+  if (upper === 'FM' || upper === 'FM-N') return 'FM';
+  if (upper.startsWith('DATA') || upper.startsWith('DIG') || upper === 'PKT-U' || upper === 'PKT-L'
+    || upper === 'RTTY' || upper === 'RTTY-R' || upper === 'PSK') return 'DATA';
+  // SSB without explicit sideband — guess from common usage
+  if (upper === 'SSB') return 'USB';
+  return '';
+}
+
+// --- Get the CAT mode string for a user selection + band ---
+// For LSB/USB: auto-selects correct sideband based on band convention.
+function userModeToCat(userMode, bandId) {
+  const entry = USER_MODES.find(m => m.label === userMode);
+  if (!entry) return 'USB';
+
+  // SSB sideband: use band convention (160/80/40 → LSB, 20m+ → USB)
+  if (userMode === 'LSB' || userMode === 'USB') {
+    const correct = BAND_SIDEBAND[bandId];
+    return correct || entry.cat; // fall back to user pick if band has no SSB
+  }
+
+  return entry.cat;
+}
+
+// --- Populate band + mode dropdowns ---
+function populateBandMode() {
+  const bandSelect = $('rigBandSelect');
+  const modeSelect = $('rigModeSelect');
+  if (!bandSelect || !modeSelect) return;
+
+  // Populate bands (skip if already populated)
+  if (bandSelect.options.length <= 1) {
+    for (const bandId of BAND_IDS) {
+      const opt = document.createElement('option');
+      opt.value = bandId;
+      opt.textContent = bandId;
+      bandSelect.appendChild(opt);
+    }
+  }
+
+  // Populate modes (skip if already populated)
+  if (modeSelect.options.length <= 1) {
+    for (const mode of USER_MODES) {
+      const opt = document.createElement('option');
+      opt.value = mode.label;
+      opt.textContent = mode.label;
+      modeSelect.appendChild(opt);
+    }
+  }
+}
+
+// --- Handle band/mode selection changes ---
+function onBandModeChange() {
+  const bandSelect = $('rigBandSelect');
+  const modeSelect = $('rigModeSelect');
+  if (!bandSelect || !modeSelect) return;
+  if (!isRigConnected()) return;
+
+  const bandId = bandSelect.value;
+  let userMode = modeSelect.value;
+  if (!bandId || !userMode) return;
+
+  // Auto-correct sideband when band changes
+  // If user has LSB or USB selected, switch to the correct one for this band
+  if (userMode === 'LSB' || userMode === 'USB') {
+    const correct = BAND_SIDEBAND[bandId];
+    if (correct && correct !== userMode) {
+      userMode = correct;
+      modeSelect.value = correct;
+    }
+  }
+
+  const targetHz = getDefaultFrequency(bandId, userMode);
+  if (!targetHz) return;
+
+  const catMode = userModeToCat(userMode, bandId);
+
+  // Send frequency first, then mode
+  sendRigCommand('setFrequency', targetHz, 1);
+  sendRigCommand('setMode', catMode, 1);
+}
 let lastBandOverlay = ''; // track last rendered band to avoid thrashing
 
 // --- Format frequency in Hz to standard ham display ---
@@ -162,6 +320,24 @@ function render(state) {
 
   // Band overlay — show CW/DIGI/PHONE zones with position indicator
   renderBandOverlay(state);
+
+  // Band + Mode selectors — WIP, needs live radio testing
+  // const bandModeRow = $('rigBandModeRow');
+  // const bandSelect = $('rigBandSelect');
+  // const modeSelect = $('rigModeSelect');
+  // if (bandModeRow) {
+  //   if (state.connected) {
+  //     bandModeRow.classList.remove('hidden');
+  //     if (bandSelect && !bandSelect.matches(':focus') && state.band) {
+  //       bandSelect.value = state.band;
+  //     }
+  //     if (modeSelect && !modeSelect.matches(':focus') && state.mode) {
+  //       modeSelect.value = catModeToUserLabel(state.mode);
+  //     }
+  //   } else {
+  //     bandModeRow.classList.add('hidden');
+  //   }
+  // }
 
   // Power slider — show when connected and not in TX
   const powerRow = $('rigPowerRow');
@@ -344,6 +520,7 @@ async function handleConnectClick() {
   if (isRigConnected()) {
     connectBtn.disabled = true;
     statusEl.textContent = 'Disconnecting...';
+    stopScope();
     try {
       await disconnectRig();
     } catch (err) {
@@ -426,6 +603,11 @@ async function handleConnectClick() {
     statusEl.textContent = `Error: ${err.message}`;
   }
 
+  // Start scope if connection succeeded
+  if (isRigConnected()) {
+    startScope({ longitude: state.myLon || 0 });
+  }
+
   connectBtn.disabled = false;
 }
 
@@ -441,7 +623,14 @@ export function initOnAirRig() {
   // (DOM elements stay in the page, just hidden via display:none)
   if (!listenersAttached) {
     populateProfiles();
+    // populateBandMode(); // WIP — needs live radio testing
     connectBtn.addEventListener('click', handleConnectClick);
+
+    // Band + Mode selectors — WIP, needs live radio testing
+    // const bandSelect = $('rigBandSelect');
+    // const modeSelect = $('rigModeSelect');
+    // if (bandSelect) bandSelect.addEventListener('change', onBandModeChange);
+    // if (modeSelect) modeSelect.addEventListener('change', onBandModeChange);
 
     // Power slider
     const powerSlider = $('rigPowerSlider');
@@ -470,6 +659,9 @@ export function initOnAirRig() {
 // --- Tear down widget: disconnect rig, unsubscribe, stop all CAT activity ---
 export async function destroyOnAirRig() {
   if (!initialized) return;
+
+  // Stop scope before disconnecting
+  stopScope();
 
   // Disconnect rig if connected (stops polling, safety modules, propagation engine)
   if (isRigConnected()) {

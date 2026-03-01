@@ -34,7 +34,7 @@ import { initFullscreenListeners } from './fullscreen.js';
 import { initWeatherListeners, fetchWeather, startNwsPolling } from './weather.js';
 import { initPropListeners, updateGrayLine, initSolarImage } from './solar.js';
 import { updateClocks } from './clocks.js';
-import { renderSpots } from './spots.js';
+import { updateSpotAges } from './spots.js';
 import { initSatellites, fetchSatellitePositions, fetchIssPosition } from './satellites.js';
 import { initSpotDetail } from './spot-detail.js';
 import { initDayNightToggle, renderPropagationWidget } from './band-conditions.js';
@@ -79,7 +79,7 @@ setInterval(() => { if (isWidgetVisible('widget-satellites')) fetchSatellitePosi
 // Clocks
 updateClocks();
 setInterval(() => { updateClocks(); updateBigClock(); updateAnalogClock(); }, 1000);
-setInterval(renderSpots, 30000); // 30 s — re-render spot table to update age column
+setInterval(updateSpotAges, 30000); // 30 s — patch age cells in place (avoids full table rebuild)
 
 // Set up all event listeners
 initSourceListeners();

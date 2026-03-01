@@ -50,8 +50,9 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - DX news ticker
 - BOTA (Beaches on the Air) spot source
 - Band Opportunity Score widget — composite score (0-100) per band combining VOACAP reliability, PSK/WSPR heard density, and space weather penalties, with "Top 3 bands now" display
-- Centralized fetch scheduler with jitter, exponential backoff, and freshness metadata to reduce burst polling and improve stale-data UX
+- Centralized fetch scheduler — jitter, exponential backoff, freshness metadata, per-endpoint concurrency caps, visibility-priority budget, and randomized phase offsets to eliminate burst polling
 - SSE feed channel for lanmode low-latency push updates (`spots:update`, `status:update`, `alerts:update`) with HTTP polling fallback for hostedmode
+- Audit cache-busting query params (`_t=Date.now()`) — remove where server cache headers are sufficient, keep explicit bypass for hard-refresh/debug only
 
 ### Map & Visualization
 - Azimuthal map projection (DE-centered) with bearing rings
@@ -75,8 +76,15 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - Multi-language support (i18n)
 - Unified Alert Center — in-app alert queue (watchlist hits, stale feeds, NWS weather, update events) with severity levels and per-type suppression windows
 - Accessibility pass — keyboard navigation, ARIA labels, sort-state announcements, focus-trapped overlays, Escape-close standardization, reduced-motion mode
-- Optimize heavy widget rendering — virtualized row rendering for logbook/spots tables, spatial indexing for float-mode overlap resolution, requestAnimationFrame batching
 - Visual density modes — Simple / Operator / Power-user presets controlling default widget visibility, spacing, and typography scale; includes HamClock transition preset
+
+### Performance & Rendering
+- Incremental rendering initiative — replace clear-and-rebuild patterns with diff/patch across all major render paths:
+  - Marker diff engine for map updates (add/update/remove by `spotId`) instead of clearing all layers each refresh
+  - Logbook overlay delta rendering (diffed marker/path updates) instead of full clear/repaint on filter/sort
+  - Live-spots adaptive geodesic quality (zoom-based segment counts, per-band line caps for high-density maps)
+- Worker-based heatmap rasterization — move WSPR/VOACAP canvas compute to Web Worker (OffscreenCanvas/ImageBitmap) with zoom/bounds/band tile memoization
+- Virtualized row rendering for logbook and spots tables, spatial indexing for float-mode overlap resolution, requestAnimationFrame batching
 
 ### Platform & Architecture
 - Decompose monolithic `server.js` into domain routers (`routes/spots.js`, `routes/weather.js`, `routes/solar.js`, etc.) and shared services (`services/cache-store.js`, `services/http-fetch.js`)

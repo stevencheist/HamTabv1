@@ -118,6 +118,8 @@ export function renderSpots() {
         const time = spot.spotTime ? new Date(spot.spotTime) : null;
         td.textContent = time ? fmtTime(time, { hour: '2-digit', minute: '2-digit' }) : '';
       } else if (col.key === 'age') {
+        td.dataset.col = 'age';
+        td.dataset.spotTime = spot.spotTime || '';
         td.textContent = formatAge(spot.spotTime);
       } else if (col.key === 'callsign') {
         td.textContent = spot.activator || spot.callsign || '';
@@ -162,4 +164,13 @@ export function renderSpots() {
     tr.addEventListener('click', () => flyToSpot(spot));
     spotsBody.appendChild(tr);
   });
+}
+
+// --- Incremental age cell update ---
+// Patches only the age column text in place, avoiding a full table rebuild every 30s.
+export function updateSpotAges() {
+  const cells = $('spotsBody').querySelectorAll('td[data-col="age"]');
+  for (const td of cells) {
+    td.textContent = formatAge(td.dataset.spotTime);
+  }
 }

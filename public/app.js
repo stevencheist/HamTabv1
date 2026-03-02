@@ -6915,17 +6915,7 @@
   }
   function broadcastSpotSelection(spot) {
     if (!state_default.crossTab.channelReady) return;
-    broadcast({ type: "spot-selected", spot: spot ? sanitizeSpot(spot) : null });
-  }
-  function sanitizeSpot(spot) {
-    const clean = {};
-    for (const [k, v] of Object.entries(spot)) {
-      const t = typeof v;
-      if (v === null || t === "string" || t === "number" || t === "boolean") {
-        clean[k] = v;
-      }
-    }
-    return clean;
+    broadcast({ type: "spot-selected", spot: spot || null });
   }
   function getCrossTabState() {
     const ct = state_default.crossTab;
@@ -7214,45 +7204,35 @@
     }
   }
   function selectSpotFromRemote(spot) {
-    if (!state_default.appInitialized) return;
-    try {
-      ensureIcons();
-    } catch (e) {
-      return;
-    }
+    ensureIcons();
     clearGeodesicLine();
     const oldSid = state_default.selectedSpotId;
     if (oldSid && state_default.markers[oldSid]) {
-      try {
-        state_default.markers[oldSid].setIcon(defaultIcon);
-        if (state_default.clusterGroup) {
-          const oldParent = state_default.clusterGroup.getVisibleParent(state_default.markers[oldSid]);
-          if (oldParent && oldParent !== state_default.markers[oldSid] && oldParent._icon) {
-            oldParent._icon.classList.remove("marker-cluster-selected");
-          }
+      state_default.markers[oldSid].setIcon(defaultIcon);
+      if (state_default.clusterGroup) {
+        const oldParent = state_default.clusterGroup.getVisibleParent(state_default.markers[oldSid]);
+        if (oldParent && oldParent !== state_default.markers[oldSid] && oldParent._icon) {
+          oldParent._icon.classList.remove("marker-cluster-selected");
         }
-      } catch (e) {
       }
     }
     if (!spot) {
       state_default.selectedSpotId = null;
       clearSpotDetail();
       clearDedxSpot();
+      onSpotDeselected();
       document.querySelectorAll("#spotsBody tr.selected").forEach((tr) => tr.classList.remove("selected"));
       return;
     }
     const sid = spotId(spot);
     state_default.selectedSpotId = sid;
     if (state_default.markers[sid]) {
-      try {
-        state_default.markers[sid].setIcon(selectedIcon);
-        if (state_default.clusterGroup) {
-          const newParent = state_default.clusterGroup.getVisibleParent(state_default.markers[sid]);
-          if (newParent && newParent !== state_default.markers[sid] && newParent._icon) {
-            newParent._icon.classList.add("marker-cluster-selected");
-          }
+      state_default.markers[sid].setIcon(selectedIcon);
+      if (state_default.clusterGroup) {
+        const newParent = state_default.clusterGroup.getVisibleParent(state_default.markers[sid]);
+        if (newParent && newParent !== state_default.markers[sid] && newParent._icon) {
+          newParent._icon.classList.add("marker-cluster-selected");
         }
-      } catch (e) {
       }
     }
     document.querySelectorAll("#spotsBody tr").forEach((tr) => {
@@ -7261,9 +7241,10 @@
     updateSpotDetail(spot);
     setDedxSpot(spot);
     drawGeodesicLine(spot);
+    onSpotSelected();
     const lat = parseFloat(spot.latitude);
     const lon = parseFloat(spot.longitude);
-    if (state_default.map && !isNaN(lat) && !isNaN(lon)) {
+    if (state_default.map && !isNaN(lat) && !isNaN(lon) && state_default.mapCenterMode === "spot") {
       state_default.map.flyTo([lat, lon], 5, { duration: 0.8 });
     }
   }
@@ -22659,11 +22640,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
   state_default.widgetVisibility = loadWidgetVisibility();
   state_default.spotColumnVisibility = loadSpotColumnVisibility();
-  try {
-    initCrossTab();
-  } catch (e) {
-    console.warn("[xtab] Init failed, continuing in solo mode:", e.message);
-  }
+  initCrossTab();
   initMap();
   updateGrayLine();
   updateSunMarker();

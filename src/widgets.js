@@ -21,6 +21,7 @@ export function loadWidgetVisibility() {
 
 export function saveWidgetVisibility() {
   localStorage.setItem(WIDGET_VIS_KEY, JSON.stringify(state.widgetVisibility));
+  document.dispatchEvent(new Event('hamtab:widget-vis-changed'));
 }
 
 export function isWidgetVisible(id) {

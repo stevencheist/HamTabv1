@@ -298,8 +298,36 @@
         // Progressive scaling
         reflowActive: false,
         // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
+        // Debug mode — enables verbose console logging (cross-tab, fetch diagnostics)
+        // Toggle at runtime via console: window.__hamtab_debug()
+        debug: false,
         // Init flag
         appInitialized: false,
+        // --- Cross-Tab Communication (Phase 0 scaffolding) ---
+        crossTab: {
+          tabId: null,
+          // string — random UUID per page load
+          role: "solo",
+          // 'leader' | 'follower' | 'solo'
+          leaderId: null,
+          // tabId of current leader
+          leaseUntil: 0,
+          // timestamp ms — current lease expiry
+          lastHeartbeat: 0,
+          // timestamp ms — last received heartbeat
+          heartbeatTimer: null,
+          // setInterval ID
+          electionTimer: null,
+          // setTimeout ID
+          interests: {},
+          // { tabId: Set<widgetId> }
+          interestDebounceTimer: null,
+          // setTimeout ID
+          peerCount: 0,
+          // known peer tabs
+          channelReady: false
+          // true if BroadcastChannel created OK
+        },
         // Sun/Moon sub-point positions
         sunLat: null,
         // sub-solar latitude (degrees) — declination
@@ -5731,6 +5759,7 @@
   }
   function saveWidgetVisibility() {
     localStorage.setItem(WIDGET_VIS_KEY, JSON.stringify(state_default.widgetVisibility));
+    document.dispatchEvent(new Event("hamtab:widget-vis-changed"));
   }
   function isWidgetVisible(id) {
     return state_default.widgetVisibility[id] !== false;
@@ -8501,6 +8530,14 @@
     WIDGET_DEFS: () => WIDGET_DEFS,
     WIDGET_HELP: () => WIDGET_HELP,
     WIDGET_STORAGE_KEY: () => WIDGET_STORAGE_KEY,
+    XTAB_CHANNEL_NAME: () => XTAB_CHANNEL_NAME,
+    XTAB_ELECTION_JITTER_MAX_MS: () => XTAB_ELECTION_JITTER_MAX_MS,
+    XTAB_ELECTION_JITTER_MIN_MS: () => XTAB_ELECTION_JITTER_MIN_MS,
+    XTAB_HEARTBEAT_MS: () => XTAB_HEARTBEAT_MS,
+    XTAB_INTEREST_DEBOUNCE_MS: () => XTAB_INTEREST_DEBOUNCE_MS,
+    XTAB_LEADER_KEY: () => XTAB_LEADER_KEY,
+    XTAB_LEADER_MISS_GRACE_MS: () => XTAB_LEADER_MISS_GRACE_MS,
+    XTAB_LEASE_MS: () => XTAB_LEASE_MS,
     getBandColor: () => getBandColor,
     getBandColorOverrides: () => getBandColorOverrides,
     getLayoutMode: () => getLayoutMode,
@@ -8521,7 +8558,7 @@
   function getBandColorOverrides() {
     return { ...bandColorOverrides };
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, XTAB_CHANNEL_NAME, XTAB_LEADER_KEY, XTAB_HEARTBEAT_MS, XTAB_LEASE_MS, XTAB_ELECTION_JITTER_MIN_MS, XTAB_ELECTION_JITTER_MAX_MS, XTAB_LEADER_MISS_GRACE_MS, XTAB_INTEREST_DEBOUNCE_MS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -9413,6 +9450,14 @@
           B2: "widget-rst"
         }
       };
+      XTAB_CHANNEL_NAME = "hamtab_xtab_v1";
+      XTAB_LEADER_KEY = "hamtab_xtab_leader_v1";
+      XTAB_HEARTBEAT_MS = 2e3;
+      XTAB_LEASE_MS = 8e3;
+      XTAB_ELECTION_JITTER_MIN_MS = 150;
+      XTAB_ELECTION_JITTER_MAX_MS = 500;
+      XTAB_LEADER_MISS_GRACE_MS = 3e3;
+      XTAB_INTEREST_DEBOUNCE_MS = 500;
     }
   });
 
@@ -12094,8 +12139,8 @@ ${beacon.location}`);
     drawLine(ctx, bounds, data, logMin, logMax, "#00e5ff", (d) => {
       const v = d.value;
       if (v <= 0) return null;
-      const log = Math.log10(v);
-      return Math.max(logMin, Math.min(logMax, log));
+      const log2 = Math.log10(v);
+      return Math.max(logMin, Math.min(logMax, log2));
     });
   }
   function drawSfiGraph(ctx, bounds, data) {
@@ -17522,7 +17567,8 @@ ${beacon.location}`);
     "hamtab_hamqth_pass",
     "hamtab_wx_station",
     "hamtab_active_tab",
-    "hamtab_mobile_secondary"
+    "hamtab_mobile_secondary",
+    "hamtab_xtab_leader_v1"
   ]);
   function collectSyncableConfig() {
     const config = {};
@@ -18981,8 +19027,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.58.1";
-    $("aboutVersion").textContent = "0.58.1";
+    $("splashVersion").textContent = "0.59.0";
+    $("aboutVersion").textContent = "0.59.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -22200,6 +22246,322 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
 
   // src/main.js
   init_tabs();
+
+  // src/cross-tab.js
+  init_state();
+  init_widgets();
+  init_constants();
+  var channel = null;
+  function log(...args) {
+    if (state_default.debug) console.log("[xtab]", ...args);
+  }
+  function generateTabId() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    const buf = new Uint8Array(16);
+    crypto.getRandomValues(buf);
+    buf[6] = buf[6] & 15 | 64;
+    buf[8] = buf[8] & 63 | 128;
+    return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+  function openChannel() {
+    if (typeof BroadcastChannel === "undefined") {
+      log("BroadcastChannel not supported \u2014 staying solo");
+      return false;
+    }
+    try {
+      channel = new BroadcastChannel(XTAB_CHANNEL_NAME);
+      channel.onmessage = (event) => handleMessage(event);
+      channel.onmessageerror = () => log("Message deserialization error");
+      state_default.crossTab.channelReady = true;
+      return true;
+    } catch (e) {
+      log("Failed to open BroadcastChannel:", e.message);
+      return false;
+    }
+  }
+  function broadcast(msg) {
+    if (!channel) return;
+    try {
+      channel.postMessage({
+        ...msg,
+        senderId: state_default.crossTab.tabId,
+        ts: Date.now()
+      });
+    } catch (e) {
+      log("Broadcast failed:", e.message);
+    }
+  }
+  function readLease() {
+    try {
+      const raw = localStorage.getItem(XTAB_LEADER_KEY);
+      if (!raw) return null;
+      const lease = JSON.parse(raw);
+      if (!lease || typeof lease.tabId !== "string" || typeof lease.leaseUntil !== "number") return null;
+      return lease;
+    } catch (e) {
+      return null;
+    }
+  }
+  function writeLease(tabId) {
+    const lease = { tabId, leaseUntil: Date.now() + XTAB_LEASE_MS };
+    localStorage.setItem(XTAB_LEADER_KEY, JSON.stringify(lease));
+    return lease;
+  }
+  function clearLease() {
+    localStorage.removeItem(XTAB_LEADER_KEY);
+  }
+  function isLeaseValid(lease) {
+    return lease && lease.leaseUntil > Date.now();
+  }
+  function attemptElection() {
+    const ct = state_default.crossTab;
+    const existing = readLease();
+    if (existing && isLeaseValid(existing) && existing.tabId !== ct.tabId) {
+      becomeFollower(existing.tabId);
+      return;
+    }
+    writeLease(ct.tabId);
+    const verify = readLease();
+    if (verify && verify.tabId === ct.tabId) {
+      becomeLeader();
+    } else {
+      becomeFollower(verify ? verify.tabId : null);
+    }
+  }
+  function scheduleElection() {
+    const ct = state_default.crossTab;
+    clearTimeout(ct.electionTimer);
+    const jitter = XTAB_ELECTION_JITTER_MIN_MS + Math.random() * (XTAB_ELECTION_JITTER_MAX_MS - XTAB_ELECTION_JITTER_MIN_MS);
+    ct.electionTimer = setTimeout(() => attemptElection(), jitter);
+    log(`Election scheduled in ${Math.round(jitter)}ms`);
+  }
+  function becomeLeader() {
+    const ct = state_default.crossTab;
+    const prev = ct.role;
+    ct.role = "leader";
+    ct.leaderId = ct.tabId;
+    log(`Role: ${prev} -> leader`);
+    clearInterval(ct.heartbeatTimer);
+    clearTimeout(ct.electionTimer);
+    leaderHeartbeatTick();
+    ct.heartbeatTimer = setInterval(leaderHeartbeatTick, XTAB_HEARTBEAT_MS);
+  }
+  function becomeFollower(leaderId) {
+    const ct = state_default.crossTab;
+    const prev = ct.role;
+    ct.role = "follower";
+    ct.leaderId = leaderId;
+    ct.lastHeartbeat = Date.now();
+    log(`Role: ${prev} -> follower (leader: ${leaderId ? leaderId.slice(0, 8) : "?"})`);
+    clearInterval(ct.heartbeatTimer);
+    clearTimeout(ct.electionTimer);
+    ct.heartbeatTimer = setInterval(followerMissDetectionTick, XTAB_HEARTBEAT_MS);
+    scheduleBroadcastInterests();
+  }
+  function becomeSolo(reason) {
+    const ct = state_default.crossTab;
+    const prev = ct.role;
+    ct.role = "solo";
+    ct.leaderId = null;
+    ct.peerCount = 0;
+    ct.interests = {};
+    clearInterval(ct.heartbeatTimer);
+    clearTimeout(ct.electionTimer);
+    clearTimeout(ct.interestDebounceTimer);
+    ct.heartbeatTimer = null;
+    ct.electionTimer = null;
+    ct.interestDebounceTimer = null;
+    if (prev !== "solo") log(`Role: ${prev} -> solo (${reason})`);
+  }
+  function leaderHeartbeatTick() {
+    const ct = state_default.crossTab;
+    writeLease(ct.tabId);
+    ct.leaseUntil = Date.now() + XTAB_LEASE_MS;
+    broadcast({
+      type: "leader-heartbeat",
+      interests: serializeInterests(),
+      peerCount: Object.keys(ct.interests).length
+    });
+  }
+  function followerMissDetectionTick() {
+    const ct = state_default.crossTab;
+    const elapsed2 = Date.now() - ct.lastHeartbeat;
+    const lease = readLease();
+    const leaseStale = !lease || !isLeaseValid(lease);
+    if (elapsed2 > XTAB_LEADER_MISS_GRACE_MS && leaseStale) {
+      log(`Leader miss detected (${elapsed2}ms since last heartbeat, lease stale)`);
+      clearInterval(ct.heartbeatTimer);
+      ct.heartbeatTimer = null;
+      scheduleElection();
+    }
+  }
+  function handleMessage(event) {
+    const msg = event.data;
+    if (!msg || typeof msg !== "object") return;
+    if (msg.senderId === state_default.crossTab.tabId) return;
+    const ct = state_default.crossTab;
+    switch (msg.type) {
+      case "leader-heartbeat":
+        if (ct.role === "follower" || ct.role === "solo") {
+          ct.lastHeartbeat = Date.now();
+          ct.leaderId = msg.senderId;
+          ct.peerCount = (msg.peerCount || 0) + 1;
+          if (ct.role === "solo") {
+            becomeFollower(msg.senderId);
+          }
+          if (msg.interests) {
+            deserializeInterests(msg.interests);
+          }
+        }
+        break;
+      case "leader-resign":
+        log(`Leader ${msg.senderId.slice(0, 8)} resigned`);
+        if (ct.role === "follower") {
+          clearInterval(ct.heartbeatTimer);
+          ct.heartbeatTimer = null;
+          scheduleElection();
+        }
+        break;
+      case "interest-announce":
+        if (ct.role === "leader" && msg.widgets && Array.isArray(msg.widgets)) {
+          ct.interests[msg.senderId] = new Set(msg.widgets);
+          log(`Interests from ${msg.senderId.slice(0, 8)}: [${msg.widgets.join(", ")}]`);
+        }
+        break;
+      case "tab-closing":
+        delete ct.interests[msg.senderId];
+        if (ct.role === "follower" && msg.senderId === ct.leaderId) {
+          log(`Leader tab closing \u2014 scheduling election`);
+          clearInterval(ct.heartbeatTimer);
+          ct.heartbeatTimer = null;
+          scheduleElection();
+        }
+        break;
+      default:
+        log(`Unknown message type: ${msg.type}`);
+    }
+  }
+  function handleStorageEvent(event) {
+    if (event.key !== XTAB_LEADER_KEY) return;
+    const ct = state_default.crossTab;
+    if (ct.role === "follower") {
+      const lease = readLease();
+      if (!lease || !isLeaseValid(lease)) {
+        log("Storage event: lease cleared/expired \u2014 scheduling election");
+        clearInterval(ct.heartbeatTimer);
+        ct.heartbeatTimer = null;
+        scheduleElection();
+      } else if (lease.tabId !== ct.leaderId) {
+        becomeFollower(lease.tabId);
+      }
+    }
+  }
+  function handleVisibilityChange() {
+    const ct = state_default.crossTab;
+    if (document.visibilityState !== "visible") return;
+    scheduleBroadcastInterests();
+    if (ct.role === "follower") {
+      const lease = readLease();
+      if (!lease || !isLeaseValid(lease)) {
+        log("Tab woke up \u2014 lease stale, scheduling election");
+        clearInterval(ct.heartbeatTimer);
+        ct.heartbeatTimer = null;
+        scheduleElection();
+      }
+    }
+  }
+  function getVisibleWidgetIds() {
+    return WIDGET_DEFS.filter((w) => isWidgetVisible(w.id)).map((w) => w.id);
+  }
+  function broadcastInterests() {
+    const ct = state_default.crossTab;
+    const widgets = getVisibleWidgetIds();
+    ct.interests[ct.tabId] = new Set(widgets);
+    broadcast({
+      type: "interest-announce",
+      widgets
+    });
+    log(`Announced interests: [${widgets.join(", ")}]`);
+  }
+  function scheduleBroadcastInterests() {
+    const ct = state_default.crossTab;
+    clearTimeout(ct.interestDebounceTimer);
+    ct.interestDebounceTimer = setTimeout(broadcastInterests, XTAB_INTEREST_DEBOUNCE_MS);
+  }
+  function serializeInterests() {
+    const result = {};
+    for (const [tabId, widgetSet] of Object.entries(state_default.crossTab.interests)) {
+      result[tabId] = widgetSet instanceof Set ? Array.from(widgetSet) : widgetSet;
+    }
+    return result;
+  }
+  function deserializeInterests(raw) {
+    if (!raw || typeof raw !== "object") return;
+    const ct = state_default.crossTab;
+    for (const [tabId, widgets] of Object.entries(raw)) {
+      if (tabId === ct.tabId) continue;
+      ct.interests[tabId] = new Set(Array.isArray(widgets) ? widgets : []);
+    }
+  }
+  function handleUnload() {
+    const ct = state_default.crossTab;
+    if (ct.role === "leader") {
+      broadcast({ type: "leader-resign" });
+      clearLease();
+    } else {
+      broadcast({ type: "tab-closing" });
+    }
+  }
+  function initCrossTab() {
+    const ct = state_default.crossTab;
+    ct.tabId = generateTabId();
+    log(`Initializing tab ${ct.tabId.slice(0, 8)}`);
+    if (!openChannel()) {
+      becomeSolo("BroadcastChannel unavailable");
+      return;
+    }
+    window.addEventListener("storage", handleStorageEvent);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("beforeunload", handleUnload);
+    window.addEventListener("pagehide", handleUnload);
+    document.addEventListener("hamtab:widget-vis-changed", scheduleBroadcastInterests);
+    attemptElection();
+    window.__hamtab_debug = () => {
+      state_default.debug = !state_default.debug;
+      console.log(`[xtab] Debug mode: ${state_default.debug ? "ON" : "OFF"}`);
+      return state_default.debug;
+    };
+    window.__xtab = () => getCrossTabState();
+  }
+  function getCrossTabState() {
+    const ct = state_default.crossTab;
+    const snapshot = {
+      tabId: ct.tabId,
+      role: ct.role,
+      leaderId: ct.leaderId,
+      leaseUntil: ct.leaseUntil ? new Date(ct.leaseUntil).toISOString() : null,
+      lastHeartbeat: ct.lastHeartbeat ? new Date(ct.lastHeartbeat).toISOString() : null,
+      peerCount: ct.peerCount,
+      channelReady: ct.channelReady,
+      interests: {}
+    };
+    for (const [tabId, widgetSet] of Object.entries(ct.interests)) {
+      snapshot.interests[tabId] = widgetSet instanceof Set ? Array.from(widgetSet) : widgetSet;
+    }
+    console.table([{
+      tabId: snapshot.tabId?.slice(0, 8),
+      role: snapshot.role,
+      leader: snapshot.leaderId?.slice(0, 8) || "-",
+      peers: snapshot.peerCount,
+      channel: snapshot.channelReady ? "OK" : "N/A",
+      interests: Object.keys(snapshot.interests).length + " tabs"
+    }]);
+    return snapshot;
+  }
+
+  // src/main.js
   migrate();
   migrateV2();
   initTheme();
@@ -22207,6 +22569,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
   state_default.widgetVisibility = loadWidgetVisibility();
   state_default.spotColumnVisibility = loadSpotColumnVisibility();
+  initCrossTab();
   initMap();
   updateGrayLine();
   updateSunMarker();

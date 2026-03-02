@@ -323,6 +323,9 @@ export function flyToSpot(spot) {
 // in full because this tab may not have it in its local sourceFiltered data.
 
 function selectSpotFromRemote(spot) {
+  // Guard: skip if app hasn't initialized yet (message arrived before initWidgets)
+  if (!state.appInitialized) return;
+
   ensureIcons();
   clearGeodesicLine();
   const oldSid = state.selectedSpotId;

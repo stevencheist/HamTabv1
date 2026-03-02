@@ -230,8 +230,27 @@ const state = {
   // Progressive scaling
   reflowActive: false, // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
 
+  // Debug mode — enables verbose console logging (cross-tab, fetch diagnostics)
+  // Toggle at runtime via console: window.__hamtab_debug()
+  debug: false,
+
   // Init flag
   appInitialized: false,
+
+  // --- Cross-Tab Communication (Phase 0 scaffolding) ---
+  crossTab: {
+    tabId: null,                  // string — random UUID per page load
+    role: 'solo',                 // 'leader' | 'follower' | 'solo'
+    leaderId: null,               // tabId of current leader
+    leaseUntil: 0,                // timestamp ms — current lease expiry
+    lastHeartbeat: 0,             // timestamp ms — last received heartbeat
+    heartbeatTimer: null,         // setInterval ID
+    electionTimer: null,          // setTimeout ID
+    interests: {},                // { tabId: Set<widgetId> }
+    interestDebounceTimer: null,  // setTimeout ID
+    peerCount: 0,                 // known peer tabs
+    channelReady: false,          // true if BroadcastChannel created OK
+  },
 
   // Sun/Moon sub-point positions
   sunLat: null,         // sub-solar latitude (degrees) — declination

@@ -20,6 +20,9 @@ state.lunarFieldVisibility = loadLunarFieldVisibility();
 state.widgetVisibility = loadWidgetVisibility();
 state.spotColumnVisibility = loadSpotColumnVisibility();
 
+// Cross-tab leader election (Phase 0: scaffolding only — no fetch changes)
+initCrossTab();
+
 import { initMap, centerMapOnUser, updateUserMarker, updateSunMarker, updateMoonMarker, updateBeaconMarkers } from './map-init.js';
 import { initWidgets } from './widgets.js';
 import { switchSource, initSourceListeners } from './source.js';
@@ -59,6 +62,7 @@ import { initLayoutDropdown } from './layouts.js';
 import { pullConfig, isSyncEnabled } from './config-sync.js';
 import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
 import { initLogbook, renderLogbookOnMap } from './logbook.js';
+import { initCrossTab } from './cross-tab.js';
 
 // Initialize map
 initMap();

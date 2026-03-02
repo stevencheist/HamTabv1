@@ -20,6 +20,7 @@ const EXCLUDE_KEYS = new Set([
   'hamtab_wx_station',
   'hamtab_active_tab',
   'hamtab_mobile_secondary',
+  'hamtab_xtab_leader_v1',
 ]);
 
 // --- Collect / Apply ---

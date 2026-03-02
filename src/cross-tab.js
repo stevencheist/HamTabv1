@@ -280,6 +280,11 @@ function handleMessage(event) {
       }
       break;
 
+    case 'spot-selected':
+      log(`Remote spot selection from ${msg.senderId.slice(0, 8)}:`, msg.spot ? msg.spot.callsign || msg.spot.activator : '(deselect)');
+      document.dispatchEvent(new CustomEvent('hamtab:remote-spot-selected', { detail: { spot: msg.spot || null } }));
+      break;
+
     case 'tab-closing':
       // Remove departing tab's interests
       delete ct.interests[msg.senderId];
@@ -449,6 +454,13 @@ export function destroyCrossTab() {
 
   closeChannel();
   becomeSolo('destroyed');
+}
+
+// Broadcast spot selection to other tabs. Pass the full spot object
+// (other tabs may not have it in their local sourceFiltered), or null to deselect.
+export function broadcastSpotSelection(spot) {
+  if (!state.crossTab.channelReady) return;
+  broadcast({ type: 'spot-selected', spot: spot || null });
 }
 
 export function getCrossTabState() {

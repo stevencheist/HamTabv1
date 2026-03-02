@@ -323,19 +323,29 @@ export function flyToSpot(spot) {
 // in full because this tab may not have it in its local sourceFiltered data.
 
 function selectSpotFromRemote(spot) {
-  ensureIcons();
+  // Guard: skip if app hasn't initialized yet (message arrived before initWidgets)
+  if (!state.appInitialized) return;
+
+  try {
+    ensureIcons();
+  } catch (e) {
+    return; // Leaflet not ready
+  }
+
   clearGeodesicLine();
   const oldSid = state.selectedSpotId;
 
   // Clear old marker highlight
   if (oldSid && state.markers[oldSid]) {
-    state.markers[oldSid].setIcon(defaultIcon);
-    if (state.clusterGroup) {
-      const oldParent = state.clusterGroup.getVisibleParent(state.markers[oldSid]);
-      if (oldParent && oldParent !== state.markers[oldSid] && oldParent._icon) {
-        oldParent._icon.classList.remove('marker-cluster-selected');
+    try {
+      state.markers[oldSid].setIcon(defaultIcon);
+      if (state.clusterGroup) {
+        const oldParent = state.clusterGroup.getVisibleParent(state.markers[oldSid]);
+        if (oldParent && oldParent !== state.markers[oldSid] && oldParent._icon) {
+          oldParent._icon.classList.remove('marker-cluster-selected');
+        }
       }
-    }
+    } catch (e) { /* marker may have been removed */ }
   }
 
   if (!spot) {
@@ -343,7 +353,6 @@ function selectSpotFromRemote(spot) {
     state.selectedSpotId = null;
     clearSpotDetail();
     clearDedxSpot();
-    onSpotDeselected();
     document.querySelectorAll('#spotsBody tr.selected').forEach(tr => tr.classList.remove('selected'));
     return;
   }
@@ -353,13 +362,15 @@ function selectSpotFromRemote(spot) {
 
   // Highlight marker if this tab has one for this spot
   if (state.markers[sid]) {
-    state.markers[sid].setIcon(selectedIcon);
-    if (state.clusterGroup) {
-      const newParent = state.clusterGroup.getVisibleParent(state.markers[sid]);
-      if (newParent && newParent !== state.markers[sid] && newParent._icon) {
-        newParent._icon.classList.add('marker-cluster-selected');
+    try {
+      state.markers[sid].setIcon(selectedIcon);
+      if (state.clusterGroup) {
+        const newParent = state.clusterGroup.getVisibleParent(state.markers[sid]);
+        if (newParent && newParent !== state.markers[sid] && newParent._icon) {
+          newParent._icon.classList.add('marker-cluster-selected');
+        }
       }
-    }
+    } catch (e) { /* marker may have been removed */ }
   }
 
   // Table row highlighting (works if this tab shows the same source)
@@ -371,12 +382,12 @@ function selectSpotFromRemote(spot) {
   updateSpotDetail(spot);
   setDedxSpot(spot);
   drawGeodesicLine(spot);
-  onSpotSelected();
+  // Note: onSpotSelected() NOT called — VOACAP auto-spot is a local preference
 
-  // Map fly-to (if center mode is set to follow selected spot)
+  // Map fly-to — always fly on remote selection so both tabs follow the spot
   const lat = parseFloat(spot.latitude);
   const lon = parseFloat(spot.longitude);
-  if (state.map && !isNaN(lat) && !isNaN(lon) && state.mapCenterMode === 'spot') {
+  if (state.map && !isNaN(lat) && !isNaN(lon)) {
     state.map.flyTo([lat, lon], 5, { duration: 0.8 });
   }
 }

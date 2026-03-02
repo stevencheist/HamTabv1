@@ -21,7 +21,7 @@ state.widgetVisibility = loadWidgetVisibility();
 state.spotColumnVisibility = loadSpotColumnVisibility();
 
 // Cross-tab leader election (Phase 0: scaffolding only — no fetch changes)
-initCrossTab();
+try { initCrossTab(); } catch (e) { console.warn('[xtab] Init failed, continuing in solo mode:', e.message); }
 
 import { initMap, centerMapOnUser, updateUserMarker, updateSunMarker, updateMoonMarker, updateBeaconMarkers } from './map-init.js';
 import { initWidgets } from './widgets.js';

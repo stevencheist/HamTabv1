@@ -917,3 +917,13 @@ export const GRID_DEFAULT_ASSIGNMENTS = {
     B2: 'widget-rst',
   },
 };
+
+// --- Cross-Tab Communication ---
+export const XTAB_CHANNEL_NAME = 'hamtab_xtab_v1';
+export const XTAB_LEADER_KEY = 'hamtab_xtab_leader_v1';
+export const XTAB_HEARTBEAT_MS = 2000;              // ms — leader heartbeat interval
+export const XTAB_LEASE_MS = 8000;                   // ms — leader lease TTL (> 2× heartbeat)
+export const XTAB_ELECTION_JITTER_MIN_MS = 150;      // ms — min random delay before claiming
+export const XTAB_ELECTION_JITTER_MAX_MS = 500;      // ms — max random delay before claiming
+export const XTAB_LEADER_MISS_GRACE_MS = 3000;       // ms — follower waits before triggering re-election
+export const XTAB_INTEREST_DEBOUNCE_MS = 500;         // ms — debounce widget interest broadcasts

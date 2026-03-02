@@ -6915,7 +6915,17 @@
   }
   function broadcastSpotSelection(spot) {
     if (!state_default.crossTab.channelReady) return;
-    broadcast({ type: "spot-selected", spot: spot || null });
+    broadcast({ type: "spot-selected", spot: spot ? sanitizeSpot(spot) : null });
+  }
+  function sanitizeSpot(spot) {
+    const clean = {};
+    for (const [k, v] of Object.entries(spot)) {
+      const t = typeof v;
+      if (v === null || t === "string" || t === "number" || t === "boolean") {
+        clean[k] = v;
+      }
+    }
+    return clean;
   }
   function getCrossTabState() {
     const ct = state_default.crossTab;
@@ -7204,6 +7214,7 @@
     }
   }
   function selectSpotFromRemote(spot) {
+    if (!state_default.appInitialized) return;
     ensureIcons();
     clearGeodesicLine();
     const oldSid = state_default.selectedSpotId;

@@ -458,23 +458,9 @@ export function destroyCrossTab() {
 
 // Broadcast spot selection to other tabs. Pass the full spot object
 // (other tabs may not have it in their local sourceFiltered), or null to deselect.
-// Spot is sanitized to plain JSON to avoid structured-clone failures.
 export function broadcastSpotSelection(spot) {
   if (!state.crossTab.channelReady) return;
-  broadcast({ type: 'spot-selected', spot: spot ? sanitizeSpot(spot) : null });
-}
-
-// Strip spot to only JSON-safe primitives (string/number/boolean/null).
-// Prevents structured-clone failures from functions, Symbols, or DOM refs.
-function sanitizeSpot(spot) {
-  const clean = {};
-  for (const [k, v] of Object.entries(spot)) {
-    const t = typeof v;
-    if (v === null || t === 'string' || t === 'number' || t === 'boolean') {
-      clean[k] = v;
-    }
-  }
-  return clean;
+  broadcast({ type: 'spot-selected', spot: spot || null });
 }
 
 export function getCrossTabState() {

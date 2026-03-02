@@ -6,9 +6,11 @@ import { spotId, freqToBand } from './filters.js';
 import { updateSpotDetail, clearSpotDetail } from './spot-detail.js';
 import { setDedxSpot, clearDedxSpot } from './dedx-info.js';
 import { onSpotSelected, onSpotDeselected } from './voacap.js';
+import { broadcastSpotSelection } from './cross-tab.js';
 
 let defaultIcon = null;
 let selectedIcon = null;
+let _suppressBroadcast = false; // true during remote selection to prevent re-broadcast
 
 function ensureIcons() {
   if (defaultIcon) return;
@@ -273,13 +275,14 @@ export function selectSpot(sid) {
   }
 
   // Update spot detail and DE/DX widgets
+  let selectedSpot = null;
   if (newSid) {
     const filtered = state.sourceFiltered[state.currentSource] || [];
-    const spot = filtered.find(s => spotId(s) === newSid);
-    if (spot) {
-      updateSpotDetail(spot);
-      setDedxSpot(spot);
-      drawGeodesicLine(spot);
+    selectedSpot = filtered.find(s => spotId(s) === newSid) || null;
+    if (selectedSpot) {
+      updateSpotDetail(selectedSpot);
+      setDedxSpot(selectedSpot);
+      drawGeodesicLine(selectedSpot);
     } else {
       clearSpotDetail();
       clearDedxSpot();
@@ -289,6 +292,11 @@ export function selectSpot(sid) {
     clearSpotDetail();
     clearDedxSpot();
     onSpotDeselected();
+  }
+
+  // Broadcast to other tabs (skipped when applying a remote selection)
+  if (!_suppressBroadcast) {
+    broadcastSpotSelection(selectedSpot);
   }
 }
 
@@ -309,3 +317,76 @@ export function flyToSpot(spot) {
     marker.openPopup();
   }
 }
+
+// --- Cross-tab remote spot selection ---
+// Applies a spot selection from another tab. The spot object is broadcast
+// in full because this tab may not have it in its local sourceFiltered data.
+
+function selectSpotFromRemote(spot) {
+  ensureIcons();
+  clearGeodesicLine();
+  const oldSid = state.selectedSpotId;
+
+  // Clear old marker highlight
+  if (oldSid && state.markers[oldSid]) {
+    state.markers[oldSid].setIcon(defaultIcon);
+    if (state.clusterGroup) {
+      const oldParent = state.clusterGroup.getVisibleParent(state.markers[oldSid]);
+      if (oldParent && oldParent !== state.markers[oldSid] && oldParent._icon) {
+        oldParent._icon.classList.remove('marker-cluster-selected');
+      }
+    }
+  }
+
+  if (!spot) {
+    // Deselection
+    state.selectedSpotId = null;
+    clearSpotDetail();
+    clearDedxSpot();
+    onSpotDeselected();
+    document.querySelectorAll('#spotsBody tr.selected').forEach(tr => tr.classList.remove('selected'));
+    return;
+  }
+
+  const sid = spotId(spot);
+  state.selectedSpotId = sid;
+
+  // Highlight marker if this tab has one for this spot
+  if (state.markers[sid]) {
+    state.markers[sid].setIcon(selectedIcon);
+    if (state.clusterGroup) {
+      const newParent = state.clusterGroup.getVisibleParent(state.markers[sid]);
+      if (newParent && newParent !== state.markers[sid] && newParent._icon) {
+        newParent._icon.classList.add('marker-cluster-selected');
+      }
+    }
+  }
+
+  // Table row highlighting (works if this tab shows the same source)
+  document.querySelectorAll('#spotsBody tr').forEach(tr => {
+    tr.classList.toggle('selected', tr.dataset.spotId === sid);
+  });
+
+  // Populate DX Detail, DE/DX Info, geodesic lines from the broadcast spot data
+  updateSpotDetail(spot);
+  setDedxSpot(spot);
+  drawGeodesicLine(spot);
+  onSpotSelected();
+
+  // Map fly-to (if center mode is set to follow selected spot)
+  const lat = parseFloat(spot.latitude);
+  const lon = parseFloat(spot.longitude);
+  if (state.map && !isNaN(lat) && !isNaN(lon) && state.mapCenterMode === 'spot') {
+    state.map.flyTo([lat, lon], 5, { duration: 0.8 });
+  }
+}
+
+// Listen for remote spot selections dispatched by cross-tab.js
+document.addEventListener('hamtab:remote-spot-selected', (e) => {
+  _suppressBroadcast = true;
+  try {
+    selectSpotFromRemote(e.detail.spot);
+  } finally {
+    _suppressBroadcast = false;
+  }
+});

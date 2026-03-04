@@ -1217,6 +1217,12 @@
             <input type="range" class="rig-power-slider" id="rigPowerSlider" min="5" max="100" step="5" value="100">
             <span class="rig-power-value" id="rigPowerValue">100W</span>
           </div>
+          <!-- SDR URL input (shown when KiwiSDR selected) -->
+          <div class="rig-sdr-url-row" id="rigSdrUrlRow" style="display:none">
+            <input type="text" id="rigSdrUrl" class="rig-sdr-url-input"
+                   placeholder="KiwiSDR host (e.g. sdr.example.com:8073)"
+                   spellcheck="false" autocomplete="off">
+          </div>
           <!-- Controls -->
           <div class="rig-connect-row">
             <select id="rigProfileSelect" class="rig-profile-select">

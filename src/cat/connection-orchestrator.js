@@ -7,10 +7,12 @@
 import { WebSerialTransport } from './transports/web-serial.js';
 import { TciWebSocketTransport } from './transports/tci-websocket.js';
 import { InMemoryTransport } from './simulator/in-memory-transport.js';
+import { KiwiSdrSocketTransport } from './transports/kiwisdr-socket.js';
 import { yaesuAscii } from './drivers/yaesu-ascii.js';
 import { kenwoodAscii } from './drivers/kenwood-ascii.js';
 import { icomCiv } from './drivers/icom-civ.js';
 import { elecraftAscii } from './drivers/elecraft-ascii.js';
+import { kiwisdrWs } from './drivers/kiwisdr-ws.js';
 import { tciDriver } from './drivers/tci.js';
 import { createRigManager } from './rig-manager.js';
 import { createRigStateStore } from './rig-state-store.js';
@@ -26,6 +28,7 @@ const DRIVERS = {
   kenwood_ascii: kenwoodAscii,
   icom_civ: icomCiv,
   elecraft_ascii: elecraftAscii,
+  kiwisdr_ws: kiwisdrWs,
   tci: tciDriver,
 };
 
@@ -49,7 +52,8 @@ export function getRigStore() {
 //           baudRate, dataBits, stopBits, parity, flowControl,
 //           pttMethod, pollingInterval, civAddress,
 //           safetyTxIntent, safetyBandLockout, safetyAutoPower,
-//           swrLimit, safePower }
+//           swrLimit, safePower,
+//           sdrType, sdrHost, sdrPort, sdrPassword }
 export async function connectRig(config = {}) {
   if (rigManager && rigManager.isConnected()) {
     console.warn('[cat] Already connected — disconnect first');
@@ -58,6 +62,40 @@ export async function connectRig(config = {}) {
 
   const store = getRigStore();
   const isDemo = config.demo || config.profileId === 'demo';
+  const isSdr = config.sdrType === 'kiwisdr';
+
+  // --- KiwiSDR path: WebSocket transport, no serial, RX only ---
+  if (isSdr) {
+    const sdrTransport = new KiwiSdrSocketTransport({
+      host: config.sdrHost,
+      port: config.sdrPort || 8073,
+      password: config.sdrPassword || '',
+    });
+
+    const sdrDriver = DRIVERS.kiwisdr_ws;
+    const sdrPolling = config.pollingInterval || 1000;
+
+    rigManager = createRigManager(sdrTransport, sdrDriver, store, {
+      pollingInterval: sdrPolling,
+    });
+
+    const success = await rigManager.connect();
+    if (!success) {
+      rigManager = null;
+      return false;
+    }
+
+    // Push driver capabilities into store
+    store.applyEvent({ type: 'capabilities', value: sdrDriver.capabilities() });
+    store.set({
+      sourceType: 'sdr',
+      rxOnly: true,
+      remoteName: sdrTransport.serverName,
+    });
+
+    // No safety modules for RX-only SDR
+    return true;
+  }
 
   // --- Auto-detect path ---
   let resolvedProfileId = config.profileId;

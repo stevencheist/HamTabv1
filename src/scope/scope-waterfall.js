@@ -44,10 +44,14 @@ export function createWaterfall(canvas, options) {
   }
 
   function resize() {
-    const rect = canvas.getBoundingClientRect();
+    // Use parent's width — canvas intrinsic size can fight CSS width:100%
+    const parent = canvas.parentElement;
+    const parentW = parent ? parent.getBoundingClientRect().width : canvas.getBoundingClientRect().width;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(rect.width * dpr);
-    canvas.height = Math.floor(rect.height * dpr);
+    const h = canvas.getBoundingClientRect().height || 60;
+    canvas.width = Math.floor(parentW * dpr);
+    canvas.height = Math.floor(h * dpr);
+    canvas.style.width = parentW + 'px';
     width = canvas.width;
     height = canvas.height;
     ctx.fillStyle = '#000509';

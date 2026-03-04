@@ -6,7 +6,7 @@
 // Track handles on outer grid boundaries allow column width adjustment.
 
 import state from './state.js';
-import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, WIDGET_DEFS, SCALE_REFERENCE_WIDTH } from './constants.js';
+import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_DEFAULT_SPANS, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, WIDGET_DEFS, SCALE_REFERENCE_WIDTH } from './constants.js';
 
 let trackHandles = []; // currently active outer grid handle elements
 const MIN_FR = 0.3;    // minimum fr value to prevent outer grid track collapse
@@ -716,9 +716,12 @@ export function loadGridAssignments() {
       return saved;
     }
   } catch (e) {}
+  // New user — apply defaults including default spans
   const defaults = GRID_DEFAULT_ASSIGNMENTS[state.gridPermutation];
   state.gridAssignments = defaults ? { ...defaults } : {};
-  state.gridSpans = loadGridSpans(state.gridPermutation) || {};
+  const savedSpans = loadGridSpans(state.gridPermutation);
+  const defaultSpans = GRID_DEFAULT_SPANS[state.gridPermutation];
+  state.gridSpans = savedSpans || (defaultSpans ? { ...defaultSpans } : {});
   return state.gridAssignments;
 }
 
@@ -896,9 +899,10 @@ export function resetGridAssignments() {
   state.gridAssignments = defaults ? { ...defaults } : {};
   saveGridAssignments();
 
-  // Clear spans
-  state.gridSpans = {};
-  clearGridSpans(state.gridPermutation);
+  // Reset spans to defaults (e.g. On-Air Rig spanning L1-L3)
+  const defaultSpans = GRID_DEFAULT_SPANS[state.gridPermutation];
+  state.gridSpans = defaultSpans ? { ...defaultSpans } : {};
+  saveGridSpans();
 
   // Restore default track sizes (including clearing flex ratios)
   clearCustomTrackSizes(state.gridPermutation);

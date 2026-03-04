@@ -27,7 +27,7 @@ import { fetchDxpeditions } from './dxpeditions.js';
 import { fetchContests } from './contests.js';
 import { startDedxTimer, stopDedxTimer } from './dedx-info.js';
 import { exportConfig, importConfig, checkSyncCapability, pushConfig, isSyncEnabled, setSyncEnabled } from './config-sync.js';
-import { getAvailableProfiles } from './cat/index.js';
+import { getAvailableProfiles, smartDetect } from './cat/index.js';
 import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
 
 // --- Staged grid assignments (working copy during config modal session) ---
@@ -618,6 +618,13 @@ function loadRadioConfig() {
   if (propBasic) propBasic.checked = state.radioDemoPropagation === 'basic';
   if (propLocation) propLocation.checked = state.radioDemoPropagation === 'location';
 
+  // Audio scope
+  const audioScopeEnabled = $('radioAudioScopeEnabled');
+  if (audioScopeEnabled) audioScopeEnabled.checked = state.radioAudioScopeEnabled;
+  const audioSampleRate = $('radioAudioSampleRate');
+  if (audioSampleRate) audioSampleRate.value = String(state.radioAudioSampleRate);
+  refreshAudioDeviceList();
+
   // Show/hide sections based on connection type
   updateRadioSections();
 }
@@ -692,12 +699,161 @@ function applyModelPresetDefaults() {
   }
 }
 
+// --- Reset radio config to defaults (when switching back to auto-detect) ---
+function resetRadioConfig() {
+  // Clear model preset
+  const presetSelect = $('radioModelPreset');
+  if (presetSelect) presetSelect.value = '';
+
+  // Reset serial settings to defaults
+  const baudRate = $('radioBaudRate');
+  const dataBits = $('radioDataBits');
+  const stopBits = $('radioStopBits');
+  const parity = $('radioParity');
+  const flowControl = $('radioFlowControl');
+  if (baudRate) baudRate.value = 'auto';
+  if (dataBits) dataBits.value = '8';
+  if (stopBits) stopBits.value = '1';
+  if (parity) parity.value = 'none';
+  if (flowControl) flowControl.value = 'none';
+
+  // Reset control settings
+  const pttMethod = $('radioPttMethod');
+  const pollingInterval = $('radioPollingInterval');
+  const civAddress = $('radioCivAddress');
+  if (pttMethod) pttMethod.value = 'cat';
+  if (pollingInterval) pollingInterval.value = '500';
+  if (civAddress) civAddress.value = '0x94';
+
+  // Reset port mode to auto (browser picker)
+  const portMode = $('radioPortMode');
+  if (portMode) {
+    portMode.value = 'auto';
+    state.radioPortMode = 'auto';
+    localStorage.setItem('hamtab_radio_port_mode', 'auto');
+    updatePortListVisibility();
+  }
+
+  // Clear detect status
+  const statusEl = $('radioDetectStatus');
+  if (statusEl) statusEl.textContent = '';
+}
+
+// --- Auto-detect radio from config modal ---
+async function handleAutoDetect() {
+  const btn = $('radioAutoDetectBtn');
+  const statusEl = $('radioDetectStatus');
+  if (!btn || !navigator.serial) {
+    if (statusEl) statusEl.textContent = 'WebSerial not supported';
+    return;
+  }
+
+  btn.disabled = true;
+  if (statusEl) statusEl.textContent = 'Select serial port...';
+
+  let port;
+  try {
+    port = await navigator.serial.requestPort();
+  } catch (err) {
+    if (statusEl) statusEl.textContent = err.name === 'NotFoundError' ? 'Cancelled' : err.message;
+    btn.disabled = false;
+    return;
+  }
+
+  if (statusEl) statusEl.textContent = 'Detecting radio...';
+
+  try {
+    const result = await smartDetect(port, (info) => {
+      if (statusEl) statusEl.textContent = `Probing ${info.step}/${info.total}: ${info.trying}`;
+    });
+
+    if (result) {
+      // Populate protocol family
+      const familySelect = $('radioProtocolFamily');
+      if (familySelect && result.protocol) {
+        familySelect.value = result.protocol;
+        populateModelPresets();
+      }
+
+      // Populate model preset
+      const presetSelect = $('radioModelPreset');
+      if (presetSelect && result.profileId) {
+        presetSelect.value = result.profileId;
+        applyModelPresetDefaults();
+      }
+
+      updateCivRowVisibility();
+
+      // Set port mode to manual so Connect reuses this authorized port
+      const portMode = $('radioPortMode');
+      if (portMode) {
+        portMode.value = 'manual';
+        state.radioPortMode = 'manual';
+        localStorage.setItem('hamtab_radio_port_mode', 'manual');
+        updatePortListVisibility();
+        refreshPortList();
+      }
+
+      const profs = getAvailableProfiles();
+      const match = profs.find(p => p.id === result.profileId);
+      const name = match ? `${match.manufacturer} ${match.model}` : result.profileId;
+      if (statusEl) statusEl.textContent = `Detected: ${name}`;
+    } else {
+      if (statusEl) statusEl.textContent = 'No radio detected';
+    }
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+  }
+
+  // Close the port — Connect will reopen it via the authorized port list
+  try { await port.close(); } catch { /* already closed */ }
+  btn.disabled = false;
+}
+
 // --- Refresh authorized port list ---
+// Known USB serial chip VID:PID → friendly name
+const USB_SERIAL_CHIPS = {
+  '0403:6001': 'FTDI FT232R',
+  '0403:6010': 'FTDI FT2232',
+  '0403:6014': 'FTDI FT232H',
+  '0403:6015': 'FTDI FT-X',
+  '10C4:EA60': 'CP2102',
+  '10C4:EA70': 'CP2105 Dual',   // FTDX10, IC-7300 — dual port (Enhanced + Standard)
+  '10C4:EA71': 'CP2108 Quad',
+  '067B:2303': 'Prolific PL2303',
+  '1A86:7523': 'CH340',
+  '1A86:55D4': 'CH9102',
+};
+
+function describePort(info, index, sameChipIndex) {
+  const portNum = index + 1; // 1-based port number for display
+
+  if (!info.usbVendorId) return `Port ${portNum}`;
+
+  const vid = info.usbVendorId.toString(16).toUpperCase().padStart(4, '0');
+  const pid = info.usbProductId.toString(16).toUpperCase().padStart(4, '0');
+  const key = `${vid}:${pid}`;
+  const chipName = USB_SERIAL_CHIPS[key] || `USB ${key}`;
+
+  // Dual-port chips (CP2105): label Enhanced vs Standard by interface order
+  // Note: WebSerial doesn't expose actual COM numbers — port index is sequential
+  if (pid === 'EA70' && sameChipIndex !== null) {
+    const role = sameChipIndex === 0 ? 'Enhanced (CAT)' : 'Standard (Audio)';
+    return `Port ${portNum}: ${role}`;
+  }
+
+  // Multiple ports with same chip: number them
+  if (sameChipIndex !== null) {
+    return `Port ${portNum}: ${chipName}`;
+  }
+
+  return `Port ${portNum}: ${chipName}`;
+}
+
 async function refreshPortList() {
   const portList = $('radioPortList');
   if (!portList) return;
 
-  // Clear existing options
   portList.innerHTML = '';
 
   if (!navigator.serial || !navigator.serial.getPorts) {
@@ -713,18 +869,35 @@ async function refreshPortList() {
     if (ports.length === 0) {
       const opt = document.createElement('option');
       opt.value = '';
-      opt.textContent = 'No authorized ports';
+      opt.textContent = 'No authorized ports — click Auto-Detect or use Auto port mode';
       portList.appendChild(opt);
       return;
     }
 
+    // Count ports per VID:PID to detect multi-port chips
+    const vidPidCount = {};
+    const vidPidIndex = {};
+    ports.forEach(port => {
+      const info = port.getInfo();
+      if (!info.usbVendorId) return;
+      const key = `${info.usbVendorId}:${info.usbProductId}`;
+      vidPidCount[key] = (vidPidCount[key] || 0) + 1;
+    });
+
     ports.forEach((port, i) => {
       const info = port.getInfo();
+      const key = info.usbVendorId ? `${info.usbVendorId}:${info.usbProductId}` : null;
+
+      // Track index within same-chip group for multi-port labeling
+      let sameChipIndex = null;
+      if (key && vidPidCount[key] > 1) {
+        vidPidIndex[key] = (vidPidIndex[key] ?? -1) + 1;
+        sameChipIndex = vidPidIndex[key];
+      }
+
       const opt = document.createElement('option');
       opt.value = String(i);
-      opt.textContent = info.usbVendorId
-        ? `USB ${info.usbVendorId.toString(16).toUpperCase()}:${info.usbProductId.toString(16).toUpperCase()}`
-        : `Port ${i + 1}`;
+      opt.textContent = describePort(info, i, sameChipIndex);
       portList.appendChild(opt);
     });
   } catch {
@@ -732,6 +905,86 @@ async function refreshPortList() {
     opt.value = '';
     opt.textContent = 'Error reading ports';
     portList.appendChild(opt);
+  }
+}
+
+// --- Enumerate audio input devices for AF scope ---
+async function refreshAudioDeviceList() {
+  const deviceList = $('radioAudioDevice');
+  if (!deviceList) return;
+
+  // Clear existing options
+  deviceList.innerHTML = '';
+  const defaultOpt = document.createElement('option');
+  defaultOpt.value = '';
+  defaultOpt.textContent = 'Default';
+  deviceList.appendChild(defaultOpt);
+
+  const permHint = document.getElementById('radioAudioPermHint');
+  const grantBtn = document.getElementById('radioAudioGrantPerm');
+
+  if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Not supported';
+    opt.disabled = true;
+    deviceList.appendChild(opt);
+    if (permHint) permHint.style.display = 'none';
+    if (grantBtn) grantBtn.style.display = 'none';
+    return;
+  }
+
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(d => d.kind === 'audioinput');
+    let hasLabels = false;
+
+    audioInputs.forEach((d, i) => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      if (d.label) {
+        opt.textContent = d.label;
+        hasLabels = true;
+      } else {
+        opt.textContent = `Audio Input ${i + 1}`;
+      }
+      deviceList.appendChild(opt);
+    });
+
+    // Show/hide permission hint based on whether labels are available
+    if (permHint) permHint.style.display = (audioInputs.length > 0 && !hasLabels) ? '' : 'none';
+    if (grantBtn) grantBtn.style.display = hasLabels ? 'none' : '';
+
+    // Restore saved selection
+    if (state.radioAudioDeviceId) {
+      deviceList.value = state.radioAudioDeviceId;
+    }
+  } catch {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'Error reading devices';
+    opt.disabled = true;
+    deviceList.appendChild(opt);
+    if (permHint) permHint.style.display = 'none';
+  }
+}
+
+// --- Request microphone permission to reveal audio device labels ---
+async function grantAudioPermission() {
+  try {
+    // Brief getUserMedia call unlocks device labels for enumerateDevices
+    const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    // Stop tracks immediately — we just needed the permission grant
+    for (const track of tempStream.getTracks()) track.stop();
+    // Re-enumerate with labels now available
+    await refreshAudioDeviceList();
+  } catch (err) {
+    console.warn('[audio-scope] Permission denied:', err.message);
+    const permHint = document.getElementById('radioAudioPermHint');
+    if (permHint) {
+      permHint.textContent = 'Microphone permission denied. Check browser settings.';
+      permHint.style.display = '';
+    }
   }
 }
 
@@ -754,6 +1007,10 @@ function updateRadioSections() {
   if (safetySection) safetySection.style.display = isReal ? '' : 'none';
   if (demoSection) demoSection.style.display = isReal ? 'none' : '';
 
+  // Audio scope section: real radio only
+  const audioScopeSection = document.getElementById('radioAudioScopeSection');
+  if (audioScopeSection) audioScopeSection.style.display = isReal ? '' : 'none';
+
   // Port list row: only show when port mode is 'manual'
   updatePortListVisibility();
 
@@ -769,6 +1026,10 @@ function updatePortListVisibility() {
 
   const isManual = portMode && portMode.value === 'manual';
   portListRow.style.display = isManual ? '' : 'none';
+
+  // Show/hide the port hint alongside the port list
+  const portHint = document.getElementById('radioPortHint');
+  if (portHint) portHint.style.display = isManual ? '' : 'none';
 
   // Auto-populate port list when switching to manual
   if (isManual) refreshPortList();
@@ -840,6 +1101,14 @@ function saveRadioConfig() {
   else if ($('radioPropLocation')?.checked) state.radioDemoPropagation = 'location';
   else state.radioDemoPropagation = 'off';
   localStorage.setItem('hamtab_radio_demo_propagation', state.radioDemoPropagation);
+
+  // Audio scope
+  state.radioAudioScopeEnabled = $('radioAudioScopeEnabled') ? $('radioAudioScopeEnabled').checked : true;
+  state.radioAudioDeviceId = $('radioAudioDevice')?.value || '';
+  state.radioAudioSampleRate = parseInt($('radioAudioSampleRate')?.value, 10) || 48000;
+  localStorage.setItem('hamtab_radio_audio_scope', String(state.radioAudioScopeEnabled));
+  localStorage.setItem('hamtab_radio_audio_device', state.radioAudioDeviceId);
+  localStorage.setItem('hamtab_radio_audio_sample_rate', String(state.radioAudioSampleRate));
 }
 
 function dismissSplash() {
@@ -1354,9 +1623,13 @@ export function initSplashListeners() {
   if (radioConnDemo) radioConnDemo.addEventListener('change', updateRadioSections);
 
   // Protocol family → filter model presets + update CI-V visibility
+  // Switching back to "auto" resets all detection results
   const radioProtocolFamily = $('radioProtocolFamily');
   if (radioProtocolFamily) {
     radioProtocolFamily.addEventListener('change', () => {
+      if (radioProtocolFamily.value === 'auto') {
+        resetRadioConfig();
+      }
       populateModelPresets();
       updateCivRowVisibility();
     });
@@ -1378,6 +1651,24 @@ export function initSplashListeners() {
   const radioRefreshPorts = $('radioRefreshPorts');
   if (radioRefreshPorts) {
     radioRefreshPorts.addEventListener('click', refreshPortList);
+  }
+
+  // Refresh audio devices button
+  const radioAudioRefresh = $('radioAudioRefresh');
+  if (radioAudioRefresh) {
+    radioAudioRefresh.addEventListener('click', refreshAudioDeviceList);
+  }
+
+  // Grant audio permission button — unlocks device labels
+  const radioAudioGrantPerm = $('radioAudioGrantPerm');
+  if (radioAudioGrantPerm) {
+    radioAudioGrantPerm.addEventListener('click', grantAudioPermission);
+  }
+
+  // Auto-detect radio button
+  const radioAutoDetectBtn = $('radioAutoDetectBtn');
+  if (radioAutoDetectBtn) {
+    radioAutoDetectBtn.addEventListener('click', handleAutoDetect);
   }
 
   $('editCallBtn').addEventListener('click', () => {

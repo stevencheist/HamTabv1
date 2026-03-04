@@ -533,6 +533,9 @@ function buildConnectConfig() {
     pttMethod: state.radioPttMethod,
     pollingInterval: state.radioPollingInterval,
     civAddress: state.radioCivAddress,
+    // TCI (network)
+    tciHost: state.radioTciHost,
+    tciPort: state.radioTciPort,
     // Safety
     safetyTxIntent: state.radioSafetyTxIntent,
     safetyBandLockout: state.radioSafetyBandLockout,
@@ -607,6 +610,18 @@ async function handleConnectClick() {
         longitude: state.myLon,
       });
       if (!success) statusEl.textContent = 'Cancelled';
+
+    } else if (state.radioProtocolFamily === 'tci') {
+      // --- TCI (network): WebSocket connection, no serial port ---
+      statusEl.textContent = 'Connecting via TCI...';
+      const config = buildConnectConfig();
+      const success = await connectRig({
+        ...config,
+        protocolFamily: 'tci',
+        tciHost: state.radioTciHost,
+        tciPort: state.radioTciPort,
+      });
+      if (!success) statusEl.textContent = 'TCI connection failed';
 
     } else {
       // --- Real radio: protocol-family-first connect ---

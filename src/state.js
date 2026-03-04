@@ -310,6 +310,10 @@ const state = {
   radioSwrLimit: parseFloat(localStorage.getItem('hamtab_radio_swr_limit')) || 3.0,
   radioSafePower: parseInt(localStorage.getItem('hamtab_radio_safe_power'), 10) || 20,
 
+  // TCI (network) connection
+  radioTciHost: localStorage.getItem('hamtab_radio_tci_host') || 'localhost',
+  radioTciPort: parseInt(localStorage.getItem('hamtab_radio_tci_port'), 10) || 50001,
+
   // Demo
   radioDemoPropagation: localStorage.getItem('hamtab_radio_demo_propagation') || 'location',
 

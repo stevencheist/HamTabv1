@@ -188,6 +188,7 @@ export function renderLogbook() {
     for (const col of LOGBOOK_COLS) {
       const th = document.createElement('th');
       th.textContent = col.label;
+      th.scope = 'col';
       if (col.sortable) {
         th.classList.add('sortable');
         const key = col.key;
@@ -202,6 +203,9 @@ export function renderLogbook() {
         });
         if (state.logbookSortColumn === key) {
           th.classList.add(state.logbookSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+          th.setAttribute('aria-sort', state.logbookSortDirection === 'asc' ? 'ascending' : 'descending');
+        } else {
+          th.setAttribute('aria-sort', 'none');
         }
       }
       tr.appendChild(th);

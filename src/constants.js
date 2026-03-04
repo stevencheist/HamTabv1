@@ -1,4 +1,4 @@
-import { aColor, kColor, solarWindColor, bzColor, auroraColor, geomagColor } from './solar.js';
+import { aColor, kColor, solarWindColor, bzColor, auroraColor, geomagColor, aLabel, kLabel, solarWindLabel, bzLabel, auroraLabel, geomagLabel } from './solar.js';
 import { lunarDecColor, lunarPlColor, lunarElColor } from './lunar.js';
 
 export const WIDGET_DEFS = [
@@ -226,24 +226,24 @@ export const SOURCE_DEFS = {
 };
 
 export const SOLAR_FIELD_DEFS = [
-  { key: 'sfi',           label: 'Solar Flux',      unit: '',      colorFn: null,           defaultVisible: true  },
-  { key: 'sunspots',      label: 'Sunspots',        unit: '',      colorFn: null,           defaultVisible: true  },
-  { key: 'aindex',        label: 'A-Index',         unit: '',      colorFn: aColor,         defaultVisible: true  },
-  { key: 'kindex',        label: 'K-Index',         unit: '',      colorFn: kColor,         defaultVisible: true  },
-  { key: 'xray',          label: 'X-Ray',           unit: '',      colorFn: null,           defaultVisible: true  },
-  { key: 'signalnoise',   label: 'Signal Noise',    unit: '',      colorFn: null,           defaultVisible: true  },
-  { key: 'solarwind',     label: 'Solar Wind',      unit: ' km/s', colorFn: solarWindColor, defaultVisible: false },
-  { key: 'magneticfield', label: 'Bz (IMF)',        unit: ' nT',   colorFn: bzColor,        defaultVisible: false },
-  { key: 'protonflux',    label: 'Proton Flux',     unit: '',      colorFn: null,           defaultVisible: false },
-  { key: 'electonflux',   label: 'Electron Flux',   unit: '',      colorFn: null,           defaultVisible: false },
-  { key: 'aurora',        label: 'Aurora',           unit: '',      colorFn: auroraColor,    defaultVisible: false },
-  { key: 'latdegree',     label: 'Aurora Lat',      unit: '\u00B0',colorFn: null,           defaultVisible: false },
-  { key: 'heliumline',    label: 'He 10830\u00C5',  unit: '',      colorFn: null,           defaultVisible: false },
-  { key: 'geomagfield',   label: 'Geomag Field',    unit: '',      colorFn: geomagColor,    defaultVisible: false },
-  { key: 'kindexnt',      label: 'K-Index (Night)', unit: '',      colorFn: kColor,         defaultVisible: false },
-  { key: 'muf',           label: 'MUF',             unit: ' MHz',  colorFn: null,           defaultVisible: false },
-  { key: 'fof2',          label: 'foF2',            unit: ' MHz',  colorFn: null,           defaultVisible: false },
-  { key: 'muffactor',     label: 'MUF Factor',      unit: '',      colorFn: null,           defaultVisible: false },
+  { key: 'sfi',           label: 'Solar Flux',      unit: '',      colorFn: null,           labelFn: null,           defaultVisible: true  },
+  { key: 'sunspots',      label: 'Sunspots',        unit: '',      colorFn: null,           labelFn: null,           defaultVisible: true  },
+  { key: 'aindex',        label: 'A-Index',         unit: '',      colorFn: aColor,         labelFn: aLabel,         defaultVisible: true  },
+  { key: 'kindex',        label: 'K-Index',         unit: '',      colorFn: kColor,         labelFn: kLabel,         defaultVisible: true  },
+  { key: 'xray',          label: 'X-Ray',           unit: '',      colorFn: null,           labelFn: null,           defaultVisible: true  },
+  { key: 'signalnoise',   label: 'Signal Noise',    unit: '',      colorFn: null,           labelFn: null,           defaultVisible: true  },
+  { key: 'solarwind',     label: 'Solar Wind',      unit: ' km/s', colorFn: solarWindColor, labelFn: solarWindLabel, defaultVisible: false },
+  { key: 'magneticfield', label: 'Bz (IMF)',        unit: ' nT',   colorFn: bzColor,        labelFn: bzLabel,        defaultVisible: false },
+  { key: 'protonflux',    label: 'Proton Flux',     unit: '',      colorFn: null,           labelFn: null,           defaultVisible: false },
+  { key: 'electonflux',   label: 'Electron Flux',   unit: '',      colorFn: null,           labelFn: null,           defaultVisible: false },
+  { key: 'aurora',        label: 'Aurora',           unit: '',      colorFn: auroraColor,    labelFn: auroraLabel,    defaultVisible: false },
+  { key: 'latdegree',     label: 'Aurora Lat',      unit: '\u00B0',colorFn: null,           labelFn: null,           defaultVisible: false },
+  { key: 'heliumline',    label: 'He 10830\u00C5',  unit: '',      colorFn: null,           labelFn: null,           defaultVisible: false },
+  { key: 'geomagfield',   label: 'Geomag Field',    unit: '',      colorFn: geomagColor,    labelFn: geomagLabel,    defaultVisible: false },
+  { key: 'kindexnt',      label: 'K-Index (Night)', unit: '',      colorFn: kColor,         labelFn: kLabel,         defaultVisible: false },
+  { key: 'muf',           label: 'MUF',             unit: ' MHz',  colorFn: null,           labelFn: null,           defaultVisible: false },
+  { key: 'fof2',          label: 'foF2',            unit: ' MHz',  colorFn: null,           labelFn: null,           defaultVisible: false },
+  { key: 'muffactor',     label: 'MUF Factor',      unit: '',      colorFn: null,           labelFn: null,           defaultVisible: false },
 ];
 
 export const LUNAR_FIELD_DEFS = [

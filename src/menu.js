@@ -1,17 +1,29 @@
 // Mobile hamburger menu — slide-out drawer with backdrop
+import state from './state.js';
 import { $ } from './dom.js';
 import { openLayoutMenu } from './layouts.js';
+import { trapFocus } from './a11y.js';
 
 let isOpen = false;
+let releaseTrap = null;
 
 function openMenu() {
   const drawer = $('mobileMenuDrawer');
   const backdrop = $('mobileMenuBackdrop');
+  const menuBtn = $('mobileMenuBtn');
   if (!drawer || !backdrop) return;
 
   drawer.classList.add('open');
   backdrop.classList.add('open');
   isOpen = true;
+  if (menuBtn) menuBtn.setAttribute('aria-expanded', 'true');
+
+  // Trap focus within drawer (gated by a11y setting)
+  if (state.a11yFocusTrap) releaseTrap = trapFocus(drawer);
+
+  // Focus first menu item
+  const firstItem = drawer.querySelector('.mobile-menu-item');
+  if (firstItem) firstItem.focus();
 
   // Sync update indicator into drawer
   const updateEl = $('updateIndicator');
@@ -24,11 +36,17 @@ function openMenu() {
 function closeMenu() {
   const drawer = $('mobileMenuDrawer');
   const backdrop = $('mobileMenuBackdrop');
+  const menuBtn = $('mobileMenuBtn');
   if (!drawer || !backdrop) return;
 
   drawer.classList.remove('open');
   backdrop.classList.remove('open');
   isOpen = false;
+  if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
+
+  // Release focus trap and restore focus to menu button
+  if (releaseTrap) { releaseTrap(); releaseTrap = null; }
+  if (menuBtn) menuBtn.focus();
 }
 
 export function initMobileMenu() {
@@ -49,7 +67,7 @@ export function initMobileMenu() {
 
   // Close on Escape key
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && isOpen) closeMenu();
+    if (e.key === 'Escape' && isOpen) { if (!state.a11yEscapeClose) return; closeMenu(); }
   });
 
   // Handle menu item actions

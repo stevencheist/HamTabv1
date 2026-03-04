@@ -52,6 +52,41 @@ export function geomagColor(val) {
   return '';
 }
 
+// --- Status label functions (non-color redundancy for accessibility) ---
+
+export function aLabel(val) {
+  const n = parseInt(val); if (isNaN(n)) return '';
+  if (n < 10) return 'Good'; if (n < 30) return 'Fair'; return 'Poor';
+}
+
+export function kLabel(val) {
+  const n = parseInt(val); if (isNaN(n)) return '';
+  if (n <= 2) return 'Quiet'; if (n <= 4) return 'Active'; return 'Storm';
+}
+
+export function solarWindLabel(val) {
+  const n = parseFloat(val); if (isNaN(n)) return '';
+  if (n < 400) return 'Normal'; if (n < 600) return 'Elevated'; return 'High';
+}
+
+export function bzLabel(val) {
+  const n = parseFloat(val); if (isNaN(n)) return '';
+  if (n >= 0) return 'Good'; if (n > -10) return 'Fair'; return 'Poor';
+}
+
+export function auroraLabel(val) {
+  const n = parseInt(val); if (isNaN(n)) return '';
+  if (n <= 3) return 'Low'; if (n <= 6) return 'Moderate'; return 'High';
+}
+
+export function geomagLabel(val) {
+  const s = (val || '').toLowerCase();
+  if (s.includes('quiet')) return 'Quiet';
+  if (s.includes('unsettled') || s.includes('active')) return 'Active';
+  if (s.includes('storm') || s.includes('major')) return 'Storm';
+  return '';
+}
+
 const SOLAR_VIS_KEY = 'hamtab_solar_fields';
 
 export function loadSolarFieldVisibility() {
@@ -283,6 +318,15 @@ export function renderSolar(data) {
     valueDiv.className = 'value';
     if (color) valueDiv.style.color = color;
     valueDiv.textContent = displayVal;
+    if (f.labelFn) {
+      const statusLabel = f.labelFn(rawVal);
+      if (statusLabel) {
+        const labelSpan = document.createElement('span');
+        labelSpan.className = 'solar-status-label';
+        labelSpan.textContent = ' ' + statusLabel;
+        valueDiv.appendChild(labelSpan);
+      }
+    }
     div.appendChild(labelDiv);
     div.appendChild(valueDiv);
     solarIndices.appendChild(div);

@@ -1,6 +1,8 @@
 // --- Feedback Modal ---
 
+import state from './state.js';
 import { $ } from './dom.js';
+import { openModal, closeModal } from './a11y.js';
 
 let formOpenTime = 0; // track when form was opened (for time-based spam check)
 
@@ -57,18 +59,17 @@ async function encryptEmail(email) {
 
 // Open feedback modal
 function openFeedback() {
-  $('feedbackSplash').classList.remove('hidden');
   $('feedbackForm').reset();
   $('feedbackStatus').classList.add('hidden');
   $('feedbackCharCount').textContent = '0';
   $('feedbackSubmit').disabled = false;
   formOpenTime = Date.now();
-  $('feedbackMessage').focus();
+  openModal($('feedbackSplash'), { focusEl: $('feedbackMessage') });
 }
 
 // Close feedback modal
 function closeFeedback() {
-  $('feedbackSplash').classList.add('hidden');
+  closeModal($('feedbackSplash'));
 }
 
 // Update character count
@@ -201,6 +202,7 @@ export function initFeedbackListeners() {
   // ESC key to close
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !feedbackSplash.classList.contains('hidden')) {
+      if (!state.a11yEscapeClose) return;
       closeFeedback();
     }
   });

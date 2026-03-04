@@ -8,6 +8,7 @@ import { initTheme } from './themes.js';
 initTheme();
 
 import state from './state.js';
+if (state.a11yReducedMotion) document.body.classList.add('reduced-motion');
 import { $ } from './dom.js';
 import { loadSolarFieldVisibility } from './solar.js';
 import { loadLunarFieldVisibility } from './lunar.js';
@@ -58,6 +59,7 @@ import { initClockConfigListeners } from './clock-config.js';
 import { initMobileMenu } from './menu.js';
 import { initTabs } from './tabs.js';
 import { initLayoutDropdown } from './layouts.js';
+import { openModal, closeModal } from './a11y.js';
 import { pullConfig, isSyncEnabled } from './config-sync.js';
 import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
 import { initLogbook, renderLogbookOnMap } from './logbook.js';
@@ -126,13 +128,20 @@ function showNewWidgetPopup(widgetNames) {
     li.textContent = name;
     list.appendChild(li);
   });
-  popup.classList.remove('hidden');
+  openModal(popup, { focusEl: $('newWidgetDismiss') });
   $('newWidgetDismiss').addEventListener('click', () => {
-    popup.classList.add('hidden');
+    closeModal(popup);
   });
   // Also dismiss on overlay click
   popup.addEventListener('click', (e) => {
-    if (e.target === popup) popup.classList.add('hidden');
+    if (e.target === popup) closeModal(popup);
+  });
+  // Escape to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !popup.classList.contains('hidden')) {
+      if (!state.a11yEscapeClose) return;
+      closeModal(popup);
+    }
   });
 }
 

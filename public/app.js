@@ -389,6 +389,9 @@
         radioSafePower: parseInt(localStorage.getItem("hamtab_radio_safe_power"), 10) || 20,
         // Demo
         radioDemoPropagation: localStorage.getItem("hamtab_radio_demo_propagation") || "location",
+        // SDR
+        radioSdrUrl: localStorage.getItem("hamtab_radio_sdr_url") || "",
+        radioSdrPassword: localStorage.getItem("hamtab_radio_sdr_password") || "",
         // Audio scope (AF FFT from USB audio — post-demodulation, not RF)
         radioAudioScopeEnabled: localStorage.getItem("hamtab_radio_audio_scope") !== "false",
         // default on
@@ -1893,6 +1896,267 @@
     }
   });
 
+  // src/cat/transports/kiwisdr-socket.js
+  var KIWI_MODE_MAP, CAT_TO_KIWI_MODE, KiwiSdrSocketTransport;
+  var init_kiwisdr_socket = __esm({
+    "src/cat/transports/kiwisdr-socket.js"() {
+      init_web_serial();
+      KIWI_MODE_MAP = {
+        am: "AM",
+        usb: "USB",
+        lsb: "LSB",
+        cw: "CW-U",
+        cwn: "CW-U",
+        nbfm: "FM",
+        iq: "USB"
+      };
+      CAT_TO_KIWI_MODE = {
+        "AM": "am",
+        "USB": "usb",
+        "LSB": "lsb",
+        "CW-U": "cw",
+        "CW-L": "cw",
+        "FM": "nbfm",
+        "DATA-U": "usb",
+        "DATA-L": "lsb"
+      };
+      KiwiSdrSocketTransport = class _KiwiSdrSocketTransport {
+        constructor({ host, port = 8073, password = "" } = {}) {
+          this.host = host;
+          this.port = port;
+          this.password = password;
+          this.state = ConnectionState.DISCONNECTED;
+          this._onStateChange = null;
+          this._ws = null;
+          this._keepaliveTimer = null;
+          this._connectTimeout = null;
+          this._frequency = 14074e3;
+          this._mode = "USB";
+          this._smeter = 0;
+          this._serverName = "";
+        }
+        static isSupported() {
+          return typeof WebSocket !== "undefined";
+        }
+        onStateChange(callback) {
+          this._onStateChange = callback;
+        }
+        _setState(newState) {
+          this.state = newState;
+          if (this._onStateChange) this._onStateChange(newState);
+        }
+        // --- Connect to KiwiSDR WebSocket ---
+        async connect() {
+          if (!_KiwiSdrSocketTransport.isSupported()) {
+            throw new Error("WebSocket not supported");
+          }
+          this._setState(ConnectionState.CONNECTING);
+          return new Promise((resolve, reject) => {
+            const session = Math.floor(1e3 + Math.random() * 9e3);
+            const url = `ws://${this.host}:${this.port}/kiwi/${session}/SND`;
+            try {
+              this._ws = new WebSocket(url);
+              this._ws.binaryType = "arraybuffer";
+            } catch (err2) {
+              this._setState(ConnectionState.ERROR);
+              reject(new Error(`WebSocket creation failed: ${err2.message}`));
+              return;
+            }
+            this._connectTimeout = setTimeout(() => {
+              if (this.state === ConnectionState.CONNECTING) {
+                this._ws.close();
+                this._setState(ConnectionState.ERROR);
+                reject(new Error("KiwiSDR connection timeout"));
+              }
+            }, 1e4);
+            this._ws.onopen = () => {
+              clearTimeout(this._connectTimeout);
+              this._send(`SET auth t=kiwi p=${this.password}`);
+              this._send("SET mod=usb low_cut=300 high_cut=3000 freq=14.074");
+              this._send("SET compression=0");
+              this._send("SET OVERRIDE inactivity_timeout=0");
+              this._keepaliveTimer = setInterval(() => {
+                this._send("SET keepalive");
+              }, 3e4);
+              this._setState(ConnectionState.CONNECTED);
+              resolve(true);
+            };
+            this._ws.onmessage = (event) => {
+              this._handleMessage(event);
+            };
+            this._ws.onerror = () => {
+              clearTimeout(this._connectTimeout);
+              if (this.state === ConnectionState.CONNECTING) {
+                this._setState(ConnectionState.ERROR);
+                reject(new Error("KiwiSDR WebSocket error"));
+              }
+            };
+            this._ws.onclose = () => {
+              clearTimeout(this._connectTimeout);
+              this._cleanupTimers();
+              if (this.state !== ConnectionState.DISCONNECTED) {
+                this._setState(ConnectionState.DISCONNECTED);
+              }
+            };
+          });
+        }
+        // --- Disconnect ---
+        async disconnect() {
+          this._cleanupTimers();
+          if (this._ws) {
+            try {
+              this._ws.close();
+            } catch {
+            }
+            this._ws = null;
+          }
+          this._setState(ConnectionState.DISCONNECTED);
+        }
+        // --- Send command (cached-state model) ---
+        // GET commands return cached state immediately.
+        // SET commands forward to WebSocket.
+        async sendCommand(cmd) {
+          if (!cmd) return "";
+          if (cmd === "KIWI:FREQ") {
+            return `FREQ:${this._frequency}`;
+          }
+          if (cmd === "KIWI:MODE") {
+            return `MODE:${this._mode}`;
+          }
+          if (cmd === "KIWI:SIGNAL") {
+            return `SIGNAL:${this._smeter}`;
+          }
+          if (cmd.startsWith("KIWI:SET_FREQ:")) {
+            const hz = parseInt(cmd.slice(14), 10);
+            if (!isNaN(hz) && hz > 0) {
+              const khz = hz / 1e3;
+              const kiwiMode = CAT_TO_KIWI_MODE[this._mode] || "usb";
+              this._send(`SET mod=${kiwiMode} low_cut=300 high_cut=3000 freq=${khz.toFixed(3)}`);
+              this._frequency = hz;
+            }
+            return "";
+          }
+          if (cmd.startsWith("KIWI:SET_MODE:")) {
+            const mode2 = cmd.slice(14);
+            const kiwiMode = CAT_TO_KIWI_MODE[mode2] || "usb";
+            const khz = this._frequency / 1e3;
+            const passband = this._getPassband(kiwiMode);
+            this._send(`SET mod=${kiwiMode} low_cut=${passband.low} high_cut=${passband.high} freq=${khz.toFixed(3)}`);
+            this._mode = mode2;
+            return "";
+          }
+          return "";
+        }
+        // --- Write command (no response) ---
+        async writeCommand(cmd) {
+          if (cmd && cmd.startsWith("KIWI:SET_")) {
+            await this.sendCommand(cmd);
+          }
+        }
+        // --- No-ops for interface compatibility ---
+        async writeRaw() {
+        }
+        async readUntil() {
+          return "";
+        }
+        async readBytes() {
+          return new Uint8Array(0);
+        }
+        async readUntilByte() {
+          return new Uint8Array(0);
+        }
+        async sendBinaryCommand() {
+          return new Uint8Array(0);
+        }
+        async flush() {
+        }
+        // --- Internal: handle incoming WebSocket message ---
+        _handleMessage(event) {
+          if (event.data instanceof ArrayBuffer) {
+            const view = new DataView(event.data);
+            if (event.data.byteLength >= 7) {
+              try {
+                const smeterRaw = view.getUint16(2, false);
+                const dbm = smeterRaw / 10 - 127;
+                this._smeter = this._dbToRaw(dbm);
+              } catch {
+              }
+            }
+            return;
+          }
+          if (typeof event.data === "string") {
+            const msg = event.data;
+            if (msg.includes("server_de_id=")) {
+              const match = msg.match(/server_de_id="?([^"]+)"?/);
+              if (match) this._serverName = match[1].trim();
+            }
+            if (msg.includes("freq=")) {
+              const match = msg.match(/freq=([\d.]+)/);
+              if (match) {
+                const khz = parseFloat(match[1]);
+                if (!isNaN(khz) && khz > 0) {
+                  this._frequency = Math.round(khz * 1e3);
+                }
+              }
+            }
+            if (msg.includes("mode=")) {
+              const match = msg.match(/mode=(\w+)/);
+              if (match && KIWI_MODE_MAP[match[1]]) {
+                this._mode = KIWI_MODE_MAP[match[1]];
+              }
+            }
+          }
+        }
+        // --- Convert dBm to raw 0-255 scale for S-meter compatibility ---
+        // KiwiSDR range: roughly -130 dBm (noise floor) to -10 dBm (strong)
+        // Maps linearly: -130 → 0, -10 → 255
+        _dbToRaw(dbm) {
+          const clamped = Math.max(-130, Math.min(-10, dbm));
+          return Math.round((clamped + 130) / 120 * 255);
+        }
+        // --- Get passband for KiwiSDR mode ---
+        _getPassband(kiwiMode) {
+          switch (kiwiMode) {
+            case "am":
+              return { low: -4500, high: 4500 };
+            case "cw":
+              return { low: 300, high: 800 };
+            case "cwn":
+              return { low: 400, high: 700 };
+            case "nbfm":
+              return { low: -6e3, high: 6e3 };
+            case "lsb":
+              return { low: -3e3, high: -300 };
+            case "usb":
+            default:
+              return { low: 300, high: 3e3 };
+          }
+        }
+        // --- Send text to WebSocket ---
+        _send(text) {
+          if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+            this._ws.send(text);
+          }
+        }
+        // --- Cleanup timers ---
+        _cleanupTimers() {
+          if (this._keepaliveTimer) {
+            clearInterval(this._keepaliveTimer);
+            this._keepaliveTimer = null;
+          }
+          if (this._connectTimeout) {
+            clearTimeout(this._connectTimeout);
+            this._connectTimeout = null;
+          }
+        }
+        // --- Get server name (for UI display) ---
+        get serverName() {
+          return this._serverName || this.host;
+        }
+      };
+    }
+  });
+
   // src/cat/drivers/yaesu-ascii.js
   function interpolate(cal, raw) {
     if (raw <= cal[0][0]) return cal[0][1];
@@ -2762,6 +3026,87 @@
     }
   });
 
+  // src/cat/drivers/kiwisdr-ws.js
+  var MODE_MAP, kiwisdrWs;
+  var init_kiwisdr_ws = __esm({
+    "src/cat/drivers/kiwisdr-ws.js"() {
+      MODE_MAP = {
+        "AM": "AM",
+        "USB": "USB",
+        "LSB": "LSB",
+        "CW-U": "CW-U",
+        "CW-L": "CW-L",
+        "FM": "FM",
+        "DATA-U": "DATA-U",
+        "DATA-L": "DATA-L"
+      };
+      kiwisdrWs = {
+        name: "kiwisdr_ws",
+        label: "KiwiSDR (WebSocket)",
+        // No init commands — transport handles WebSocket handshake + auth
+        init() {
+          return [];
+        },
+        // RX-only capabilities — no PTT, no SWR, no power
+        capabilities() {
+          return [
+            "frequency_read",
+            "frequency_set",
+            "mode_read",
+            "mode_set",
+            "meter_signal"
+          ];
+        },
+        // Encode logical command → KIWI: marker string
+        encode(command, params) {
+          switch (command) {
+            case "getFrequency":
+              return "KIWI:FREQ";
+            case "getMode":
+              return "KIWI:MODE";
+            case "getSignal":
+              return "KIWI:SIGNAL";
+            case "setFrequency":
+              return `KIWI:SET_FREQ:${params}`;
+            case "setMode":
+              return `KIWI:SET_MODE:${params}`;
+            default:
+              return null;
+          }
+        },
+        // Parse KIWI response → event object for RigStateStore
+        parse(response) {
+          if (!response) return null;
+          if (response.startsWith("FREQ:")) {
+            const hz = parseInt(response.slice(5), 10);
+            return isNaN(hz) ? null : { type: "frequency", value: hz };
+          }
+          if (response.startsWith("MODE:")) {
+            const mode2 = response.slice(5);
+            return { type: "mode", value: MODE_MAP[mode2] || mode2 };
+          }
+          if (response.startsWith("SIGNAL:")) {
+            const raw = parseInt(response.slice(7), 10);
+            if (isNaN(raw)) return null;
+            const sUnits = Math.min(15, raw / 255 * 15);
+            return { type: "signal", value: raw, sUnits };
+          }
+          return null;
+        },
+        // Commands sent each polling cycle
+        pollCommands() {
+          return [
+            "getFrequency",
+            "getMode",
+            "getSignal"
+          ];
+        }
+        // No meter commands — S-meter handled via pollCommands
+        // (KiwiSDR pushes S-meter in binary frames; no separate meter cycle needed)
+      };
+    }
+  });
+
   // src/cat/command-queue.js
   function createCommandQueue(sendFn, options = {}) {
     const minInterval = options.minInterval || 60;
@@ -3023,6 +3368,12 @@
       connected: false,
       demo: false,
       radioId: null,
+      sourceType: null,
+      // null for local radio, 'sdr' for network receiver
+      rxOnly: false,
+      // true for SDR connections — hides TX controls
+      remoteName: null,
+      // SDR server hostname for display
       capabilities: [],
       // Core
       frequency: 0,
@@ -3142,6 +3493,9 @@
       state2.connected = false;
       state2.demo = false;
       state2.radioId = null;
+      state2.sourceType = null;
+      state2.rxOnly = false;
+      state2.remoteName = null;
       state2.capabilities = [];
       state2.frequency = 0;
       state2.frequencyB = 0;
@@ -3802,6 +4156,16 @@
               hasATAS: false
             }
           },
+          "kiwisdr-generic": {
+            manufacturer: "KiwiSDR",
+            model: "WebSDR Receiver",
+            modelId: "KIWI",
+            protocol: { family: "kiwisdr_ws" },
+            serial: {},
+            control: { pttMethod: "none", pollingInterval: 1e3 },
+            power: {},
+            tuning: {}
+          },
           demo: {
             manufacturer: "HamTab",
             model: "Demo Radio",
@@ -4252,6 +4616,31 @@
     }
     const store = getRigStore();
     const isDemo = config.demo || config.profileId === "demo";
+    const isSdr = config.sdrType === "kiwisdr";
+    if (isSdr) {
+      const sdrTransport = new KiwiSdrSocketTransport({
+        host: config.sdrHost,
+        port: config.sdrPort || 8073,
+        password: config.sdrPassword || ""
+      });
+      const sdrDriver = DRIVERS.kiwisdr_ws;
+      const sdrPolling = config.pollingInterval || 1e3;
+      rigManager = createRigManager(sdrTransport, sdrDriver, store, {
+        pollingInterval: sdrPolling
+      });
+      const success2 = await rigManager.connect();
+      if (!success2) {
+        rigManager = null;
+        return false;
+      }
+      store.applyEvent({ type: "capabilities", value: sdrDriver.capabilities() });
+      store.set({
+        sourceType: "sdr",
+        rxOnly: true,
+        remoteName: sdrTransport.serverName
+      });
+      return true;
+    }
     let resolvedProfileId = config.profileId;
     let resolvedProtocol = config.protocol || config.protocolFamily;
     let resolvedSerialConfig = config.serialConfig;
@@ -4382,10 +4771,12 @@
     "src/cat/connection-orchestrator.js"() {
       init_web_serial();
       init_in_memory_transport();
+      init_kiwisdr_socket();
       init_yaesu_ascii();
       init_kenwood_ascii();
       init_icom_civ();
       init_elecraft_ascii();
+      init_kiwisdr_ws();
       init_rig_manager();
       init_rig_state_store();
       init_smart_detect();
@@ -4397,7 +4788,8 @@
         yaesu_ascii: yaesuAscii,
         kenwood_ascii: kenwoodAscii,
         icom_civ: icomCiv,
-        elecraft_ascii: elecraftAscii
+        elecraft_ascii: elecraftAscii,
+        kiwisdr_ws: kiwisdrWs
       };
       rigManager = null;
       rigStore = null;
@@ -19172,7 +19564,11 @@ ${beacon.location}`);
       btn.classList.toggle("active", btn.dataset.band === state2.band);
     }
     modeEl.textContent = state2.mode || "---";
-    if (state2.ptt) {
+    if (state2.rxOnly) {
+      txEl.textContent = "RX";
+      txEl.classList.remove("rig-tx-active");
+      if (lcdEl) lcdEl.classList.remove("rig-lcd-tx");
+    } else if (state2.ptt) {
       txEl.textContent = "TX";
       txEl.classList.add("rig-tx-active");
       if (lcdEl) lcdEl.classList.add("rig-lcd-tx");
@@ -19205,7 +19601,7 @@ ${beacon.location}`);
     const caps = state2.capabilities || [];
     const hasSwr = caps.includes("meter_swr");
     if (swrEl) {
-      if (!hasSwr) {
+      if (state2.rxOnly || !hasSwr) {
         swrEl.style.display = "none";
       } else {
         swrEl.style.display = "";
@@ -19227,7 +19623,7 @@ ${beacon.location}`);
       }
     }
     if (powerEl) {
-      if (!caps.includes("meter_power")) {
+      if (state2.rxOnly || !caps.includes("meter_power")) {
         powerEl.style.display = "none";
       } else {
         powerEl.style.display = "";
@@ -19262,7 +19658,7 @@ ${beacon.location}`);
     const powerRow = $("rigPowerRow");
     const powerSlider = $("rigPowerSlider");
     const powerValue = $("rigPowerValue");
-    if (powerRow && state2.connected && caps.includes("rf_power")) {
+    if (powerRow && state2.connected && !state2.rxOnly && caps.includes("rf_power")) {
       powerRow.classList.remove("hidden");
       if (powerValue && state2.rfPower > 0) {
         powerValue.textContent = `${state2.rfPower}W`;
@@ -19281,7 +19677,13 @@ ${beacon.location}`);
     }
     if (state2.connected) {
       if (!state2.txLocked) {
-        statusEl.textContent = state2.demo ? "DEMO MODE" : state2.radioId ? `Connected (${state2.radioId})` : "Connected";
+        if (state2.sourceType === "sdr") {
+          statusEl.textContent = `KiwiSDR: ${state2.remoteName || "connected"}`;
+        } else if (state2.demo) {
+          statusEl.textContent = "DEMO MODE";
+        } else {
+          statusEl.textContent = state2.radioId ? `Connected (${state2.radioId})` : "Connected";
+        }
       }
       connectBtn.textContent = "Disconnect";
     } else {
@@ -19300,6 +19702,17 @@ ${beacon.location}`);
         }
       } else if (badge) {
         badge.remove();
+      }
+      let sdrBadge = header.querySelector(".rig-sdr-badge");
+      if (state2.rxOnly && state2.connected) {
+        if (!sdrBadge) {
+          sdrBadge = document.createElement("span");
+          sdrBadge.className = "rig-sdr-badge";
+          sdrBadge.textContent = "RX ONLY";
+          header.insertBefore(sdrBadge, header.querySelector(".widget-help-btn"));
+        }
+      } else if (sdrBadge) {
+        sdrBadge.remove();
       }
     }
   }
@@ -19345,6 +19758,11 @@ ${beacon.location}`);
     cfgOpt.textContent = "Use Radio Settings";
     cfgOpt.dataset.profile = "configured";
     select.appendChild(cfgOpt);
+    const sdrOpt = document.createElement("option");
+    sdrOpt.value = "kiwisdr";
+    sdrOpt.textContent = "KiwiSDR (Online RX)";
+    sdrOpt.dataset.profile = "kiwisdr";
+    select.appendChild(sdrOpt);
     const demoOpt = document.createElement("option");
     demoOpt.value = "demo";
     demoOpt.textContent = "Demo Mode";
@@ -19414,7 +19832,29 @@ ${beacon.location}`);
     const widgetSelection = select ? select.value : "";
     const isDemo = widgetSelection === "demo" || state_default.radioConnectionType === "demo";
     try {
-      if (isDemo) {
+      if (widgetSelection === "kiwisdr") {
+        const urlInput = $("rigSdrUrl");
+        const rawUrl = urlInput ? urlInput.value.trim() : "";
+        if (!rawUrl) {
+          statusEl.textContent = "Enter a KiwiSDR host address";
+          connectBtn.disabled = false;
+          return;
+        }
+        const parsed = parseSdrUrl(rawUrl);
+        statusEl.textContent = `Connecting to ${parsed.host}...`;
+        const success = await connectRig({
+          sdrType: "kiwisdr",
+          sdrHost: parsed.host,
+          sdrPort: parsed.port,
+          sdrPassword: state_default.radioSdrPassword || "",
+          pollingInterval: 1e3
+        });
+        if (success) {
+          localStorage.setItem("hamtab_radio_sdr_url", rawUrl);
+        } else {
+          statusEl.textContent = "KiwiSDR connection failed";
+        }
+      } else if (isDemo) {
         statusEl.textContent = "Connecting (demo)...";
         const success = await connectRig({
           profileId: "demo",
@@ -19480,6 +19920,20 @@ ${beacon.location}`);
     }
     connectBtn.disabled = false;
   }
+  function parseSdrUrl(input) {
+    let cleaned = input.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    const parts = cleaned.split(":");
+    return {
+      host: parts[0],
+      port: parts[1] ? parseInt(parts[1], 10) : 8073
+    };
+  }
+  function updateSdrUrlVisibility() {
+    const select = $("rigProfileSelect");
+    const sdrRow = $("rigSdrUrlRow");
+    if (!select || !sdrRow) return;
+    sdrRow.style.display = select.value === "kiwisdr" ? "" : "none";
+  }
   function initOnAirRig() {
     if (initialized2) return;
     if (!isWidgetVisible("widget-on-air-rig")) return;
@@ -19490,6 +19944,14 @@ ${beacon.location}`);
       populateBandMode();
       populateBandButtons();
       connectBtn.addEventListener("click", handleConnectClick);
+      const rigSelect = $("rigProfileSelect");
+      if (rigSelect) {
+        rigSelect.addEventListener("change", updateSdrUrlVisibility);
+      }
+      const sdrUrlInput = $("rigSdrUrl");
+      if (sdrUrlInput && state_default.radioSdrUrl) {
+        sdrUrlInput.value = state_default.radioSdrUrl;
+      }
       const bandSelect = $("rigBandSelect");
       const modeSelect = $("rigModeSelect");
       if (bandSelect) bandSelect.addEventListener("change", onBandModeChange);
@@ -19893,8 +20355,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.60.0";
-    $("aboutVersion").textContent = "0.60.0";
+    $("splashVersion").textContent = "0.61.0";
+    $("aboutVersion").textContent = "0.61.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

@@ -26,7 +26,7 @@ function getConfig() {
           scriptSrc: ["'self'"],
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", "data:", "https://*.basemaps.cartocdn.com", "https://tilecache.rainviewer.com"],
-          connectSrc: ["'self'"],
+          connectSrc: ["'self'", "ws:", "wss:"],
           frameSrc: ["'none'"],
           ...(isHostedmode ? {} : { upgradeInsecureRequests: null }),
         },

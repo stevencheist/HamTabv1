@@ -293,8 +293,12 @@ function render(state) {
   // Mode
   modeEl.textContent = state.mode || '---';
 
-  // TX/RX state — toggles LCD color scheme
-  if (state.ptt) {
+  // TX/RX state — toggles LCD color scheme (force RX for SDR)
+  if (state.rxOnly) {
+    txEl.textContent = 'RX';
+    txEl.classList.remove('rig-tx-active');
+    if (lcdEl) lcdEl.classList.remove('rig-lcd-tx');
+  } else if (state.ptt) {
     txEl.textContent = 'TX';
     txEl.classList.add('rig-tx-active');
     if (lcdEl) lcdEl.classList.add('rig-lcd-tx');
@@ -332,11 +336,11 @@ function render(state) {
     sMeterEl.classList.remove('rig-meter-over');
   }
 
-  // SWR display — hide entirely if radio lacks meter_swr capability
+  // SWR display — hide for RX-only or if radio lacks meter_swr capability
   const caps = state.capabilities || [];
   const hasSwr = caps.includes('meter_swr');
   if (swrEl) {
-    if (!hasSwr) {
+    if (state.rxOnly || !hasSwr) {
       swrEl.style.display = 'none';
     } else {
       swrEl.style.display = '';
@@ -358,9 +362,9 @@ function render(state) {
     }
   }
 
-  // TX Power display — hide entirely if radio lacks meter_power capability
+  // TX Power display — hide for RX-only or if radio lacks meter_power capability
   if (powerEl) {
-    if (!caps.includes('meter_power')) {
+    if (state.rxOnly || !caps.includes('meter_power')) {
       powerEl.style.display = 'none';
     } else {
       powerEl.style.display = '';
@@ -401,7 +405,7 @@ function render(state) {
   const powerRow = $('rigPowerRow');
   const powerSlider = $('rigPowerSlider');
   const powerValue = $('rigPowerValue');
-  if (powerRow && state.connected && caps.includes('rf_power')) {
+  if (powerRow && state.connected && !state.rxOnly && caps.includes('rf_power')) {
     powerRow.classList.remove('hidden');
     if (powerValue && state.rfPower > 0) {
       powerValue.textContent = `${state.rfPower}W`;
@@ -422,12 +426,16 @@ function render(state) {
     statusEl.classList.remove('rig-status-warn');
   }
 
-  // Connection status + demo badge
+  // Connection status + demo/SDR badge
   if (state.connected) {
     if (!state.txLocked) {
-      statusEl.textContent = state.demo
-        ? 'DEMO MODE'
-        : state.radioId ? `Connected (${state.radioId})` : 'Connected';
+      if (state.sourceType === 'sdr') {
+        statusEl.textContent = `KiwiSDR: ${state.remoteName || 'connected'}`;
+      } else if (state.demo) {
+        statusEl.textContent = 'DEMO MODE';
+      } else {
+        statusEl.textContent = state.radioId ? `Connected (${state.radioId})` : 'Connected';
+      }
     }
     connectBtn.textContent = 'Disconnect';
   } else {
@@ -448,6 +456,19 @@ function render(state) {
       }
     } else if (badge) {
       badge.remove();
+    }
+
+    // SDR RX ONLY badge
+    let sdrBadge = header.querySelector('.rig-sdr-badge');
+    if (state.rxOnly && state.connected) {
+      if (!sdrBadge) {
+        sdrBadge = document.createElement('span');
+        sdrBadge.className = 'rig-sdr-badge';
+        sdrBadge.textContent = 'RX ONLY';
+        header.insertBefore(sdrBadge, header.querySelector('.widget-help-btn'));
+      }
+    } else if (sdrBadge) {
+      sdrBadge.remove();
     }
   }
 }
@@ -508,6 +529,13 @@ function populateProfiles() {
   cfgOpt.textContent = 'Use Radio Settings';
   cfgOpt.dataset.profile = 'configured';
   select.appendChild(cfgOpt);
+
+  // Option: KiwiSDR (online RX)
+  const sdrOpt = document.createElement('option');
+  sdrOpt.value = 'kiwisdr';
+  sdrOpt.textContent = 'KiwiSDR (Online RX)';
+  sdrOpt.dataset.profile = 'kiwisdr';
+  select.appendChild(sdrOpt);
 
   // Option: demo mode
   const demoOpt = document.createElement('option');
@@ -596,7 +624,34 @@ async function handleConnectClick() {
   const isDemo = widgetSelection === 'demo' || state.radioConnectionType === 'demo';
 
   try {
-    if (isDemo) {
+    if (widgetSelection === 'kiwisdr') {
+      // --- KiwiSDR online receiver ---
+      const urlInput = $('rigSdrUrl');
+      const rawUrl = urlInput ? urlInput.value.trim() : '';
+      if (!rawUrl) {
+        statusEl.textContent = 'Enter a KiwiSDR host address';
+        connectBtn.disabled = false;
+        return;
+      }
+
+      const parsed = parseSdrUrl(rawUrl);
+      statusEl.textContent = `Connecting to ${parsed.host}...`;
+
+      const success = await connectRig({
+        sdrType: 'kiwisdr',
+        sdrHost: parsed.host,
+        sdrPort: parsed.port,
+        sdrPassword: state.radioSdrPassword || '',
+        pollingInterval: 1000,
+      });
+
+      if (success) {
+        localStorage.setItem('hamtab_radio_sdr_url', rawUrl);
+      } else {
+        statusEl.textContent = 'KiwiSDR connection failed';
+      }
+
+    } else if (isDemo) {
       // --- Demo mode ---
       statusEl.textContent = 'Connecting (demo)...';
       const success = await connectRig({
@@ -680,6 +735,25 @@ async function handleConnectClick() {
   connectBtn.disabled = false;
 }
 
+// --- Parse SDR URL input ---
+// Strips http(s):// prefix, splits host:port, defaults port 8073.
+function parseSdrUrl(input) {
+  let cleaned = input.replace(/^https?:\/\//, '').replace(/\/.*$/, '');
+  const parts = cleaned.split(':');
+  return {
+    host: parts[0],
+    port: parts[1] ? parseInt(parts[1], 10) : 8073,
+  };
+}
+
+// --- Toggle SDR URL row visibility based on profile selection ---
+function updateSdrUrlVisibility() {
+  const select = $('rigProfileSelect');
+  const sdrRow = $('rigSdrUrlRow');
+  if (!select || !sdrRow) return;
+  sdrRow.style.display = select.value === 'kiwisdr' ? '' : 'none';
+}
+
 // --- Initialize widget (idempotent — safe to call multiple times) ---
 export function initOnAirRig() {
   if (initialized) return;
@@ -695,6 +769,16 @@ export function initOnAirRig() {
     populateBandMode();
     populateBandButtons();
     connectBtn.addEventListener('click', handleConnectClick);
+
+    // SDR URL row: toggle visibility on profile change, restore saved URL
+    const rigSelect = $('rigProfileSelect');
+    if (rigSelect) {
+      rigSelect.addEventListener('change', updateSdrUrlVisibility);
+    }
+    const sdrUrlInput = $('rigSdrUrl');
+    if (sdrUrlInput && state.radioSdrUrl) {
+      sdrUrlInput.value = state.radioSdrUrl;
+    }
 
     // Band + Mode selectors
     const bandSelect = $('rigBandSelect');

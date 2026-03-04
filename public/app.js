@@ -70,6 +70,10 @@
         slimHeader: localStorage.getItem("hamtab_slim_header") === "true",
         grayscale: localStorage.getItem("hamtab_grayscale") === "true",
         disableWxBackgrounds: localStorage.getItem("hamtab_disable_wx_bg") === "true",
+        textScale: parseFloat(localStorage.getItem("hamtab_text_scale")) || 1,
+        a11yFocusTrap: localStorage.getItem("hamtab_a11y_focus_trap") !== "false",
+        a11yEscapeClose: localStorage.getItem("hamtab_a11y_escape_close") !== "false",
+        a11yReducedMotion: localStorage.getItem("hamtab_a11y_reduced_motion") === "true",
         use24h: localStorage.getItem("hamtab_time24") !== "false",
         privilegeFilterEnabled: localStorage.getItem("hamtab_privilege_filter") === "true",
         licenseClass: localStorage.getItem("hamtab_license_class") || "",
@@ -856,6 +860,10 @@
   function getReliabilityColor(rel) {
     if (rel < 5) return "rgba(26, 26, 26, 0.6)";
     const t = Math.max(0, Math.min(1, (rel - 5) / 90));
+    if (state_default.grayscale) {
+      const light2 = 15 + t * 70;
+      return `hsl(0, 0%, ${light2}%)`;
+    }
     const hue = t * 120;
     const sat = 90;
     const light = 42 + t * 13;
@@ -8189,12 +8197,16 @@
     cols.forEach((col) => {
       const th = document.createElement("th");
       th.textContent = col.label;
+      th.scope = "col";
       if (col.sortable) {
         th.classList.add("sortable");
         th.addEventListener("click", () => toggleSort(col.key));
         const effectiveCol = state_default.spotSortColumn || SOURCE_DEFS[state_default.currentSource].sortKey;
         if (effectiveCol === col.key || col.key === "age" && effectiveCol === "spotTime" && !state_default.spotSortColumn) {
           th.classList.add(state_default.spotSortDirection === "asc" ? "sort-asc" : "sort-desc");
+          th.setAttribute("aria-sort", state_default.spotSortDirection === "asc" ? "ascending" : "descending");
+        } else {
+          th.setAttribute("aria-sort", "none");
         }
       }
       tr.appendChild(th);
@@ -9217,6 +9229,48 @@
     if (s.includes("storm") || s.includes("major")) return "var(--red)";
     return "";
   }
+  function aLabel(val) {
+    const n = parseInt(val);
+    if (isNaN(n)) return "";
+    if (n < 10) return "Good";
+    if (n < 30) return "Fair";
+    return "Poor";
+  }
+  function kLabel(val) {
+    const n = parseInt(val);
+    if (isNaN(n)) return "";
+    if (n <= 2) return "Quiet";
+    if (n <= 4) return "Active";
+    return "Storm";
+  }
+  function solarWindLabel(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return "";
+    if (n < 400) return "Normal";
+    if (n < 600) return "Elevated";
+    return "High";
+  }
+  function bzLabel(val) {
+    const n = parseFloat(val);
+    if (isNaN(n)) return "";
+    if (n >= 0) return "Good";
+    if (n > -10) return "Fair";
+    return "Poor";
+  }
+  function auroraLabel(val) {
+    const n = parseInt(val);
+    if (isNaN(n)) return "";
+    if (n <= 3) return "Low";
+    if (n <= 6) return "Moderate";
+    return "High";
+  }
+  function geomagLabel(val) {
+    const s = (val || "").toLowerCase();
+    if (s.includes("quiet")) return "Quiet";
+    if (s.includes("unsettled") || s.includes("active")) return "Active";
+    if (s.includes("storm") || s.includes("major")) return "Storm";
+    return "";
+  }
   function loadSolarFieldVisibility() {
     const { SOLAR_FIELD_DEFS: SOLAR_FIELD_DEFS2 } = (init_constants(), __toCommonJS(constants_exports));
     try {
@@ -9402,6 +9456,15 @@
       valueDiv.className = "value";
       if (color) valueDiv.style.color = color;
       valueDiv.textContent = displayVal;
+      if (f.labelFn) {
+        const statusLabel = f.labelFn(rawVal);
+        if (statusLabel) {
+          const labelSpan = document.createElement("span");
+          labelSpan.className = "solar-status-label";
+          labelSpan.textContent = " " + statusLabel;
+          valueDiv.appendChild(labelSpan);
+        }
+      }
       div.appendChild(labelDiv);
       div.appendChild(valueDiv);
       solarIndices.appendChild(div);
@@ -10052,24 +10115,24 @@
         }
       };
       SOLAR_FIELD_DEFS = [
-        { key: "sfi", label: "Solar Flux", unit: "", colorFn: null, defaultVisible: true },
-        { key: "sunspots", label: "Sunspots", unit: "", colorFn: null, defaultVisible: true },
-        { key: "aindex", label: "A-Index", unit: "", colorFn: aColor, defaultVisible: true },
-        { key: "kindex", label: "K-Index", unit: "", colorFn: kColor, defaultVisible: true },
-        { key: "xray", label: "X-Ray", unit: "", colorFn: null, defaultVisible: true },
-        { key: "signalnoise", label: "Signal Noise", unit: "", colorFn: null, defaultVisible: true },
-        { key: "solarwind", label: "Solar Wind", unit: " km/s", colorFn: solarWindColor, defaultVisible: false },
-        { key: "magneticfield", label: "Bz (IMF)", unit: " nT", colorFn: bzColor, defaultVisible: false },
-        { key: "protonflux", label: "Proton Flux", unit: "", colorFn: null, defaultVisible: false },
-        { key: "electonflux", label: "Electron Flux", unit: "", colorFn: null, defaultVisible: false },
-        { key: "aurora", label: "Aurora", unit: "", colorFn: auroraColor, defaultVisible: false },
-        { key: "latdegree", label: "Aurora Lat", unit: "\xB0", colorFn: null, defaultVisible: false },
-        { key: "heliumline", label: "He 10830\xC5", unit: "", colorFn: null, defaultVisible: false },
-        { key: "geomagfield", label: "Geomag Field", unit: "", colorFn: geomagColor, defaultVisible: false },
-        { key: "kindexnt", label: "K-Index (Night)", unit: "", colorFn: kColor, defaultVisible: false },
-        { key: "muf", label: "MUF", unit: " MHz", colorFn: null, defaultVisible: false },
-        { key: "fof2", label: "foF2", unit: " MHz", colorFn: null, defaultVisible: false },
-        { key: "muffactor", label: "MUF Factor", unit: "", colorFn: null, defaultVisible: false }
+        { key: "sfi", label: "Solar Flux", unit: "", colorFn: null, labelFn: null, defaultVisible: true },
+        { key: "sunspots", label: "Sunspots", unit: "", colorFn: null, labelFn: null, defaultVisible: true },
+        { key: "aindex", label: "A-Index", unit: "", colorFn: aColor, labelFn: aLabel, defaultVisible: true },
+        { key: "kindex", label: "K-Index", unit: "", colorFn: kColor, labelFn: kLabel, defaultVisible: true },
+        { key: "xray", label: "X-Ray", unit: "", colorFn: null, labelFn: null, defaultVisible: true },
+        { key: "signalnoise", label: "Signal Noise", unit: "", colorFn: null, labelFn: null, defaultVisible: true },
+        { key: "solarwind", label: "Solar Wind", unit: " km/s", colorFn: solarWindColor, labelFn: solarWindLabel, defaultVisible: false },
+        { key: "magneticfield", label: "Bz (IMF)", unit: " nT", colorFn: bzColor, labelFn: bzLabel, defaultVisible: false },
+        { key: "protonflux", label: "Proton Flux", unit: "", colorFn: null, labelFn: null, defaultVisible: false },
+        { key: "electonflux", label: "Electron Flux", unit: "", colorFn: null, labelFn: null, defaultVisible: false },
+        { key: "aurora", label: "Aurora", unit: "", colorFn: auroraColor, labelFn: auroraLabel, defaultVisible: false },
+        { key: "latdegree", label: "Aurora Lat", unit: "\xB0", colorFn: null, labelFn: null, defaultVisible: false },
+        { key: "heliumline", label: "He 10830\xC5", unit: "", colorFn: null, labelFn: null, defaultVisible: false },
+        { key: "geomagfield", label: "Geomag Field", unit: "", colorFn: geomagColor, labelFn: geomagLabel, defaultVisible: false },
+        { key: "kindexnt", label: "K-Index (Night)", unit: "", colorFn: kColor, labelFn: kLabel, defaultVisible: false },
+        { key: "muf", label: "MUF", unit: " MHz", colorFn: null, labelFn: null, defaultVisible: false },
+        { key: "fof2", label: "foF2", unit: " MHz", colorFn: null, labelFn: null, defaultVisible: false },
+        { key: "muffactor", label: "MUF Factor", unit: "", colorFn: null, labelFn: null, defaultVisible: false }
       ];
       LUNAR_FIELD_DEFS = [
         { key: "phase", label: "Moon Phase", unit: "", colorFn: null, defaultVisible: true },
@@ -11342,9 +11405,13 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   }
   function reliabilityToRGBA(rel) {
     if (rel < 3) return { r: 20, g: 0, b: 40, a: 60 };
+    const alpha = Math.min(210, 140 + rel / 100 * 70);
+    if (state_default.grayscale) {
+      const v = Math.round(40 + (Math.min(rel, 100) - 3) / 97 * 200);
+      return { r: v, g: v, b: v, a: Math.round(alpha) };
+    }
     const hue = (Math.min(rel, 100) - 3) / 97 * 120;
     const { r, g, b } = hslToRgb(hue, 1, 0.5);
-    const alpha = Math.min(210, 140 + rel / 100 * 70);
     return { r, g, b, a: Math.round(alpha) };
   }
   function cellSizeForZoom(zoom) {
@@ -12675,6 +12742,31 @@ ${beacon.location}`);
         "--dx-color": "#ff9100"
         // orange — DX panel accent
       }
+    },
+    accessibility: {
+      id: "accessibility",
+      name: "Accessible",
+      description: "High contrast + text scale",
+      bodyClass: "high-contrast",
+      supportsGrid: true,
+      vars: {
+        "--bg": "#000000",
+        "--surface": "#111111",
+        "--surface2": "#222222",
+        "--surface3": "#333333",
+        "--accent": "#00ccff",
+        "--text": "#ffffff",
+        "--text-dim": "#cccccc",
+        "--green": "#00ff55",
+        "--yellow": "#ffee00",
+        "--red": "#ff4444",
+        "--orange": "#ff9900",
+        "--border": "#666666",
+        "--bg-secondary": "#0a0a0a",
+        "--bg-tertiary": "#1a1a1a",
+        "--de-color": "#00ccff",
+        "--dx-color": "#00ff55"
+      }
     }
   };
   var activeThemeId = localStorage.getItem(STORAGE_KEY) || "default";
@@ -12713,6 +12805,10 @@ ${beacon.location}`);
     }
     if (localStorage.getItem("hamtab_grayscale") === "true") {
       document.body.classList.add("grayscale");
+    }
+    const savedScale = parseFloat(localStorage.getItem("hamtab_text_scale"));
+    if (savedScale && savedScale !== 1) {
+      document.documentElement.style.fontSize = 16 * savedScale + "px";
     }
   }
   function currentThemeSupportsGrid() {
@@ -12782,6 +12878,7 @@ ${beacon.location}`);
     localStorage.setItem("hamtab_spot_source", source);
     $("sourceTabs").querySelectorAll(".source-tab").forEach((btn) => {
       btn.classList.toggle("active", btn.dataset.source === source);
+      btn.setAttribute("aria-selected", String(btn.dataset.source === source));
     });
     updateTableColumns();
     updateFilterVisibility();
@@ -12950,6 +13047,59 @@ ${beacon.location}`);
 
   // src/splash.js
   init_spots();
+
+  // src/a11y.js
+  init_state();
+  var FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  function trapFocus(container) {
+    function handler(e) {
+      if (e.key !== "Tab") return;
+      const focusable = container.querySelectorAll(FOCUSABLE);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    container.addEventListener("keydown", handler);
+    return () => container.removeEventListener("keydown", handler);
+  }
+  var modalStack = [];
+  function openModal(overlayEl, options) {
+    if (!overlayEl) return;
+    const previousFocus = document.activeElement;
+    overlayEl.classList.remove("hidden");
+    const inner = overlayEl.querySelector('[role="dialog"],[role="alertdialog"]') || overlayEl.firstElementChild;
+    const cleanup = state_default.a11yFocusTrap && inner ? trapFocus(inner) : null;
+    modalStack.push({ overlay: overlayEl, cleanup, previousFocus });
+    const focusTarget = options && options.focusEl || inner && inner.querySelector(FOCUSABLE);
+    if (focusTarget) {
+      requestAnimationFrame(() => focusTarget.focus());
+    }
+  }
+  function closeModal(overlayEl) {
+    if (!overlayEl) return;
+    overlayEl.classList.add("hidden");
+    const idx = modalStack.findIndex((m) => m.overlay === overlayEl);
+    if (idx !== -1) {
+      const entry = modalStack.splice(idx, 1)[0];
+      if (entry.cleanup) entry.cleanup();
+      if (entry.previousFocus && typeof entry.previousFocus.focus === "function") {
+        entry.previousFocus.focus();
+      }
+    }
+  }
+
+  // src/splash.js
   init_markers();
 
   // src/weather.js
@@ -13130,10 +13280,16 @@ ${beacon.location}`);
         div.innerHTML = '<div class="wx-alert-event wx-sev-' + (a.severity || "Unknown") + '">' + esc(a.event) + " (" + esc(a.severity) + ')</div><div class="wx-alert-headline">' + esc(a.headline || "") + '</div><div class="wx-alert-desc">' + esc(a.description || "") + "</div>" + (a.web && /^https?:\/\//.test(a.web) ? '<div class="wx-alert-link"><a href="' + esc(a.web) + '" target="_blank" rel="noopener">View on NWS website</a></div>' : "");
         wxAlertList.appendChild(div);
       }
-      $("wxAlertSplash").classList.remove("hidden");
+      openModal($("wxAlertSplash"));
     });
     $("wxAlertClose").addEventListener("click", () => {
-      $("wxAlertSplash").classList.add("hidden");
+      closeModal($("wxAlertSplash"));
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !$("wxAlertSplash").classList.contains("hidden")) {
+        if (!state_default.a11yEscapeClose) return;
+        closeModal($("wxAlertSplash"));
+      }
     });
   }
 
@@ -13958,6 +14114,12 @@ ${beacon.location}`);
         if (e.target === splash) dismissSatelliteConfig();
       });
     }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && $("satCfgSplash") && !$("satCfgSplash").classList.contains("hidden")) {
+        if (!state_default.a11yEscapeClose) return;
+        dismissSatelliteConfig();
+      }
+    });
   }
   async function fetchIssPosition() {
     try {
@@ -14246,8 +14408,9 @@ ${beacon.location}`);
         const ageDays = Math.floor((Date.now() / 1e3 - pos.tleEpoch) / 86400);
         const maxAge = state_default.maxTleAge || 7;
         const cls = ageDays <= Math.floor(maxAge * 0.4) ? "tle-fresh" : ageDays <= maxAge ? "tle-aging" : "tle-stale";
+        const ageLabel = ageDays <= Math.floor(maxAge * 0.4) ? "Fresh" : ageDays <= maxAge ? "Aging" : "Stale";
         const warn = ageDays > maxAge ? " \u26A0" : "";
-        tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d (max: ${maxAge}d)">${ageDays}d${warn}</span>`;
+        tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d (max: ${maxAge}d)">${ageDays}d ${ageLabel}${warn}</span>`;
       }
       const rowClass = `sat-row${isSelected ? " selected" : ""}${isAbove ? "" : " below-horizon"}`;
       html += `<div class="${rowClass}" data-sat-id="${satId}">`;
@@ -14347,7 +14510,7 @@ ${beacon.location}`);
       fetchSatelliteList();
     }
     renderSatelliteSelectList();
-    splash.classList.remove("hidden");
+    openModal(splash);
   }
   function dismissSatelliteConfig() {
     const splash = $("satCfgSplash");
@@ -14383,7 +14546,7 @@ ${beacon.location}`);
       state_default.satellites.tracked = tracked.length > 0 ? tracked : [25544];
       localStorage.setItem("hamtab_sat_tracked", JSON.stringify(state_default.satellites.tracked));
     }
-    splash.classList.add("hidden");
+    closeModal(splash);
     fetchIssPosition();
     if (state_default.n2yoApiKey) {
       fetchSatellitePositions();
@@ -14438,6 +14601,12 @@ ${beacon.location}`);
         if (e.target === splash) dismissLiveSpotsConfig();
       });
     }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && $("liveSpotsCfgSplash") && !$("liveSpotsCfgSplash").classList.contains("hidden")) {
+        if (!state_default.a11yEscapeClose) return;
+        dismissLiveSpotsConfig();
+      }
+    });
     const modeSelect = $("liveSpotsModeSelect");
     if (modeSelect) {
       modeSelect.value = state_default.liveSpots.displayMode;
@@ -14450,13 +14619,13 @@ ${beacon.location}`);
   }
   function showLiveSpotsConfig() {
     const splash = $("liveSpotsCfgSplash");
-    if (splash) splash.classList.remove("hidden");
+    if (splash) openModal(splash);
     const modeSelect = $("liveSpotsModeSelect");
     if (modeSelect) modeSelect.value = state_default.liveSpots.displayMode;
   }
   function dismissLiveSpotsConfig() {
     const splash = $("liveSpotsCfgSplash");
-    if (splash) splash.classList.add("hidden");
+    if (splash) closeModal(splash);
   }
   async function fetchLiveSpots() {
     if (!state_default.myCallsign) {
@@ -20033,7 +20202,8 @@ ${beacon.location}`);
       } else {
         swrEl.style.display = "";
         if (state2.swr > 0) {
-          swrEl.textContent = `SWR ${state2.swr.toFixed(1)}`;
+          const swrLabel = state2.swr > 3 ? " DANGER" : state2.swr > 1.5 ? " CAUTION" : "";
+          swrEl.textContent = `SWR ${state2.swr.toFixed(1)}:1${swrLabel}`;
           if (state2.swr > 3) {
             swrEl.classList.add("rig-swr-danger");
             swrEl.classList.remove("rig-swr-caution");
@@ -20676,8 +20846,11 @@ ${beacon.location}`);
   }
   function showSplash() {
     const splash = $("splash");
-    splash.classList.remove("hidden");
-    splash.querySelectorAll(".config-tab").forEach((t) => t.classList.toggle("active", t.dataset.tab === "station"));
+    openModal(splash, { focusEl: $("splashCallsign") });
+    splash.querySelectorAll(".config-tab").forEach((t) => {
+      t.classList.toggle("active", t.dataset.tab === "station");
+      t.setAttribute("aria-selected", String(t.dataset.tab === "station"));
+    });
     splash.querySelectorAll(".config-panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === "station"));
     $("splashCallsign").value = state_default.myCallsign;
     if (state_default.myLat !== null && state_default.myLon !== null) {
@@ -20794,6 +20967,14 @@ ${beacon.location}`);
     if (cfgGrayscale) cfgGrayscale.checked = state_default.grayscale;
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
+    const cfgTextScale = $("cfgTextScale");
+    if (cfgTextScale) cfgTextScale.value = String(state_default.textScale);
+    const cfgFocusTrap = $("cfgFocusTrap");
+    if (cfgFocusTrap) cfgFocusTrap.checked = state_default.a11yFocusTrap;
+    const cfgEscapeClose = $("cfgEscapeClose");
+    if (cfgEscapeClose) cfgEscapeClose.checked = state_default.a11yEscapeClose;
+    const cfgReducedMotion = $("cfgReducedMotion");
+    if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
     $("splashVersion").textContent = "0.61.0";
     $("aboutVersion").textContent = "0.61.0";
@@ -21395,7 +21576,7 @@ ${beacon.location}`);
       });
     }
     $("splashGridDropdown").classList.remove("open");
-    $("splash").classList.add("hidden");
+    closeModal($("splash"));
     updateOperatorDisplay2();
     centerMapOnUser();
     updateUserMarker();
@@ -21411,15 +21592,26 @@ ${beacon.location}`);
   function initSplashListeners() {
     document.querySelectorAll(".config-tab").forEach((tab) => {
       tab.addEventListener("click", () => {
-        document.querySelectorAll(".config-tab").forEach((t) => t.classList.remove("active"));
+        document.querySelectorAll(".config-tab").forEach((t) => {
+          t.classList.remove("active");
+          t.setAttribute("aria-selected", "false");
+        });
         document.querySelectorAll(".config-panel").forEach((p) => p.classList.remove("active"));
         tab.classList.add("active");
+        tab.setAttribute("aria-selected", "true");
         document.querySelector(`.config-panel[data-panel="${tab.dataset.tab}"]`).classList.add("active");
       });
     });
     $("splashOk").addEventListener("click", dismissSplash);
     $("splashCallsign").addEventListener("keydown", (e) => {
       if (e.key === "Enter") dismissSplash();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !$("splash").classList.contains("hidden")) {
+        if (!state_default.a11yEscapeClose) return;
+        if ($("splashGridDropdown").classList.contains("open")) return;
+        dismissSplash();
+      }
     });
     function onLatLonInput() {
       if (state_default.syncingFields) return;
@@ -21805,6 +21997,12 @@ ${beacon.location}`);
         state_default.grayscale = cfgGrayscaleCb.checked;
         localStorage.setItem("hamtab_grayscale", String(state_default.grayscale));
         document.body.classList.toggle("grayscale", state_default.grayscale);
+        renderVoacapMatrix();
+        if (state_default.hfPropOverlayBand) {
+          const band = state_default.hfPropOverlayBand;
+          state_default.hfPropOverlayBand = null;
+          toggleBandOverlay(band);
+        }
       });
     }
     const cfgDisableWxBgCb = $("cfgDisableWxBg");
@@ -21819,6 +22017,41 @@ ${beacon.location}`);
             wxClasses.forEach((c) => hcl.classList.remove(c));
           }
         }
+      });
+    }
+    const cfgTextScaleSel = $("cfgTextScale");
+    if (cfgTextScaleSel) {
+      cfgTextScaleSel.addEventListener("change", () => {
+        const scale = parseFloat(cfgTextScaleSel.value) || 1;
+        state_default.textScale = scale;
+        localStorage.setItem("hamtab_text_scale", String(scale));
+        if (scale === 1) {
+          document.documentElement.style.removeProperty("font-size");
+        } else {
+          document.documentElement.style.fontSize = 16 * scale + "px";
+        }
+      });
+    }
+    const cfgFocusTrapCb = $("cfgFocusTrap");
+    if (cfgFocusTrapCb) {
+      cfgFocusTrapCb.addEventListener("change", () => {
+        state_default.a11yFocusTrap = cfgFocusTrapCb.checked;
+        localStorage.setItem("hamtab_a11y_focus_trap", String(cfgFocusTrapCb.checked));
+      });
+    }
+    const cfgEscapeCloseCb = $("cfgEscapeClose");
+    if (cfgEscapeCloseCb) {
+      cfgEscapeCloseCb.addEventListener("change", () => {
+        state_default.a11yEscapeClose = cfgEscapeCloseCb.checked;
+        localStorage.setItem("hamtab_a11y_escape_close", String(cfgEscapeCloseCb.checked));
+      });
+    }
+    const cfgReducedMotionCb = $("cfgReducedMotion");
+    if (cfgReducedMotionCb) {
+      cfgReducedMotionCb.addEventListener("change", () => {
+        state_default.a11yReducedMotion = cfgReducedMotionCb.checked;
+        localStorage.setItem("hamtab_a11y_reduced_motion", String(cfgReducedMotionCb.checked));
+        document.body.classList.toggle("reduced-motion", cfgReducedMotionCb.checked);
       });
     }
     const bandColorResetBtn = document.getElementById("bandColorResetBtn");
@@ -22215,6 +22448,7 @@ ${beacon.location}`);
       for (const col of LOGBOOK_COLS) {
         const th = document.createElement("th");
         th.textContent = col.label;
+        th.scope = "col";
         if (col.sortable) {
           th.classList.add("sortable");
           const key = col.key;
@@ -22229,6 +22463,9 @@ ${beacon.location}`);
           });
           if (state_default.logbookSortColumn === key) {
             th.classList.add(state_default.logbookSortDirection === "asc" ? "sort-asc" : "sort-desc");
+            th.setAttribute("aria-sort", state_default.logbookSortDirection === "asc" ? "ascending" : "descending");
+          } else {
+            th.setAttribute("aria-sort", "none");
           }
         }
         tr.appendChild(th);
@@ -22474,14 +22711,14 @@ ${beacon.location}`);
         label.appendChild(document.createTextNode(f.label));
         solarFieldList.appendChild(label);
       });
-      $("solarCfgSplash").classList.remove("hidden");
+      openModal($("solarCfgSplash"));
     });
     $("solarCfgOk").addEventListener("click", () => {
       $("solarFieldList").querySelectorAll('input[type="checkbox"]').forEach((cb) => {
         state_default.solarFieldVisibility[cb.dataset.fieldKey] = cb.checked;
       });
       saveSolarFieldVisibility();
-      $("solarCfgSplash").classList.add("hidden");
+      closeModal($("solarCfgSplash"));
       if (state_default.lastSolarData) renderSolar(state_default.lastSolarData);
     });
     $("lunarCfgBtn").addEventListener("mousedown", (e) => {
@@ -22500,14 +22737,14 @@ ${beacon.location}`);
         label.appendChild(document.createTextNode(f.label));
         lunarFieldList.appendChild(label);
       });
-      $("lunarCfgSplash").classList.remove("hidden");
+      openModal($("lunarCfgSplash"));
     });
     $("lunarCfgOk").addEventListener("click", () => {
       $("lunarFieldList").querySelectorAll('input[type="checkbox"]').forEach((cb) => {
         state_default.lunarFieldVisibility[cb.dataset.fieldKey] = cb.checked;
       });
       saveLunarFieldVisibility();
-      $("lunarCfgSplash").classList.add("hidden");
+      closeModal($("lunarCfgSplash"));
       if (state_default.lastLunarData) renderLunar(state_default.lastLunarData);
     });
     const mapOverlayCfgBtn = $("mapOverlayCfgBtn");
@@ -22535,7 +22772,7 @@ ${beacon.location}`);
         $("mapOvWsprHeatmap").checked = state_default.mapOverlays.wsprHeatmap;
         $("mapOvWsprHeatmapBand").value = state_default.wsprHeatmapBand;
         $("mapOvWsprHeatmapScope").value = state_default.wsprHeatmapScope;
-        mapOverlayCfgSplash.classList.remove("hidden");
+        openModal(mapOverlayCfgSplash);
       });
     }
     if (mapOverlayCfgOk) {
@@ -22561,7 +22798,7 @@ ${beacon.location}`);
         state_default.wsprHeatmapScope = $("mapOvWsprHeatmapScope").value;
         localStorage.setItem("hamtab_wspr_heatmap_scope", state_default.wsprHeatmapScope);
         saveMapOverlays();
-        mapOverlayCfgSplash.classList.add("hidden");
+        closeModal(mapOverlayCfgSplash);
         renderAllMapOverlays();
         renderPropagationHeatmapOverlay();
         renderWsprHeatmapOverlay();
@@ -22586,16 +22823,28 @@ ${beacon.location}`);
         label.appendChild(document.createTextNode(col.label));
         fieldList.appendChild(label);
       });
-      $("spotColCfgSplash").classList.remove("hidden");
+      openModal($("spotColCfgSplash"));
     });
     $("spotColCfgOk").addEventListener("click", () => {
       $("spotColFieldList").querySelectorAll('input[type="checkbox"]').forEach((cb) => {
         state_default.spotColumnVisibility[cb.dataset.fieldKey] = cb.checked;
       });
       saveSpotColumnVisibility();
-      $("spotColCfgSplash").classList.add("hidden");
+      closeModal($("spotColCfgSplash"));
       updateTableColumns();
       renderSpots();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      if (!state_default.a11yEscapeClose) return;
+      const modals = ["solarCfgSplash", "lunarCfgSplash", "spotColCfgSplash", "mapOverlayCfgSplash"];
+      for (const id of modals) {
+        const el2 = $(id);
+        if (el2 && !el2.classList.contains("hidden")) {
+          closeModal(el2);
+          return;
+        }
+      }
     });
   }
 
@@ -22791,7 +23040,7 @@ ${beacon.location}`);
       html += `</div>`;
     }
     $("helpContent").innerHTML = html;
-    $("helpSplash").classList.remove("hidden");
+    openModal($("helpSplash"), { focusEl: $("helpOk") });
   }
   function initHelpListeners() {
     document.querySelectorAll(".widget-help-btn").forEach((btn) => {
@@ -22802,11 +23051,17 @@ ${beacon.location}`);
       });
     });
     $("helpOk").addEventListener("click", () => {
-      $("helpSplash").classList.add("hidden");
+      closeModal($("helpSplash"));
     });
     $("helpSplash").addEventListener("click", (e) => {
       if (e.target.id === "helpSplash") {
-        $("helpSplash").classList.add("hidden");
+        closeModal($("helpSplash"));
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !$("helpSplash").classList.contains("hidden")) {
+        if (!state_default.a11yEscapeClose) return;
+        closeModal($("helpSplash"));
       }
     });
   }
@@ -22920,6 +23175,7 @@ ${beacon.location}`);
   }
 
   // src/feedback.js
+  init_state();
   init_dom();
   var formOpenTime = 0;
   var EMAIL_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
@@ -22958,16 +23214,15 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     }
   }
   function openFeedback() {
-    $("feedbackSplash").classList.remove("hidden");
     $("feedbackForm").reset();
     $("feedbackStatus").classList.add("hidden");
     $("feedbackCharCount").textContent = "0";
     $("feedbackSubmit").disabled = false;
     formOpenTime = Date.now();
-    $("feedbackMessage").focus();
+    openModal($("feedbackSplash"), { focusEl: $("feedbackMessage") });
   }
   function closeFeedback() {
-    $("feedbackSplash").classList.add("hidden");
+    closeModal($("feedbackSplash"));
   }
   function updateCharCount() {
     const textarea = $("feedbackMessage");
@@ -23068,6 +23323,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && !feedbackSplash.classList.contains("hidden")) {
+        if (!state_default.a11yEscapeClose) return;
         closeFeedback();
       }
     });
@@ -23110,14 +23366,14 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     const overlay = $("bigClockOverlay");
     if (!overlay) return;
     active = true;
-    overlay.classList.remove("hidden");
+    openModal(overlay);
     updateBigClock();
   }
   function hide() {
     const overlay = $("bigClockOverlay");
     if (!overlay) return;
     active = false;
-    overlay.classList.add("hidden");
+    closeModal(overlay);
   }
   function toggleBigClock() {
     if (active) hide();
@@ -23135,7 +23391,10 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       if (inner) inner.addEventListener("click", (e) => e.stopPropagation());
     }
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && active) hide();
+      if (e.key === "Escape" && active) {
+        if (!state_default.a11yEscapeClose) return;
+        hide();
+      }
     });
   }
 
@@ -24063,7 +24322,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
         label.appendChild(desc);
         compList.appendChild(label);
       }
-      $("clockCfgSplash").classList.remove("hidden");
+      openModal($("clockCfgSplash"));
     });
     const okBtn = $("clockCfgOk");
     if (okBtn) {
@@ -24079,16 +24338,24 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
         });
         state_default.clockComplications = comps;
         localStorage.setItem("hamtab_clock_complications", JSON.stringify(comps));
-        $("clockCfgSplash").classList.add("hidden");
+        closeModal($("clockCfgSplash"));
         rebuildClock();
       });
     }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !$("clockCfgSplash").classList.contains("hidden")) {
+        if (!state_default.a11yEscapeClose) return;
+        closeModal($("clockCfgSplash"));
+      }
+    });
   }
 
   // src/menu.js
+  init_state();
   init_dom();
 
   // src/layouts.js
+  init_state();
   init_dom();
   init_constants();
   init_widgets();
@@ -24162,7 +24429,10 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     input.addEventListener("click", (e) => e.stopPropagation());
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") doSave(input.value.trim());
-      if (e.key === "Escape") closeMenu();
+      if (e.key === "Escape") {
+        if (!state_default.a11yEscapeClose) return;
+        closeMenu();
+      }
     });
     function doSave(name) {
       if (!name) return;
@@ -24180,16 +24450,20 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   }
   function openMenu() {
     const menu = $("layoutMenu");
+    const btn = $("layoutBtn");
     if (!menu) return;
     renderMenu();
     menu.classList.add("open");
     menuOpen = true;
+    if (btn) btn.setAttribute("aria-expanded", "true");
   }
   function closeMenu() {
     const menu = $("layoutMenu");
+    const btn = $("layoutBtn");
     if (!menu) return;
     menu.classList.remove("open");
     menuOpen = false;
+    if (btn) btn.setAttribute("aria-expanded", "false");
   }
   function toggleMenu() {
     if (menuOpen) closeMenu();
@@ -24236,7 +24510,10 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       }
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && menuOpen) closeMenu();
+      if (e.key === "Escape" && menuOpen) {
+        if (!state_default.a11yEscapeClose) return;
+        closeMenu();
+      }
     });
   }
   function openLayoutMenu() {
@@ -24245,13 +24522,19 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
 
   // src/menu.js
   var isOpen = false;
+  var releaseTrap = null;
   function openMenu2() {
     const drawer = $("mobileMenuDrawer");
     const backdrop = $("mobileMenuBackdrop");
+    const menuBtn = $("mobileMenuBtn");
     if (!drawer || !backdrop) return;
     drawer.classList.add("open");
     backdrop.classList.add("open");
     isOpen = true;
+    if (menuBtn) menuBtn.setAttribute("aria-expanded", "true");
+    if (state_default.a11yFocusTrap) releaseTrap = trapFocus(drawer);
+    const firstItem = drawer.querySelector(".mobile-menu-item");
+    if (firstItem) firstItem.focus();
     const updateEl = $("updateIndicator");
     const menuUpdate = $("mobileMenuUpdate");
     if (updateEl && menuUpdate) {
@@ -24261,10 +24544,17 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   function closeMenu2() {
     const drawer = $("mobileMenuDrawer");
     const backdrop = $("mobileMenuBackdrop");
+    const menuBtn = $("mobileMenuBtn");
     if (!drawer || !backdrop) return;
     drawer.classList.remove("open");
     backdrop.classList.remove("open");
     isOpen = false;
+    if (menuBtn) menuBtn.setAttribute("aria-expanded", "false");
+    if (releaseTrap) {
+      releaseTrap();
+      releaseTrap = null;
+    }
+    if (menuBtn) menuBtn.focus();
   }
   function initMobileMenu() {
     const menuBtn = $("mobileMenuBtn");
@@ -24277,7 +24567,10 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     });
     backdrop.addEventListener("click", closeMenu2);
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && isOpen) closeMenu2();
+      if (e.key === "Escape" && isOpen) {
+        if (!state_default.a11yEscapeClose) return;
+        closeMenu2();
+      }
     });
     drawer.addEventListener("click", (e) => {
       const item = e.target.closest(".mobile-menu-item");
@@ -24311,6 +24604,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   migrate();
   migrateV2();
   initTheme();
+  if (state_default.a11yReducedMotion) document.body.classList.add("reduced-motion");
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
   state_default.lunarFieldVisibility = loadLunarFieldVisibility();
   state_default.widgetVisibility = loadWidgetVisibility();
@@ -24379,12 +24673,18 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       li.textContent = name;
       list.appendChild(li);
     });
-    popup.classList.remove("hidden");
+    openModal(popup, { focusEl: $("newWidgetDismiss") });
     $("newWidgetDismiss").addEventListener("click", () => {
-      popup.classList.add("hidden");
+      closeModal(popup);
     });
     popup.addEventListener("click", (e) => {
-      if (e.target === popup) popup.classList.add("hidden");
+      if (e.target === popup) closeModal(popup);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !popup.classList.contains("hidden")) {
+        if (!state_default.a11yEscapeClose) return;
+        closeModal(popup);
+      }
     });
   }
   function initApp() {

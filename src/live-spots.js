@@ -6,6 +6,7 @@ import { $ } from './dom.js';
 import { geodesicPoints } from './geo.js';
 import { esc } from './utils.js';
 import { getBandColor } from './constants.js';
+import { openModal, closeModal } from './a11y.js';
 
 // --- Initialization ---
 
@@ -30,6 +31,14 @@ export function initLiveSpotsListeners() {
     });
   }
 
+  // Escape to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('liveSpotsCfgSplash') && !$('liveSpotsCfgSplash').classList.contains('hidden')) {
+      if (!state.a11yEscapeClose) return;
+      dismissLiveSpotsConfig();
+    }
+  });
+
   // Mode toggle
   const modeSelect = $('liveSpotsModeSelect');
   if (modeSelect) {
@@ -46,7 +55,7 @@ export function initLiveSpotsListeners() {
 
 function showLiveSpotsConfig() {
   const splash = $('liveSpotsCfgSplash');
-  if (splash) splash.classList.remove('hidden');
+  if (splash) openModal(splash);
 
   const modeSelect = $('liveSpotsModeSelect');
   if (modeSelect) modeSelect.value = state.liveSpots.displayMode;
@@ -54,7 +63,7 @@ function showLiveSpotsConfig() {
 
 function dismissLiveSpotsConfig() {
   const splash = $('liveSpotsCfgSplash');
-  if (splash) splash.classList.add('hidden');
+  if (splash) closeModal(splash);
 }
 
 // --- Data Fetching ---

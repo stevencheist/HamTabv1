@@ -1,6 +1,7 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
+import { openModal, closeModal } from './a11y.js';
 
 const wxBgClasses = ['wx-clear-day','wx-clear-night','wx-partly-cloudy-day','wx-partly-cloudy-night','wx-cloudy','wx-rain','wx-thunderstorm','wx-snow','wx-fog'];
 
@@ -199,10 +200,18 @@ export function initWeatherListeners() {
         (a.web && /^https?:\/\//.test(a.web) ? '<div class="wx-alert-link"><a href="' + esc(a.web) + '" target="_blank" rel="noopener">View on NWS website</a></div>' : '');
       wxAlertList.appendChild(div);
     }
-    $('wxAlertSplash').classList.remove('hidden');
+    openModal($('wxAlertSplash'));
   });
 
   $('wxAlertClose').addEventListener('click', () => {
-    $('wxAlertSplash').classList.add('hidden');
+    closeModal($('wxAlertSplash'));
+  });
+
+  // Escape to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('wxAlertSplash').classList.contains('hidden')) {
+      if (!state.a11yEscapeClose) return;
+      closeModal($('wxAlertSplash'));
+    }
   });
 }

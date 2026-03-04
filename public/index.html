@@ -227,6 +227,7 @@
                 <option value="kenwood_ascii">Kenwood ASCII</option>
                 <option value="icom_civ">Icom CI-V</option>
                 <option value="elecraft_ascii">Elecraft ASCII</option>
+                <option value="tci">TCI (Network)</option>
               </select>
             </div>
             <div class="radio-cfg-row">
@@ -263,6 +264,22 @@
             </div>
             <div style="font-size:0.65rem;color:var(--text-dim);margin-top:-4px;text-align:left;">Auto mode shows the browser port picker on connect. Manual uses a previously authorized port.</div>
             <div id="radioPortHint" style="display:none;font-size:0.6rem;color:var(--text-dim);margin-top:2px;text-align:left;line-height:1.4;">Port numbers shown here are assigned by your browser and may not match your system's COM port numbers. To identify which port is which, open Device Manager (Windows) or check <code>ls /dev/ttyUSB*</code> (Linux). For dual-port radios like the FTDX10, the Enhanced port is for CAT control and the Standard port is for audio/digital modes.</div>
+          </div>
+
+          <div class="splash-divider"></div>
+
+          <!-- TCI Connection (real radio + TCI protocol only) -->
+          <div class="radio-cfg-section" id="radioTciSection" style="display:none;">
+            <span class="splash-loc-title">TCI Connection</span>
+            <div class="radio-cfg-row">
+              <label for="radioTciHost">Host</label>
+              <input type="text" id="radioTciHost" class="radio-cfg-text" style="width:140px;" value="localhost" placeholder="localhost">
+            </div>
+            <div class="radio-cfg-row">
+              <label for="radioTciPort">Port</label>
+              <input type="number" id="radioTciPort" class="radio-cfg-number" value="50001" min="1" max="65535">
+            </div>
+            <div style="font-size:0.65rem;color:var(--text-dim);margin-top:-4px;text-align:left;">In Thetis: Setup &rarr; TCI Server &rarr; enable, set port to 50001.</div>
           </div>
 
           <div class="splash-divider"></div>

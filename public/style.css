@@ -7216,22 +7216,22 @@ body.grayscale {
 /* Design inspired by Icom IC-7300, Yaesu FT-DX10, Kenwood TS-890S */
 
 /* Chassis — subtle metallic feel */
-#widget-on-air-rig { background: linear-gradient(180deg, #1a2440 0%, #0e1628 100%); border-color: #2e3e5e; }
+#widget-on-air-rig { background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%); border-color: var(--border); }
 #widget-on-air-rig .widget-header {
-  background: linear-gradient(180deg, #182238 0%, #0d1524 100%);
-  border-bottom: 1px solid #1e2e4e;
+  background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+  border-bottom: 1px solid var(--border);
   text-transform: uppercase;
   letter-spacing: 1.5px;
   font-size: 0.7rem;
-  color: #6a7a9a;
+  color: var(--text-dim);
 }
 
 .rig-container { padding: 8px; display: flex; flex-direction: column; gap: 8px; }
 
 /* ── LCD Display Panel ── */
 .rig-lcd {
-  background: #040810;
-  border: 1px solid #1a2540;
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 4px;
   padding: 8px 12px 6px;
   box-shadow: inset 0 2px 6px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.03);
@@ -7261,7 +7261,7 @@ body.grayscale {
 .rig-vfo-label {
   font-size: 0.58rem;
   font-weight: 700;
-  color: rgba(0, 229, 255, 0.45);
+  color: color-mix(in srgb, var(--accent) 45%, transparent);
   letter-spacing: 1.5px;
   text-transform: uppercase;
 }
@@ -7274,16 +7274,16 @@ body.grayscale {
   border-radius: 2px;
   letter-spacing: 1px;
   transition: all 0.15s ease;
-  color: #00c853;
-  background: rgba(0, 200, 83, 0.12);
-  border: 1px solid rgba(0, 200, 83, 0.25);
-  box-shadow: 0 0 4px rgba(0, 200, 83, 0.15);
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--green) 25%, transparent);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--green) 15%, transparent);
 }
 .rig-tx-active {
   color: #fff;
-  background: rgba(255, 23, 68, 0.75);
-  border: 1px solid rgba(255, 23, 68, 0.9);
-  box-shadow: 0 0 8px rgba(255, 23, 68, 0.5), 0 0 16px rgba(255, 23, 68, 0.2);
+  background: color-mix(in srgb, var(--red) 75%, transparent);
+  border: 1px solid color-mix(in srgb, var(--red) 90%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--red) 50%, transparent), 0 0 16px color-mix(in srgb, var(--red) 20%, transparent);
   animation: rig-tx-pulse 0.8s ease-in-out infinite;
 }
 @keyframes rig-tx-pulse {
@@ -7303,16 +7303,16 @@ body.grayscale {
   position: relative;
   z-index: 2;
 }
-.rig-confidence-good { box-shadow: 0 0 12px 2px rgba(0, 200, 83, 0.25); }
-.rig-confidence-caution { box-shadow: 0 0 12px 2px rgba(255, 214, 0, 0.25); }
-.rig-confidence-unsafe { box-shadow: 0 0 14px 3px rgba(255, 23, 68, 0.35); }
+.rig-confidence-good { box-shadow: 0 0 12px 2px color-mix(in srgb, var(--green) 25%, transparent); }
+.rig-confidence-caution { box-shadow: 0 0 12px 2px color-mix(in srgb, var(--yellow) 25%, transparent); }
+.rig-confidence-unsafe { box-shadow: 0 0 14px 3px color-mix(in srgb, var(--red) 35%, transparent); }
 
 .rig-frequency {
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 2.1rem;
   font-weight: 700;
-  color: #00e5ff;
-  text-shadow: 0 0 10px rgba(0, 229, 255, 0.35), 0 0 20px rgba(0, 229, 255, 0.12);
+  color: var(--accent);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--accent) 35%, transparent), 0 0 20px color-mix(in srgb, var(--accent) 12%, transparent);
   letter-spacing: 2px;
   text-align: center;
   line-height: 1.1;
@@ -7320,7 +7320,7 @@ body.grayscale {
 .rig-freq-unit {
   font-size: 0.6rem;
   font-weight: 600;
-  color: rgba(0, 229, 255, 0.35);
+  color: color-mix(in srgb, var(--accent) 35%, transparent);
   letter-spacing: 1px;
   align-self: flex-end;
   padding-bottom: 4px;
@@ -7328,14 +7328,14 @@ body.grayscale {
 
 /* TX active: LCD turns red */
 .rig-lcd-tx .rig-frequency {
-  color: #ff1744;
-  text-shadow: 0 0 10px rgba(255, 23, 68, 0.45), 0 0 20px rgba(255, 23, 68, 0.15);
+  color: var(--red);
+  text-shadow: 0 0 10px color-mix(in srgb, var(--red) 45%, transparent), 0 0 20px color-mix(in srgb, var(--red) 15%, transparent);
 }
 .rig-lcd-tx .rig-vfo-label,
-.rig-lcd-tx .rig-freq-unit { color: rgba(255, 23, 68, 0.4); }
-.rig-lcd-tx .rig-band { color: #ff8a80; background: rgba(255, 23, 68, 0.1); border-color: rgba(255, 23, 68, 0.2); }
-.rig-lcd-tx .rig-mode { color: #ff8a80; background: rgba(255, 23, 68, 0.1); border-color: rgba(255, 23, 68, 0.2); }
-.rig-lcd-tx { box-shadow: inset 0 2px 6px rgba(0,0,0,0.7), inset 0 0 20px rgba(255, 23, 68, 0.05); }
+.rig-lcd-tx .rig-freq-unit { color: color-mix(in srgb, var(--red) 40%, transparent); }
+.rig-lcd-tx .rig-band { color: color-mix(in srgb, var(--red), var(--text)); background: color-mix(in srgb, var(--red) 10%, transparent); border-color: color-mix(in srgb, var(--red) 20%, transparent); }
+.rig-lcd-tx .rig-mode { color: color-mix(in srgb, var(--red), var(--text)); background: color-mix(in srgb, var(--red) 10%, transparent); border-color: color-mix(in srgb, var(--red) 20%, transparent); }
+.rig-lcd-tx { box-shadow: inset 0 2px 6px rgba(0,0,0,0.7), inset 0 0 20px color-mix(in srgb, var(--red) 5%, transparent); }
 
 /* Info row: band, mode, RST, power badges */
 .rig-info-row {
@@ -7350,9 +7350,9 @@ body.grayscale {
 .rig-band {
   font-size: 0.62rem;
   font-weight: 700;
-  color: #00e5ff;
-  background: rgba(0, 229, 255, 0.08);
-  border: 1px solid rgba(0, 229, 255, 0.18);
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   padding: 1px 8px;
   border-radius: 2px;
   letter-spacing: 0.5px;
@@ -7360,27 +7360,27 @@ body.grayscale {
 .rig-mode {
   font-size: 0.62rem;
   font-weight: 700;
-  color: #ffd600;
-  background: rgba(255, 214, 0, 0.08);
-  border: 1px solid rgba(255, 214, 0, 0.18);
+  color: var(--yellow);
+  background: color-mix(in srgb, var(--yellow) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--yellow) 18%, transparent);
   padding: 1px 8px;
   border-radius: 2px;
 }
 .rig-rst {
   font-size: 0.62rem;
   font-weight: 700;
-  color: #00c853;
-  background: rgba(0, 200, 83, 0.08);
-  border: 1px solid rgba(0, 200, 83, 0.18);
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--green) 18%, transparent);
   padding: 1px 6px;
   border-radius: 2px;
 }
 .rig-power {
   font-size: 0.62rem;
   font-weight: 700;
-  color: #ff9100;
-  background: rgba(255, 145, 0, 0.08);
-  border: 1px solid rgba(255, 145, 0, 0.18);
+  color: var(--orange);
+  background: color-mix(in srgb, var(--orange) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--orange) 18%, transparent);
   padding: 1px 6px;
   border-radius: 2px;
 }
@@ -7394,10 +7394,10 @@ body.grayscale {
 }
 .rig-band-btn {
   padding: 3px 8px;
-  border: 1px solid rgba(0, 229, 255, 0.18);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
   border-radius: 10px;
-  background: rgba(0, 229, 255, 0.04);
-  color: rgba(0, 229, 255, 0.5);
+  background: color-mix(in srgb, var(--accent) 4%, transparent);
+  color: color-mix(in srgb, var(--accent) 50%, transparent);
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 0.6rem;
   font-weight: 700;
@@ -7407,24 +7407,24 @@ body.grayscale {
   line-height: 1.2;
 }
 .rig-band-btn:hover {
-  color: rgba(0, 229, 255, 0.85);
-  border-color: rgba(0, 229, 255, 0.35);
-  background: rgba(0, 229, 255, 0.08);
+  color: color-mix(in srgb, var(--accent) 85%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
 }
 .rig-band-btn.active {
-  color: #00e5ff;
-  border-color: rgba(0, 229, 255, 0.5);
-  background: rgba(0, 229, 255, 0.12);
-  box-shadow: 0 0 6px rgba(0, 229, 255, 0.2), 0 0 12px rgba(0, 229, 255, 0.08);
-  text-shadow: 0 0 6px rgba(0, 229, 255, 0.4);
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 50%, transparent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 20%, transparent), 0 0 12px color-mix(in srgb, var(--accent) 8%, transparent);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 /* TX mode: active band button shifts to red */
 .rig-lcd-tx ~ .rig-band-buttons .rig-band-btn.active {
-  color: #ff1744;
-  border-color: rgba(255, 23, 68, 0.5);
-  background: rgba(255, 23, 68, 0.12);
-  box-shadow: 0 0 6px rgba(255, 23, 68, 0.2), 0 0 12px rgba(255, 23, 68, 0.08);
-  text-shadow: 0 0 6px rgba(255, 23, 68, 0.4);
+  color: var(--red);
+  border-color: color-mix(in srgb, var(--red) 50%, transparent);
+  background: color-mix(in srgb, var(--red) 12%, transparent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--red) 20%, transparent), 0 0 12px color-mix(in srgb, var(--red) 8%, transparent);
+  text-shadow: 0 0 6px color-mix(in srgb, var(--red) 40%, transparent);
 }
 
 /* ── S-Meter: LED bar-graph ── */
@@ -7435,7 +7435,7 @@ body.grayscale {
   font-size: 0.72rem;
   color: var(--text-dim);
 }
-.rig-meter-row label { min-width: 10px; font-weight: 700; margin-top: 2px; color: rgba(0, 229, 255, 0.5); font-size: 0.68rem; }
+.rig-meter-row label { min-width: 10px; font-weight: 700; margin-top: 2px; color: color-mix(in srgb, var(--accent) 50%, transparent); font-size: 0.68rem; }
 .rig-meter-wrap { flex: 1; }
 .rig-meter-bar {
   height: 12px;
@@ -7448,7 +7448,7 @@ body.grayscale {
 .rig-meter-fill {
   height: 100%;
   width: 0%;
-  background: linear-gradient(90deg, #00c853 0%, #00c853 50%, #a0d800 58%, #ffd600 66%, #ff9100 74%, #ff1744 85%, #ff1744 100%);
+  background: linear-gradient(90deg, var(--green) 0%, var(--green) 50%, color-mix(in srgb, var(--green), var(--yellow)) 58%, var(--yellow) 66%, var(--orange) 74%, var(--red) 85%, var(--red) 100%);
   border-radius: 1px;
   transition: width 0.15s ease;
 }
@@ -7462,7 +7462,7 @@ body.grayscale {
   z-index: 1;
 }
 .rig-meter-over {
-  background: linear-gradient(90deg, #00c853 0%, #00c853 50%, #a0d800 58%, #ffd600 66%, #ff9100 74%, #ff1744 85%, #ff1744 100%);
+  background: linear-gradient(90deg, var(--green) 0%, var(--green) 50%, color-mix(in srgb, var(--green), var(--yellow)) 58%, var(--yellow) 66%, var(--orange) 74%, var(--red) 85%, var(--red) 100%);
 }
 .rig-meter-scale {
   display: flex;
@@ -7472,10 +7472,10 @@ body.grayscale {
   color: rgba(255,255,255,0.25);
   padding: 2px 1px 0;
 }
-.rig-meter-over-label { color: rgba(255, 23, 68, 0.45); }
+.rig-meter-over-label { color: color-mix(in srgb, var(--red) 45%, transparent); }
 .rig-swr-label { min-width: 60px; text-align: right; font-weight: 700; font-size: 0.68rem; }
-.rig-swr-caution { color: #ffd600; text-shadow: 0 0 4px rgba(255, 214, 0, 0.25); }
-.rig-swr-danger { color: #ff1744; text-shadow: 0 0 4px rgba(255, 23, 68, 0.25); }
+.rig-swr-caution { color: var(--yellow); text-shadow: 0 0 4px color-mix(in srgb, var(--yellow) 25%, transparent); }
+.rig-swr-danger { color: var(--red); text-shadow: 0 0 4px color-mix(in srgb, var(--red) 25%, transparent); }
 
 /* ── Spectrum Scope + Waterfall ── */
 .rig-scope-section {
@@ -7483,8 +7483,8 @@ body.grayscale {
   flex-direction: column;
   align-items: stretch;
   gap: 1px;
-  background: #040810;
-  border: 1px solid #1a2540;
+  background: var(--bg);
+  border: 1px solid var(--border);
   border-radius: 3px;
   overflow: hidden;
   margin: 4px 0;
@@ -7506,11 +7506,11 @@ body.grayscale {
 }
 .rig-scope-spectrum {
   height: 90px;
-  background: #040810;
+  background: var(--bg);
 }
 .rig-scope-waterfall {
   height: 60px;
-  background: #000509;
+  background: var(--bg);
 }
 
 /* ── Band Overlay ── */
@@ -7537,9 +7537,9 @@ body.grayscale {
   letter-spacing: 0.5px;
   text-transform: uppercase;
 }
-.rig-overlay-cw { background: #ffd600; color: #000; }
-.rig-overlay-digi { background: #00e5ff; color: #000; }
-.rig-overlay-phone { background: #00c853; color: #000; }
+.rig-overlay-cw { background: var(--yellow); color: #000; }
+.rig-overlay-digi { background: var(--accent); color: #000; }
+.rig-overlay-phone { background: var(--green); color: #000; }
 .rig-overlay-needle {
   position: absolute;
   top: -1px;
@@ -7559,7 +7559,7 @@ body.grayscale {
 .rig-band-select,
 .rig-mode-select {
   flex: 1;
-  background: #080c14;
+  background: var(--bg);
   color: var(--text);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 3px;
@@ -7576,13 +7576,13 @@ body.grayscale {
   font-size: 0.72rem;
   color: var(--text-dim);
 }
-.rig-power-row label { min-width: 24px; font-weight: 700; color: rgba(0, 229, 255, 0.5); font-size: 0.62rem; }
+.rig-power-row label { min-width: 24px; font-weight: 700; color: color-mix(in srgb, var(--accent) 50%, transparent); font-size: 0.62rem; }
 .rig-power-slider {
   flex: 1;
   height: 6px;
   -webkit-appearance: none;
   appearance: none;
-  background: linear-gradient(90deg, rgba(0, 200, 83, 0.25) 0%, rgba(255, 145, 0, 0.25) 50%, rgba(255, 23, 68, 0.25) 100%);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--green) 25%, transparent) 0%, color-mix(in srgb, var(--orange) 25%, transparent) 50%, color-mix(in srgb, var(--red) 25%, transparent) 100%);
   border-radius: 3px;
   outline: none;
   border: 1px solid rgba(255,255,255,0.05);
@@ -7592,12 +7592,12 @@ body.grayscale {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #4a5a7a, #1a2a4a);
+  background: radial-gradient(circle at 40% 35%, var(--surface3), var(--surface));
   border: 1px solid rgba(255,255,255,0.12);
   cursor: pointer;
   box-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
-.rig-power-value { min-width: 40px; text-align: right; font-weight: 700; color: #ff9100; font-size: 0.68rem; }
+.rig-power-value { min-width: 40px; text-align: right; font-weight: 700; color: var(--orange); font-size: 0.68rem; }
 
 /* ── Connect Controls ── */
 .rig-connect-row {
@@ -7608,7 +7608,7 @@ body.grayscale {
 }
 .rig-profile-select {
   flex: 1;
-  background: #080c14;
+  background: var(--bg);
   color: var(--text);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 3px;
@@ -7617,7 +7617,7 @@ body.grayscale {
   font-weight: 600;
 }
 .rig-connect-btn {
-  background: linear-gradient(180deg, #2a3a5a 0%, #1a2640 50%, #0f1a2e 100%);
+  background: linear-gradient(180deg, var(--surface3) 0%, var(--surface) 50%, var(--bg) 100%);
   color: var(--text);
   border: 1px solid rgba(255,255,255,0.1);
   border-radius: 3px;
@@ -7631,8 +7631,8 @@ body.grayscale {
   transition: all 0.15s ease;
 }
 .rig-connect-btn:hover {
-  background: linear-gradient(180deg, #3a4a6a 0%, #2a3650 50%, #1a2640 100%);
-  border-color: rgba(0, 229, 255, 0.25);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--surface3) 80%, var(--text)) 0%, var(--surface3) 50%, var(--surface) 100%);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 .rig-connect-btn:active {
   box-shadow: inset 0 1px 3px rgba(0,0,0,0.4);
@@ -7647,25 +7647,25 @@ body.grayscale {
 /* Status */
 .rig-status {
   font-size: 0.65rem;
-  color: rgba(0, 229, 255, 0.45);
+  color: color-mix(in srgb, var(--accent) 45%, transparent);
   text-align: center;
   min-height: 1em;
   letter-spacing: 0.3px;
 }
-.rig-status-warn { color: #ffd600; font-weight: 700; text-shadow: 0 0 4px rgba(255, 214, 0, 0.25); }
+.rig-status-warn { color: var(--yellow); font-weight: 700; text-shadow: 0 0 4px color-mix(in srgb, var(--yellow) 25%, transparent); }
 
 /* Demo badge */
 .rig-demo-badge {
   font-size: 0.52rem;
   font-weight: 800;
   color: #000;
-  background: #ffd600;
+  background: var(--yellow);
   padding: 1px 5px;
   border-radius: 2px;
   margin-left: 6px;
   vertical-align: middle;
   letter-spacing: 0.5px;
-  box-shadow: 0 0 4px rgba(255, 214, 0, 0.25);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--yellow) 25%, transparent);
 }
 
 /* ---- Radio Config Panel ---- */

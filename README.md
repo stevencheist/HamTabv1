@@ -35,6 +35,12 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **DXpeditions** — Active and upcoming DXpedition tracker from NG3K with callsign, DXCC entity, operating dates, and QSL info
 - **NCDXF Beacons** — Real-time NCDXF/IARU International Beacon Project display — 18 synchronized worldwide beacons on 5 HF frequencies with 3-minute cycle countdown timer
 
+### Rig Control
+- **On-Air Rig** — Live rig control panel that connects to your radio via WebSerial (CAT). Displays frequency, mode, TX/RX state, S-meter, SWR, and power with a realistic LCD-style interface. Supports Yaesu NewCAT and Icom CI-V protocols with auto-detection
+- **Band Quick-Tune** — Compact pill buttons for all HF bands (160m–6m). Click any band to tune to the appropriate frequency for your current mode — SSB lands in the phone zone, CW in the CW zone, DATA on the FT8 frequency
+- **Audio Scope** — Real-time audio-frequency spectrum and waterfall from your radio's USB audio, showing decoded audio content (voice, CW tones, FT8 signals) in the 0–4 kHz passband
+- **Demo Mode** — Simulated rig data with propagation-based band changes for exploring the widget without a radio
+
 ### Logging
 - **Logbook** — Import ADIF logs from any logging software via drag-and-drop or file picker. Sortable, filterable table with band/mode dropdowns, QSO count and DXCC stats, and band-colored markers on the map with geodesic paths. Client-side only — your log stays in your browser via IndexedDB
 
@@ -525,6 +531,7 @@ Toggle each widget on or off:
 - DXpeditions
 - NCDXF Beacons
 - DE/DX Info
+- On-Air Rig
 - Logbook
 
 ### Update Check Interval
@@ -751,6 +758,26 @@ Per-source watch lists in the Config **Filters** tab with three modes:
 Match types: **Callsign** (strips portable suffixes like /P, /M), **DXCC** (country name or entity prefix), **Grid** (prefix match — "FN" matches FN31, FN42, etc.), **Ref** (exact park/summit/flora reference, POTA/SOTA/WWFF only).
 
 Rules are independent per source tab and persist across sessions. Precedence: Only narrows first, Not excludes next, Red highlights without filtering. Gold "my spot" highlight takes visual precedence over red.
+
+### On-Air Rig
+
+Live rig control panel for HF radios connected via USB serial (CAT control). Supports Yaesu NewCAT and Icom CI-V protocols.
+
+| Feature | Description |
+|---------|-------------|
+| **Frequency display** | Large LCD-style readout showing VFO frequency in MHz.kHz.Hz format |
+| **Mode & band badges** | Current operating mode (USB, LSB, CW, DATA, AM, FM) and band (160m–6m) shown as colored badges |
+| **TX/RX indicator** | Green RX / pulsing red TX indicator. LCD color scheme shifts to red during transmit |
+| **Band quick-tune** | Pill buttons for each HF band. Click to tune to the calling frequency for your current mode — SSB lands in the phone zone, CW in the CW sub-band, DATA on the FT8 dial frequency |
+| **S-meter** | LED bar-graph from S1 to S9+40dB with green/amber/red gradient |
+| **SWR & power** | Displayed during TX only. SWR color-coded: green (<1.5), amber (1.5–3.0), red (>3.0) |
+| **RST badge** | Estimated signal report based on S-meter reading |
+| **Audio scope** | AF spectrum and waterfall from USB audio (enable in Config). Shows 0–4 kHz audio passband |
+| **Band plan overlay** | Color-coded CW/DATA/PHONE zone bar with tuning needle showing your position in the band |
+| **Auto-detect** | Config button probes the serial port to identify your radio model and fill settings automatically |
+| **Demo mode** | Simulated rig with propagation-based band changes for exploring the UI without a radio |
+
+**Connecting:** Click Connect, select your radio's CAT/command serial port, and HamTab will begin polling frequency, mode, and meters. Most radios expose two USB ports — use the CAT port, not the audio port.
 
 ### Reference
 

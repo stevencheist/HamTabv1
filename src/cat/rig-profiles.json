@@ -598,6 +598,16 @@
         "hasATAS": false
       }
     },
+    "kiwisdr-generic": {
+      "manufacturer": "KiwiSDR",
+      "model": "WebSDR Receiver",
+      "modelId": "KIWI",
+      "protocol": { "family": "kiwisdr_ws" },
+      "serial": {},
+      "control": { "pttMethod": "none", "pollingInterval": 1000 },
+      "power": {},
+      "tuning": {}
+    },
     "demo": {
       "manufacturer": "HamTab",
       "model": "Demo Radio",

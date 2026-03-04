@@ -7,6 +7,9 @@ export function createRigStateStore() {
     connected: false,
     demo: false,
     radioId: null,
+    sourceType: null,   // null for local radio, 'sdr' for network receiver
+    rxOnly: false,      // true for SDR connections — hides TX controls
+    remoteName: null,   // SDR server hostname for display
     capabilities: [],
 
     // Core
@@ -132,6 +135,9 @@ export function createRigStateStore() {
     state.connected = false;
     state.demo = false;
     state.radioId = null;
+    state.sourceType = null;
+    state.rxOnly = false;
+    state.remoteName = null;
     state.capabilities = [];
     state.frequency = 0;
     state.frequencyB = 0;

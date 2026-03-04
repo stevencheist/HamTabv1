@@ -318,6 +318,10 @@ const state = {
   // Demo
   radioDemoPropagation: localStorage.getItem('hamtab_radio_demo_propagation') || 'location',
 
+  // SDR
+  radioSdrUrl: localStorage.getItem('hamtab_radio_sdr_url') || '',
+  radioSdrPassword: localStorage.getItem('hamtab_radio_sdr_password') || '',
+
   // Audio scope (AF FFT from USB audio — post-demodulation, not RF)
   radioAudioScopeEnabled: localStorage.getItem('hamtab_radio_audio_scope') !== 'false', // default on
   radioAudioDeviceId: localStorage.getItem('hamtab_radio_audio_device') || '',

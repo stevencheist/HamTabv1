@@ -143,6 +143,11 @@ export async function connectRig(config = {}) {
     return false;
   }
 
+  // Push driver capabilities into store
+  if (driver && typeof driver.capabilities === 'function') {
+    store.applyEvent({ type: 'capabilities', value: driver.capabilities() });
+  }
+
   // Mark demo mode in store
   if (isDemo) {
     store.set({ demo: true });

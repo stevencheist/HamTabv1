@@ -7,6 +7,7 @@ export function createRigStateStore() {
     connected: false,
     demo: false,
     radioId: null,
+    capabilities: [],
 
     // Core
     frequency: 0,
@@ -69,6 +70,13 @@ export function createRigStateStore() {
         break;
       case 'ptt':
         state.ptt = event.value;
+        // Clear TX-only meters when returning to RX — SWR/power are only valid during TX
+        if (!event.value) {
+          state.swr = 0;
+          state.swrRaw = 0;
+          state.powerMeter = 0;
+          state.tuneConfidence = 'unknown';
+        }
         break;
       case 'signal':
         state.signal = event.value;
@@ -88,6 +96,9 @@ export function createRigStateStore() {
         break;
       case 'radioId':
         state.radioId = event.value;
+        break;
+      case 'capabilities':
+        state.capabilities = Array.isArray(event.value) ? event.value : [];
         break;
       case 'tuneConfidence':
         state.tuneConfidence = event.value;
@@ -121,6 +132,7 @@ export function createRigStateStore() {
     state.connected = false;
     state.demo = false;
     state.radioId = null;
+    state.capabilities = [];
     state.frequency = 0;
     state.frequencyB = 0;
     state.mode = '';

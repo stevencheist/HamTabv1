@@ -118,6 +118,44 @@ function userModeToCat(userMode, bandId) {
   return entry.cat;
 }
 
+// --- Populate band quick-tune buttons ---
+function populateBandButtons() {
+  const container = $('rigBandButtons');
+  if (!container || container.children.length > 0) return;
+
+  for (const bandId of BAND_IDS) {
+    const btn = document.createElement('button');
+    btn.className = 'rig-band-btn';
+    btn.textContent = bandId;
+    btn.dataset.band = bandId;
+    btn.addEventListener('click', () => onBandButtonClick(bandId));
+    container.appendChild(btn);
+  }
+}
+
+// --- Band quick-tune button click handler ---
+function onBandButtonClick(bandId) {
+  if (!isRigConnected()) return;
+
+  // Get current mode from rig state, default to USB
+  const store = getRigStore();
+  const rigState = store.getState();
+  let userMode = catModeToUserLabel(rigState.mode) || 'USB';
+
+  // Auto-correct SSB sideband for target band
+  if (userMode === 'LSB' || userMode === 'USB') {
+    const correct = BAND_SIDEBAND[bandId];
+    if (correct) userMode = correct;
+  }
+
+  const targetHz = getDefaultFrequency(bandId, userMode);
+  if (!targetHz) return;
+
+  const catMode = userModeToCat(userMode, bandId);
+  sendRigCommand('setFrequency', targetHz, 1);
+  sendRigCommand('setMode', catMode, 1);
+}
+
 // --- Populate band + mode dropdowns ---
 function populateBandMode() {
   const bandSelect = $('rigBandSelect');
@@ -246,6 +284,12 @@ function render(state) {
     bandEl.textContent = state.band || '';
   }
 
+  // Band quick-tune button active state
+  const bandBtns = document.querySelectorAll('#rigBandButtons .rig-band-btn');
+  for (const btn of bandBtns) {
+    btn.classList.toggle('active', btn.dataset.band === state.band);
+  }
+
   // Mode
   modeEl.textContent = state.mode || '---';
 
@@ -288,62 +332,76 @@ function render(state) {
     sMeterEl.classList.remove('rig-meter-over');
   }
 
-  // SWR display
-  if (state.swr > 0) {
-    swrEl.textContent = `SWR ${state.swr.toFixed(1)}`;
-    if (state.swr > 3.0) {
-      swrEl.classList.add('rig-swr-danger');
-      swrEl.classList.remove('rig-swr-caution');
-    } else if (state.swr > 1.5) {
-      swrEl.classList.remove('rig-swr-danger');
-      swrEl.classList.add('rig-swr-caution');
+  // SWR display — hide entirely if radio lacks meter_swr capability
+  const caps = state.capabilities || [];
+  const hasSwr = caps.includes('meter_swr');
+  if (swrEl) {
+    if (!hasSwr) {
+      swrEl.style.display = 'none';
     } else {
-      swrEl.classList.remove('rig-swr-danger', 'rig-swr-caution');
+      swrEl.style.display = '';
+      if (state.swr > 0) {
+        swrEl.textContent = `SWR ${state.swr.toFixed(1)}`;
+        if (state.swr > 3.0) {
+          swrEl.classList.add('rig-swr-danger');
+          swrEl.classList.remove('rig-swr-caution');
+        } else if (state.swr > 1.5) {
+          swrEl.classList.remove('rig-swr-danger');
+          swrEl.classList.add('rig-swr-caution');
+        } else {
+          swrEl.classList.remove('rig-swr-danger', 'rig-swr-caution');
+        }
+      } else {
+        swrEl.textContent = 'SWR ---';
+        swrEl.classList.remove('rig-swr-danger', 'rig-swr-caution');
+      }
     }
-  } else {
-    swrEl.textContent = 'SWR ---';
-    swrEl.classList.remove('rig-swr-danger', 'rig-swr-caution');
   }
 
-  // TX Power display
+  // TX Power display — hide entirely if radio lacks meter_power capability
   if (powerEl) {
-    if (state.ptt && state.powerMeter > 0) {
-      powerEl.textContent = `${Math.round(state.powerMeter)}W`;
-      powerEl.classList.remove('hidden');
-    } else if (state.rfPower > 0) {
-      powerEl.textContent = `Set: ${state.rfPower}W`;
-      powerEl.classList.remove('hidden');
+    if (!caps.includes('meter_power')) {
+      powerEl.style.display = 'none';
     } else {
-      powerEl.classList.add('hidden');
+      powerEl.style.display = '';
+      if (state.ptt && state.powerMeter > 0) {
+        powerEl.textContent = `${Math.round(state.powerMeter)}W`;
+        powerEl.classList.remove('hidden');
+      } else if (state.rfPower > 0) {
+        powerEl.textContent = `Set: ${state.rfPower}W`;
+        powerEl.classList.remove('hidden');
+      } else {
+        powerEl.classList.add('hidden');
+      }
     }
   }
 
   // Band overlay — show CW/DIGI/PHONE zones with position indicator
   renderBandOverlay(state);
 
-  // Band + Mode selectors — WIP, needs live radio testing
-  // const bandModeRow = $('rigBandModeRow');
-  // const bandSelect = $('rigBandSelect');
-  // const modeSelect = $('rigModeSelect');
-  // if (bandModeRow) {
-  //   if (state.connected) {
-  //     bandModeRow.classList.remove('hidden');
-  //     if (bandSelect && !bandSelect.matches(':focus') && state.band) {
-  //       bandSelect.value = state.band;
-  //     }
-  //     if (modeSelect && !modeSelect.matches(':focus') && state.mode) {
-  //       modeSelect.value = catModeToUserLabel(state.mode);
-  //     }
-  //   } else {
-  //     bandModeRow.classList.add('hidden');
-  //   }
-  // }
+  // Band + Mode selectors
+  const bandModeRow = $('rigBandModeRow');
+  const bandSelect = $('rigBandSelect');
+  const modeSelect = $('rigModeSelect');
+  if (bandModeRow) {
+    if (state.connected) {
+      bandModeRow.classList.remove('hidden');
+      if (bandSelect && !bandSelect.matches(':focus') && state.band) {
+        bandSelect.value = state.band;
+      }
+      if (modeSelect && !modeSelect.matches(':focus') && state.mode) {
+        modeSelect.value = catModeToUserLabel(state.mode);
+      }
+    } else {
+      bandModeRow.classList.add('hidden');
+    }
+  }
 
-  // Power slider — show when connected and not in TX
+  // Power slider — show when connected and radio supports rf_power
   const powerRow = $('rigPowerRow');
   const powerSlider = $('rigPowerSlider');
   const powerValue = $('rigPowerValue');
-  if (powerRow && state.connected) {
+  if (powerRow && state.connected && caps.includes('rf_power')) {
     powerRow.classList.remove('hidden');
     if (powerValue && state.rfPower > 0) {
       powerValue.textContent = `${state.rfPower}W`;
@@ -605,7 +663,18 @@ async function handleConnectClick() {
 
   // Start scope if connection succeeded
   if (isRigConnected()) {
-    startScope({ longitude: state.myLon || 0 });
+    if (isDemo) {
+      // Demo mode — always start synthetic scope
+      startScope({ longitude: state.myLon || 0, useAudio: false });
+    } else if (state.radioAudioScopeEnabled) {
+      // Real radio + audio enabled — start audio scope, hide on failure
+      startScope({
+        longitude: state.myLon || 0,
+        useAudio: true,
+        hideOnAudioFail: true,
+      });
+    }
+    // Real radio + audio not enabled → no scope at all
   }
 
   connectBtn.disabled = false;
@@ -623,14 +692,15 @@ export function initOnAirRig() {
   // (DOM elements stay in the page, just hidden via display:none)
   if (!listenersAttached) {
     populateProfiles();
-    // populateBandMode(); // WIP — needs live radio testing
+    populateBandMode();
+    populateBandButtons();
     connectBtn.addEventListener('click', handleConnectClick);
 
-    // Band + Mode selectors — WIP, needs live radio testing
-    // const bandSelect = $('rigBandSelect');
-    // const modeSelect = $('rigModeSelect');
-    // if (bandSelect) bandSelect.addEventListener('change', onBandModeChange);
-    // if (modeSelect) modeSelect.addEventListener('change', onBandModeChange);
+    // Band + Mode selectors
+    const bandSelect = $('rigBandSelect');
+    const modeSelect = $('rigModeSelect');
+    if (bandSelect) bandSelect.addEventListener('change', onBandModeChange);
+    if (modeSelect) modeSelect.addEventListener('change', onBandModeChange);
 
     // Power slider
     const powerSlider = $('rigPowerSlider');

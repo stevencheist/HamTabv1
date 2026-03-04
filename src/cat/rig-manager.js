@@ -7,7 +7,7 @@ import { createCommandQueue } from './command-queue.js';
 
 export function createRigManager(transport, driver, store, options = {}) {
   const pollingInterval = options.pollingInterval || 500; // ms between poll cycles
-  const meterInterval = options.meterInterval || 300;     // ms between meter reads
+  const meterInterval = options.meterInterval || 200;     // ms between meter reads
   const commandInterval = options.commandInterval || 60;  // ms between serial commands
 
   let pollTimer = null;
@@ -51,8 +51,16 @@ export function createRigManager(transport, driver, store, options = {}) {
             }
           }
           return; // already parsed above
+        } else if (command.startsWith('set')) {
+          // Set commands (setFrequency, setMode, setPTT, etc.) don't get a
+          // response from Yaesu radios — write without waiting for reply.
+          // Queue rate-limiting (60ms) prevents buffer sync issues.
+          await transport.writeCommand(encoded);
+          return; // no response to parse
         } else {
-          response = await transport.sendCommand(encoded);
+          // Meter reads get a shorter timeout — don't stall queue on missed responses
+          const isMeter = command === 'getSignal' || command === 'getSWR' || command === 'getPower';
+          response = await transport.sendCommand(encoded, isMeter ? 500 : 2000);
         }
         handleResponse(response);
       } catch (err) {
@@ -102,12 +110,10 @@ export function createRigManager(transport, driver, store, options = {}) {
 
   // --- Initialization: send init commands and read initial state ---
   async function initialize() {
-    // Send init commands (e.g., ID; AI0; for Yaesu, getID for Icom)
     const initCmds = driver.init();
     for (const cmd of initCmds) {
       try {
         if (isBinary) {
-          // Binary init: encode the logical command, then use binary path
           const encoded = driver.encode(cmd);
           if (encoded && encoded.startsWith('CIV:')) {
             const bytes = hexToBytes(encoded.slice(4));
@@ -119,13 +125,23 @@ export function createRigManager(transport, driver, store, options = {}) {
             }
           }
         } else {
-          const response = await transport.sendCommand(cmd);
+          // Short timeout for init — set commands like AI0; may not respond
+          const response = await transport.sendCommand(cmd, 800);
           handleResponse(response);
         }
       } catch (err) {
-        console.warn('[cat] Init command failed:', cmd, err.message);
+        // Expected for write-only commands (AI0;) — not a real error
+        if (err.message && err.message.includes('Read timeout')) {
+          console.debug('[cat] Init command no response (expected for set commands):', cmd);
+        } else {
+          console.warn('[cat] Init command failed:', cmd, err.message);
+        }
       }
     }
+
+    // Flush any stale data after init, then settle before polling starts
+    await transport.flush();
+    await new Promise(r => setTimeout(r, 200));
   }
 
   // --- Polling: periodic read of frequency/mode/ptt ---
@@ -148,15 +164,21 @@ export function createRigManager(transport, driver, store, options = {}) {
   }
 
   // --- Meter streaming: adaptive rate reads for S-meter, SWR ---
+  // S-meter (getSignal) polls always; SWR/power only poll during TX.
+  // Yaesu RM commands (SWR/power meters) return nothing in RX mode,
+  // causing 2s timeouts that stall the entire command queue.
   function startMeters() {
     if (meterTimer) return;
     if (!driver.meterCommands) return; // driver doesn't support meters
 
     meterTimer = setInterval(() => {
       if (!connected) return;
-      const commands = driver.meterCommands();
-      for (const cmd of commands) {
-        queue.push(cmd, null, 0); // normal priority
+      queue.push('getSignal', null, 0);
+      // SWR/power meters only respond during TX — skip in RX to avoid timeouts
+      const rigState = store.get();
+      if (rigState.ptt) {
+        queue.push('getSWR', null, 0);
+        queue.push('getPower', null, 0);
       }
     }, meterInterval);
   }
@@ -177,6 +199,10 @@ export function createRigManager(transport, driver, store, options = {}) {
 
     // Flush stale data before init
     await transport.flush();
+
+    // Settle delay — USB serial needs time after open before the radio
+    // is ready to accept commands (especially FTDI/CP210x adapters)
+    await new Promise(r => setTimeout(r, 500));
 
     connected = true;
     store.set({ connected: true });

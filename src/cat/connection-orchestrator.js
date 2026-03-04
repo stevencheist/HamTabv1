@@ -5,11 +5,13 @@
 // UI calls connectRig() / disconnectRig() — never touches internals.
 
 import { WebSerialTransport } from './transports/web-serial.js';
+import { TciWebSocketTransport } from './transports/tci-websocket.js';
 import { InMemoryTransport } from './simulator/in-memory-transport.js';
 import { yaesuAscii } from './drivers/yaesu-ascii.js';
 import { kenwoodAscii } from './drivers/kenwood-ascii.js';
 import { icomCiv } from './drivers/icom-civ.js';
 import { elecraftAscii } from './drivers/elecraft-ascii.js';
+import { tciDriver } from './drivers/tci.js';
 import { createRigManager } from './rig-manager.js';
 import { createRigStateStore } from './rig-state-store.js';
 import { smartDetect } from './smart-detect.js';
@@ -24,6 +26,7 @@ const DRIVERS = {
   kenwood_ascii: kenwoodAscii,
   icom_civ: icomCiv,
   elecraft_ascii: elecraftAscii,
+  tci: tciDriver,
 };
 
 // --- Singleton state ---
@@ -116,6 +119,7 @@ export async function connectRig(config = {}) {
 
   // --- Create transport ---
   let transport;
+  const isTci = protocolFamily === 'tci';
   if (isDemo) {
     const engineOptions = {};
     if (config.propagation && config.propagation !== 'off') {
@@ -124,6 +128,11 @@ export async function connectRig(config = {}) {
       if (config.longitude != null) engineOptions.longitude = config.longitude;
     }
     transport = new InMemoryTransport({ engineOptions });
+  } else if (isTci) {
+    transport = new TciWebSocketTransport({
+      host: config.tciHost || 'localhost',
+      port: config.tciPort || 50001,
+    });
   } else {
     const serialConfig = buildSerialConfig();
     transport = new WebSerialTransport(serialConfig);

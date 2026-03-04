@@ -6,6 +6,7 @@ import { latLonToGrid, gridToLatLon } from './geo.js';
 import { centerMapOnUser, updateUserMarker } from './map-init.js';
 import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
+import { openModal, closeModal } from './a11y.js';
 import { renderMarkers } from './markers.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
@@ -17,7 +18,7 @@ import { startAutoRefresh, stopAutoRefresh } from './refresh.js';
 import { fetchSatellitePositions } from './satellites.js';
 import { startBeaconTimer, stopBeaconTimer } from './beacons.js';
 import { updateBeaconMarkers } from './map-init.js';
-import { fetchVoacapMatrixThrottled } from './voacap.js';
+import { fetchVoacapMatrixThrottled, renderVoacapMatrix, toggleBandOverlay } from './voacap.js';
 import { fetchLiveSpots } from './live-spots.js';
 import { renderDedxInfo } from './dedx-info.js';
 import { fetchSolar } from './solar.js';
@@ -310,10 +311,13 @@ function renderSplashLayoutList() {
 
 export function showSplash() {
   const splash = $('splash');
-  splash.classList.remove('hidden');
+  openModal(splash, { focusEl: $('splashCallsign') });
 
   // --- Reset to Station tab ---
-  splash.querySelectorAll('.config-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'station'));
+  splash.querySelectorAll('.config-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.tab === 'station');
+    t.setAttribute('aria-selected', String(t.dataset.tab === 'station'));
+  });
   splash.querySelectorAll('.config-panel').forEach(p => p.classList.toggle('active', p.dataset.panel === 'station'));
 
   $('splashCallsign').value = state.myCallsign;
@@ -443,6 +447,8 @@ export function showSplash() {
           }
         }
         updateWidgetSlotEnforcement();
+
+        // (a11y section always visible — no theme gating)
       });
 
       themeSelector.appendChild(swatch);
@@ -460,6 +466,18 @@ export function showSplash() {
   // Disable weather backgrounds toggle
   const cfgDisableWxBg = $('cfgDisableWxBg');
   if (cfgDisableWxBg) cfgDisableWxBg.checked = state.disableWxBackgrounds;
+
+  // Accessibility controls
+  const cfgTextScale = $('cfgTextScale');
+  if (cfgTextScale) cfgTextScale.value = String(state.textScale);
+
+  // Accessibility toggles — init from state
+  const cfgFocusTrap = $('cfgFocusTrap');
+  if (cfgFocusTrap) cfgFocusTrap.checked = state.a11yFocusTrap;
+  const cfgEscapeClose = $('cfgEscapeClose');
+  if (cfgEscapeClose) cfgEscapeClose.checked = state.a11yEscapeClose;
+  const cfgReducedMotion = $('cfgReducedMotion');
+  if (cfgReducedMotion) cfgReducedMotion.checked = state.a11yReducedMotion;
 
   // Band color pickers
   populateBandColorPickers();
@@ -1254,7 +1272,7 @@ function dismissSplash() {
   }
 
   $('splashGridDropdown').classList.remove('open');
-  $('splash').classList.add('hidden');
+  closeModal($('splash'));
   updateOperatorDisplay();
   centerMapOnUser();
   updateUserMarker();
@@ -1273,9 +1291,13 @@ export function initSplashListeners() {
   // --- Tab switching ---
   document.querySelectorAll('.config-tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      document.querySelectorAll('.config-tab').forEach(t => t.classList.remove('active'));
+      document.querySelectorAll('.config-tab').forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
       document.querySelectorAll('.config-panel').forEach(p => p.classList.remove('active'));
       tab.classList.add('active');
+      tab.setAttribute('aria-selected', 'true');
       document.querySelector(`.config-panel[data-panel="${tab.dataset.tab}"]`).classList.add('active');
     });
   });
@@ -1283,6 +1305,15 @@ export function initSplashListeners() {
   $('splashOk').addEventListener('click', dismissSplash);
   $('splashCallsign').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') dismissSplash();
+  });
+
+  // Escape to close config (guarded: skip if grid dropdown is open)
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('splash').classList.contains('hidden')) {
+      if (!state.a11yEscapeClose) return;
+      if ($('splashGridDropdown').classList.contains('open')) return; // let dropdown handler run
+      dismissSplash();
+    }
   });
 
   function onLatLonInput() {
@@ -1724,6 +1755,14 @@ export function initSplashListeners() {
       state.grayscale = cfgGrayscaleCb.checked;
       localStorage.setItem('hamtab_grayscale', String(state.grayscale));
       document.body.classList.toggle('grayscale', state.grayscale);
+
+      // Re-render VOACAP with updated color palette
+      renderVoacapMatrix();
+      if (state.hfPropOverlayBand) {
+        const band = state.hfPropOverlayBand;
+        state.hfPropOverlayBand = null; // reset so toggleBandOverlay treats it as new
+        toggleBandOverlay(band);
+      }
     });
   }
 
@@ -1742,6 +1781,49 @@ export function initSplashListeners() {
         }
         // If re-enabling, next weather fetch will re-apply the class
       }
+    });
+  }
+
+  // Text scale selector in Appearance tab
+  const cfgTextScaleSel = $('cfgTextScale');
+  if (cfgTextScaleSel) {
+    cfgTextScaleSel.addEventListener('change', () => {
+      const scale = parseFloat(cfgTextScaleSel.value) || 1.0;
+      state.textScale = scale;
+      localStorage.setItem('hamtab_text_scale', String(scale));
+      if (scale === 1.0) {
+        document.documentElement.style.removeProperty('font-size');
+      } else {
+        document.documentElement.style.fontSize = (16 * scale) + 'px';
+      }
+    });
+  }
+
+  // Focus trap toggle
+  const cfgFocusTrapCb = $('cfgFocusTrap');
+  if (cfgFocusTrapCb) {
+    cfgFocusTrapCb.addEventListener('change', () => {
+      state.a11yFocusTrap = cfgFocusTrapCb.checked;
+      localStorage.setItem('hamtab_a11y_focus_trap', String(cfgFocusTrapCb.checked));
+    });
+  }
+
+  // Escape-close toggle
+  const cfgEscapeCloseCb = $('cfgEscapeClose');
+  if (cfgEscapeCloseCb) {
+    cfgEscapeCloseCb.addEventListener('change', () => {
+      state.a11yEscapeClose = cfgEscapeCloseCb.checked;
+      localStorage.setItem('hamtab_a11y_escape_close', String(cfgEscapeCloseCb.checked));
+    });
+  }
+
+  // Reduced motion toggle
+  const cfgReducedMotionCb = $('cfgReducedMotion');
+  if (cfgReducedMotionCb) {
+    cfgReducedMotionCb.addEventListener('change', () => {
+      state.a11yReducedMotion = cfgReducedMotionCb.checked;
+      localStorage.setItem('hamtab_a11y_reduced_motion', String(cfgReducedMotionCb.checked));
+      document.body.classList.toggle('reduced-motion', cfgReducedMotionCb.checked);
     });
   }
 

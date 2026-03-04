@@ -341,7 +341,8 @@ function render(state) {
     } else {
       swrEl.style.display = '';
       if (state.swr > 0) {
-        swrEl.textContent = `SWR ${state.swr.toFixed(1)}`;
+        const swrLabel = state.swr > 3.0 ? ' DANGER' : state.swr > 1.5 ? ' CAUTION' : '';
+        swrEl.textContent = `SWR ${state.swr.toFixed(1)}:1${swrLabel}`;
         if (state.swr > 3.0) {
           swrEl.classList.add('rig-swr-danger');
           swrEl.classList.remove('rig-swr-caution');

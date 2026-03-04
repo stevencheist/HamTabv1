@@ -147,13 +147,19 @@ function hslToRgb(h, s, l) {
 function reliabilityToRGBA(rel) {
   if (rel < 3) return { r: 20, g: 0, b: 40, a: 60 }; // dark purple tint — band closed
 
+  // Higher constant alpha so the overlay pops against the dark basemap
+  const alpha = Math.min(210, 140 + (rel / 100) * 70); // 140–210 range
+
+  if (state.grayscale) {
+    // Wide luminance ramp: 40 (dark, poor) → 240 (bright, good)
+    const v = Math.round(40 + ((Math.min(rel, 100) - 3) / 97) * 200);
+    return { r: v, g: v, b: v, a: Math.round(alpha) };
+  }
+
   // Bright, vivid gradient: red (0°) → yellow (60°) → green (120°)
   // Map 3-100 → hue 0° to 120°
   const hue = (Math.min(rel, 100) - 3) / 97 * 120;
   const { r, g, b } = hslToRgb(hue, 1.0, 0.50); // full saturation, medium-bright lightness
-
-  // Higher constant alpha so the overlay pops against the dark basemap
-  const alpha = Math.min(210, 140 + (rel / 100) * 70); // 140–210 range
   return { r, g, b, a: Math.round(alpha) };
 }
 

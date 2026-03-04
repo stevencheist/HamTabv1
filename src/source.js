@@ -48,6 +48,7 @@ export function switchSource(source) {
 
   $('sourceTabs').querySelectorAll('.source-tab').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.source === source);
+    btn.setAttribute('aria-selected', String(btn.dataset.source === source));
   });
 
   updateTableColumns();

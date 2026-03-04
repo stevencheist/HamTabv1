@@ -2,6 +2,7 @@
 // Header dropdown UI for saving, loading, and deleting named layout profiles.
 // Migration from old single-layout system (hamtab_widgets_user → hamtab_layouts).
 
+import state from './state.js';
 import { $ } from './dom.js';
 import { USER_LAYOUT_KEY, LAYOUTS_KEY } from './constants.js';
 import { getNamedLayouts, saveNamedLayout, loadNamedLayout, deleteNamedLayout } from './widgets.js';
@@ -92,7 +93,7 @@ function showSaveInput(menu) {
   input.addEventListener('click', (e) => e.stopPropagation());
   input.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') doSave(input.value.trim());
-    if (e.key === 'Escape') closeMenu();
+    if (e.key === 'Escape') { if (!state.a11yEscapeClose) return; closeMenu(); }
   });
 
   function doSave(name) {
@@ -115,17 +116,21 @@ function showSaveInput(menu) {
 
 function openMenu() {
   const menu = $('layoutMenu');
+  const btn = $('layoutBtn');
   if (!menu) return;
   renderMenu();
   menu.classList.add('open');
   menuOpen = true;
+  if (btn) btn.setAttribute('aria-expanded', 'true');
 }
 
 function closeMenu() {
   const menu = $('layoutMenu');
+  const btn = $('layoutBtn');
   if (!menu) return;
   menu.classList.remove('open');
   menuOpen = false;
+  if (btn) btn.setAttribute('aria-expanded', 'false');
 }
 
 function toggleMenu() {
@@ -181,7 +186,7 @@ export function initLayoutDropdown() {
 
   // Close on Escape
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && menuOpen) closeMenu();
+    if (e.key === 'Escape' && menuOpen) { if (!state.a11yEscapeClose) return; closeMenu(); }
   });
 }
 

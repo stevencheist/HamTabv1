@@ -5,6 +5,7 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { fmtTime } from './utils.js';
+import { openModal, closeModal } from './a11y.js';
 
 let active = false;
 
@@ -31,7 +32,7 @@ function show() {
   const overlay = $('bigClockOverlay');
   if (!overlay) return;
   active = true;
-  overlay.classList.remove('hidden');
+  openModal(overlay);
   updateBigClock();
 }
 
@@ -39,7 +40,7 @@ function hide() {
   const overlay = $('bigClockOverlay');
   if (!overlay) return;
   active = false;
-  overlay.classList.add('hidden');
+  closeModal(overlay);
 }
 
 export function toggleBigClock() {
@@ -63,6 +64,6 @@ export function initBigClock() {
   }
 
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && active) hide();
+    if (e.key === 'Escape' && active) { if (!state.a11yEscapeClose) return; hide(); }
   });
 }

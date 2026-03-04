@@ -6,6 +6,7 @@ import { $ } from './dom.js';
 import { buildFacePreview, CLOCK_FACES } from './clock-faces.js';
 import { COMPLICATION_DEFS } from './clock-complications.js';
 import { rebuildClock } from './analog-clock.js';
+import { openModal, closeModal } from './a11y.js';
 
 export function initClockConfigListeners() {
   const btn = $('clockCfgBtn');
@@ -62,7 +63,7 @@ export function initClockConfigListeners() {
       compList.appendChild(label);
     }
 
-    $('clockCfgSplash').classList.remove('hidden');
+    openModal($('clockCfgSplash'));
   });
 
   // OK button
@@ -84,8 +85,16 @@ export function initClockConfigListeners() {
       state.clockComplications = comps;
       localStorage.setItem('hamtab_clock_complications', JSON.stringify(comps));
 
-      $('clockCfgSplash').classList.add('hidden');
+      closeModal($('clockCfgSplash'));
       rebuildClock();
     });
   }
+
+  // Escape to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('clockCfgSplash').classList.contains('hidden')) {
+      if (!state.a11yEscapeClose) return;
+      closeModal($('clockCfgSplash'));
+    }
+  });
 }

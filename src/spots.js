@@ -48,6 +48,7 @@ export function renderSpotsHeader() {
   cols.forEach(col => {
     const th = document.createElement('th');
     th.textContent = col.label;
+    th.scope = 'col';
 
     if (col.sortable) {
       th.classList.add('sortable');
@@ -57,6 +58,9 @@ export function renderSpotsHeader() {
       const effectiveCol = state.spotSortColumn || SOURCE_DEFS[state.currentSource].sortKey;
       if (effectiveCol === col.key || (col.key === 'age' && effectiveCol === 'spotTime' && !state.spotSortColumn)) {
         th.classList.add(state.spotSortDirection === 'asc' ? 'sort-asc' : 'sort-desc');
+        th.setAttribute('aria-sort', state.spotSortDirection === 'asc' ? 'ascending' : 'descending');
+      } else {
+        th.setAttribute('aria-sort', 'none');
       }
     }
     tr.appendChild(th);

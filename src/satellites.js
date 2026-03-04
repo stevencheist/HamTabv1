@@ -5,6 +5,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { SAT_FREQUENCIES, DEFAULT_TRACKED_SATS } from './constants.js';
 import { esc } from './utils.js';
+import { openModal, closeModal } from './a11y.js';
 
 // --- Constants ---
 
@@ -48,6 +49,14 @@ function initSatelliteListeners() {
       if (e.target === splash) dismissSatelliteConfig();
     });
   }
+
+  // Escape to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('satCfgSplash') && !$('satCfgSplash').classList.contains('hidden')) {
+      if (!state.a11yEscapeClose) return;
+      dismissSatelliteConfig();
+    }
+  });
 }
 
 // --- ISS Free Tracking (SGP4, no API key) ---
@@ -432,8 +441,10 @@ export function renderSatelliteWidget() {
       const maxAge = state.maxTleAge || 7;
       const cls = ageDays <= Math.floor(maxAge * 0.4) ? 'tle-fresh'
         : ageDays <= maxAge ? 'tle-aging' : 'tle-stale';
+      const ageLabel = ageDays <= Math.floor(maxAge * 0.4) ? 'Fresh'
+        : ageDays <= maxAge ? 'Aging' : 'Stale';
       const warn = ageDays > maxAge ? ' \u26A0' : ''; // ⚠ warning when exceeded
-      tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d (max: ${maxAge}d)">${ageDays}d${warn}</span>`;
+      tleAgeHtml = `<span class="sat-tle-age ${cls}" title="TLE age: ${ageDays}d (max: ${maxAge}d)">${ageDays}d ${ageLabel}${warn}</span>`;
     }
 
     const rowClass = `sat-row${isSelected ? ' selected' : ''}${isAbove ? '' : ' below-horizon'}`;
@@ -564,7 +575,7 @@ function showSatelliteConfig() {
   }
 
   renderSatelliteSelectList();
-  splash.classList.remove('hidden');
+  openModal(splash);
 }
 
 function dismissSatelliteConfig() {
@@ -609,7 +620,7 @@ function dismissSatelliteConfig() {
     localStorage.setItem('hamtab_sat_tracked', JSON.stringify(state.satellites.tracked));
   }
 
-  splash.classList.add('hidden');
+  closeModal(splash);
 
   // Refresh positions with new settings
   fetchIssPosition(); // ISS always uses free endpoint

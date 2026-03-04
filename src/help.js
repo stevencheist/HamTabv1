@@ -2,6 +2,7 @@ import { $ } from './dom.js';
 import { WIDGET_HELP } from './constants.js';
 import { esc } from './utils.js';
 import state from './state.js';
+import { openModal, closeModal } from './a11y.js';
 
 // --- Help Modal Rendering ---
 
@@ -46,7 +47,7 @@ function renderHelp(widgetId) {
   }
 
   $('helpContent').innerHTML = html;
-  $('helpSplash').classList.remove('hidden');
+  openModal($('helpSplash'), { focusEl: $('helpOk') });
 }
 
 // --- Event Listeners ---
@@ -63,13 +64,21 @@ export function initHelpListeners() {
 
   // Close help modal
   $('helpOk').addEventListener('click', () => {
-    $('helpSplash').classList.add('hidden');
+    closeModal($('helpSplash'));
   });
 
   // Close on overlay click
   $('helpSplash').addEventListener('click', (e) => {
     if (e.target.id === 'helpSplash') {
-      $('helpSplash').classList.add('hidden');
+      closeModal($('helpSplash'));
+    }
+  });
+
+  // Escape to close
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !$('helpSplash').classList.contains('hidden')) {
+      if (!state.a11yEscapeClose) return;
+      closeModal($('helpSplash'));
     }
   });
 }

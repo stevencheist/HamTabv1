@@ -1,6 +1,7 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, SOURCE_DEFS } from './constants.js';
+import { openModal, closeModal } from './a11y.js';
 import { renderSolar, saveSolarFieldVisibility } from './solar.js';
 import { renderLunar, saveLunarFieldVisibility } from './lunar.js';
 import { renderAllMapOverlays, saveMapOverlays, renderPropagationHeatmapOverlay, renderWsprHeatmapOverlay } from './map-overlays.js';
@@ -26,7 +27,7 @@ export function initConfigListeners() {
       label.appendChild(document.createTextNode(f.label));
       solarFieldList.appendChild(label);
     });
-    $('solarCfgSplash').classList.remove('hidden');
+    openModal($('solarCfgSplash'));
   });
 
   $('solarCfgOk').addEventListener('click', () => {
@@ -34,7 +35,7 @@ export function initConfigListeners() {
       state.solarFieldVisibility[cb.dataset.fieldKey] = cb.checked;
     });
     saveSolarFieldVisibility();
-    $('solarCfgSplash').classList.add('hidden');
+    closeModal($('solarCfgSplash'));
     if (state.lastSolarData) renderSolar(state.lastSolarData);
   });
 
@@ -53,7 +54,7 @@ export function initConfigListeners() {
       label.appendChild(document.createTextNode(f.label));
       lunarFieldList.appendChild(label);
     });
-    $('lunarCfgSplash').classList.remove('hidden');
+    openModal($('lunarCfgSplash'));
   });
 
   $('lunarCfgOk').addEventListener('click', () => {
@@ -61,7 +62,7 @@ export function initConfigListeners() {
       state.lunarFieldVisibility[cb.dataset.fieldKey] = cb.checked;
     });
     saveLunarFieldVisibility();
-    $('lunarCfgSplash').classList.add('hidden');
+    closeModal($('lunarCfgSplash'));
     if (state.lastLunarData) renderLunar(state.lastLunarData);
   });
 
@@ -90,7 +91,7 @@ export function initConfigListeners() {
       $('mapOvWsprHeatmap').checked = state.mapOverlays.wsprHeatmap;
       $('mapOvWsprHeatmapBand').value = state.wsprHeatmapBand;
       $('mapOvWsprHeatmapScope').value = state.wsprHeatmapScope;
-      mapOverlayCfgSplash.classList.remove('hidden');
+      openModal(mapOverlayCfgSplash);
     });
   }
 
@@ -117,7 +118,7 @@ export function initConfigListeners() {
       state.wsprHeatmapScope = $('mapOvWsprHeatmapScope').value;
       localStorage.setItem('hamtab_wspr_heatmap_scope', state.wsprHeatmapScope);
       saveMapOverlays();
-      mapOverlayCfgSplash.classList.add('hidden');
+      closeModal(mapOverlayCfgSplash);
       renderAllMapOverlays();
       renderPropagationHeatmapOverlay();
       renderWsprHeatmapOverlay();
@@ -142,7 +143,7 @@ export function initConfigListeners() {
       label.appendChild(document.createTextNode(col.label));
       fieldList.appendChild(label);
     });
-    $('spotColCfgSplash').classList.remove('hidden');
+    openModal($('spotColCfgSplash'));
   });
 
   $('spotColCfgOk').addEventListener('click', () => {
@@ -150,8 +151,22 @@ export function initConfigListeners() {
       state.spotColumnVisibility[cb.dataset.fieldKey] = cb.checked;
     });
     saveSpotColumnVisibility();
-    $('spotColCfgSplash').classList.add('hidden');
+    closeModal($('spotColCfgSplash'));
     updateTableColumns();
     renderSpots();
+  });
+
+  // Escape to close whichever sub-config modal is visible
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (!state.a11yEscapeClose) return;
+    const modals = ['solarCfgSplash', 'lunarCfgSplash', 'spotColCfgSplash', 'mapOverlayCfgSplash'];
+    for (const id of modals) {
+      const el = $(id);
+      if (el && !el.classList.contains('hidden')) {
+        closeModal(el);
+        return;
+      }
+    }
   });
 }

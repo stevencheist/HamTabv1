@@ -455,7 +455,7 @@ header {
   align-items: center;
   gap: 14px;
   flex: 1 1 auto;
-  min-width: 0;
+  min-width: 150px;
   max-width: 500px;
   container-type: inline-size;
   container-name: header-left;
@@ -469,8 +469,8 @@ header {
 }
 
 .op-call {
-  /* Scale from 2.1rem to 3.3rem based on container width */
-  font-size: clamp(2.1rem, 12cqw, 3.3rem);
+  /* Scale based on container width — px units resist root text scale inflation */
+  font-size: clamp(24px, 12cqw, 42px);
   font-weight: 700;
   font-family: monospace;
   color: var(--accent);
@@ -491,15 +491,15 @@ header {
 
 .op-class {
   display: block;
-  font-size: clamp(0.7rem, 3.5cqw, 0.95rem);
+  font-size: clamp(10px, 3.5cqw, 14px);
   color: var(--yellow);
   font-weight: 600;
   margin-top: -2px;
 }
 
 .op-name {
-  /* Scale from 1.1rem to 1.65rem */
-  font-size: clamp(1.1rem, 6cqw, 1.65rem);
+  /* Scale based on container width — px units resist root text scale inflation */
+  font-size: clamp(14px, 6cqw, 22px);
   color: var(--text);
   font-weight: 500;
   line-height: 1.2;
@@ -513,8 +513,8 @@ header {
 }
 
 .op-loc {
-  /* Scale from 1rem to 1.5rem */
-  font-size: clamp(1rem, 5cqw, 1.5rem);
+  /* Scale based on container width — px units resist root text scale inflation */
+  font-size: clamp(13px, 5cqw, 20px);
   color: var(--text-dim);
   font-family: monospace;
   overflow: hidden;
@@ -554,7 +554,7 @@ header {
 #refreshBtn,
 #fullscreenBtn {
   padding: 4px 10px;
-  font-size: 0.8rem;
+  font-size: 12px; /* px — resists root text scale inflation */
   border: 1px solid var(--border);
   background: var(--surface2);
   color: var(--text);
@@ -569,6 +569,12 @@ header {
   background: var(--accent);
 }
 
+/* Config button in header-right — match header-right button style */
+.header-right .op-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
 /* ---- Layout Dropdown ---- */
 
 .layout-dropdown {
@@ -577,7 +583,7 @@ header {
 
 .layout-btn {
   padding: 4px 10px;
-  font-size: 0.8rem;
+  font-size: 12px; /* px — resists root text scale inflation */
   border: 1px solid var(--border);
   background: var(--surface2);
   color: var(--text);
@@ -708,7 +714,7 @@ header {
 
 .coffee-btn {
   padding: 4px 10px;
-  font-size: 0.8rem;
+  font-size: 12px; /* px — resists root text scale inflation */
   border: 1px solid #ffdd00;
   background: linear-gradient(135deg, #ffdd00 0%, #ffc800 100%);
   color: #000;
@@ -782,7 +788,7 @@ header {
 
 .feedback-btn {
   padding: 4px 10px;
-  font-size: 0.8rem;
+  font-size: 12px; /* px — resists root text scale inflation */
   border: 1px solid var(--accent);
   background: linear-gradient(135deg, var(--accent) 0%, #0099ff 100%);
   color: #fff;
@@ -808,7 +814,7 @@ header {
   cursor: default;
   padding: 4px 10px;
   border-radius: 4px;
-  font-size: 0.78rem;
+  font-size: 12px; /* px — resists root text scale inflation */
   color: var(--text-dim);
   border: 1px solid var(--border);
   background: var(--surface2);
@@ -838,7 +844,7 @@ header {
 
 .restart-btn {
   padding: 2px 8px;
-  font-size: 0.7rem;
+  font-size: 11px; /* px — resists root text scale inflation */
   font-weight: 600;
   border: 1px solid var(--yellow);
   background: transparent;
@@ -2050,12 +2056,12 @@ header {
   background: rgba(15, 52, 96, 0.4);
   transition: all 0.4s ease;
   position: relative;
-  min-width: 200px;
+  min-width: 160px;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .header-clock-label {
-  font-size: 0.75rem;
+  font-size: 11px; /* px — resists root text scale inflation */
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -2063,7 +2069,7 @@ header {
 }
 
 .header-clock-time {
-  font-size: 2rem;
+  font-size: 28px; /* px — resists root text scale inflation */
   font-weight: 700;
   color: var(--text);
   font-family: 'Courier New', monospace;
@@ -2073,7 +2079,7 @@ header {
 }
 
 .header-clock-weather {
-  font-size: 0.78rem;
+  font-size: 12px; /* px — resists root text scale inflation */
   color: var(--text);
   text-align: center;
   max-width: 280px;
@@ -2084,7 +2090,7 @@ header {
 
 /* Weather icon display */
 .header-clock-wx-icon {
-  font-size: 1.8rem;
+  font-size: 26px; /* px — resists root text scale inflation */
   line-height: 1;
   margin-bottom: 2px;
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
@@ -2865,6 +2871,11 @@ header {
   height: 10px;
   border-radius: 2px;
   background: linear-gradient(to right, #ff0000, #ffff00, #00ff00);
+}
+
+/* Grayscale mode: wide luminance ramp so reliability differences are clear */
+body.grayscale .prop-heatmap-legend-bar {
+  background: linear-gradient(to right, #262626, #808080, #f0f0f0);
 }
 
 .prop-heatmap-legend-labels {
@@ -7995,4 +8006,46 @@ body.grayscale {
   display: block;
   margin: 0 auto;
 }
+
+/* ---- Accessibility ---- */
+
+/* Global focus ring — keyboard navigation only (mouse clicks don't trigger :focus-visible) */
+*:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 1px; }
+input[type="range"]:focus-visible { outline-offset: 0; }
+
+/* Accessibility config controls */
+.a11y-scale-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.a11y-scale-label { font-size: 0.85rem; color: var(--text); white-space: nowrap; }
+.a11y-scale-select { padding: 4px 8px; font-size: 0.85rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; }
+
+/* Solar status labels (non-color redundancy) */
+.solar-status-label { font-size: 0.6rem; opacity: 0.7; margin-left: 2px; }
+
+/* High-contrast structural overrides */
+body.high-contrast .widget-card,
+body.high-contrast .splash-box { border: 1px solid #888; }
+body.high-contrast .cond-good { color: #00ff55; }
+body.high-contrast .cond-fair { color: #ffee00; }
+body.high-contrast .cond-poor { color: #ff4444; }
+body.high-contrast *:focus-visible { outline-width: 3px; outline-color: #ffffff; }
+
+/* ---- Reduced Motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  transition-duration: 0.01ms !important;
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+}
+
+/* ---- Screen Reader Only ---- */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
 

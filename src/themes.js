@@ -137,6 +137,32 @@ const THEMES = {
       '--dx-color': '#ff9100',      // orange — DX panel accent
     },
   },
+
+  accessibility: {
+    id: 'accessibility',
+    name: 'Accessible',
+    description: 'High contrast + text scale',
+    bodyClass: 'high-contrast',
+    supportsGrid: true,
+    vars: {
+      '--bg': '#000000',
+      '--surface': '#111111',
+      '--surface2': '#222222',
+      '--surface3': '#333333',
+      '--accent': '#00ccff',
+      '--text': '#ffffff',
+      '--text-dim': '#cccccc',
+      '--green': '#00ff55',
+      '--yellow': '#ffee00',
+      '--red': '#ff4444',
+      '--orange': '#ff9900',
+      '--border': '#666666',
+      '--bg-secondary': '#0a0a0a',
+      '--bg-tertiary': '#1a1a1a',
+      '--de-color': '#00ccff',
+      '--dx-color': '#00ff55',
+    },
+  },
 };
 
 // --- Current active theme ID ---
@@ -199,6 +225,13 @@ export function initTheme() {
   if (localStorage.getItem('hamtab_grayscale') === 'true') {
     document.body.classList.add('grayscale');
   }
+
+  // Apply text scale early to prevent flash of default size
+  const savedScale = parseFloat(localStorage.getItem('hamtab_text_scale'));
+  if (savedScale && savedScale !== 1.0) {
+    document.documentElement.style.fontSize = (16 * savedScale) + 'px';
+  }
+
 }
 
 /** Check if the currently active theme supports grid layout */
@@ -219,3 +252,4 @@ export function getThemeSwatchColors(themeId) {
     theme.vars['--border'],
   ];
 }
+

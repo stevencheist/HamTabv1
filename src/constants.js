@@ -561,6 +561,18 @@ export const WIDGET_HELP = {
       { label: 'NOAA Space Weather & Propagation', url: 'https://www.swpc.noaa.gov/communities/radio-communications' },
     ],
   },
+  'widget-on-air-rig': {
+    title: 'On-Air Rig',
+    description: 'Live rig control panel that connects to your radio via WebSerial (CAT). Displays frequency, mode, TX/RX state, S-meter, SWR, and power. Includes an audio-frequency spectrum scope when USB audio is enabled.',
+    sections: [
+      { heading: 'Connecting Your Radio', content: 'Click Connect and select the serial port for your radio. HamTab uses CAT commands (Yaesu NewCAT, Icom CI-V) to read and control the radio. The radio must be connected via USB with CAT enabled in its menu. Most Yaesu and Icom radios expose two COM ports — use the CAT/command port, not the audio port.' },
+      { heading: 'Frequency & Mode', content: 'The large LCD-style display shows your current VFO frequency and operating mode (USB, LSB, CW, FT8, etc.). The frequency updates in real time as you tune the radio. Click the frequency to type a new value directly.' },
+      { heading: 'S-Meter', content: 'The LED bar-graph shows received signal strength from S1 to S9+40dB. Green bars indicate S1–S9, amber indicates over S9. The meter polls the radio 5 times per second for smooth response. The RST badge shows a rough signal report based on the current reading.' },
+      { heading: 'SWR & Power', content: 'SWR and transmit power are only displayed during TX — they show "---" when receiving. SWR below 1.5 is good (green), 1.5–3.0 is caution (amber), above 3.0 is danger (red). These readings come directly from the radio\'s built-in metering.' },
+      { heading: 'Audio Scope (AF FFT)', content: 'When enabled in Config, the scope captures USB audio from your radio and displays a real-time audio-frequency spectrum and waterfall. This shows what\'s in the radio\'s audio passband (0–4 kHz) — it is NOT an RF panadapter. You\'ll see voice, CW tones, FT8 signals, and noise within whatever bandwidth your radio is demodulating. Requires browser microphone permission and a USB audio connection to the radio.' },
+      { heading: 'Demo Mode', content: 'If no radio is connected, you can enable Demo Mode in Config to see simulated rig data. This is useful for exploring the widget layout and testing the UI without a radio.' },
+    ],
+  },
   'widget-logbook': {
     title: 'Logbook',
     description: 'Import and view your ADIF contact logs. See your QSO history in a sortable table and plot contacts on the map with band-colored paths.',
@@ -905,17 +917,22 @@ export const GRID_DEFAULT_ASSIGNMENTS = {
     B1: 'widget-lunar',
   },
   '2T-3L-3R-2B': {
-    T1: 'widget-solar',
-    T2: 'widget-propagation',
-    L1: 'widget-filters',
+    T1: 'widget-filters',
+    T2: 'widget-voacap',
+    L1: 'widget-on-air-rig',
     L2: 'widget-activations',
     L3: 'widget-live-spots',
-    R1: 'widget-voacap',
-    R2: 'widget-spot-detail',
-    R3: 'widget-satellites',
-    B1: 'widget-lunar',
-    B2: 'widget-rst',
+    R1: 'widget-solar',
+    R2: 'widget-lunar',
+    R3: 'widget-spot-detail',
+    B1: 'widget-stopwatch',
+    B2: 'widget-dedx',
   },
+};
+
+// Default spans applied for new users and "Reset to Default"
+export const GRID_DEFAULT_SPANS = {
+  '2T-3L-3R-2B': { L1: 3 }, // On-Air Rig spans all 3 left rows
 };
 
 // --- Cross-Tab Communication ---

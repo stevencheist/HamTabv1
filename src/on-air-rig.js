@@ -118,6 +118,44 @@ function userModeToCat(userMode, bandId) {
   return entry.cat;
 }
 
+// --- Populate band quick-tune buttons ---
+function populateBandButtons() {
+  const container = $('rigBandButtons');
+  if (!container || container.children.length > 0) return;
+
+  for (const bandId of BAND_IDS) {
+    const btn = document.createElement('button');
+    btn.className = 'rig-band-btn';
+    btn.textContent = bandId;
+    btn.dataset.band = bandId;
+    btn.addEventListener('click', () => onBandButtonClick(bandId));
+    container.appendChild(btn);
+  }
+}
+
+// --- Band quick-tune button click handler ---
+function onBandButtonClick(bandId) {
+  if (!isRigConnected()) return;
+
+  // Get current mode from rig state, default to USB
+  const store = getRigStore();
+  const rigState = store.getState();
+  let userMode = catModeToUserLabel(rigState.mode) || 'USB';
+
+  // Auto-correct SSB sideband for target band
+  if (userMode === 'LSB' || userMode === 'USB') {
+    const correct = BAND_SIDEBAND[bandId];
+    if (correct) userMode = correct;
+  }
+
+  const targetHz = getDefaultFrequency(bandId, userMode);
+  if (!targetHz) return;
+
+  const catMode = userModeToCat(userMode, bandId);
+  sendRigCommand('setFrequency', targetHz, 1);
+  sendRigCommand('setMode', catMode, 1);
+}
+
 // --- Populate band + mode dropdowns ---
 function populateBandMode() {
   const bandSelect = $('rigBandSelect');
@@ -244,6 +282,12 @@ function render(state) {
   // Band indicator
   if (bandEl) {
     bandEl.textContent = state.band || '';
+  }
+
+  // Band quick-tune button active state
+  const bandBtns = document.querySelectorAll('#rigBandButtons .rig-band-btn');
+  for (const btn of bandBtns) {
+    btn.classList.toggle('active', btn.dataset.band === state.band);
   }
 
   // Mode
@@ -649,6 +693,7 @@ export function initOnAirRig() {
   if (!listenersAttached) {
     populateProfiles();
     populateBandMode();
+    populateBandButtons();
     connectBtn.addEventListener('click', handleConnectClick);
 
     // Band + Mode selectors

@@ -5,6 +5,15 @@ import { switchTab, rebuildTabs, getActiveTabWidgets } from './tabs.js';
 
 const WIDGET_VIS_KEY = 'hamtab_widget_vis';
 
+// --- New widget detection for existing users ---
+let pendingNewWidgets = []; // widget names added since user's last visit
+
+export function getPendingNewWidgets() {
+  const list = pendingNewWidgets;
+  pendingNewWidgets = []; // consume once
+  return list;
+}
+
 // --- Widget hide callbacks: called when a widget is hidden via close button ---
 const widgetHideCallbacks = {};
 export function onWidgetHide(widgetId, fn) { widgetHideCallbacks[widgetId] = fn; }
@@ -12,8 +21,23 @@ export function onWidgetHide(widgetId, fn) { widgetHideCallbacks[widgetId] = fn;
 export function loadWidgetVisibility() {
   try {
     const saved = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
-    if (saved && typeof saved === 'object') return saved;
+    if (saved && typeof saved === 'object') {
+      // Returning user — detect new widgets not in their saved config
+      const newWidgets = [];
+      WIDGET_DEFS.forEach(w => {
+        if (!(w.id in saved)) {
+          saved[w.id] = false; // don't auto-activate new widgets
+          newWidgets.push(w.name);
+        }
+      });
+      if (newWidgets.length > 0) {
+        localStorage.setItem(WIDGET_VIS_KEY, JSON.stringify(saved));
+        pendingNewWidgets = newWidgets;
+      }
+      return saved;
+    }
   } catch (e) {}
+  // Brand new user — all widgets active
   const vis = {};
   WIDGET_DEFS.forEach(w => vis[w.id] = true);
   return vis;

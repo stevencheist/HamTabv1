@@ -347,8 +347,15 @@ export function conditionLabel(condition) {
  */
 export function getReliabilityColor(rel) {
   if (rel < 5) return 'rgba(26, 26, 26, 0.6)'; // near-transparent — band closed
-  // Continuous HSL gradient: red (0°) → yellow (60°) → green (120°)
   const t = Math.max(0, Math.min(1, (rel - 5) / 90)); // 5-95% → 0-1
+
+  if (state.grayscale) {
+    // Wide luminance ramp: 15% (dark, poor) → 85% (bright, good)
+    const light = 15 + t * 70;
+    return `hsl(0, 0%, ${light}%)`;
+  }
+
+  // Continuous HSL gradient: red (0°) → yellow (60°) → green (120°)
   const hue = t * 120;        // 0°=red, 60°=yellow, 120°=green
   const sat = 90;
   const light = 42 + t * 13;  // 42% (bold red) → 55% (bright green)

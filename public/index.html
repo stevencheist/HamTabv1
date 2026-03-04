@@ -126,15 +126,15 @@
 
   <!-- Splash screen -->
   <div class="splash-overlay" id="splash">
-    <div class="splash-box config-box">
-      <h2>HamTab Configuration</h2>
+    <div class="splash-box config-box" role="dialog" aria-modal="true" aria-labelledby="configDialogTitle">
+      <h2 id="configDialogTitle">HamTab Configuration</h2>
 
-      <div class="config-tabs">
-        <button type="button" class="config-tab active" data-tab="station">Station</button>
-        <button type="button" class="config-tab" data-tab="radio">Radio</button>
-        <button type="button" class="config-tab" data-tab="display">Display</button>
-        <button type="button" class="config-tab" data-tab="appearance">Appearance</button>
-        <button type="button" class="config-tab" data-tab="services">Services</button>
+      <div class="config-tabs" role="tablist" aria-label="Configuration sections">
+        <button type="button" class="config-tab active" data-tab="station" role="tab" aria-selected="true">Station</button>
+        <button type="button" class="config-tab" data-tab="radio" role="tab" aria-selected="false">Radio</button>
+        <button type="button" class="config-tab" data-tab="display" role="tab" aria-selected="false">Display</button>
+        <button type="button" class="config-tab" data-tab="appearance" role="tab" aria-selected="false">Appearance</button>
+        <button type="button" class="config-tab" data-tab="services" role="tab" aria-selected="false">Services</button>
         <button type="button" class="config-tab" data-tab="data">Data</button>
         <button type="button" class="config-tab" data-tab="about">About</button>
         <button type="button" class="config-tab" data-tab="thanks">Thanks</button>
@@ -492,6 +492,31 @@
             </label>
           </div>
 
+          <div class="splash-a11y-section" id="a11yConfigSection">
+            <span class="splash-loc-title">Accessibility Options</span>
+            <div class="a11y-scale-row">
+              <label class="a11y-scale-label" for="cfgTextScale">Text Scale</label>
+              <select id="cfgTextScale" class="a11y-scale-select">
+                <option value="1">100% (Default)</option>
+                <option value="1.15">115%</option>
+                <option value="1.3">130%</option>
+                <option value="1.5">150%</option>
+              </select>
+            </div>
+            <label class="config-toggle">
+              <input type="checkbox" id="cfgFocusTrap" />
+              Focus trap in modals (Tab stays inside open dialogs)
+            </label>
+            <label class="config-toggle">
+              <input type="checkbox" id="cfgEscapeClose" />
+              Escape key closes modals
+            </label>
+            <label class="config-toggle">
+              <input type="checkbox" id="cfgReducedMotion" />
+              Reduced motion (disables animations and transitions)
+            </label>
+          </div>
+
           <div class="splash-divider"></div>
           <div class="splash-band-colors-section">
             <span class="splash-loc-title">Band Colors</span>
@@ -641,7 +666,7 @@
 
   <!-- Solar field config overlay -->
   <div class="splash-overlay hidden" id="solarCfgSplash">
-    <div class="splash-box solar-cfg-box">
+    <div class="splash-box solar-cfg-box" role="dialog" aria-modal="true" aria-label="Solar field configuration">
       <h2>Solar &amp; Propagation Fields</h2>
       <div class="splash-widget-list" id="solarFieldList"></div>
       <button id="solarCfgOk">OK</button>
@@ -650,7 +675,7 @@
 
   <!-- Lunar field config overlay -->
   <div class="splash-overlay hidden" id="lunarCfgSplash">
-    <div class="splash-box lunar-cfg-box">
+    <div class="splash-box lunar-cfg-box" role="dialog" aria-modal="true" aria-label="Lunar field configuration">
       <h2>Lunar / EME Fields</h2>
       <div class="splash-widget-list" id="lunarFieldList"></div>
       <button id="lunarCfgOk">OK</button>
@@ -659,7 +684,7 @@
 
   <!-- Spot column config overlay -->
   <div class="splash-overlay hidden" id="spotColCfgSplash">
-    <div class="splash-box spot-col-cfg-box">
+    <div class="splash-box spot-col-cfg-box" role="dialog" aria-modal="true" aria-label="Table column configuration">
       <h2>Table Columns</h2>
       <div class="splash-widget-list" id="spotColFieldList"></div>
       <button id="spotColCfgOk">OK</button>
@@ -673,13 +698,10 @@
         <div class="op-name" id="opName"></div>
         <div class="op-loc" id="opLoc">Location unknown</div>
       </div>
-      <div class="op-btns">
-        <button class="op-btn" id="editCallBtn" title="Configuration">Config</button>
-      </div>
     </div>
     <div class="header-center">
       <div class="header-clock-group">
-        <div class="wx-alert-badge hidden" id="wxAlertBadge">&#9888;</div>
+        <div class="wx-alert-badge hidden" id="wxAlertBadge" role="button" aria-label="View weather alerts">&#9888;</div>
         <div class="header-clock" id="headerClockLocal">
           <div class="header-clock-label">Local</div>
           <div class="header-clock-wx-icon" id="clockWxIcon"></div>
@@ -693,11 +715,11 @@
         <div class="header-clock-time" id="clockUtcTime"></div>
       </div>
     </div>
-    <button class="mobile-menu-btn" id="mobileMenuBtn" title="Menu">&#9776;</button>
+    <button class="mobile-menu-btn" id="mobileMenuBtn" title="Menu" aria-label="Navigation menu" aria-expanded="false" aria-controls="mobileMenuDrawer">&#9776;</button>
     <div class="header-right">
       <div class="layout-dropdown" id="layoutDropdown">
-        <button class="layout-btn" id="layoutBtn" title="Layout profiles">Layouts &#9662;</button>
-        <div class="layout-menu" id="layoutMenu"></div>
+        <button class="layout-btn" id="layoutBtn" title="Layout profiles" aria-expanded="false" aria-controls="layoutMenu">Layouts &#9662;</button>
+        <div class="layout-menu" id="layoutMenu" role="menu" aria-label="Layout profiles"></div>
       </div>
       <span class="last-updated" id="lastUpdated"></span>
       <span class="countdown" id="countdown"></span>
@@ -711,10 +733,16 @@
       <a href="/download" class="download-btn" title="Self-host HamTab on your own machine">Download</a>
       <a href="https://buymeacoffee.com/stevencheist" target="_blank" rel="noopener" class="coffee-btn" title="Support HamTab development">&#9749; Coffee</a>
       <a href="https://discord.gg/Ru3ydQY75U" target="_blank" rel="noopener" class="discord-btn" title="Join the HamTab Discord community"><svg class="discord-icon" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2.03a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2.03a68.68 68.68 0 0 1-10.87 5.19 77.22 77.22 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53.05s5-12.68 11.45-12.68S53.99 46 53.92 53.05c0 6.95-5.11 12.64-11.47 12.64Zm42.24 0C78.41 65.69 73.25 60 73.25 53.05s5-12.68 11.44-12.68S96.23 46 96.16 53.05c0 6.95-5.08 12.64-11.47 12.64Z"/></svg></a>
+      <button class="op-btn" id="editCallBtn" title="Configuration">Config</button>
+      <div class="update-indicator" id="updateIndicator" title="Update status" aria-live="polite">
+        <span class="update-dot gray" id="updateDot"></span>
+        <span class="update-label" id="updateLabel">Checking...</span>
+        <button class="restart-btn hidden" id="restartBtn">Restart</button>
+      </div>
       <span class="platform-label" id="platformLabel"></span>
     </div>
     <div class="mobile-menu-backdrop" id="mobileMenuBackdrop"></div>
-    <nav class="mobile-menu-drawer" id="mobileMenuDrawer">
+    <nav class="mobile-menu-drawer" id="mobileMenuDrawer" role="dialog" aria-modal="true" aria-label="Navigation menu">
       <div class="mobile-menu-header">Menu</div>
       <button class="mobile-menu-item" data-action="layouts">Layouts</button>
       <button class="mobile-menu-item" data-action="config">Config</button>
@@ -730,7 +758,7 @@
   <div class="widget-area" id="widgetArea">
     <!-- Filters -->
     <div class="widget" id="widget-filters">
-      <div class="widget-header">Filters <button class="widget-help-btn" data-widget="widget-filters" title="Help">?</button></div>
+      <div class="widget-header">Filters <button class="widget-help-btn" data-widget="widget-filters" title="Help" aria-label="Help for Filters">?</button></div>
       <div class="widget-body">
         <div class="widget-filters" id="widgetFilters">
           <!-- Row 1: Band and Mode (multi-select buttons) -->
@@ -788,18 +816,18 @@
 
     <!-- Activations -->
     <div class="widget" id="widget-activations">
-      <div class="widget-header">On the Air <span id="spotCount" class="spot-count"></span>
-        <button class="widget-help-btn" data-widget="widget-activations" title="Help">?</button>
-        <button class="widget-cfg-btn" id="spotColCfgBtn" title="Configure columns">&#9881;</button>
+      <div class="widget-header">On the Air <span id="spotCount" class="spot-count" aria-live="polite" aria-atomic="true"></span>
+        <button class="widget-help-btn" data-widget="widget-activations" title="Help" aria-label="Help for On the Air">?</button>
+        <button class="widget-cfg-btn" id="spotColCfgBtn" title="Configure columns" aria-label="Configure table columns">&#9881;</button>
       </div>
       <div class="widget-body">
-        <div class="source-tabs" id="sourceTabs">
-          <button class="source-tab active" data-source="pota">POTA</button>
-          <button class="source-tab" data-source="sota">SOTA</button>
-          <button class="source-tab" data-source="dxc">DXC</button>
-          <button class="source-tab" data-source="wwff">WWFF</button>
-          <button class="source-tab" data-source="psk">PSK</button>
-          <button class="source-tab" data-source="wspr">WSPR</button>
+        <div class="source-tabs" id="sourceTabs" role="tablist" aria-label="Data sources">
+          <button class="source-tab active" data-source="pota" role="tab" aria-selected="true">POTA</button>
+          <button class="source-tab" data-source="sota" role="tab" aria-selected="false">SOTA</button>
+          <button class="source-tab" data-source="dxc" role="tab" aria-selected="false">DXC</button>
+          <button class="source-tab" data-source="wwff" role="tab" aria-selected="false">WWFF</button>
+          <button class="source-tab" data-source="psk" role="tab" aria-selected="false">PSK</button>
+          <button class="source-tab" data-source="wspr" role="tab" aria-selected="false">WSPR</button>
         </div>
         <div class="table-wrap">
           <table id="spotsTable">
@@ -823,8 +851,8 @@
     <!-- Map -->
     <div class="widget" id="widget-map">
       <div class="widget-header">HamMap
-        <button class="widget-help-btn" data-widget="widget-map" title="Help">?</button>
-        <button class="widget-cfg-btn" id="mapOverlayCfgBtn" title="Map overlays">&#9881;</button>
+        <button class="widget-help-btn" data-widget="widget-map" title="Help" aria-label="Help for Map">?</button>
+        <button class="widget-cfg-btn" id="mapOverlayCfgBtn" title="Map overlays" aria-label="Configure map overlays">&#9881;</button>
         <div class="prop-controls">
           <button class="prop-metric-btn" data-metric="off">Prop Off</button>
           <button class="prop-metric-btn active" data-metric="mufd">MUF</button>
@@ -845,7 +873,7 @@
 
     <!-- Solar -->
     <div class="widget" id="widget-solar">
-      <div class="widget-header">Solar <button class="widget-help-btn" data-widget="widget-solar" title="Help">?</button><button class="widget-cfg-btn" id="solarCfgBtn" title="Configure fields">&#9881;</button></div>
+      <div class="widget-header">Solar <button class="widget-help-btn" data-widget="widget-solar" title="Help" aria-label="Help for Solar">?</button><button class="widget-cfg-btn" id="solarCfgBtn" title="Configure fields" aria-label="Configure Solar fields">&#9881;</button></div>
       <div class="widget-body">
         <div class="solar-image-container">
           <select id="solarImageType">
@@ -859,7 +887,7 @@
             <button class="solar-play-btn" id="solarPlayBtn" title="Play/Pause">&#9654;</button>
           </div>
         </div>
-        <div class="solar-indices" id="solarIndices"></div>
+        <div class="solar-indices" id="solarIndices" aria-live="polite"></div>
       </div>
       <div class="widget-resize"></div>
     </div>
@@ -868,7 +896,7 @@
     <div class="widget" id="widget-spacewx">
       <div class="widget-header">
         Space Wx
-        <button class="widget-help-btn" data-widget="widget-spacewx" title="Help">?</button>
+        <button class="widget-help-btn" data-widget="widget-spacewx" title="Help" aria-label="Help for Space Weather">?</button>
         <div class="spacewx-tabs">
           <button class="spacewx-tab active" data-tab="kp">Kp</button>
           <button class="spacewx-tab" data-tab="xray">X-Ray</button>
@@ -887,7 +915,7 @@
     <div class="widget" id="widget-propagation">
       <div class="widget-header">
         Band Conditions
-        <button class="widget-help-btn" data-widget="widget-propagation" title="Help">?</button>
+        <button class="widget-help-btn" data-widget="widget-propagation" title="Help" aria-label="Help for Band Conditions">?</button>
       </div>
       <div class="widget-body">
         <div class="prop-summary">
@@ -917,7 +945,7 @@
     <!-- VOACAP DE→DX (24-hour matrix) -->
     <div class="widget" id="widget-voacap">
       <div class="widget-header">VOACAP DE&#x2192;DX
-        <button class="widget-help-btn" data-widget="widget-voacap" title="Help">?</button>
+        <button class="widget-help-btn" data-widget="widget-voacap" title="Help" aria-label="Help for VOACAP">?</button>
       </div>
       <div class="widget-body">
         <div class="voacap-matrix" id="voacapMatrix">
@@ -930,9 +958,9 @@
     <!-- Live Spots -->
     <div class="widget" id="widget-live-spots">
       <div class="widget-header">Live Spots
-        <span id="liveSpotsCount" class="spot-count"></span>
-        <button class="widget-help-btn" data-widget="widget-live-spots" title="Help">?</button>
-        <button class="widget-cfg-btn" id="liveSpotsCfgBtn" title="Configure display">&#9881;</button>
+        <span id="liveSpotsCount" class="spot-count" aria-live="polite" aria-atomic="true"></span>
+        <button class="widget-help-btn" data-widget="widget-live-spots" title="Help" aria-label="Help for Live Spots">?</button>
+        <button class="widget-cfg-btn" id="liveSpotsCfgBtn" title="Configure display" aria-label="Configure Live Spots">&#9881;</button>
       </div>
       <div class="widget-body">
         <div class="live-spots-status" id="liveSpotsStatus"></div>
@@ -943,7 +971,7 @@
 
     <!-- Lunar / EME -->
     <div class="widget" id="widget-lunar">
-      <div class="widget-header">Lunar / EME <button class="widget-help-btn" data-widget="widget-lunar" title="Help">?</button><button class="widget-cfg-btn" id="lunarCfgBtn" title="Configure fields">&#9881;</button></div>
+      <div class="widget-header">Lunar / EME <button class="widget-help-btn" data-widget="widget-lunar" title="Help" aria-label="Help for Lunar">?</button><button class="widget-cfg-btn" id="lunarCfgBtn" title="Configure fields" aria-label="Configure Lunar fields">&#9881;</button></div>
       <div class="widget-body">
         <canvas id="moonCanvas" width="160" height="160"></canvas>
         <div style="text-align:center;margin:-4px 0 4px;"><a href="https://svs.gsfc.nasa.gov/5187" target="_blank" rel="noopener" style="font-size:0.65rem;color:var(--text-dim);">NASA Moon Visualization</a></div>
@@ -955,8 +983,8 @@
     <!-- Satellites -->
     <div class="widget" id="widget-satellites">
       <div class="widget-header">Satellites
-        <button class="widget-help-btn" data-widget="widget-satellites" title="Help">?</button>
-        <button class="widget-cfg-btn" id="satCfgBtn" title="Configure satellites">&#9881;</button>
+        <button class="widget-help-btn" data-widget="widget-satellites" title="Help" aria-label="Help for Satellites">?</button>
+        <button class="widget-cfg-btn" id="satCfgBtn" title="Configure satellites" aria-label="Configure Satellites">&#9881;</button>
       </div>
       <div class="widget-body">
         <div class="sat-list" id="satList"></div>
@@ -967,7 +995,7 @@
 
     <!-- Reference -->
     <div class="widget" id="widget-rst">
-      <div class="widget-header">Reference <button class="widget-help-btn" data-widget="widget-rst" title="Help">?</button></div>
+      <div class="widget-header">Reference <button class="widget-help-btn" data-widget="widget-rst" title="Help" aria-label="Help for Reference">?</button></div>
       <div class="widget-body rst-body">
         <div class="reference-tabs" id="referenceTabs">
           <button class="reference-tab active" data-ref-tab="rst">RST</button>
@@ -983,7 +1011,7 @@
 
     <!-- Spot Detail -->
     <div class="widget" id="widget-spot-detail">
-      <div class="widget-header">DX Detail <button class="widget-help-btn" data-widget="widget-spot-detail" title="Help">?</button></div>
+      <div class="widget-header">DX Detail <button class="widget-help-btn" data-widget="widget-spot-detail" title="Help" aria-label="Help for DX Detail">?</button></div>
       <div class="widget-body" id="spotDetailBody">
         <div class="spot-detail-empty">Select a DX</div>
       </div>
@@ -994,7 +1022,7 @@
     <div class="widget" id="widget-contests">
       <div class="widget-header">Contests
         <span id="contestCount" class="spot-count"></span>
-        <button class="widget-help-btn" data-widget="widget-contests" title="Help">?</button>
+        <button class="widget-help-btn" data-widget="widget-contests" title="Help" aria-label="Help for Contests">?</button>
       </div>
       <div class="widget-body">
         <div class="contest-list" id="contestList"></div>
@@ -1016,7 +1044,7 @@
           <option value="180d">Within 6 Months</option>
           <option value="all">All</option>
         </select>
-        <button class="widget-help-btn" data-widget="widget-dxpeditions" title="Help">?</button>
+        <button class="widget-help-btn" data-widget="widget-dxpeditions" title="Help" aria-label="Help for DXpeditions">?</button>
       </div>
       <div class="widget-body">
         <div class="dxped-list" id="dxpedList"></div>
@@ -1027,7 +1055,7 @@
     <!-- NCDXF Beacons -->
     <div class="widget" id="widget-beacons">
       <div class="widget-header">NCDXF Beacons
-        <button class="widget-help-btn" data-widget="widget-beacons" title="Help">?</button>
+        <button class="widget-help-btn" data-widget="widget-beacons" title="Help" aria-label="Help for Beacons">?</button>
       </div>
       <div class="widget-body">
         <table class="beacon-table" id="beaconTable">
@@ -1041,7 +1069,7 @@
     <!-- DE/DX Info -->
     <div class="widget" id="widget-dedx">
       <div class="widget-header">DE / DX Info
-        <button class="widget-help-btn" data-widget="widget-dedx" title="Help">?</button>
+        <button class="widget-help-btn" data-widget="widget-dedx" title="Help" aria-label="Help for DE/DX Info">?</button>
       </div>
       <div class="widget-body">
         <div class="dedx-container" id="dedxContainer">
@@ -1064,7 +1092,7 @@
     <!-- Stopwatch / Timer -->
     <div class="widget" id="widget-stopwatch">
       <div class="widget-header">Stopwatch / Timer
-        <button class="widget-help-btn" data-widget="widget-stopwatch" title="Help">?</button>
+        <button class="widget-help-btn" data-widget="widget-stopwatch" title="Help" aria-label="Help for Stopwatch">?</button>
       </div>
       <div class="widget-body">
         <div class="sw-container" id="swContainer">
@@ -1094,8 +1122,8 @@
     <!-- Analog Clock -->
     <div class="widget" id="widget-analog-clock">
       <div class="widget-header">Analog Clock
-        <button class="widget-help-btn" data-widget="widget-analog-clock" title="Help">?</button>
-        <button class="widget-cfg-btn" id="clockCfgBtn" title="Configure clock face">&#9881;</button>
+        <button class="widget-help-btn" data-widget="widget-analog-clock" title="Help" aria-label="Help for Analog Clock">?</button>
+        <button class="widget-cfg-btn" id="clockCfgBtn" title="Configure clock face" aria-label="Configure Analog Clock">&#9881;</button>
       </div>
       <div class="widget-body">
         <svg id="analogClockSvg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"></svg>
@@ -1106,9 +1134,9 @@
     <!-- Logbook (ADIF Import) -->
     <div class="widget" id="widget-logbook">
       <div class="widget-header">Logbook <span id="logbookCount" class="spot-count"></span>
-        <button class="widget-help-btn" data-widget="widget-logbook" title="Help">?</button>
-        <button class="widget-cfg-btn" id="logbookImportBtn" title="Import ADIF">&#x2912;</button>
-        <button class="widget-cfg-btn" id="logbookClearBtn" title="Clear log">&#x2715;</button>
+        <button class="widget-help-btn" data-widget="widget-logbook" title="Help" aria-label="Help for Logbook">?</button>
+        <button class="widget-cfg-btn" id="logbookImportBtn" title="Import ADIF" aria-label="Import ADIF logbook">&#x2912;</button>
+        <button class="widget-cfg-btn" id="logbookClearBtn" title="Clear log" aria-label="Clear logbook data">&#x2715;</button>
       </div>
       <div class="widget-body">
         <div id="logbookImportZone" class="logbook-import-zone">
@@ -1135,7 +1163,7 @@
     <!-- On-Air Rig Control --><!-- RADIO_HIDDEN -->
     <div class="widget" id="widget-on-air-rig" style="display:none">
       <div class="widget-header">On-Air Rig
-        <button class="widget-help-btn" data-widget="widget-on-air-rig" title="Help">?</button>
+        <button class="widget-help-btn" data-widget="widget-on-air-rig" title="Help" aria-label="Help for On-Air Rig">?</button>
       </div>
       <div class="widget-body">
         <div class="rig-container" id="rigContainer">
@@ -1218,7 +1246,7 @@
 
   <!-- Map overlay config overlay -->
   <div class="splash-overlay hidden" id="mapOverlayCfgSplash">
-    <div class="splash-box map-overlay-cfg-box">
+    <div class="splash-box map-overlay-cfg-box" role="dialog" aria-modal="true" aria-label="Map overlay configuration">
       <h2>Map Overlays</h2>
       <div class="splash-widget-list" id="mapOverlayFieldList">
         <label><input type="checkbox" id="mapOvLatLon" /> Lat/Lon Grid</label>
@@ -1273,7 +1301,7 @@
 
   <!-- Live Spots config overlay -->
   <div class="splash-overlay hidden" id="liveSpotsCfgSplash">
-    <div class="splash-box live-spots-cfg-box">
+    <div class="splash-box live-spots-cfg-box" role="dialog" aria-modal="true" aria-label="Live spots configuration">
       <h2>Live Spots Settings</h2>
       <div class="live-spots-cfg-field">
         <label for="liveSpotsModeSelect">Display Mode</label>
@@ -1289,7 +1317,7 @@
 
   <!-- Satellite config overlay -->
   <div class="splash-overlay hidden" id="satCfgSplash">
-    <div class="splash-box sat-cfg-box">
+    <div class="splash-box sat-cfg-box" role="dialog" aria-modal="true" aria-label="Satellite configuration">
       <h2>Satellite Tracking</h2>
       <label for="satApiKey">N2YO API Key</label>
       <input type="text" id="satApiKey" placeholder="Get free key at n2yo.com/api" autocomplete="off" spellcheck="false" style="text-transform:none;" />
@@ -1309,7 +1337,7 @@
 
   <!-- Clock face config overlay -->
   <div class="splash-overlay hidden" id="clockCfgSplash">
-    <div class="splash-box clock-cfg-box">
+    <div class="splash-box clock-cfg-box" role="dialog" aria-modal="true" aria-label="Clock face configuration">
       <h2>Clock Face</h2>
       <div class="clock-face-picker" id="clockFacePicker"></div>
       <h3>Complications</h3>
@@ -1320,7 +1348,7 @@
 
   <!-- Weather alert popup -->
   <div class="splash-overlay hidden wx-alert-splash" id="wxAlertSplash">
-    <div class="splash-box">
+    <div class="splash-box" role="alertdialog" aria-modal="true" aria-label="Weather alerts">
       <h2>Weather Alerts</h2>
       <div class="wx-alert-list" id="wxAlertList"></div>
       <button id="wxAlertClose">Close</button>
@@ -1329,7 +1357,7 @@
 
   <!-- Help modal -->
   <div class="splash-overlay hidden" id="helpSplash">
-    <div class="splash-box help-box">
+    <div class="splash-box help-box" role="dialog" aria-modal="true" aria-labelledby="helpTitle">
       <h2 id="helpTitle"></h2>
       <div id="helpContent"></div>
       <button id="helpOk">Close</button>
@@ -1338,7 +1366,7 @@
 
   <!-- Feedback modal -->
   <div class="splash-overlay hidden" id="feedbackSplash">
-    <div class="splash-box feedback-box">
+    <div class="splash-box feedback-box" role="dialog" aria-modal="true" aria-label="Send feedback">
       <h2>Send Feedback</h2>
       <p class="feedback-description">Help us improve HamTab! Your feedback is valuable to us.</p>
       <p class="feedback-discord"><a href="https://discord.gg/Ru3ydQY75U" target="_blank" rel="noopener"><svg class="discord-icon" viewBox="0 0 127.14 96.36" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M107.7 8.07A105.15 105.15 0 0 0 81.47 0a72.06 72.06 0 0 0-3.36 6.83 97.68 97.68 0 0 0-29.11 0A72.37 72.37 0 0 0 45.64 0 105.89 105.89 0 0 0 19.39 8.09C2.79 32.65-1.71 56.6.54 80.21a105.73 105.73 0 0 0 32.17 16.15 77.7 77.7 0 0 0 6.89-11.11 68.42 68.42 0 0 1-10.85-5.18c.91-.66 1.8-1.34 2.66-2.03a75.57 75.57 0 0 0 64.32 0c.87.71 1.76 1.39 2.66 2.03a68.68 68.68 0 0 1-10.87 5.19 77.22 77.22 0 0 0 6.89 11.1 105.25 105.25 0 0 0 32.19-16.14c2.64-27.38-4.51-51.11-18.9-72.15ZM42.45 65.69C36.18 65.69 31 60 31 53.05s5-12.68 11.45-12.68S53.99 46 53.92 53.05c0 6.95-5.11 12.64-11.47 12.64Zm42.24 0C78.41 65.69 73.25 60 73.25 53.05s5-12.68 11.44-12.68S96.23 46 96.16 53.05c0 6.95-5.08 12.64-11.47 12.64Z"/></svg> Join our Discord</a> for release notes and community discussion about features, bugs, or other general HamTab and amateur radio topics.</p>
@@ -1362,7 +1390,7 @@
           <textarea id="feedbackMessage" name="feedback" required minlength="10" maxlength="5000" rows="6" placeholder="Share your thoughts, report bugs, or suggest features..." spellcheck="true"></textarea>
           <div class="feedback-char-count"><span id="feedbackCharCount">0</span> / 5000</div>
         </div>
-        <div class="feedback-status hidden" id="feedbackStatus"></div>
+        <div class="feedback-status hidden" id="feedbackStatus" aria-live="assertive" aria-atomic="true"></div>
         <div class="feedback-buttons">
           <button type="button" id="feedbackCancel">Cancel</button>
           <button type="submit" id="feedbackSubmit">Send Feedback</button>
@@ -1373,7 +1401,7 @@
 
   <!-- Big Clock overlay -->
   <div class="big-clock-overlay hidden" id="bigClockOverlay">
-    <div class="big-clock-inner">
+    <div class="big-clock-inner" role="dialog" aria-modal="true" aria-label="Big clock display">
       <div class="big-clock-section">
         <div class="big-clock-label">Local</div>
         <div class="big-clock-time" id="bigClockLocal"></div>
@@ -1390,7 +1418,7 @@
 
   <!-- New widget notification popup -->
   <div class="splash-overlay hidden" id="newWidgetPopup">
-    <div class="splash-box new-widget-box">
+    <div class="splash-box new-widget-box" role="dialog" aria-modal="true" aria-label="New widgets available">
       <h3>New Widgets Available</h3>
       <p>The following widgets have been added since your last visit:</p>
       <ul id="newWidgetList"></ul>

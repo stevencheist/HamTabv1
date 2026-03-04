@@ -27,6 +27,7 @@ export function createSpectrum(canvas, getState, options) {
   const peakDecay = options.peakDecay || 0.95;
   const avgAlpha = options.avgAlpha || 0.3;
   const spanHz = options.spanHz || 48000;
+  let afMode = !!options.afMode; // AF mode: audio-frequency labels, no VFO/passband
 
   const ctx = canvas.getContext('2d');
   let width = canvas.width;
@@ -89,22 +90,24 @@ export function createSpectrum(canvas, getState, options) {
 
     const binWidth = width / bins;
 
-    // VFO center line — cyan
-    const centerX = width / 2;
-    ctx.strokeStyle = 'rgba(0, 229, 255, 0.6)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(centerX, 0);
-    ctx.lineTo(centerX, height);
-    ctx.stroke();
-
-    // Passband shading — cyan tint, width derived from mode
+    // VFO center line + passband shading — only in RF mode
     const state = getState();
-    const mode = state.mode || 'USB';
-    const filterHz = MODE_FILTER_WIDTH[mode] || 2400;
-    const filterPx = (filterHz / spanHz) * width;
-    ctx.fillStyle = 'rgba(0, 229, 255, 0.06)';
-    ctx.fillRect(centerX - filterPx / 2, 0, filterPx, height);
+    if (!afMode) {
+      const centerX = width / 2;
+      ctx.strokeStyle = 'rgba(0, 229, 255, 0.6)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(centerX, 0);
+      ctx.lineTo(centerX, height);
+      ctx.stroke();
+
+      // Passband shading — cyan tint, width derived from mode
+      const mode = state.mode || 'USB';
+      const filterHz = MODE_FILTER_WIDTH[mode] || 2400;
+      const filterPx = (filterHz / spanHz) * width;
+      ctx.fillStyle = 'rgba(0, 229, 255, 0.06)';
+      ctx.fillRect(centerX - filterPx / 2, 0, filterPx, height);
+    }
 
     // Peak hold line — orange
     ctx.strokeStyle = 'rgba(255, 145, 0, 0.4)';
@@ -154,27 +157,47 @@ export function createSpectrum(canvas, getState, options) {
   }
 
   function drawFrequencyLabels(state) {
-    const centerHz = state.frequency || 14175000;
-    const startHz = centerHz - spanHz / 2;
-
     ctx.fillStyle = '#4a5a7a';
     ctx.font = '10px Consolas, monospace';
     ctx.textAlign = 'center';
 
     const labelCount = 5;
-    for (let i = 0; i <= labelCount; i++) {
-      const x = (i / labelCount) * width;
-      const freqHz = startHz + (i / labelCount) * spanHz;
-      const freqMHz = (freqHz / 1_000_000).toFixed(3);
-      ctx.fillText(freqMHz, x, height - 4);
+
+    if (afMode) {
+      // AF mode: show 0 Hz to AF_DISPLAY_HZ (4 kHz — zoomed into audio passband)
+      const displayHz = 4000;
+      for (let i = 0; i <= labelCount; i++) {
+        const x = (i / labelCount) * width;
+        const freqHz = (i / labelCount) * displayHz;
+        const label = freqHz >= 1000 ? (freqHz / 1000).toFixed(1) + 'k' : freqHz.toFixed(0) + ' Hz';
+        ctx.fillText(label, x, height - 4);
+      }
+    } else {
+      // RF mode: MHz labels centered on VFO
+      const centerHz = state.frequency || 14175000;
+      const startHz = centerHz - spanHz / 2;
+      for (let i = 0; i <= labelCount; i++) {
+        const x = (i / labelCount) * width;
+        const freqHz = startHz + (i / labelCount) * spanHz;
+        const freqMHz = (freqHz / 1_000_000).toFixed(3);
+        ctx.fillText(freqMHz, x, height - 4);
+      }
     }
   }
 
+  function setAFMode(enabled) {
+    afMode = !!enabled;
+  }
+
   function resize() {
-    const rect = canvas.getBoundingClientRect();
+    // Use parent's width — canvas intrinsic size can fight CSS width:100%
+    const parent = canvas.parentElement;
+    const parentW = parent ? parent.getBoundingClientRect().width : canvas.getBoundingClientRect().width;
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(rect.width * dpr);
-    canvas.height = Math.floor(rect.height * dpr);
+    const h = canvas.getBoundingClientRect().height || 90;
+    canvas.width = Math.floor(parentW * dpr);
+    canvas.height = Math.floor(h * dpr);
+    canvas.style.width = parentW + 'px';
     width = canvas.width;
     height = canvas.height;
   }
@@ -187,5 +210,5 @@ export function createSpectrum(canvas, getState, options) {
 
   resize();
 
-  return { draw, resize, destroy };
+  return { draw, resize, destroy, setAFMode };
 }

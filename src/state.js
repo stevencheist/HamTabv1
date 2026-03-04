@@ -165,7 +165,7 @@ const state = {
 
   // Grid layout mode
   gridMode: localStorage.getItem('hamtab_grid_mode') || 'grid', // 'float' or 'grid'
-  gridPermutation: localStorage.getItem('hamtab_grid_permutation') || '3L-3R', // active permutation ID
+  gridPermutation: localStorage.getItem('hamtab_grid_permutation') || '2T-3L-3R-2B', // active permutation ID
   gridAssignments: null, // loaded at grid activation — maps cell names to widget IDs
   gridSpans: null, // loaded at grid activation — per-permutation spans { cellName: spanCount }
 
@@ -308,6 +308,11 @@ const state = {
 
   // Demo
   radioDemoPropagation: localStorage.getItem('hamtab_radio_demo_propagation') || 'location',
+
+  // Audio scope (AF FFT from USB audio — post-demodulation, not RF)
+  radioAudioScopeEnabled: localStorage.getItem('hamtab_radio_audio_scope') !== 'false', // default on
+  radioAudioDeviceId: localStorage.getItem('hamtab_radio_audio_device') || '',
+  radioAudioSampleRate: parseInt(localStorage.getItem('hamtab_radio_audio_sample_rate'), 10) || 48000,
 };
 
 // Migrate old SVG metric values

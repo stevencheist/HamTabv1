@@ -11,7 +11,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { loadSolarFieldVisibility } from './solar.js';
 import { loadLunarFieldVisibility } from './lunar.js';
-import { loadWidgetVisibility, isWidgetVisible } from './widgets.js';
+import { loadWidgetVisibility, isWidgetVisible, getPendingNewWidgets } from './widgets.js';
 import { loadSpotColumnVisibility } from './spots.js';
 
 // Initialize visibility state
@@ -118,6 +118,27 @@ initTabs();
 initOnAirRig(); // RADIO_HIDDEN — temporarily re-enabled for scope testing
 initLogbook();
 
+// --- New widget notification popup ---
+function showNewWidgetPopup(widgetNames) {
+  const popup = $('newWidgetPopup');
+  const list = $('newWidgetList');
+  if (!popup || !list) return;
+  list.innerHTML = '';
+  widgetNames.forEach(name => {
+    const li = document.createElement('li');
+    li.textContent = name;
+    list.appendChild(li);
+  });
+  popup.classList.remove('hidden');
+  $('newWidgetDismiss').addEventListener('click', () => {
+    popup.classList.add('hidden');
+  });
+  // Also dismiss on overlay click
+  popup.addEventListener('click', (e) => {
+    if (e.target === popup) popup.classList.add('hidden');
+  });
+}
+
 // Wire initApp into splash dismissal
 function initApp() {
   if (state.appInitialized) return;
@@ -136,6 +157,10 @@ function initApp() {
   if (isWidgetVisible('widget-contests')) fetchContests();
   if (isWidgetVisible('widget-dedx')) startDedxTimer();
   if (isWidgetVisible('widget-beacons')) updateBeaconMarkers();
+
+  // Notify returning users about newly added widgets
+  const newWidgets = getPendingNewWidgets();
+  if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
 }
 
 // Live Spots refresh (5 min — PSKReporter rate limit)

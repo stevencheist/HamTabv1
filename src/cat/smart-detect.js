@@ -225,8 +225,8 @@ export async function smartDetect(port, onProgress) {
       console.debug(`[smart-detect] ${probe.name} failed:`, err.message);
     }
 
-    // 100ms delay between probes for port settle
-    await new Promise(r => setTimeout(r, 100));
+    // 300ms delay between probes for port settle (close → reopen needs time)
+    await new Promise(r => setTimeout(r, 300));
   }
 
   return null; // no radio detected
@@ -239,22 +239,32 @@ async function runProbe(port, probe) {
   try {
     await transport.connect(port);
     await transport.flush();
+    // Brief settle after flush before sending probe command
+    await new Promise(r => setTimeout(r, 50));
 
     let response;
     if (probe.binary) {
       // Binary probe (Icom CI-V)
       await transport.writeRaw(probe.sendBytes);
       response = await readWithTimeout(transport, 'binary', 1500);
+      console.debug(`[smart-detect] ${probe.name} → sent binary, got ${response ? response.length : 0} bytes`);
     } else {
       // ASCII probe
-      response = await transport.sendCommand(probe.send);
+      try {
+        response = await transport.sendCommand(probe.send);
+      } catch (cmdErr) {
+        console.debug(`[smart-detect] ${probe.name} → sendCommand error: ${cmdErr.message}`);
+        response = null;
+      }
       if (!response) {
         // Try reading separately if sendCommand returned empty
         response = await readWithTimeout(transport, 'ascii', 1500);
       }
+      console.debug(`[smart-detect] ${probe.name} → sent "${probe.send}", got "${response || '(empty)'}"`);
     }
 
     const result = probe.parse(response);
+    console.debug(`[smart-detect] ${probe.name} → parse result:`, result);
     await transport.disconnect();
     return result;
   } catch (err) {

@@ -203,7 +203,7 @@
         // Grid layout mode
         gridMode: localStorage.getItem("hamtab_grid_mode") || "grid",
         // 'float' or 'grid'
-        gridPermutation: localStorage.getItem("hamtab_grid_permutation") || "3L-3R",
+        gridPermutation: localStorage.getItem("hamtab_grid_permutation") || "2T-3L-3R-2B",
         // active permutation ID
         gridAssignments: null,
         // loaded at grid activation — maps cell names to widget IDs
@@ -385,7 +385,12 @@
         radioSwrLimit: parseFloat(localStorage.getItem("hamtab_radio_swr_limit")) || 3,
         radioSafePower: parseInt(localStorage.getItem("hamtab_radio_safe_power"), 10) || 20,
         // Demo
-        radioDemoPropagation: localStorage.getItem("hamtab_radio_demo_propagation") || "location"
+        radioDemoPropagation: localStorage.getItem("hamtab_radio_demo_propagation") || "location",
+        // Audio scope (AF FFT from USB audio — post-demodulation, not RF)
+        radioAudioScopeEnabled: localStorage.getItem("hamtab_radio_audio_scope") !== "false",
+        // default on
+        radioAudioDeviceId: localStorage.getItem("hamtab_radio_audio_device") || "",
+        radioAudioSampleRate: parseInt(localStorage.getItem("hamtab_radio_audio_sample_rate"), 10) || 48e3
       };
       if (state.propMetric === "mof_sp" || state.propMetric === "lof_sp") {
         state.propMetric = "mufd";
@@ -2826,7 +2831,7 @@
   // src/cat/rig-manager.js
   function createRigManager(transport, driver, store, options = {}) {
     const pollingInterval = options.pollingInterval || 500;
-    const meterInterval = options.meterInterval || 300;
+    const meterInterval = options.meterInterval || 200;
     const commandInterval = options.commandInterval || 60;
     let pollTimer = null;
     let meterTimer = null;
@@ -2856,8 +2861,12 @@
               }
             }
             return;
+          } else if (command.startsWith("set")) {
+            await transport.writeCommand(encoded);
+            return;
           } else {
-            response = await transport.sendCommand(encoded);
+            const isMeter = command === "getSignal" || command === "getSWR" || command === "getPower";
+            response = await transport.sendCommand(encoded, isMeter ? 500 : 2e3);
           }
           handleResponse(response);
         } catch (err2) {
@@ -2911,13 +2920,19 @@
               }
             }
           } else {
-            const response = await transport.sendCommand(cmd);
+            const response = await transport.sendCommand(cmd, 800);
             handleResponse(response);
           }
         } catch (err2) {
-          console.warn("[cat] Init command failed:", cmd, err2.message);
+          if (err2.message && err2.message.includes("Read timeout")) {
+            console.debug("[cat] Init command no response (expected for set commands):", cmd);
+          } else {
+            console.warn("[cat] Init command failed:", cmd, err2.message);
+          }
         }
       }
+      await transport.flush();
+      await new Promise((r) => setTimeout(r, 200));
     }
     function startPolling() {
       if (pollTimer) return;
@@ -2940,9 +2955,11 @@
       if (!driver.meterCommands) return;
       meterTimer = setInterval(() => {
         if (!connected) return;
-        const commands = driver.meterCommands();
-        for (const cmd of commands) {
-          queue.push(cmd, null, 0);
+        queue.push("getSignal", null, 0);
+        const rigState = store.get();
+        if (rigState.ptt) {
+          queue.push("getSWR", null, 0);
+          queue.push("getPower", null, 0);
         }
       }, meterInterval);
     }
@@ -2957,6 +2974,7 @@
       const opened = await transport.connect(existingPort);
       if (!opened) return false;
       await transport.flush();
+      await new Promise((r) => setTimeout(r, 500));
       connected = true;
       store.set({ connected: true });
       await initialize();
@@ -3002,6 +3020,7 @@
       connected: false,
       demo: false,
       radioId: null,
+      capabilities: [],
       // Core
       frequency: 0,
       frequencyB: 0,
@@ -3064,6 +3083,12 @@
           break;
         case "ptt":
           state2.ptt = event.value;
+          if (!event.value) {
+            state2.swr = 0;
+            state2.swrRaw = 0;
+            state2.powerMeter = 0;
+            state2.tuneConfidence = "unknown";
+          }
           break;
         case "signal":
           state2.signal = event.value;
@@ -3083,6 +3108,9 @@
           break;
         case "radioId":
           state2.radioId = event.value;
+          break;
+        case "capabilities":
+          state2.capabilities = Array.isArray(event.value) ? event.value : [];
           break;
         case "tuneConfidence":
           state2.tuneConfidence = event.value;
@@ -3111,6 +3139,7 @@
       state2.connected = false;
       state2.demo = false;
       state2.radioId = null;
+      state2.capabilities = [];
       state2.frequency = 0;
       state2.frequencyB = 0;
       state2.mode = "";
@@ -3885,7 +3914,7 @@
       } catch (err2) {
         console.debug(`[smart-detect] ${probe.name} failed:`, err2.message);
       }
-      await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 300));
     }
     return null;
   }
@@ -3894,17 +3923,26 @@
     try {
       await transport.connect(port);
       await transport.flush();
+      await new Promise((r) => setTimeout(r, 50));
       let response;
       if (probe.binary) {
         await transport.writeRaw(probe.sendBytes);
         response = await readWithTimeout(transport, "binary", 1500);
+        console.debug(`[smart-detect] ${probe.name} \u2192 sent binary, got ${response ? response.length : 0} bytes`);
       } else {
-        response = await transport.sendCommand(probe.send);
+        try {
+          response = await transport.sendCommand(probe.send);
+        } catch (cmdErr) {
+          console.debug(`[smart-detect] ${probe.name} \u2192 sendCommand error: ${cmdErr.message}`);
+          response = null;
+        }
         if (!response) {
           response = await readWithTimeout(transport, "ascii", 1500);
         }
+        console.debug(`[smart-detect] ${probe.name} \u2192 sent "${probe.send}", got "${response || "(empty)"}"`);
       }
       const result = probe.parse(response);
+      console.debug(`[smart-detect] ${probe.name} \u2192 parse result:`, result);
       await transport.disconnect();
       return result;
     } catch (err2) {
@@ -4267,6 +4305,9 @@
     if (!success) {
       rigManager = null;
       return false;
+    }
+    if (driver && typeof driver.capabilities === "function") {
+      store.applyEvent({ type: "capabilities", value: driver.capabilities() });
     }
     if (isDemo) {
       store.set({ demo: true });
@@ -4788,16 +4829,6 @@
     all[state_default.gridPermutation] = state_default.gridSpans;
     localStorage.setItem(GRID_SPANS_KEY, JSON.stringify(all));
   }
-  function clearGridSpans(permId) {
-    try {
-      const all = JSON.parse(localStorage.getItem(GRID_SPANS_KEY));
-      if (all && all[permId]) {
-        delete all[permId];
-        localStorage.setItem(GRID_SPANS_KEY, JSON.stringify(all));
-      }
-    } catch (e) {
-    }
-  }
   function isAbsorbed(cellName, cellNames, spans) {
     const idx = cellNames.indexOf(cellName);
     for (let i = 0; i < idx; i++) {
@@ -5291,7 +5322,9 @@
     }
     const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
     state_default.gridAssignments = defaults ? { ...defaults } : {};
-    state_default.gridSpans = loadGridSpans(state_default.gridPermutation) || {};
+    const savedSpans = loadGridSpans(state_default.gridPermutation);
+    const defaultSpans = GRID_DEFAULT_SPANS[state_default.gridPermutation];
+    state_default.gridSpans = savedSpans || (defaultSpans ? { ...defaultSpans } : {});
     return state_default.gridAssignments;
   }
   function saveGridAssignments() {
@@ -5419,8 +5452,9 @@
     const defaults = GRID_DEFAULT_ASSIGNMENTS[state_default.gridPermutation];
     state_default.gridAssignments = defaults ? { ...defaults } : {};
     saveGridAssignments();
-    state_default.gridSpans = {};
-    clearGridSpans(state_default.gridPermutation);
+    const defaultSpans = GRID_DEFAULT_SPANS[state_default.gridPermutation];
+    state_default.gridSpans = defaultSpans ? { ...defaultSpans } : {};
+    saveGridSpans();
     clearCustomTrackSizes(state_default.gridPermutation);
     const perm = getGridPermutation(state_default.gridPermutation);
     const area = document.getElementById("widgetArea");
@@ -5741,13 +5775,31 @@
   });
 
   // src/widgets.js
+  function getPendingNewWidgets() {
+    const list = pendingNewWidgets;
+    pendingNewWidgets = [];
+    return list;
+  }
   function onWidgetHide(widgetId, fn) {
     widgetHideCallbacks[widgetId] = fn;
   }
   function loadWidgetVisibility() {
     try {
       const saved = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
-      if (saved && typeof saved === "object") return saved;
+      if (saved && typeof saved === "object") {
+        const newWidgets = [];
+        WIDGET_DEFS.forEach((w) => {
+          if (!(w.id in saved)) {
+            saved[w.id] = false;
+            newWidgets.push(w.name);
+          }
+        });
+        if (newWidgets.length > 0) {
+          localStorage.setItem(WIDGET_VIS_KEY, JSON.stringify(saved));
+          pendingNewWidgets = newWidgets;
+        }
+        return saved;
+      }
     } catch (e) {
     }
     const vis = {};
@@ -6445,7 +6497,7 @@
     }
     applyProgressiveScale();
   }
-  var WIDGET_VIS_KEY, widgetHideCallbacks, prevAreaW, prevAreaH;
+  var WIDGET_VIS_KEY, pendingNewWidgets, widgetHideCallbacks, prevAreaW, prevAreaH;
   var init_widgets = __esm({
     "src/widgets.js"() {
       init_state();
@@ -6453,6 +6505,7 @@
       init_grid_layout();
       init_tabs();
       WIDGET_VIS_KEY = "hamtab_widget_vis";
+      pendingNewWidgets = [];
       widgetHideCallbacks = {};
       prevAreaW = 0;
       prevAreaH = 0;
@@ -8898,6 +8951,7 @@
     DEFAULT_TRACKED_SATS: () => DEFAULT_TRACKED_SATS,
     GRID_ASSIGN_KEY: () => GRID_ASSIGN_KEY,
     GRID_DEFAULT_ASSIGNMENTS: () => GRID_DEFAULT_ASSIGNMENTS,
+    GRID_DEFAULT_SPANS: () => GRID_DEFAULT_SPANS,
     GRID_MODE_KEY: () => GRID_MODE_KEY,
     GRID_PERMUTATIONS: () => GRID_PERMUTATIONS,
     GRID_PERM_KEY: () => GRID_PERM_KEY,
@@ -8952,7 +9006,7 @@
   function getBandColorOverrides() {
     return { ...bandColorOverrides };
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, XTAB_CHANNEL_NAME, XTAB_LEADER_KEY, XTAB_HEARTBEAT_MS, XTAB_LEASE_MS, XTAB_ELECTION_JITTER_MIN_MS, XTAB_ELECTION_JITTER_MAX_MS, XTAB_LEADER_MISS_GRACE_MS, XTAB_INTEREST_DEBOUNCE_MS;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_DEFAULT_SPANS, XTAB_CHANNEL_NAME, XTAB_LEADER_KEY, XTAB_HEARTBEAT_MS, XTAB_LEASE_MS, XTAB_ELECTION_JITTER_MIN_MS, XTAB_ELECTION_JITTER_MAX_MS, XTAB_LEADER_MISS_GRACE_MS, XTAB_INTEREST_DEBOUNCE_MS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -9535,6 +9589,18 @@
             { label: "NOAA Space Weather & Propagation", url: "https://www.swpc.noaa.gov/communities/radio-communications" }
           ]
         },
+        "widget-on-air-rig": {
+          title: "On-Air Rig",
+          description: "Live rig control panel that connects to your radio via WebSerial (CAT). Displays frequency, mode, TX/RX state, S-meter, SWR, and power. Includes an audio-frequency spectrum scope when USB audio is enabled.",
+          sections: [
+            { heading: "Connecting Your Radio", content: "Click Connect and select the serial port for your radio. HamTab uses CAT commands (Yaesu NewCAT, Icom CI-V) to read and control the radio. The radio must be connected via USB with CAT enabled in its menu. Most Yaesu and Icom radios expose two COM ports \u2014 use the CAT/command port, not the audio port." },
+            { heading: "Frequency & Mode", content: "The large LCD-style display shows your current VFO frequency and operating mode (USB, LSB, CW, FT8, etc.). The frequency updates in real time as you tune the radio. Click the frequency to type a new value directly." },
+            { heading: "S-Meter", content: "The LED bar-graph shows received signal strength from S1 to S9+40dB. Green bars indicate S1\u2013S9, amber indicates over S9. The meter polls the radio 5 times per second for smooth response. The RST badge shows a rough signal report based on the current reading." },
+            { heading: "SWR & Power", content: `SWR and transmit power are only displayed during TX \u2014 they show "---" when receiving. SWR below 1.5 is good (green), 1.5\u20133.0 is caution (amber), above 3.0 is danger (red). These readings come directly from the radio's built-in metering.` },
+            { heading: "Audio Scope (AF FFT)", content: "When enabled in Config, the scope captures USB audio from your radio and displays a real-time audio-frequency spectrum and waterfall. This shows what's in the radio's audio passband (0\u20134 kHz) \u2014 it is NOT an RF panadapter. You'll see voice, CW tones, FT8 signals, and noise within whatever bandwidth your radio is demodulating. Requires browser microphone permission and a USB audio connection to the radio." },
+            { heading: "Demo Mode", content: "If no radio is connected, you can enable Demo Mode in Config to see simulated rig data. This is useful for exploring the widget layout and testing the UI without a radio." }
+          ]
+        },
         "widget-logbook": {
           title: "Logbook",
           description: "Import and view your ADIF contact logs. See your QSO history in a sortable table and plot contacts on the map with band-colored paths.",
@@ -9832,17 +9898,21 @@
           B1: "widget-lunar"
         },
         "2T-3L-3R-2B": {
-          T1: "widget-solar",
-          T2: "widget-propagation",
-          L1: "widget-filters",
+          T1: "widget-filters",
+          T2: "widget-voacap",
+          L1: "widget-on-air-rig",
           L2: "widget-activations",
           L3: "widget-live-spots",
-          R1: "widget-voacap",
-          R2: "widget-spot-detail",
-          R3: "widget-satellites",
-          B1: "widget-lunar",
-          B2: "widget-rst"
+          R1: "widget-solar",
+          R2: "widget-lunar",
+          R3: "widget-spot-detail",
+          B1: "widget-stopwatch",
+          B2: "widget-dedx"
         }
+      };
+      GRID_DEFAULT_SPANS = {
+        "2T-3L-3R-2B": { L1: 3 }
+        // On-Air Rig spans all 3 left rows
       };
       XTAB_CHANNEL_NAME = "hamtab_xtab_v1";
       XTAB_LEADER_KEY = "hamtab_xtab_leader_v1";
@@ -18237,6 +18307,7 @@ ${beacon.location}`);
     const peakDecay = options.peakDecay || 0.95;
     const avgAlpha = options.avgAlpha || 0.3;
     const spanHz = options.spanHz || 48e3;
+    let afMode = !!options.afMode;
     const ctx = canvas.getContext("2d");
     let width = canvas.width;
     let height = canvas.height;
@@ -18283,19 +18354,21 @@ ${beacon.location}`);
         ctx.fillText("" + db, 4, y - 2);
       }
       const binWidth = width / bins;
-      const centerX = width / 2;
-      ctx.strokeStyle = "rgba(0, 229, 255, 0.6)";
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(centerX, 0);
-      ctx.lineTo(centerX, height);
-      ctx.stroke();
       const state2 = getState2();
-      const mode2 = state2.mode || "USB";
-      const filterHz = MODE_FILTER_WIDTH[mode2] || 2400;
-      const filterPx = filterHz / spanHz * width;
-      ctx.fillStyle = "rgba(0, 229, 255, 0.06)";
-      ctx.fillRect(centerX - filterPx / 2, 0, filterPx, height);
+      if (!afMode) {
+        const centerX = width / 2;
+        ctx.strokeStyle = "rgba(0, 229, 255, 0.6)";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(centerX, 0);
+        ctx.lineTo(centerX, height);
+        ctx.stroke();
+        const mode2 = state2.mode || "USB";
+        const filterHz = MODE_FILTER_WIDTH[mode2] || 2400;
+        const filterPx = filterHz / spanHz * width;
+        ctx.fillStyle = "rgba(0, 229, 255, 0.06)";
+        ctx.fillRect(centerX - filterPx / 2, 0, filterPx, height);
+      }
       ctx.strokeStyle = "rgba(255, 145, 0, 0.4)";
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -18336,24 +18409,40 @@ ${beacon.location}`);
       drawFrequencyLabels(state2);
     }
     function drawFrequencyLabels(state2) {
-      const centerHz = state2.frequency || 14175e3;
-      const startHz = centerHz - spanHz / 2;
       ctx.fillStyle = "#4a5a7a";
       ctx.font = "10px Consolas, monospace";
       ctx.textAlign = "center";
       const labelCount = 5;
-      for (let i = 0; i <= labelCount; i++) {
-        const x = i / labelCount * width;
-        const freqHz = startHz + i / labelCount * spanHz;
-        const freqMHz = (freqHz / 1e6).toFixed(3);
-        ctx.fillText(freqMHz, x, height - 4);
+      if (afMode) {
+        const displayHz = 4e3;
+        for (let i = 0; i <= labelCount; i++) {
+          const x = i / labelCount * width;
+          const freqHz = i / labelCount * displayHz;
+          const label = freqHz >= 1e3 ? (freqHz / 1e3).toFixed(1) + "k" : freqHz.toFixed(0) + " Hz";
+          ctx.fillText(label, x, height - 4);
+        }
+      } else {
+        const centerHz = state2.frequency || 14175e3;
+        const startHz = centerHz - spanHz / 2;
+        for (let i = 0; i <= labelCount; i++) {
+          const x = i / labelCount * width;
+          const freqHz = startHz + i / labelCount * spanHz;
+          const freqMHz = (freqHz / 1e6).toFixed(3);
+          ctx.fillText(freqMHz, x, height - 4);
+        }
       }
     }
+    function setAFMode(enabled) {
+      afMode = !!enabled;
+    }
     function resize() {
-      const rect = canvas.getBoundingClientRect();
+      const parent = canvas.parentElement;
+      const parentW = parent ? parent.getBoundingClientRect().width : canvas.getBoundingClientRect().width;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(rect.width * dpr);
-      canvas.height = Math.floor(rect.height * dpr);
+      const h = canvas.getBoundingClientRect().height || 90;
+      canvas.width = Math.floor(parentW * dpr);
+      canvas.height = Math.floor(h * dpr);
+      canvas.style.width = parentW + "px";
       width = canvas.width;
       height = canvas.height;
     }
@@ -18363,7 +18452,7 @@ ${beacon.location}`);
       ctx.clearRect(0, 0, width, height);
     }
     resize();
-    return { draw, resize, destroy };
+    return { draw, resize, destroy, setAFMode };
   }
 
   // src/scope/scope-waterfall.js
@@ -18397,10 +18486,13 @@ ${beacon.location}`);
       ctx.putImageData(imageData, 0, 0);
     }
     function resize() {
-      const rect = canvas.getBoundingClientRect();
+      const parent = canvas.parentElement;
+      const parentW = parent ? parent.getBoundingClientRect().width : canvas.getBoundingClientRect().width;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.floor(rect.width * dpr);
-      canvas.height = Math.floor(rect.height * dpr);
+      const h = canvas.getBoundingClientRect().height || 60;
+      canvas.width = Math.floor(parentW * dpr);
+      canvas.height = Math.floor(h * dpr);
+      canvas.style.width = parentW + "px";
       width = canvas.width;
       height = canvas.height;
       ctx.fillStyle = "#000509";
@@ -18595,9 +18687,131 @@ ${beacon.location}`);
     return { generateFrame, destroy };
   }
 
+  // src/scope/scope-audio-data-source.js
+  var BINS = 512;
+  var FLOOR_DB = -120;
+  var AF_DISPLAY_HZ = 4e3;
+  function createAudioDataSource(opts) {
+    if (!opts) opts = {};
+    const deviceId = opts.deviceId || "";
+    const sampleRate = opts.sampleRate || 48e3;
+    const onError = opts.onError || (() => {
+    });
+    const onStateChange = opts.onStateChange || (() => {
+    });
+    let audioCtx = null;
+    let analyser = null;
+    let sourceNode = null;
+    let stream = null;
+    let active2 = false;
+    let destroyed = false;
+    let prevFrame = new Float32Array(BINS);
+    let fftBuffer = null;
+    function setState(s) {
+      onStateChange(s);
+    }
+    async function init() {
+      if (destroyed) return;
+      setState("requesting");
+      try {
+        const constraints = {
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        };
+        if (deviceId) {
+          constraints.audio.deviceId = { exact: deviceId };
+        }
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (destroyed) {
+          stopTracks();
+          return;
+        }
+        audioCtx = new AudioContext({ sampleRate });
+        sourceNode = audioCtx.createMediaStreamSource(stream);
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 1024;
+        analyser.minDecibels = -120;
+        analyser.maxDecibels = -40;
+        analyser.smoothingTimeConstant = 0.6;
+        sourceNode.connect(analyser);
+        fftBuffer = new Float32Array(analyser.frequencyBinCount);
+        active2 = true;
+        setState("active");
+      } catch (err2) {
+        console.warn("[audio-scope] Failed to capture audio:", err2.message);
+        if (err2.name === "NotAllowedError" || err2.name === "PermissionDeniedError") {
+          setState("denied");
+        } else {
+          setState("error");
+        }
+        onError(err2);
+      }
+    }
+    function stopTracks() {
+      if (stream) {
+        for (const track of stream.getTracks()) track.stop();
+        stream = null;
+      }
+    }
+    function generateFrame() {
+      if (!active2 || !analyser || !fftBuffer) {
+        return prevFrame;
+      }
+      analyser.getFloatFrequencyData(fftBuffer);
+      const nyquist = sampleRate / 2;
+      const srcBins = Math.min(fftBuffer.length, Math.round(AF_DISPLAY_HZ / nyquist * fftBuffer.length));
+      const output = new Float32Array(BINS);
+      for (let i = 0; i < BINS; i++) {
+        const srcPos = i / BINS * srcBins;
+        const lo = Math.floor(srcPos);
+        const hi = Math.min(lo + 1, srcBins - 1);
+        const frac = srcPos - lo;
+        let val = fftBuffer[lo] * (1 - frac) + fftBuffer[hi] * frac;
+        if (val === -Infinity || isNaN(val)) val = FLOOR_DB;
+        output[i] = val;
+      }
+      const blended = blendFrames(prevFrame, output, 0.4);
+      prevFrame = blended;
+      return blended;
+    }
+    function destroy() {
+      if (destroyed) return;
+      destroyed = true;
+      active2 = false;
+      if (sourceNode) {
+        try {
+          sourceNode.disconnect();
+        } catch (e) {
+        }
+        sourceNode = null;
+      }
+      if (analyser) {
+        analyser = null;
+      }
+      stopTracks();
+      if (audioCtx) {
+        audioCtx.close().catch(() => {
+        });
+        audioCtx = null;
+      }
+      fftBuffer = null;
+      prevFrame = new Float32Array(BINS);
+      setState("destroyed");
+    }
+    function isActive() {
+      return active2;
+    }
+    init();
+    return { generateFrame, destroy, isActive };
+  }
+
   // src/scope/scope-renderer.js
   init_cat();
-  var BINS = 512;
+  init_state();
+  var BINS2 = 512;
   var SPAN_HZ = 48e3;
   var WATERFALL_INTERVAL = 33;
   var spectrum = null;
@@ -18607,6 +18821,8 @@ ${beacon.location}`);
   var resizeObserver = null;
   var lastWaterfallTime = 0;
   var running = false;
+  var audioMode = false;
+  var hideOnFail = false;
   function getState() {
     const store = getRigStore();
     return store.get();
@@ -18637,17 +18853,42 @@ ${beacon.location}`);
     const wfCanvas = document.getElementById("rigScopeWaterfall");
     if (!section || !specCanvas || !wfCanvas) return;
     section.style.display = "";
+    const canAudio = opts.useAudio && state_default.radioAudioScopeEnabled && typeof navigator !== "undefined" && navigator.mediaDevices && typeof navigator.mediaDevices.getUserMedia === "function";
+    audioMode = canAudio;
+    hideOnFail = !!opts.hideOnAudioFail;
     spectrum = createSpectrum(specCanvas, getState, {
-      spanHz: SPAN_HZ
+      spanHz: canAudio ? state_default.radioAudioSampleRate : SPAN_HZ,
+      afMode: canAudio
     });
     waterfall = createWaterfall(wfCanvas, {
-      bins: BINS
+      bins: BINS2
     });
-    dataSource = createSpectrumDataSource({
-      bins: BINS,
-      spanHz: SPAN_HZ,
-      longitude: opts.longitude || 0
-    });
+    if (canAudio) {
+      dataSource = createAudioDataSource({
+        deviceId: state_default.radioAudioDeviceId,
+        sampleRate: state_default.radioAudioSampleRate,
+        onError: () => {
+          if (hideOnFail) {
+            console.warn("[scope] Audio capture failed \u2014 hiding scope");
+            stopScope();
+            return;
+          }
+          console.warn("[scope] Audio capture failed \u2014 falling back to synthetic scope");
+          fallbackToSynthetic(opts);
+        },
+        onStateChange: (s) => {
+          updateScopeLabel(s === "active" ? "AF SCOPE (Audio)" : s === "requesting" ? "REQUESTING MIC..." : null);
+        }
+      });
+      updateScopeLabel("AF SCOPE (Audio)");
+    } else {
+      dataSource = createSpectrumDataSource({
+        bins: BINS2,
+        spanHz: SPAN_HZ,
+        longitude: opts.longitude || 0
+      });
+      updateScopeLabel(null);
+    }
     const container = document.getElementById("widget-on-air-rig");
     if (container && window.ResizeObserver) {
       resizeObserver = new ResizeObserver(handleResize);
@@ -18655,7 +18896,36 @@ ${beacon.location}`);
     }
     running = true;
     lastWaterfallTime = 0;
-    animFrameId = requestAnimationFrame(renderLoop);
+    requestAnimationFrame(() => {
+      if (spectrum) spectrum.resize();
+      if (waterfall) waterfall.resize();
+      animFrameId = requestAnimationFrame(renderLoop);
+    });
+  }
+  function fallbackToSynthetic(opts) {
+    if (dataSource) {
+      dataSource.destroy();
+      dataSource = null;
+    }
+    audioMode = false;
+    dataSource = createSpectrumDataSource({
+      bins: BINS2,
+      spanHz: SPAN_HZ,
+      longitude: opts && opts.longitude || 0
+    });
+    if (spectrum) spectrum.setAFMode(false);
+    updateScopeLabel(null);
+  }
+  function updateScopeLabel(text) {
+    const label = document.getElementById("rigScopeLabel");
+    if (!label) return;
+    if (text) {
+      label.textContent = text;
+      label.style.display = "";
+    } else {
+      label.textContent = "";
+      label.style.display = "none";
+    }
   }
   function stopScope() {
     if (!running) return;
@@ -18680,6 +18950,9 @@ ${beacon.location}`);
       dataSource.destroy();
       dataSource = null;
     }
+    audioMode = false;
+    hideOnFail = false;
+    updateScopeLabel(null);
     const section = document.getElementById("rigScopeSection");
     if (section) section.style.display = "none";
   }
@@ -18688,6 +18961,154 @@ ${beacon.location}`);
   var unsubscribe = null;
   var initialized2 = false;
   var listenersAttached = false;
+  var BAND_IDS = ["160m", "80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m"];
+  var USER_MODES = [
+    { label: "LSB", cat: "LSB" },
+    { label: "USB", cat: "USB" },
+    { label: "CW", cat: "CW-U" },
+    { label: "AM", cat: "AM" },
+    { label: "FM", cat: "FM" },
+    { label: "DATA", cat: "DATA-U" }
+  ];
+  var BAND_SIDEBAND = {
+    "160m": "LSB",
+    "80m": "LSB",
+    "40m": "LSB",
+    "30m": null,
+    // CW/Data only — no SSB voice
+    "20m": "USB",
+    "17m": "USB",
+    "15m": "USB",
+    "12m": "USB",
+    "10m": "USB",
+    "6m": "USB"
+  };
+  var FT8_FREQUENCIES = {
+    "160m": 184e4,
+    "80m": 3573e3,
+    "40m": 7074e3,
+    "30m": 10136e3,
+    "20m": 14074e3,
+    "17m": 181e5,
+    "15m": 21074e3,
+    "12m": 24915e3,
+    "10m": 28074e3,
+    "6m": 50313e3
+  };
+  function getDefaultFrequency(bandId, userMode) {
+    const segments = BAND_SEGMENTS[bandId];
+    if (!segments || segments.length === 0) return null;
+    const cwZone = segments.find((s) => s.zone === "CW");
+    const dataZone = segments.find((s) => s.zone === "DATA");
+    const phoneZone = segments.find((s) => s.zone === "PHONE");
+    if (userMode === "CW") {
+      if (cwZone) return cwZone.min + 25e3;
+      return segments[0].min + 25e3;
+    }
+    if (userMode === "DATA") {
+      const ft8 = FT8_FREQUENCIES[bandId];
+      if (ft8) return ft8;
+      if (dataZone) return Math.round((dataZone.min + dataZone.max) / 2);
+      return segments[0].min + 25e3;
+    }
+    if (phoneZone) {
+      return Math.round((phoneZone.min + phoneZone.max) / 2);
+    }
+    if (cwZone) {
+      return Math.round((cwZone.min + cwZone.max) / 2);
+    }
+    return Math.round((segments[0].min + segments[segments.length - 1].max) / 2);
+  }
+  function catModeToUserLabel(catMode) {
+    if (!catMode) return "";
+    const upper = catMode.toUpperCase();
+    if (upper === "CW" || upper === "CW-U" || upper === "CW-L" || upper === "CW-R") return "CW";
+    if (upper === "LSB") return "LSB";
+    if (upper === "USB") return "USB";
+    if (upper === "AM") return "AM";
+    if (upper === "FM" || upper === "FM-N") return "FM";
+    if (upper.startsWith("DATA") || upper.startsWith("DIG") || upper === "PKT-U" || upper === "PKT-L" || upper === "RTTY" || upper === "RTTY-R" || upper === "PSK") return "DATA";
+    if (upper === "SSB") return "USB";
+    return "";
+  }
+  function userModeToCat(userMode, bandId) {
+    const entry = USER_MODES.find((m) => m.label === userMode);
+    if (!entry) return "USB";
+    if (userMode === "LSB" || userMode === "USB") {
+      const correct = BAND_SIDEBAND[bandId];
+      return correct || entry.cat;
+    }
+    return entry.cat;
+  }
+  function populateBandButtons() {
+    const container = $("rigBandButtons");
+    if (!container || container.children.length > 0) return;
+    for (const bandId of BAND_IDS) {
+      const btn = document.createElement("button");
+      btn.className = "rig-band-btn";
+      btn.textContent = bandId;
+      btn.dataset.band = bandId;
+      btn.addEventListener("click", () => onBandButtonClick(bandId));
+      container.appendChild(btn);
+    }
+  }
+  function onBandButtonClick(bandId) {
+    if (!isRigConnected()) return;
+    const store = getRigStore();
+    const rigState = store.getState();
+    let userMode = catModeToUserLabel(rigState.mode) || "USB";
+    if (userMode === "LSB" || userMode === "USB") {
+      const correct = BAND_SIDEBAND[bandId];
+      if (correct) userMode = correct;
+    }
+    const targetHz = getDefaultFrequency(bandId, userMode);
+    if (!targetHz) return;
+    const catMode = userModeToCat(userMode, bandId);
+    sendRigCommand("setFrequency", targetHz, 1);
+    sendRigCommand("setMode", catMode, 1);
+  }
+  function populateBandMode() {
+    const bandSelect = $("rigBandSelect");
+    const modeSelect = $("rigModeSelect");
+    if (!bandSelect || !modeSelect) return;
+    if (bandSelect.options.length <= 1) {
+      for (const bandId of BAND_IDS) {
+        const opt = document.createElement("option");
+        opt.value = bandId;
+        opt.textContent = bandId;
+        bandSelect.appendChild(opt);
+      }
+    }
+    if (modeSelect.options.length <= 1) {
+      for (const mode2 of USER_MODES) {
+        const opt = document.createElement("option");
+        opt.value = mode2.label;
+        opt.textContent = mode2.label;
+        modeSelect.appendChild(opt);
+      }
+    }
+  }
+  function onBandModeChange() {
+    const bandSelect = $("rigBandSelect");
+    const modeSelect = $("rigModeSelect");
+    if (!bandSelect || !modeSelect) return;
+    if (!isRigConnected()) return;
+    const bandId = bandSelect.value;
+    let userMode = modeSelect.value;
+    if (!bandId || !userMode) return;
+    if (userMode === "LSB" || userMode === "USB") {
+      const correct = BAND_SIDEBAND[bandId];
+      if (correct && correct !== userMode) {
+        userMode = correct;
+        modeSelect.value = correct;
+      }
+    }
+    const targetHz = getDefaultFrequency(bandId, userMode);
+    if (!targetHz) return;
+    const catMode = userModeToCat(userMode, bandId);
+    sendRigCommand("setFrequency", targetHz, 1);
+    sendRigCommand("setMode", catMode, 1);
+  }
   var lastBandOverlay = "";
   function formatFrequency(hz) {
     if (!hz || hz <= 0) return "----.---";
@@ -18742,6 +19163,10 @@ ${beacon.location}`);
     if (bandEl) {
       bandEl.textContent = state2.band || "";
     }
+    const bandBtns = document.querySelectorAll("#rigBandButtons .rig-band-btn");
+    for (const btn of bandBtns) {
+      btn.classList.toggle("active", btn.dataset.band === state2.band);
+    }
     modeEl.textContent = state2.mode || "---";
     if (state2.ptt) {
       txEl.textContent = "TX";
@@ -18773,37 +19198,67 @@ ${beacon.location}`);
     } else {
       sMeterEl.classList.remove("rig-meter-over");
     }
-    if (state2.swr > 0) {
-      swrEl.textContent = `SWR ${state2.swr.toFixed(1)}`;
-      if (state2.swr > 3) {
-        swrEl.classList.add("rig-swr-danger");
-        swrEl.classList.remove("rig-swr-caution");
-      } else if (state2.swr > 1.5) {
-        swrEl.classList.remove("rig-swr-danger");
-        swrEl.classList.add("rig-swr-caution");
+    const caps = state2.capabilities || [];
+    const hasSwr = caps.includes("meter_swr");
+    if (swrEl) {
+      if (!hasSwr) {
+        swrEl.style.display = "none";
       } else {
-        swrEl.classList.remove("rig-swr-danger", "rig-swr-caution");
+        swrEl.style.display = "";
+        if (state2.swr > 0) {
+          swrEl.textContent = `SWR ${state2.swr.toFixed(1)}`;
+          if (state2.swr > 3) {
+            swrEl.classList.add("rig-swr-danger");
+            swrEl.classList.remove("rig-swr-caution");
+          } else if (state2.swr > 1.5) {
+            swrEl.classList.remove("rig-swr-danger");
+            swrEl.classList.add("rig-swr-caution");
+          } else {
+            swrEl.classList.remove("rig-swr-danger", "rig-swr-caution");
+          }
+        } else {
+          swrEl.textContent = "SWR ---";
+          swrEl.classList.remove("rig-swr-danger", "rig-swr-caution");
+        }
       }
-    } else {
-      swrEl.textContent = "SWR ---";
-      swrEl.classList.remove("rig-swr-danger", "rig-swr-caution");
     }
     if (powerEl) {
-      if (state2.ptt && state2.powerMeter > 0) {
-        powerEl.textContent = `${Math.round(state2.powerMeter)}W`;
-        powerEl.classList.remove("hidden");
-      } else if (state2.rfPower > 0) {
-        powerEl.textContent = `Set: ${state2.rfPower}W`;
-        powerEl.classList.remove("hidden");
+      if (!caps.includes("meter_power")) {
+        powerEl.style.display = "none";
       } else {
-        powerEl.classList.add("hidden");
+        powerEl.style.display = "";
+        if (state2.ptt && state2.powerMeter > 0) {
+          powerEl.textContent = `${Math.round(state2.powerMeter)}W`;
+          powerEl.classList.remove("hidden");
+        } else if (state2.rfPower > 0) {
+          powerEl.textContent = `Set: ${state2.rfPower}W`;
+          powerEl.classList.remove("hidden");
+        } else {
+          powerEl.classList.add("hidden");
+        }
       }
     }
     renderBandOverlay(state2);
+    const bandModeRow = $("rigBandModeRow");
+    const bandSelect = $("rigBandSelect");
+    const modeSelect = $("rigModeSelect");
+    if (bandModeRow) {
+      if (state2.connected) {
+        bandModeRow.classList.remove("hidden");
+        if (bandSelect && !bandSelect.matches(":focus") && state2.band) {
+          bandSelect.value = state2.band;
+        }
+        if (modeSelect && !modeSelect.matches(":focus") && state2.mode) {
+          modeSelect.value = catModeToUserLabel(state2.mode);
+        }
+      } else {
+        bandModeRow.classList.add("hidden");
+      }
+    }
     const powerRow = $("rigPowerRow");
     const powerSlider = $("rigPowerSlider");
     const powerValue = $("rigPowerValue");
-    if (powerRow && state2.connected) {
+    if (powerRow && state2.connected && caps.includes("rf_power")) {
       powerRow.classList.remove("hidden");
       if (powerValue && state2.rfPower > 0) {
         powerValue.textContent = `${state2.rfPower}W`;
@@ -19009,7 +19464,15 @@ ${beacon.location}`);
       statusEl.textContent = `Error: ${err2.message}`;
     }
     if (isRigConnected()) {
-      startScope({ longitude: state_default.myLon || 0 });
+      if (isDemo) {
+        startScope({ longitude: state_default.myLon || 0, useAudio: false });
+      } else if (state_default.radioAudioScopeEnabled) {
+        startScope({
+          longitude: state_default.myLon || 0,
+          useAudio: true,
+          hideOnAudioFail: true
+        });
+      }
     }
     connectBtn.disabled = false;
   }
@@ -19020,7 +19483,13 @@ ${beacon.location}`);
     if (!connectBtn) return;
     if (!listenersAttached) {
       populateProfiles();
+      populateBandMode();
+      populateBandButtons();
       connectBtn.addEventListener("click", handleConnectClick);
+      const bandSelect = $("rigBandSelect");
+      const modeSelect = $("rigModeSelect");
+      if (bandSelect) bandSelect.addEventListener("change", onBandModeChange);
+      if (modeSelect) modeSelect.addEventListener("change", onBandModeChange);
       const powerSlider = $("rigPowerSlider");
       if (powerSlider) {
         powerSlider.addEventListener("input", () => {
@@ -19533,6 +20002,11 @@ ${beacon.location}`);
     if (propOff) propOff.checked = state_default.radioDemoPropagation === "off";
     if (propBasic) propBasic.checked = state_default.radioDemoPropagation === "basic";
     if (propLocation) propLocation.checked = state_default.radioDemoPropagation === "location";
+    const audioScopeEnabled = $("radioAudioScopeEnabled");
+    if (audioScopeEnabled) audioScopeEnabled.checked = state_default.radioAudioScopeEnabled;
+    const audioSampleRate = $("radioAudioSampleRate");
+    if (audioSampleRate) audioSampleRate.value = String(state_default.radioAudioSampleRate);
+    refreshAudioDeviceList();
     updateRadioSections();
   }
   function populateModelPresets() {
@@ -19584,6 +20058,122 @@ ${beacon.location}`);
       familySelect.value = profile.protocol;
     }
   }
+  function resetRadioConfig() {
+    const presetSelect = $("radioModelPreset");
+    if (presetSelect) presetSelect.value = "";
+    const baudRate = $("radioBaudRate");
+    const dataBits = $("radioDataBits");
+    const stopBits = $("radioStopBits");
+    const parity = $("radioParity");
+    const flowControl = $("radioFlowControl");
+    if (baudRate) baudRate.value = "auto";
+    if (dataBits) dataBits.value = "8";
+    if (stopBits) stopBits.value = "1";
+    if (parity) parity.value = "none";
+    if (flowControl) flowControl.value = "none";
+    const pttMethod = $("radioPttMethod");
+    const pollingInterval = $("radioPollingInterval");
+    const civAddress2 = $("radioCivAddress");
+    if (pttMethod) pttMethod.value = "cat";
+    if (pollingInterval) pollingInterval.value = "500";
+    if (civAddress2) civAddress2.value = "0x94";
+    const portMode = $("radioPortMode");
+    if (portMode) {
+      portMode.value = "auto";
+      state_default.radioPortMode = "auto";
+      localStorage.setItem("hamtab_radio_port_mode", "auto");
+      updatePortListVisibility();
+    }
+    const statusEl = $("radioDetectStatus");
+    if (statusEl) statusEl.textContent = "";
+  }
+  async function handleAutoDetect() {
+    const btn = $("radioAutoDetectBtn");
+    const statusEl = $("radioDetectStatus");
+    if (!btn || !navigator.serial) {
+      if (statusEl) statusEl.textContent = "WebSerial not supported";
+      return;
+    }
+    btn.disabled = true;
+    if (statusEl) statusEl.textContent = "Select serial port...";
+    let port;
+    try {
+      port = await navigator.serial.requestPort();
+    } catch (err2) {
+      if (statusEl) statusEl.textContent = err2.name === "NotFoundError" ? "Cancelled" : err2.message;
+      btn.disabled = false;
+      return;
+    }
+    if (statusEl) statusEl.textContent = "Detecting radio...";
+    try {
+      const result = await smartDetect(port, (info) => {
+        if (statusEl) statusEl.textContent = `Probing ${info.step}/${info.total}: ${info.trying}`;
+      });
+      if (result) {
+        const familySelect = $("radioProtocolFamily");
+        if (familySelect && result.protocol) {
+          familySelect.value = result.protocol;
+          populateModelPresets();
+        }
+        const presetSelect = $("radioModelPreset");
+        if (presetSelect && result.profileId) {
+          presetSelect.value = result.profileId;
+          applyModelPresetDefaults();
+        }
+        updateCivRowVisibility();
+        const portMode = $("radioPortMode");
+        if (portMode) {
+          portMode.value = "manual";
+          state_default.radioPortMode = "manual";
+          localStorage.setItem("hamtab_radio_port_mode", "manual");
+          updatePortListVisibility();
+          refreshPortList();
+        }
+        const profs = getAvailableProfiles();
+        const match = profs.find((p) => p.id === result.profileId);
+        const name = match ? `${match.manufacturer} ${match.model}` : result.profileId;
+        if (statusEl) statusEl.textContent = `Detected: ${name}`;
+      } else {
+        if (statusEl) statusEl.textContent = "No radio detected";
+      }
+    } catch (err2) {
+      if (statusEl) statusEl.textContent = `Error: ${err2.message}`;
+    }
+    try {
+      await port.close();
+    } catch {
+    }
+    btn.disabled = false;
+  }
+  var USB_SERIAL_CHIPS = {
+    "0403:6001": "FTDI FT232R",
+    "0403:6010": "FTDI FT2232",
+    "0403:6014": "FTDI FT232H",
+    "0403:6015": "FTDI FT-X",
+    "10C4:EA60": "CP2102",
+    "10C4:EA70": "CP2105 Dual",
+    // FTDX10, IC-7300 — dual port (Enhanced + Standard)
+    "10C4:EA71": "CP2108 Quad",
+    "067B:2303": "Prolific PL2303",
+    "1A86:7523": "CH340",
+    "1A86:55D4": "CH9102"
+  };
+  function describePort(info, index, sameChipIndex) {
+    const portNum = index + 1;
+    if (!info.usbVendorId) return `Port ${portNum}`;
+    const vid = info.usbVendorId.toString(16).toUpperCase().padStart(4, "0");
+    const pid = info.usbProductId.toString(16).toUpperCase().padStart(4, "0");
+    const key = `${vid}:${pid}`;
+    const chipName = USB_SERIAL_CHIPS[key] || `USB ${key}`;
+    if (pid === "EA70" && sameChipIndex !== null) {
+      const role = sameChipIndex === 0 ? "Enhanced (CAT)" : "Standard (Audio)";
+      return `Port ${portNum}: ${role}`;
+    }
+    if (sameChipIndex !== null) {
+      return `Port ${portNum}: ${chipName}`;
+    }
+    return `Port ${portNum}: ${chipName}`;
+  }
   async function refreshPortList() {
     const portList = $("radioPortList");
     if (!portList) return;
@@ -19600,15 +20190,29 @@ ${beacon.location}`);
       if (ports.length === 0) {
         const opt = document.createElement("option");
         opt.value = "";
-        opt.textContent = "No authorized ports";
+        opt.textContent = "No authorized ports \u2014 click Auto-Detect or use Auto port mode";
         portList.appendChild(opt);
         return;
       }
+      const vidPidCount = {};
+      const vidPidIndex = {};
+      ports.forEach((port) => {
+        const info = port.getInfo();
+        if (!info.usbVendorId) return;
+        const key = `${info.usbVendorId}:${info.usbProductId}`;
+        vidPidCount[key] = (vidPidCount[key] || 0) + 1;
+      });
       ports.forEach((port, i) => {
         const info = port.getInfo();
+        const key = info.usbVendorId ? `${info.usbVendorId}:${info.usbProductId}` : null;
+        let sameChipIndex = null;
+        if (key && vidPidCount[key] > 1) {
+          vidPidIndex[key] = (vidPidIndex[key] ?? -1) + 1;
+          sameChipIndex = vidPidIndex[key];
+        }
         const opt = document.createElement("option");
         opt.value = String(i);
-        opt.textContent = info.usbVendorId ? `USB ${info.usbVendorId.toString(16).toUpperCase()}:${info.usbProductId.toString(16).toUpperCase()}` : `Port ${i + 1}`;
+        opt.textContent = describePort(info, i, sameChipIndex);
         portList.appendChild(opt);
       });
     } catch {
@@ -19616,6 +20220,69 @@ ${beacon.location}`);
       opt.value = "";
       opt.textContent = "Error reading ports";
       portList.appendChild(opt);
+    }
+  }
+  async function refreshAudioDeviceList() {
+    const deviceList = $("radioAudioDevice");
+    if (!deviceList) return;
+    deviceList.innerHTML = "";
+    const defaultOpt = document.createElement("option");
+    defaultOpt.value = "";
+    defaultOpt.textContent = "Default";
+    deviceList.appendChild(defaultOpt);
+    const permHint = document.getElementById("radioAudioPermHint");
+    const grantBtn = document.getElementById("radioAudioGrantPerm");
+    if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Not supported";
+      opt.disabled = true;
+      deviceList.appendChild(opt);
+      if (permHint) permHint.style.display = "none";
+      if (grantBtn) grantBtn.style.display = "none";
+      return;
+    }
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter((d) => d.kind === "audioinput");
+      let hasLabels = false;
+      audioInputs.forEach((d, i) => {
+        const opt = document.createElement("option");
+        opt.value = d.deviceId;
+        if (d.label) {
+          opt.textContent = d.label;
+          hasLabels = true;
+        } else {
+          opt.textContent = `Audio Input ${i + 1}`;
+        }
+        deviceList.appendChild(opt);
+      });
+      if (permHint) permHint.style.display = audioInputs.length > 0 && !hasLabels ? "" : "none";
+      if (grantBtn) grantBtn.style.display = hasLabels ? "none" : "";
+      if (state_default.radioAudioDeviceId) {
+        deviceList.value = state_default.radioAudioDeviceId;
+      }
+    } catch {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Error reading devices";
+      opt.disabled = true;
+      deviceList.appendChild(opt);
+      if (permHint) permHint.style.display = "none";
+    }
+  }
+  async function grantAudioPermission() {
+    try {
+      const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      for (const track of tempStream.getTracks()) track.stop();
+      await refreshAudioDeviceList();
+    } catch (err2) {
+      console.warn("[audio-scope] Permission denied:", err2.message);
+      const permHint = document.getElementById("radioAudioPermHint");
+      if (permHint) {
+        permHint.textContent = "Microphone permission denied. Check browser settings.";
+        permHint.style.display = "";
+      }
     }
   }
   function updateRadioSections() {
@@ -19632,6 +20299,8 @@ ${beacon.location}`);
     if (controlSection) controlSection.style.display = isReal ? "" : "none";
     if (safetySection) safetySection.style.display = isReal ? "" : "none";
     if (demoSection) demoSection.style.display = isReal ? "none" : "";
+    const audioScopeSection = document.getElementById("radioAudioScopeSection");
+    if (audioScopeSection) audioScopeSection.style.display = isReal ? "" : "none";
     updatePortListVisibility();
     updateCivRowVisibility();
   }
@@ -19641,6 +20310,8 @@ ${beacon.location}`);
     if (!portListRow) return;
     const isManual = portMode && portMode.value === "manual";
     portListRow.style.display = isManual ? "" : "none";
+    const portHint = document.getElementById("radioPortHint");
+    if (portHint) portHint.style.display = isManual ? "" : "none";
     if (isManual) refreshPortList();
   }
   function updateCivRowVisibility() {
@@ -19690,6 +20361,12 @@ ${beacon.location}`);
     else if ($("radioPropLocation")?.checked) state_default.radioDemoPropagation = "location";
     else state_default.radioDemoPropagation = "off";
     localStorage.setItem("hamtab_radio_demo_propagation", state_default.radioDemoPropagation);
+    state_default.radioAudioScopeEnabled = $("radioAudioScopeEnabled") ? $("radioAudioScopeEnabled").checked : true;
+    state_default.radioAudioDeviceId = $("radioAudioDevice")?.value || "";
+    state_default.radioAudioSampleRate = parseInt($("radioAudioSampleRate")?.value, 10) || 48e3;
+    localStorage.setItem("hamtab_radio_audio_scope", String(state_default.radioAudioScopeEnabled));
+    localStorage.setItem("hamtab_radio_audio_device", state_default.radioAudioDeviceId);
+    localStorage.setItem("hamtab_radio_audio_sample_rate", String(state_default.radioAudioSampleRate));
   }
   function dismissSplash() {
     const callsignEl = $("splashCallsign");
@@ -20173,6 +20850,9 @@ ${beacon.location}`);
     const radioProtocolFamily = $("radioProtocolFamily");
     if (radioProtocolFamily) {
       radioProtocolFamily.addEventListener("change", () => {
+        if (radioProtocolFamily.value === "auto") {
+          resetRadioConfig();
+        }
         populateModelPresets();
         updateCivRowVisibility();
       });
@@ -20188,6 +20868,18 @@ ${beacon.location}`);
     const radioRefreshPorts = $("radioRefreshPorts");
     if (radioRefreshPorts) {
       radioRefreshPorts.addEventListener("click", refreshPortList);
+    }
+    const radioAudioRefresh = $("radioAudioRefresh");
+    if (radioAudioRefresh) {
+      radioAudioRefresh.addEventListener("click", refreshAudioDeviceList);
+    }
+    const radioAudioGrantPerm = $("radioAudioGrantPerm");
+    if (radioAudioGrantPerm) {
+      radioAudioGrantPerm.addEventListener("click", grantAudioPermission);
+    }
+    const radioAutoDetectBtn = $("radioAutoDetectBtn");
+    if (radioAutoDetectBtn) {
+      radioAutoDetectBtn.addEventListener("click", handleAutoDetect);
     }
     $("editCallBtn").addEventListener("click", () => {
       showSplash();
@@ -22716,6 +23408,24 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initTabs();
   initOnAirRig();
   initLogbook();
+  function showNewWidgetPopup(widgetNames) {
+    const popup = $("newWidgetPopup");
+    const list = $("newWidgetList");
+    if (!popup || !list) return;
+    list.innerHTML = "";
+    widgetNames.forEach((name) => {
+      const li = document.createElement("li");
+      li.textContent = name;
+      list.appendChild(li);
+    });
+    popup.classList.remove("hidden");
+    $("newWidgetDismiss").addEventListener("click", () => {
+      popup.classList.add("hidden");
+    });
+    popup.addEventListener("click", (e) => {
+      if (e.target === popup) popup.classList.add("hidden");
+    });
+  }
   function initApp() {
     if (state_default.appInitialized) return;
     state_default.appInitialized = true;
@@ -22733,6 +23443,8 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (isWidgetVisible("widget-contests")) fetchContests();
     if (isWidgetVisible("widget-dedx")) startDedxTimer();
     if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
+    const newWidgets = getPendingNewWidgets();
+    if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
   }
   setInterval(() => {
     if (isWidgetVisible("widget-live-spots")) fetchLiveSpots();

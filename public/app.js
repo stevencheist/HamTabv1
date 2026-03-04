@@ -22854,7 +22854,7 @@ ${beacon.location}`);
   init_utils();
   async function checkUpdateStatus() {
     const el2 = $("platformLabel");
-    if (el2 && !el2.textContent) el2.textContent = "v0.53.1";
+    if (el2 && !el2.textContent) el2.textContent = "v0.61.0";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
@@ -22954,13 +22954,13 @@ ${beacon.location}`);
         }
         $("updateLabel").textContent = "Restarting...";
         pollForServer(60);
-      } catch (err) {
+      } catch (err2) {
         dot.className = "update-dot red";
         const label = $("updateLabel");
         label.innerHTML = "";
         const link = document.createElement("a");
         link.href = "/update-debug.html";
-        link.textContent = err.message || "Update failed";
+        link.textContent = err2.message || "Update failed";
         link.style.color = "inherit";
         link.title = "Run update diagnostics";
         label.appendChild(link);

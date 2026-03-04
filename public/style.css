@@ -7654,6 +7654,45 @@ body.grayscale {
 }
 .rig-status-warn { color: var(--yellow); font-weight: 700; text-shadow: 0 0 4px color-mix(in srgb, var(--yellow) 25%, transparent); }
 
+/* SDR badge (RX ONLY) */
+.rig-sdr-badge {
+  font-size: 0.52rem;
+  font-weight: 800;
+  color: #000;
+  background: var(--accent);
+  padding: 1px 5px;
+  border-radius: 2px;
+  margin-left: 6px;
+  vertical-align: middle;
+  letter-spacing: 0.5px;
+  box-shadow: 0 0 4px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* SDR URL input */
+.rig-sdr-url-row {
+  padding: 4px 6px;
+}
+.rig-sdr-url-input {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--bg-dark, #0a0a0a);
+  color: var(--accent);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 0.72rem;
+  letter-spacing: 0.3px;
+  outline: none;
+}
+.rig-sdr-url-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--accent) 20%, transparent);
+}
+.rig-sdr-url-input::placeholder {
+  color: color-mix(in srgb, var(--accent) 35%, transparent);
+}
+
 /* Demo badge */
 .rig-demo-badge {
   font-size: 0.52rem;

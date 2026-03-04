@@ -384,6 +384,9 @@
         radioSafetyAutoPower: localStorage.getItem("hamtab_radio_safety_auto_power") !== "false",
         radioSwrLimit: parseFloat(localStorage.getItem("hamtab_radio_swr_limit")) || 3,
         radioSafePower: parseInt(localStorage.getItem("hamtab_radio_safe_power"), 10) || 20,
+        // TCI (network) connection
+        radioTciHost: localStorage.getItem("hamtab_radio_tci_host") || "localhost",
+        radioTciPort: parseInt(localStorage.getItem("hamtab_radio_tci_port"), 10) || 50001,
         // Demo
         radioDemoPropagation: localStorage.getItem("hamtab_radio_demo_propagation") || "location",
         // Audio scope (AF FFT from USB audio — post-demodulation, not RF)
@@ -1583,6 +1586,210 @@
     }
   });
 
+  // src/cat/transports/tci-websocket.js
+  var TciWebSocketTransport;
+  var init_tci_websocket = __esm({
+    "src/cat/transports/tci-websocket.js"() {
+      init_web_serial();
+      TciWebSocketTransport = class {
+        constructor(config = {}) {
+          this.host = config.host || "localhost";
+          this.port = config.port || 50001;
+          this.state = ConnectionState.DISCONNECTED;
+          this._onStateChange = null;
+          this._ws = null;
+          this._ready = false;
+          this.cache = {
+            frequency: 0,
+            frequencyB: 0,
+            mode: "",
+            ptt: false,
+            signal: 0,
+            // S-meter (dBm or raw)
+            swr: 0,
+            power: 0
+          };
+        }
+        static isSupported() {
+          return typeof WebSocket !== "undefined";
+        }
+        onStateChange(callback) {
+          this._onStateChange = callback;
+        }
+        _setState(newState) {
+          this.state = newState;
+          if (this._onStateChange) this._onStateChange(newState);
+        }
+        // --- Connect: open WebSocket to TCI server ---
+        async connect() {
+          if (this._ws) return true;
+          return new Promise((resolve) => {
+            this._setState(ConnectionState.CONNECTING);
+            const url = `ws://${this.host}:${this.port}`;
+            try {
+              this._ws = new WebSocket(url);
+            } catch (err2) {
+              console.error("[tci] WebSocket constructor error:", err2);
+              this._setState(ConnectionState.ERROR);
+              resolve(false);
+              return;
+            }
+            const timeout = setTimeout(() => {
+              if (this.state === ConnectionState.CONNECTING) {
+                console.warn("[tci] Connection timeout");
+                this._cleanup();
+                this._setState(ConnectionState.DISCONNECTED);
+                resolve(false);
+              }
+            }, 5e3);
+            this._ws.onopen = () => {
+              clearTimeout(timeout);
+              this._setState(ConnectionState.CONNECTED);
+              this._ready = true;
+              resolve(true);
+            };
+            this._ws.onmessage = (event) => {
+              this._handleMessage(event.data);
+            };
+            this._ws.onclose = () => {
+              clearTimeout(timeout);
+              this._cleanup();
+              if (this.state === ConnectionState.CONNECTING) {
+                resolve(false);
+              }
+            };
+            this._ws.onerror = (err2) => {
+              clearTimeout(timeout);
+              console.error("[tci] WebSocket error:", err2);
+              this._cleanup();
+              this._setState(ConnectionState.ERROR);
+              if (this.state !== ConnectionState.CONNECTED) {
+                resolve(false);
+              }
+            };
+          });
+        }
+        // --- Parse TCI push notifications and update cache ---
+        _handleMessage(data) {
+          if (!data || typeof data !== "string") return;
+          const messages2 = data.split(";").filter(Boolean);
+          for (const msg of messages2) {
+            const trimmed = msg.trim();
+            if (trimmed.startsWith("VFO:")) {
+              const parts = trimmed.slice(4).split(",");
+              if (parts.length >= 3) {
+                const sub = parseInt(parts[1], 10);
+                const freq = parseInt(parts[2], 10);
+                if (!isNaN(freq)) {
+                  if (sub === 0) this.cache.frequency = freq;
+                  else if (sub === 1) this.cache.frequencyB = freq;
+                }
+              }
+              continue;
+            }
+            if (trimmed.startsWith("MODULATION:")) {
+              const parts = trimmed.slice(11).split(",");
+              if (parts.length >= 2) {
+                this.cache.mode = parts[1].trim();
+              }
+              continue;
+            }
+            if (trimmed.startsWith("TRX:")) {
+              const parts = trimmed.slice(4).split(",");
+              if (parts.length >= 2) {
+                this.cache.ptt = parts[1].trim().toLowerCase() === "true";
+              }
+              continue;
+            }
+            if (trimmed.startsWith("RX_SENSORS:")) {
+              const parts = trimmed.slice(11).split(",");
+              if (parts.length >= 2) {
+                const val = parseFloat(parts[1]);
+                if (!isNaN(val)) this.cache.signal = val;
+              }
+              continue;
+            }
+            if (trimmed.startsWith("TX_SENSORS:")) {
+              const parts = trimmed.slice(11).split(",");
+              if (parts.length >= 2) {
+                const pwr = parseFloat(parts[1]);
+                if (!isNaN(pwr)) this.cache.power = pwr;
+              }
+              if (parts.length >= 3) {
+                const swr = parseFloat(parts[2]);
+                if (!isNaN(swr)) this.cache.swr = swr;
+              }
+              continue;
+            }
+            if (trimmed.startsWith("RX_CHANNEL_SENSORS:")) {
+              const parts = trimmed.slice(19).split(",");
+              if (parts.length >= 3) {
+                const dbm = parseFloat(parts[2]);
+                if (!isNaN(dbm)) this.cache.signal = dbm;
+              }
+              continue;
+            }
+          }
+        }
+        // --- Send a TCI command ---
+        // GET commands return cached values (no network round-trip).
+        // SET commands are sent over the WebSocket.
+        async sendCommand(cmd) {
+          if (!cmd) return "";
+          if (cmd.startsWith("GET_VFO:0,0")) return `VFO:0,0,${this.cache.frequency};`;
+          if (cmd.startsWith("GET_VFO:0,1")) return `VFO:0,1,${this.cache.frequencyB};`;
+          if (cmd.startsWith("GET_MODULATION:")) return `MODULATION:0,${this.cache.mode};`;
+          if (cmd.startsWith("GET_TRX:")) return `TRX:0,${this.cache.ptt};`;
+          if (cmd.startsWith("GET_RX_SENSORS")) return `RX_SENSORS:0,${this.cache.signal};`;
+          if (cmd.startsWith("GET_TX_SENSORS")) return `TX_POWER:0,${this.cache.power};TX_SWR:0,${this.cache.swr};`;
+          if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+            this._ws.send(cmd);
+          }
+          return "";
+        }
+        // --- Write a command without reading response ---
+        async writeCommand(cmd) {
+          if (this._ws && this._ws.readyState === WebSocket.OPEN) {
+            this._ws.send(cmd);
+          }
+        }
+        // --- Disconnect ---
+        async disconnect() {
+          this._cleanup();
+          this._setState(ConnectionState.DISCONNECTED);
+        }
+        _cleanup() {
+          if (this._ws) {
+            try {
+              this._ws.close();
+            } catch {
+            }
+            this._ws = null;
+          }
+          this._ready = false;
+          this.cache = { frequency: 0, frequencyB: 0, mode: "", ptt: false, signal: 0, swr: 0, power: 0 };
+        }
+        // --- Stubs (not needed for WebSocket transport) ---
+        async flush() {
+        }
+        async writeRaw() {
+        }
+        async readUntil() {
+          return "";
+        }
+        async readUntilByte() {
+          return new Uint8Array(0);
+        }
+        async readBytes() {
+          return new Uint8Array(0);
+        }
+        async sendBinaryCommand() {
+          return new Uint8Array(0);
+        }
+      };
+    }
+  });
+
   // src/cat/simulator/propagation-signal-engine.js
   function detectBand(freq) {
     for (const [band, props] of Object.entries(BAND_PROPS)) {
@@ -2754,6 +2961,215 @@
             "getSignal",
             "getSWR"
           ];
+        }
+      };
+    }
+  });
+
+  // src/cat/drivers/tci.js
+  function dbmToSUnits(dbm) {
+    if (dbm >= -73) {
+      return 9 + (dbm + 73) / 6;
+    }
+    const sUnits = (dbm + 127) / 6;
+    return Math.max(0, Math.min(9, sUnits));
+  }
+  var TCI_MODE_MAP, MODE_TO_TCI, tciDriver;
+  var init_tci = __esm({
+    "src/cat/drivers/tci.js"() {
+      TCI_MODE_MAP = {
+        "USB": "USB",
+        "LSB": "LSB",
+        "CW": "CW-U",
+        "CWL": "CW-L",
+        "CWU": "CW-U",
+        "AM": "AM",
+        "SAM": "AM",
+        "FM": "FM",
+        "NFM": "FM-N",
+        "WFM": "FM",
+        "DIGU": "DATA-U",
+        // Digital upper (FT8, etc.)
+        "DIGL": "DATA-L",
+        // Digital lower
+        "DSB": "USB",
+        "DRM": "DATA-U",
+        "SPEC": "USB"
+      };
+      MODE_TO_TCI = {
+        "USB": "USB",
+        "LSB": "LSB",
+        "CW-U": "CW",
+        "CW-L": "CWL",
+        "AM": "AM",
+        "FM": "FM",
+        "FM-N": "NFM",
+        "DATA-U": "DIGU",
+        "DATA-L": "DIGL",
+        "RTTY-U": "DIGU",
+        "RTTY-L": "DIGL"
+      };
+      tciDriver = {
+        name: "tci",
+        label: "TCI (Network)",
+        terminator: ";",
+        binary: false,
+        // --- Initialization commands ---
+        // After WebSocket connects, subscribe to TCI push notifications
+        init() {
+          return [
+            "VFO:0,0;",
+            // Request initial VFO A frequency
+            "VFO:0,1;",
+            // Request initial VFO B frequency
+            "MODULATION:0;",
+            // Request initial mode
+            "TRX:0;"
+            // Request initial TX state
+          ];
+        },
+        // --- Capabilities ---
+        capabilities() {
+          return [
+            "frequency_read",
+            "frequency_set",
+            "mode_read",
+            "mode_set",
+            "ptt_read",
+            "ptt_cat",
+            "meter_signal",
+            "meter_swr",
+            "meter_power"
+          ];
+        },
+        // --- Polling commands ---
+        // These read from the TCI transport's cache — effectively free
+        pollCommands() {
+          return [
+            "getFrequency",
+            "getMode",
+            "getPTT"
+          ];
+        },
+        // --- Meter commands ---
+        meterCommands() {
+          return [
+            "getSignal",
+            "getSWR"
+          ];
+        },
+        // --- Command encoding ---
+        // Converts HamTab logical commands → TCI wire format
+        encode(command, params) {
+          switch (command) {
+            case "getFrequency":
+              return "GET_VFO:0,0;";
+            case "setFrequency":
+              return `VFO:0,0,${params};`;
+            case "getFrequencyB":
+              return "GET_VFO:0,1;";
+            case "setFrequencyB":
+              return `VFO:0,1,${params};`;
+            case "getMode":
+              return "GET_MODULATION:0;";
+            case "setMode": {
+              const tciMode = MODE_TO_TCI[params] || params;
+              return `MODULATION:0,${tciMode};`;
+            }
+            case "getPTT":
+              return "GET_TRX:0;";
+            case "setPTT":
+              return `TRX:0,${params ? "true" : "false"};`;
+            case "getSignal":
+              return "GET_RX_SENSORS;";
+            case "getSWR":
+              return "GET_TX_SENSORS;";
+            case "getPower":
+              return "GET_TX_SENSORS;";
+            // TCI init commands pass through as-is (they're already TCI format)
+            default:
+              if (command.endsWith(";")) return command;
+              return null;
+          }
+        },
+        // --- Response parsing ---
+        // Parses TCI response strings into {type, value} events for RigStateStore
+        parse(response) {
+          if (!response) return null;
+          const resp = response.endsWith(";") ? response.slice(0, -1) : response;
+          if (resp.startsWith("VFO:")) {
+            const parts = resp.slice(4).split(",");
+            if (parts.length >= 3) {
+              const sub = parseInt(parts[1], 10);
+              const freq = parseInt(parts[2], 10);
+              if (isNaN(freq)) return null;
+              return { type: sub === 0 ? "frequency" : "frequencyB", value: freq };
+            }
+            return null;
+          }
+          if (resp.startsWith("MODULATION:")) {
+            const parts = resp.slice(11).split(",");
+            if (parts.length >= 2) {
+              const rawMode = parts[1].trim();
+              const mapped = TCI_MODE_MAP[rawMode] || rawMode;
+              return { type: "mode", value: mapped };
+            }
+            return null;
+          }
+          if (resp.startsWith("TRX:")) {
+            const parts = resp.slice(4).split(",");
+            if (parts.length >= 2) {
+              return { type: "ptt", value: parts[1].trim().toLowerCase() === "true" };
+            }
+            return null;
+          }
+          if (resp.startsWith("RX_SENSORS:")) {
+            const parts = resp.slice(11).split(",");
+            if (parts.length >= 2) {
+              const dbm = parseFloat(parts[1]);
+              if (isNaN(dbm)) return null;
+              const sUnits = dbmToSUnits(dbm);
+              const raw = Math.round(Math.min(255, Math.max(0, sUnits * 17)));
+              return { type: "signal", value: raw, sUnits };
+            }
+            return null;
+          }
+          if (resp.startsWith("RX_CHANNEL_SENSORS:")) {
+            const parts = resp.slice(19).split(",");
+            if (parts.length >= 3) {
+              const dbm = parseFloat(parts[2]);
+              if (isNaN(dbm)) return null;
+              const sUnits = dbmToSUnits(dbm);
+              const raw = Math.round(Math.min(255, Math.max(0, sUnits * 17)));
+              return { type: "signal", value: raw, sUnits };
+            }
+            return null;
+          }
+          if (resp.startsWith("TX_SENSORS:")) {
+            const parts = resp.slice(11).split(",");
+            if (parts.length >= 2) {
+              const pwr = parseFloat(parts[1]);
+              if (!isNaN(pwr)) return { type: "powerMeter", value: pwr, raw: pwr };
+            }
+            return null;
+          }
+          if (resp.startsWith("TX_POWER:")) {
+            const parts = resp.slice(9).split(",");
+            if (parts.length >= 2) {
+              const pwr = parseFloat(parts[1]);
+              if (!isNaN(pwr)) return { type: "powerMeter", value: pwr, raw: pwr };
+            }
+            return null;
+          }
+          if (resp.startsWith("TX_SWR:")) {
+            const parts = resp.slice(7).split(",");
+            if (parts.length >= 2) {
+              const swr = parseFloat(parts[1]);
+              if (!isNaN(swr)) return { type: "swr", value: swr, raw: swr };
+            }
+            return null;
+          }
+          return null;
         }
       };
     }
@@ -4287,6 +4703,7 @@
       return { ...profileSerial, ...explicit };
     }
     let transport;
+    const isTci = protocolFamily === "tci";
     if (isDemo) {
       const engineOptions = {};
       if (config.propagation && config.propagation !== "off") {
@@ -4295,6 +4712,11 @@
         if (config.longitude != null) engineOptions.longitude = config.longitude;
       }
       transport = new InMemoryTransport({ engineOptions });
+    } else if (isTci) {
+      transport = new TciWebSocketTransport({
+        host: config.tciHost || "localhost",
+        port: config.tciPort || 50001
+      });
     } else {
       const serialConfig = buildSerialConfig();
       transport = new WebSerialTransport(serialConfig);
@@ -4378,11 +4800,13 @@
   var init_connection_orchestrator = __esm({
     "src/cat/connection-orchestrator.js"() {
       init_web_serial();
+      init_tci_websocket();
       init_in_memory_transport();
       init_yaesu_ascii();
       init_kenwood_ascii();
       init_icom_civ();
       init_elecraft_ascii();
+      init_tci();
       init_rig_manager();
       init_rig_state_store();
       init_smart_detect();
@@ -4394,7 +4818,8 @@
         yaesu_ascii: yaesuAscii,
         kenwood_ascii: kenwoodAscii,
         icom_civ: icomCiv,
-        elecraft_ascii: elecraftAscii
+        elecraft_ascii: elecraftAscii,
+        tci: tciDriver
       };
       rigManager = null;
       rigStore = null;
@@ -19360,6 +19785,9 @@ ${beacon.location}`);
       pttMethod: state_default.radioPttMethod,
       pollingInterval: state_default.radioPollingInterval,
       civAddress: state_default.radioCivAddress,
+      // TCI (network)
+      tciHost: state_default.radioTciHost,
+      tciPort: state_default.radioTciPort,
       // Safety
       safetyTxIntent: state_default.radioSafetyTxIntent,
       safetyBandLockout: state_default.radioSafetyBandLockout,
@@ -19420,6 +19848,16 @@ ${beacon.location}`);
           longitude: state_default.myLon
         });
         if (!success) statusEl.textContent = "Cancelled";
+      } else if (state_default.radioProtocolFamily === "tci") {
+        statusEl.textContent = "Connecting via TCI...";
+        const config = buildConnectConfig();
+        const success = await connectRig({
+          ...config,
+          protocolFamily: "tci",
+          tciHost: state_default.radioTciHost,
+          tciPort: state_default.radioTciPort
+        });
+        if (!success) statusEl.textContent = "TCI connection failed";
       } else {
         const config = buildConnectConfig();
         const protocolFamily = state_default.radioProtocolFamily;
@@ -19889,8 +20327,8 @@ ${beacon.location}`);
     const cfgDisableWxBg = $("cfgDisableWxBg");
     if (cfgDisableWxBg) cfgDisableWxBg.checked = state_default.disableWxBackgrounds;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.60.0";
-    $("aboutVersion").textContent = "0.60.0";
+    $("splashVersion").textContent = "0.60.1";
+    $("aboutVersion").textContent = "0.60.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -20002,6 +20440,10 @@ ${beacon.location}`);
     if (propOff) propOff.checked = state_default.radioDemoPropagation === "off";
     if (propBasic) propBasic.checked = state_default.radioDemoPropagation === "basic";
     if (propLocation) propLocation.checked = state_default.radioDemoPropagation === "location";
+    const tciHost = $("radioTciHost");
+    const tciPort = $("radioTciPort");
+    if (tciHost) tciHost.value = state_default.radioTciHost;
+    if (tciPort) tciPort.value = state_default.radioTciPort;
     const audioScopeEnabled = $("radioAudioScopeEnabled");
     if (audioScopeEnabled) audioScopeEnabled.checked = state_default.radioAudioScopeEnabled;
     const audioSampleRate = $("radioAudioSampleRate");
@@ -20293,14 +20735,18 @@ ${beacon.location}`);
     const controlSection = document.getElementById("radioControlSection");
     const safetySection = document.getElementById("radioSafetySection");
     const demoSection = document.getElementById("radioDemoSection");
+    const tciSection = document.getElementById("radioTciSection");
+    const familySelect = $("radioProtocolFamily");
+    const isTci = familySelect && familySelect.value === "tci";
     if (protocolSection) protocolSection.style.display = isReal ? "" : "none";
-    if (portSection) portSection.style.display = isReal ? "" : "none";
-    if (serialSection) serialSection.style.display = isReal ? "" : "none";
-    if (controlSection) controlSection.style.display = isReal ? "" : "none";
+    if (tciSection) tciSection.style.display = isReal && isTci ? "" : "none";
+    if (portSection) portSection.style.display = isReal && !isTci ? "" : "none";
+    if (serialSection) serialSection.style.display = isReal && !isTci ? "" : "none";
+    if (controlSection) controlSection.style.display = isReal && !isTci ? "" : "none";
     if (safetySection) safetySection.style.display = isReal ? "" : "none";
     if (demoSection) demoSection.style.display = isReal ? "none" : "";
     const audioScopeSection = document.getElementById("radioAudioScopeSection");
-    if (audioScopeSection) audioScopeSection.style.display = isReal ? "" : "none";
+    if (audioScopeSection) audioScopeSection.style.display = isReal && !isTci ? "" : "none";
     updatePortListVisibility();
     updateCivRowVisibility();
   }
@@ -20357,6 +20803,10 @@ ${beacon.location}`);
     state_default.radioSafePower = parseInt($("radioSafePower")?.value, 10) || 20;
     localStorage.setItem("hamtab_radio_swr_limit", String(state_default.radioSwrLimit));
     localStorage.setItem("hamtab_radio_safe_power", String(state_default.radioSafePower));
+    state_default.radioTciHost = $("radioTciHost")?.value || "localhost";
+    state_default.radioTciPort = parseInt($("radioTciPort")?.value, 10) || 50001;
+    localStorage.setItem("hamtab_radio_tci_host", state_default.radioTciHost);
+    localStorage.setItem("hamtab_radio_tci_port", String(state_default.radioTciPort));
     if ($("radioPropBasic")?.checked) state_default.radioDemoPropagation = "basic";
     else if ($("radioPropLocation")?.checked) state_default.radioDemoPropagation = "location";
     else state_default.radioDemoPropagation = "off";
@@ -20855,6 +21305,7 @@ ${beacon.location}`);
         }
         populateModelPresets();
         updateCivRowVisibility();
+        updateRadioSections();
       });
     }
     const radioModelPreset = $("radioModelPreset");

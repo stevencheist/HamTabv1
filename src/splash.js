@@ -617,6 +617,12 @@ function loadRadioConfig() {
   if (propBasic) propBasic.checked = state.radioDemoPropagation === 'basic';
   if (propLocation) propLocation.checked = state.radioDemoPropagation === 'location';
 
+  // TCI connection
+  const tciHost = $('radioTciHost');
+  const tciPort = $('radioTciPort');
+  if (tciHost) tciHost.value = state.radioTciHost;
+  if (tciPort) tciPort.value = state.radioTciPort;
+
   // Audio scope
   const audioScopeEnabled = $('radioAudioScopeEnabled');
   if (audioScopeEnabled) audioScopeEnabled.checked = state.radioAudioScopeEnabled;
@@ -996,19 +1002,26 @@ function updateRadioSections() {
   const controlSection = document.getElementById('radioControlSection');
   const safetySection = document.getElementById('radioSafetySection');
   const demoSection = document.getElementById('radioDemoSection');
+  const tciSection = document.getElementById('radioTciSection');
+
+  // Check if TCI protocol is selected
+  const familySelect = $('radioProtocolFamily');
+  const isTci = familySelect && familySelect.value === 'tci';
 
   // Real radio: show protocol, port, serial, control, safety; hide demo
+  // TCI: show protocol + TCI section; hide serial/port/control
   // Demo: hide all real sections; show demo
   if (protocolSection) protocolSection.style.display = isReal ? '' : 'none';
-  if (portSection) portSection.style.display = isReal ? '' : 'none';
-  if (serialSection) serialSection.style.display = isReal ? '' : 'none';
-  if (controlSection) controlSection.style.display = isReal ? '' : 'none';
+  if (tciSection) tciSection.style.display = (isReal && isTci) ? '' : 'none';
+  if (portSection) portSection.style.display = (isReal && !isTci) ? '' : 'none';
+  if (serialSection) serialSection.style.display = (isReal && !isTci) ? '' : 'none';
+  if (controlSection) controlSection.style.display = (isReal && !isTci) ? '' : 'none';
   if (safetySection) safetySection.style.display = isReal ? '' : 'none';
   if (demoSection) demoSection.style.display = isReal ? 'none' : '';
 
-  // Audio scope section: real radio only
+  // Audio scope section: real radio only (not TCI — TCI audio is handled by the SDR app)
   const audioScopeSection = document.getElementById('radioAudioScopeSection');
-  if (audioScopeSection) audioScopeSection.style.display = isReal ? '' : 'none';
+  if (audioScopeSection) audioScopeSection.style.display = (isReal && !isTci) ? '' : 'none';
 
   // Port list row: only show when port mode is 'manual'
   updatePortListVisibility();
@@ -1094,6 +1107,12 @@ function saveRadioConfig() {
   state.radioSafePower = parseInt($('radioSafePower')?.value, 10) || 20;
   localStorage.setItem('hamtab_radio_swr_limit', String(state.radioSwrLimit));
   localStorage.setItem('hamtab_radio_safe_power', String(state.radioSafePower));
+
+  // TCI connection
+  state.radioTciHost = $('radioTciHost')?.value || 'localhost';
+  state.radioTciPort = parseInt($('radioTciPort')?.value, 10) || 50001;
+  localStorage.setItem('hamtab_radio_tci_host', state.radioTciHost);
+  localStorage.setItem('hamtab_radio_tci_port', String(state.radioTciPort));
 
   // Demo propagation
   if ($('radioPropBasic')?.checked) state.radioDemoPropagation = 'basic';
@@ -1658,6 +1677,7 @@ export function initSplashListeners() {
       }
       populateModelPresets();
       updateCivRowVisibility();
+      updateRadioSections(); // toggle TCI/serial sections
     });
   }
 

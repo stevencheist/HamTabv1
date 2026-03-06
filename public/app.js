@@ -20481,11 +20481,13 @@ ${beacon.location}`);
     cfgOpt.textContent = "Use Radio Settings";
     cfgOpt.dataset.profile = "configured";
     select.appendChild(cfgOpt);
-    const sdrOpt = document.createElement("option");
-    sdrOpt.value = "kiwisdr";
-    sdrOpt.textContent = "KiwiSDR (Online RX)";
-    sdrOpt.dataset.profile = "kiwisdr";
-    select.appendChild(sdrOpt);
+    if (location.protocol !== "https:") {
+      const sdrOpt = document.createElement("option");
+      sdrOpt.value = "kiwisdr";
+      sdrOpt.textContent = "KiwiSDR (Online RX)";
+      sdrOpt.dataset.profile = "kiwisdr";
+      select.appendChild(sdrOpt);
+    }
     const demoOpt = document.createElement("option");
     demoOpt.value = "demo";
     demoOpt.textContent = "Demo Mode";

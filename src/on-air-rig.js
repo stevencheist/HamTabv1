@@ -546,12 +546,14 @@ function populateProfiles() {
   cfgOpt.dataset.profile = 'configured';
   select.appendChild(cfgOpt);
 
-  // Option: KiwiSDR (online RX)
-  const sdrOpt = document.createElement('option');
-  sdrOpt.value = 'kiwisdr';
-  sdrOpt.textContent = 'KiwiSDR (Online RX)';
-  sdrOpt.dataset.profile = 'kiwisdr';
-  select.appendChild(sdrOpt);
+  // Option: KiwiSDR (online RX) — hidden on HTTPS (ws:// blocked by mixed content)
+  if (location.protocol !== 'https:') {
+    const sdrOpt = document.createElement('option');
+    sdrOpt.value = 'kiwisdr';
+    sdrOpt.textContent = 'KiwiSDR (Online RX)';
+    sdrOpt.dataset.profile = 'kiwisdr';
+    select.appendChild(sdrOpt);
+  }
 
   // Option: demo mode
   const demoOpt = document.createElement('option');

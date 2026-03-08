@@ -107,6 +107,7 @@ export async function connectRig(config = {}) {
   let resolvedProfileId = config.profileId;
   let resolvedProtocol = config.protocol || config.protocolFamily;
   let resolvedSerialConfig = config.serialConfig;
+  let detectedTransport = null; // live transport from smart-detect (port already open)
 
   if (config.autoDetect && config.existingPort && !isDemo) {
     const detected = await smartDetect(config.existingPort, config.onDetectProgress);
@@ -114,6 +115,7 @@ export async function connectRig(config = {}) {
       resolvedProfileId = detected.profileId;
       resolvedProtocol = detected.protocol;
       resolvedSerialConfig = detected.serialConfig;
+      detectedTransport = detected.transport || null;
     } else {
       // Detection failed — caller should handle
       return false;
@@ -162,6 +164,9 @@ export async function connectRig(config = {}) {
   }
 
   // --- Create transport ---
+  // Reuse the live transport from smart-detect when available — avoids
+  // closing and reopening the serial port, which can fail on some USB
+  // adapters after the rapid open/close cycles during detection probing.
   let transport;
   const isTci = protocolFamily === 'tci';
   if (isDemo) {
@@ -177,6 +182,9 @@ export async function connectRig(config = {}) {
       host: config.tciHost || 'localhost',
       port: config.tciPort || 50001,
     });
+  } else if (detectedTransport) {
+    // Reuse the transport that smart-detect left open — port is already connected
+    transport = detectedTransport;
   } else {
     const serialConfig = buildSerialConfig();
     transport = new WebSerialTransport(serialConfig);

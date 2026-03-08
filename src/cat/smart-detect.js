@@ -205,6 +205,10 @@ function matchCivProfile(civAddr) {
 }
 
 // --- Smart Detect: probe a serial port ---
+// Returns { profileId, protocol, serialConfig, transport } or null.
+// When successful, transport is the live WebSerialTransport with an open port —
+// the caller should reuse it instead of closing and reopening (which can fail
+// on some USB-serial adapters after rapid open/close cycles during probing).
 export async function smartDetect(port, onProgress) {
   const total = PROBES.length;
 
@@ -216,9 +220,9 @@ export async function smartDetect(port, onProgress) {
     }
 
     try {
-      const result = await runProbe(port, probe);
+      const { result, transport } = await runProbe(port, probe);
       if (result) {
-        return result;
+        return { ...result, transport };
       }
     } catch (err) {
       // Probe failed — continue to next
@@ -233,6 +237,8 @@ export async function smartDetect(port, onProgress) {
 }
 
 // --- Run a single probe ---
+// Returns { result, transport } — transport is kept alive on success so the
+// caller can hand it to the connection manager without closing/reopening the port.
 async function runProbe(port, probe) {
   const transport = new WebSerialTransport(probe.serialConfig);
 
@@ -265,8 +271,14 @@ async function runProbe(port, probe) {
 
     const result = probe.parse(response);
     console.debug(`[smart-detect] ${probe.name} → parse result:`, result);
+
+    if (result) {
+      // Success — keep transport alive for reuse (don't close/reopen the port)
+      return { result, transport };
+    }
+
     await transport.disconnect();
-    return result;
+    return { result: null, transport: null };
   } catch (err) {
     try { await transport.disconnect(); } catch (_) { /* ignore */ }
     throw err;

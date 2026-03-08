@@ -1379,10 +1379,26 @@
         // _rawBuffer. Never calls reader.cancel() — the loop ends only when
         // disconnect() cancels the reader.
         _startReadLoop() {
-          if (this._readLoopRunning) return;
-          if (!this.port || !this.port.readable) return;
+          if (this._readLoopRunning) {
+            console.debug("[cat] Read loop already running \u2014 skipping start");
+            return;
+          }
+          if (!this.port || !this.port.readable) {
+            console.warn(
+              "[cat] Cannot start read loop \u2014 port or readable missing",
+              { port: !!this.port, readable: !!(this.port && this.port.readable) }
+            );
+            return;
+          }
           this._readLoopRunning = true;
-          this._reader = this.port.readable.getReader();
+          try {
+            this._reader = this.port.readable.getReader();
+          } catch (err2) {
+            console.error("[cat] Failed to get reader:", err2.message);
+            this._readLoopRunning = false;
+            return;
+          }
+          console.debug("[cat] Read loop started");
           this._readLoopPromise = (async () => {
             try {
               while (this._readLoopRunning) {
@@ -1405,6 +1421,7 @@
                 console.warn("[cat] Read loop error:", err2.message);
               }
             } finally {
+              console.debug("[cat] Read loop ended");
               this._readLoopRunning = false;
               try {
                 this._reader.releaseLock();
@@ -1463,7 +1480,10 @@
             this._setState(ConnectionState.CONNECTING);
             this.port = existingPort || await navigator.serial.requestPort();
             if (this.port.readable && this.port.writable) {
-              console.debug("[cat] Port already open \u2014 reusing connection");
+              console.warn(
+                "[cat] Port already open \u2014 reusing connection",
+                { readLoopRunning: this._readLoopRunning, hasReader: !!this._reader }
+              );
               if (!this._readLoopRunning) this._startReadLoop();
               this._setState(ConnectionState.CONNECTED);
               return true;
@@ -1570,7 +1590,7 @@
             await this._waitForData(remaining);
           }
           const partial = decoder.decode(this._rawBuffer);
-          throw new Error(`Read timeout: no terminator in response ("${partial}")`);
+          throw new Error(`Read timeout (readLoop=${this._readLoopRunning}): no terminator in response ("${partial}")`);
         }
         // --- Read until sentinel byte ---
         // For binary protocols (Icom CI-V). Reads until a specific byte is found.
@@ -3864,13 +3884,20 @@
     }
     async function connect(existingPort) {
       if (connected) return true;
+      console.warn("[cat] rig-manager.connect \u2014 opening transport");
       const opened = await transport.connect(existingPort);
-      if (!opened) return false;
+      if (!opened) {
+        console.warn("[cat] rig-manager.connect \u2014 transport.connect returned false");
+        return false;
+      }
+      console.warn("[cat] rig-manager.connect \u2014 flushing");
       await transport.flush();
       await new Promise((r) => setTimeout(r, 500));
       connected = true;
       store.set({ connected: true });
+      console.warn("[cat] rig-manager.connect \u2014 initializing");
       await initialize();
+      console.warn("[cat] rig-manager.connect \u2014 starting polling + meters");
       startPolling();
       startMeters();
       return true;
@@ -21248,8 +21275,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.63.6";
-    $("aboutVersion").textContent = "0.63.6";
+    $("splashVersion").textContent = "0.63.7";
+    $("aboutVersion").textContent = "0.63.7";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

@@ -962,7 +962,7 @@ function commitFreqInput() {
 // Snapshot the current rig state before applying digital settings
 function snapshotRigState() {
   const store = getRigStore();
-  const s = store.getState();
+  const s = store.get();
   return {
     frequency: s.frequency,
     mode: s.mode,
@@ -986,7 +986,7 @@ function applyDigitalSetup() {
 
   // Set power if radio supports it
   const store = getRigStore();
-  const caps = store.getState().capabilities || [];
+  const caps = store.get().capabilities || [];
   if (caps.includes('rf_power') && power > 0) {
     sendRigCommand('setRFPower', power, 1);
   }
@@ -1004,7 +1004,7 @@ function restoreRigState() {
     sendRigCommand('setMode', snapshot.mode, 1);
   }
   const store = getRigStore();
-  const caps = store.getState().capabilities || [];
+  const caps = store.get().capabilities || [];
   if (caps.includes('rf_power') && snapshot.rfPower > 0) {
     sendRigCommand('setRFPower', snapshot.rfPower, 1);
   }
@@ -1082,7 +1082,7 @@ function handleDigitalPowerClick(e) {
 
   if (state.digitalSetupEnabled && isRigConnected()) {
     const store = getRigStore();
-    const caps = store.getState().capabilities || [];
+    const caps = store.get().capabilities || [];
     if (caps.includes('rf_power')) {
       sendRigCommand('setRFPower', watts, 1);
     }
@@ -1146,7 +1146,7 @@ function updateDigitalUI() {
 
   const connected = isRigConnected();
   const store = getRigStore();
-  const s = store.getState();
+  const s = store.get();
   const isRealRadio = connected && !s.demo && !s.rxOnly;
 
   // Show section only when connected to a real radio

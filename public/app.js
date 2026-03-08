@@ -2616,6 +2616,7 @@
         pollCommands() {
           return [
             "getFrequency",
+            "getFrequencyB",
             "getMode",
             "getPTT"
           ];
@@ -2833,6 +2834,7 @@
         pollCommands() {
           return [
             "getFrequency",
+            "getFrequencyB",
             "getMode",
             "getPTT"
           ];
@@ -3276,6 +3278,7 @@
         pollCommands() {
           return [
             "getFrequency",
+            "getFrequencyB",
             "getMode",
             "getPTT"
           ];
@@ -3453,6 +3456,7 @@
         pollCommands() {
           return [
             "getFrequency",
+            "getFrequencyB",
             "getMode",
             "getPTT"
           ];
@@ -20266,6 +20270,16 @@ ${beacon.location}`);
     if (confEl) {
       confEl.className = `rig-confidence ${state2.ptt ? confidenceClass(state2.tuneConfidence) : ""}`;
     }
+    const vfoBRow = $("rigVfoBRow");
+    const freqBEl = $("rigFrequencyB");
+    if (vfoBRow && freqBEl) {
+      if (state2.frequencyB > 0) {
+        freqBEl.textContent = formatFrequency(state2.frequencyB);
+        vfoBRow.style.display = "";
+      } else {
+        vfoBRow.style.display = "none";
+      }
+    }
     if (bandEl) {
       bandEl.textContent = state2.band || "";
     }
@@ -20311,11 +20325,12 @@ ${beacon.location}`);
     const caps = state2.capabilities || [];
     const hasSwr = caps.includes("meter_swr");
     if (swrEl) {
-      if (state2.rxOnly || !hasSwr) {
+      if (state2.rxOnly || !hasSwr || !state2.ptt) {
         swrEl.style.display = "none";
+        swrEl.classList.remove("rig-swr-danger", "rig-swr-caution");
       } else {
         swrEl.style.display = "";
-        if (state2.swr > 0) {
+        if (state2.swr > 0 && state2.swr < 20) {
           const swrLabel = state2.swr > 3 ? " DANGER" : state2.swr > 1.5 ? " CAUTION" : "";
           swrEl.textContent = `SWR ${state2.swr.toFixed(1)}:1${swrLabel}`;
           if (state2.swr > 3) {
@@ -20593,15 +20608,25 @@ ${beacon.location}`);
         });
         if (!success) statusEl.textContent = "Cancelled";
       } else if (state_default.radioProtocolFamily === "tci") {
-        statusEl.textContent = "Connecting via TCI...";
+        const tciHost = state_default.radioTciHost || "localhost";
+        const tciPort = state_default.radioTciPort || 50001;
+        statusEl.textContent = `Connecting via TCI to ${tciHost}:${tciPort}...`;
         const config = buildConnectConfig();
         const success = await connectRig({
           ...config,
           protocolFamily: "tci",
-          tciHost: state_default.radioTciHost,
-          tciPort: state_default.radioTciPort
+          tciHost,
+          tciPort
         });
-        if (!success) statusEl.textContent = "TCI connection failed";
+        if (!success) {
+          const isSecure = location.protocol === "https:";
+          const isLoopback = tciHost === "localhost" || tciHost === "127.0.0.1";
+          if (isSecure && !isLoopback) {
+            statusEl.textContent = `TCI failed \u2014 ws:// blocked from HTTPS. Use Host: localhost or 127.0.0.1`;
+          } else {
+            statusEl.textContent = `TCI failed \u2014 check TCI is enabled on ${tciHost}:${tciPort}`;
+          }
+        }
       } else {
         const config = buildConnectConfig();
         const protocolFamily = state_default.radioProtocolFamily;
@@ -21117,8 +21142,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.63.0";
-    $("aboutVersion").textContent = "0.63.0";
+    $("splashVersion").textContent = "0.63.1";
+    $("aboutVersion").textContent = "0.63.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

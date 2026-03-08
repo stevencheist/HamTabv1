@@ -202,6 +202,7 @@ export const kenwoodAscii = {
   pollCommands() {
     return [
       'getFrequency',
+      'getFrequencyB',
       'getMode',
       'getPTT',
     ];

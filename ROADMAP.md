@@ -90,6 +90,9 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - Decompose monolithic `server.js` into domain routers (`routes/spots.js`, `routes/weather.js`, `routes/solar.js`, etc.) and shared services (`services/cache-store.js`, `services/http-fetch.js`)
 - Version and migrate client state schema — `stateSchemaVersion` with declarative migration registry, validation layer, per-subsystem safe reset
 
+### CI/CD
+- Auto-retry for transient Cloudflare deploy failures — add step-level retry logic (2-3 attempts with backoff) to the wrangler deploy step in `deploy.yml` to handle 504 Gateway Timeouts without manual re-run
+
 ### Security Hardening
 - Harden config/admin endpoints — require `CONFIG_ADMIN_TOKEN` for write operations (no IP-only fallback), add request audit log with value redaction, anti-CSRF tokens, endpoint-level strict rate limits
 

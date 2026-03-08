@@ -2517,7 +2517,8 @@
             "meter_signal",
             "meter_swr",
             "meter_power",
-            "rf_power"
+            "rf_power",
+            "vfo_swap"
           ];
         },
         // --- Command encoding ---
@@ -2552,6 +2553,9 @@
               return "PC;";
             case "setRFPower":
               return `PC${String(params).padStart(3, "0")};`;
+            case "swapVfo":
+              return "SV;";
+            // Swap VFO A ↔ B
             case "getInfo":
               return "IF;";
             case "getID":
@@ -2737,7 +2741,8 @@
             "meter_signal",
             "meter_swr",
             "meter_power",
-            "rf_power"
+            "rf_power",
+            "vfo_swap"
           ];
         },
         // --- Command encoding ---
@@ -2774,6 +2779,9 @@
               return "PC;";
             case "setRFPower":
               return `PC${String(params).padStart(3, "0")};`;
+            case "swapVfo":
+              return "VV;";
+            // Swap VFO A ↔ B (Kenwood VV command)
             case "getInfo":
               return "IF;";
             case "getID":
@@ -2978,7 +2986,8 @@
             "ptt_cat",
             "meter_signal",
             "meter_swr",
-            "rf_power"
+            "rf_power",
+            "vfo_swap"
           ];
         },
         // --- Command encoding ---
@@ -3024,6 +3033,9 @@
               frame = buildFrame(civAddress, 20, 10, new Uint8Array([pctByte >> 4, pctByte & 15]));
               break;
             }
+            case "swapVfo":
+              frame = buildFrame(civAddress, 7, 176, null);
+              break;
             case "getID":
               frame = buildFrame(civAddress, 25, 0, null);
               break;
@@ -3192,7 +3204,8 @@
             "ptt_cat",
             "meter_signal",
             "meter_swr",
-            "rf_power"
+            "rf_power",
+            "vfo_swap"
           ];
         },
         // --- Command encoding ---
@@ -3228,6 +3241,9 @@
               return "PC;";
             case "setRFPower":
               return `PC${String(params).padStart(3, "0")};`;
+            case "swapVfo":
+              return "SWT11;";
+            // Elecraft: switch VFO A ↔ B
             case "getBandwidth":
               return "BW;";
             case "getID":
@@ -20274,10 +20290,15 @@ ${beacon.location}`);
     }
     const vfoBRow = $("rigVfoBRow");
     const freqBEl = $("rigFrequencyB");
+    const swapBtn = $("rigVfoSwapBtn");
     if (vfoBRow && freqBEl) {
       if (state2.frequencyB > 0) {
         freqBEl.textContent = formatFrequency(state2.frequencyB);
         vfoBRow.style.display = "";
+        if (swapBtn) {
+          const hasSwap = (state2.capabilities || []).includes("vfo_swap");
+          swapBtn.style.display = hasSwap ? "" : "none";
+        }
       } else {
         vfoBRow.style.display = "none";
       }
@@ -20748,6 +20769,12 @@ ${beacon.location}`);
           }
         });
       }
+      const vfoSwapBtn = $("rigVfoSwapBtn");
+      if (vfoSwapBtn) {
+        vfoSwapBtn.addEventListener("click", () => {
+          if (isRigConnected()) sendRigCommand("swapVfo", null, 1);
+        });
+      }
       listenersAttached = true;
     }
     const store = getRigStore();
@@ -21144,8 +21171,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.63.1";
-    $("aboutVersion").textContent = "0.63.1";
+    $("splashVersion").textContent = "0.63.2";
+    $("aboutVersion").textContent = "0.63.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

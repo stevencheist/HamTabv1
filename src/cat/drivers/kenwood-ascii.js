@@ -96,6 +96,7 @@ export const kenwoodAscii = {
       'meter_swr',
       'meter_power',
       'rf_power',
+      'vfo_swap',
     ];
   },
 
@@ -119,6 +120,7 @@ export const kenwoodAscii = {
       case 'getPower':      return 'RM0;';    // Kenwood: RM0 = output power
       case 'getRFPower':    return 'PC;';
       case 'setRFPower':    return `PC${String(params).padStart(3, '0')};`;
+      case 'swapVfo':       return 'VV;';  // Swap VFO A ↔ B (Kenwood VV command)
       case 'getInfo':       return 'IF;';
       case 'getID':         return 'ID;';
       default:

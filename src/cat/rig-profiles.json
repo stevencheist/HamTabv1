@@ -3,7 +3,7 @@
     "yaesu-ft891": {
       "manufacturer": "Yaesu",
       "model": "FT-891",
-      "modelId": "0135",
+      "modelId": "0650",
       "protocol": {
         "family": "yaesu_ascii",
         "terminator": ";"

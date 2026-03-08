@@ -3778,6 +3778,7 @@
             }
             return;
           } else if (command.startsWith("set")) {
+            console.debug("[cat] SET \u2192", command, encoded);
             await transport.writeCommand(encoded);
             return;
           } else {
@@ -4136,7 +4137,7 @@
           "yaesu-ft891": {
             manufacturer: "Yaesu",
             model: "FT-891",
-            modelId: "0135",
+            modelId: "0650",
             protocol: {
               family: "yaesu_ascii",
               terminator: ";"
@@ -5786,14 +5787,19 @@
     }
   }
   function tuneToSpot(spot) {
-    if (!isRigConnected() || !spot.frequency) return;
+    if (!isRigConnected() || !spot.frequency) {
+      if (state_default.debug) console.warn("[tune] Aborted \u2014 connected:", isRigConnected(), "freq:", spot.frequency);
+      return;
+    }
     const freqHz = spotFreqToHz(spot.frequency);
+    if (state_default.debug) console.log("[tune] Spot freq:", spot.frequency, "\u2192", freqHz, "Hz, mode:", spot.mode);
     if (freqHz <= 0) return;
     sendRigCommand("setFrequency", freqHz, 2);
     const rigMode = resolveRigMode(spot.mode, freqHz);
     if (rigMode) {
       sendRigCommand("setMode", rigMode, 1);
     }
+    if (state_default.debug) console.log("[tune] Commands queued \u2014 setFrequency:", freqHz, "setMode:", rigMode || "(none)");
     const btn = document.querySelector(".spot-detail-tune-btn");
     if (btn) {
       const original = btn.textContent;
@@ -21280,8 +21286,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.64.0";
-    $("aboutVersion").textContent = "0.64.0";
+    $("splashVersion").textContent = "0.64.1";
+    $("aboutVersion").textContent = "0.64.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

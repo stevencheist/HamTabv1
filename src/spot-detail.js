@@ -252,9 +252,13 @@ function renderTuneButton(spot) {
 }
 
 function tuneToSpot(spot) {
-  if (!isRigConnected() || !spot.frequency) return;
+  if (!isRigConnected() || !spot.frequency) {
+    if (state.debug) console.warn('[tune] Aborted — connected:', isRigConnected(), 'freq:', spot.frequency);
+    return;
+  }
 
   const freqHz = spotFreqToHz(spot.frequency);
+  if (state.debug) console.log('[tune] Spot freq:', spot.frequency, '→', freqHz, 'Hz, mode:', spot.mode);
   if (freqHz <= 0) return;
 
   // Set frequency (high priority)
@@ -265,6 +269,7 @@ function tuneToSpot(spot) {
   if (rigMode) {
     sendRigCommand('setMode', rigMode, 1);
   }
+  if (state.debug) console.log('[tune] Commands queued — setFrequency:', freqHz, 'setMode:', rigMode || '(none)');
 
   // Visual feedback
   const btn = document.querySelector('.spot-detail-tune-btn');

@@ -55,6 +55,7 @@ export function createRigManager(transport, driver, store, options = {}) {
           // Set commands (setFrequency, setMode, setPTT, etc.) don't get a
           // response from Yaesu radios — write without waiting for reply.
           // Queue rate-limiting (60ms) prevents buffer sync issues.
+          console.debug('[cat] SET →', command, encoded);
           await transport.writeCommand(encoded);
           return; // no response to parse
         } else {

@@ -1434,10 +1434,6 @@
               this._readLoopRunning = false;
               if (this._reader) {
                 try {
-                  await this._reader.cancel();
-                } catch {
-                }
-                try {
                   this._reader.releaseLock();
                 } catch {
                 }

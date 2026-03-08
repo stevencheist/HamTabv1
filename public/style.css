@@ -7327,6 +7327,27 @@ body.grayscale {
   letter-spacing: 2px;
   text-align: center;
   line-height: 1.1;
+  cursor: pointer;
+}
+.rig-frequency:hover {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 4px;
+}
+.rig-freq-input {
+  font-family: 'Consolas', 'Courier New', monospace;
+  font-size: 1.8rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--bg) 90%, var(--accent) 10%);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  text-align: center;
+  letter-spacing: 2px;
+  width: 100%;
+  max-width: 220px;
+  padding: 2px 4px;
+  outline: none;
 }
 .rig-freq-unit {
   font-size: 0.6rem;

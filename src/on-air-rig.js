@@ -893,6 +893,68 @@ function updateSdrUrlVisibility() {
   sdrRow.style.display = select.value === 'kiwisdr' ? '' : 'none';
 }
 
+// --- Frequency direct entry ---
+// Click the frequency display to type a frequency. Parses MHz format (e.g., "14.074.000")
+// and sends setFrequency to the radio.
+
+function parseFrequencyInput(input) {
+  // Strip spaces and dots used as group separators
+  let cleaned = input.trim().replace(/\s/g, '');
+
+  // Handle MHz.kHz.Hz format: "14.074.000" → 14074000
+  const dotParts = cleaned.split('.');
+  if (dotParts.length === 3) {
+    // MHz.kHz.Hz — concatenate and parse
+    const hz = parseInt(dotParts[0] + dotParts[1].padEnd(3, '0') + dotParts[2].padEnd(3, '0'), 10);
+    return isNaN(hz) || hz <= 0 ? null : hz;
+  }
+  if (dotParts.length === 2) {
+    // Could be MHz.kHz (e.g., "14.074") — treat as MHz decimal
+    const mhz = parseFloat(cleaned);
+    if (isNaN(mhz) || mhz <= 0) return null;
+    return Math.round(mhz * 1_000_000);
+  }
+  // Plain number — if > 100000 treat as Hz, if > 1000 treat as kHz, else MHz
+  const val = parseFloat(cleaned);
+  if (isNaN(val) || val <= 0) return null;
+  if (val > 100_000) return Math.round(val);         // Hz
+  if (val > 1_000) return Math.round(val * 1_000);   // kHz
+  return Math.round(val * 1_000_000);                 // MHz
+}
+
+function showFreqInput() {
+  if (!isRigConnected()) return;
+  const freqDisplay = $('rigFrequency');
+  const freqInput = $('rigFreqInput');
+  if (!freqDisplay || !freqInput) return;
+
+  freqDisplay.style.display = 'none';
+  freqInput.style.display = '';
+  freqInput.value = freqDisplay.textContent;
+  freqInput.focus();
+  freqInput.select();
+}
+
+function hideFreqInput() {
+  const freqDisplay = $('rigFrequency');
+  const freqInput = $('rigFreqInput');
+  if (!freqDisplay || !freqInput) return;
+
+  freqInput.style.display = 'none';
+  freqDisplay.style.display = '';
+}
+
+function commitFreqInput() {
+  const freqInput = $('rigFreqInput');
+  if (!freqInput) return;
+
+  const hz = parseFrequencyInput(freqInput.value);
+  if (hz && hz >= 30_000 && hz <= 75_000_000 && isRigConnected()) {
+    sendRigCommand('setFrequency', hz, 1);
+  }
+  hideFreqInput();
+}
+
 // --- Digital Setup Assistant ---
 // Manages enable/disable cycle: snapshot current rig state, apply digital config,
 // restore previous state on disable. Starts disabled every session.
@@ -1140,6 +1202,18 @@ export function initOnAirRig() {
     populateBandMode();
     populateBandButtons();
     connectBtn.addEventListener('click', handleConnectClick);
+
+    // Frequency direct entry — click display to type, Enter to commit, Escape to cancel
+    const freqDisplay = $('rigFrequency');
+    const freqInput = $('rigFreqInput');
+    if (freqDisplay) freqDisplay.addEventListener('click', showFreqInput);
+    if (freqInput) {
+      freqInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); commitFreqInput(); }
+        if (e.key === 'Escape') { e.preventDefault(); hideFreqInput(); }
+      });
+      freqInput.addEventListener('blur', hideFreqInput);
+    }
 
     // SDR URL row: toggle visibility on profile change, restore saved URL
     const rigSelect = $('rigProfileSelect');

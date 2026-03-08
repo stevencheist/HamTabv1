@@ -20941,6 +20941,51 @@ ${beacon.location}`);
     if (!select || !sdrRow) return;
     sdrRow.style.display = select.value === "kiwisdr" ? "" : "none";
   }
+  function parseFrequencyInput(input) {
+    let cleaned = input.trim().replace(/\s/g, "");
+    const dotParts = cleaned.split(".");
+    if (dotParts.length === 3) {
+      const hz = parseInt(dotParts[0] + dotParts[1].padEnd(3, "0") + dotParts[2].padEnd(3, "0"), 10);
+      return isNaN(hz) || hz <= 0 ? null : hz;
+    }
+    if (dotParts.length === 2) {
+      const mhz = parseFloat(cleaned);
+      if (isNaN(mhz) || mhz <= 0) return null;
+      return Math.round(mhz * 1e6);
+    }
+    const val = parseFloat(cleaned);
+    if (isNaN(val) || val <= 0) return null;
+    if (val > 1e5) return Math.round(val);
+    if (val > 1e3) return Math.round(val * 1e3);
+    return Math.round(val * 1e6);
+  }
+  function showFreqInput() {
+    if (!isRigConnected()) return;
+    const freqDisplay = $("rigFrequency");
+    const freqInput = $("rigFreqInput");
+    if (!freqDisplay || !freqInput) return;
+    freqDisplay.style.display = "none";
+    freqInput.style.display = "";
+    freqInput.value = freqDisplay.textContent;
+    freqInput.focus();
+    freqInput.select();
+  }
+  function hideFreqInput() {
+    const freqDisplay = $("rigFrequency");
+    const freqInput = $("rigFreqInput");
+    if (!freqDisplay || !freqInput) return;
+    freqInput.style.display = "none";
+    freqDisplay.style.display = "";
+  }
+  function commitFreqInput() {
+    const freqInput = $("rigFreqInput");
+    if (!freqInput) return;
+    const hz = parseFrequencyInput(freqInput.value);
+    if (hz && hz >= 3e4 && hz <= 75e6 && isRigConnected()) {
+      sendRigCommand("setFrequency", hz, 1);
+    }
+    hideFreqInput();
+  }
   function snapshotRigState() {
     const store = getRigStore();
     const s = store.getState();
@@ -21123,6 +21168,22 @@ ${beacon.location}`);
       populateBandMode();
       populateBandButtons();
       connectBtn.addEventListener("click", handleConnectClick);
+      const freqDisplay = $("rigFrequency");
+      const freqInput = $("rigFreqInput");
+      if (freqDisplay) freqDisplay.addEventListener("click", showFreqInput);
+      if (freqInput) {
+        freqInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            commitFreqInput();
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            hideFreqInput();
+          }
+        });
+        freqInput.addEventListener("blur", hideFreqInput);
+      }
       const rigSelect = $("rigProfileSelect");
       if (rigSelect) {
         rigSelect.addEventListener("change", updateSdrUrlVisibility);
@@ -21601,8 +21662,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.66.0";
-    $("aboutVersion").textContent = "0.66.0";
+    $("splashVersion").textContent = "0.66.1";
+    $("aboutVersion").textContent = "0.66.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

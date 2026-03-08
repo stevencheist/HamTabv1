@@ -91,6 +91,7 @@ export function startAutoRefresh() {
   localStorage.setItem('hamtab_auto_refresh', 'true');
   resetCountdown();
   state.countdownTimer = setInterval(() => {
+    if (document.hidden) return; // skip countdown ticks while hidden
     state.countdownSeconds--;
     if (state.countdownSeconds <= 0) {
       refreshAll();

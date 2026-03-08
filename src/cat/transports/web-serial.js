@@ -197,8 +197,14 @@ export class WebSerialTransport {
           if (!this._readLoopRunning) {
             console.warn('[cat] Stream locked — closing and reopening port');
             try { await this.port.close(); } catch { /* ignore */ }
+            // Settle delay — USB-serial adapters need time after close before reopen
+            await new Promise(r => setTimeout(r, 500));
             await this.port.open(this.config);
-            await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+            if (this._hwFlowControl) {
+              await this.port.setSignals({ dataTerminalReady: true });
+            } else {
+              await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+            }
             this._startReadLoop();
           }
         }

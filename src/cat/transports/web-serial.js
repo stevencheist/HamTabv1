@@ -182,6 +182,10 @@ export class WebSerialTransport {
       // Use existing port or prompt user to pick one
       this.port = existingPort || await navigator.serial.requestPort();
 
+      console.warn('[cat] connect() — port state:',
+        { existingPort: !!existingPort, readable: !!this.port.readable,
+          writable: !!this.port.writable, readLoopRunning: this._readLoopRunning });
+
       // If port is already open (reused transport from smart-detect), skip open
       if (this.port.readable && this.port.writable) {
         console.warn('[cat] Port already open — reusing connection',

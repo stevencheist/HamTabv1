@@ -1486,6 +1486,15 @@
           try {
             this._setState(ConnectionState.CONNECTING);
             this.port = existingPort || await navigator.serial.requestPort();
+            console.warn(
+              "[cat] connect() \u2014 port state:",
+              {
+                existingPort: !!existingPort,
+                readable: !!this.port.readable,
+                writable: !!this.port.writable,
+                readLoopRunning: this._readLoopRunning
+              }
+            );
             if (this.port.readable && this.port.writable) {
               console.warn(
                 "[cat] Port already open \u2014 reusing connection",

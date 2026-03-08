@@ -280,6 +280,24 @@ function render(state) {
     confEl.className = `rig-confidence ${state.ptt ? confidenceClass(state.tuneConfidence) : ''}`;
   }
 
+  // VFO B — show only when radio provides a secondary frequency
+  const vfoBRow = $('rigVfoBRow');
+  const freqBEl = $('rigFrequencyB');
+  const swapBtn = $('rigVfoSwapBtn');
+  if (vfoBRow && freqBEl) {
+    if (state.frequencyB > 0) {
+      freqBEl.textContent = formatFrequency(state.frequencyB);
+      vfoBRow.style.display = '';
+      // Show swap button only if radio supports VFO swap
+      if (swapBtn) {
+        const hasSwap = (state.capabilities || []).includes('vfo_swap');
+        swapBtn.style.display = hasSwap ? '' : 'none';
+      }
+    } else {
+      vfoBRow.style.display = 'none';
+    }
+  }
+
   // Band indicator
   if (bandEl) {
     bandEl.textContent = state.band || '';
@@ -337,15 +355,18 @@ function render(state) {
     sMeterEl.classList.remove('rig-meter-over');
   }
 
-  // SWR display — hide for RX-only or if radio lacks meter_swr capability
+  // SWR display — only show during TX, hide for RX-only or if radio lacks meter_swr.
+  // SWR meters return noise/stale values during RX and TX→RX transitions,
+  // causing erratic readings (e.g., 1:1 ↔ 25:1). Only display when PTT is active.
   const caps = state.capabilities || [];
   const hasSwr = caps.includes('meter_swr');
   if (swrEl) {
-    if (state.rxOnly || !hasSwr) {
+    if (state.rxOnly || !hasSwr || !state.ptt) {
       swrEl.style.display = 'none';
+      swrEl.classList.remove('rig-swr-danger', 'rig-swr-caution');
     } else {
       swrEl.style.display = '';
-      if (state.swr > 0) {
+      if (state.swr > 0 && state.swr < 20) {
         const swrLabel = state.swr > 3.0 ? ' DANGER' : state.swr > 1.5 ? ' CAUTION' : '';
         swrEl.textContent = `SWR ${state.swr.toFixed(1)}:1${swrLabel}`;
         if (state.swr > 3.0) {
@@ -472,6 +493,14 @@ function render(state) {
     } else if (sdrBadge) {
       sdrBadge.remove();
     }
+  }
+
+  // Power off button — show when connected to a real radio with power_off capability
+  const powerOffBtn = $('rigPowerOffBtn');
+  if (powerOffBtn) {
+    const hasPowerOff = state.connected && !state.demo && !state.rxOnly
+      && (state.capabilities || []).includes('power_off');
+    powerOffBtn.style.display = hasPowerOff ? '' : 'none';
   }
 
   // SDR mute button — show only when KiwiSDR is connected
@@ -686,15 +715,26 @@ async function handleConnectClick() {
 
     } else if (state.radioProtocolFamily === 'tci') {
       // --- TCI (network): WebSocket connection, no serial port ---
-      statusEl.textContent = 'Connecting via TCI...';
+      const tciHost = state.radioTciHost || 'localhost';
+      const tciPort = state.radioTciPort || 50001;
+      statusEl.textContent = `Connecting via TCI to ${tciHost}:${tciPort}...`;
       const config = buildConnectConfig();
       const success = await connectRig({
         ...config,
         protocolFamily: 'tci',
-        tciHost: state.radioTciHost,
-        tciPort: state.radioTciPort,
+        tciHost,
+        tciPort,
       });
-      if (!success) statusEl.textContent = 'TCI connection failed';
+      if (!success) {
+        // ws:// from https:// is blocked by browsers (mixed content) unless target is localhost/127.0.0.1
+        const isSecure = location.protocol === 'https:';
+        const isLoopback = tciHost === 'localhost' || tciHost === '127.0.0.1';
+        if (isSecure && !isLoopback) {
+          statusEl.textContent = `TCI failed — ws:// blocked from HTTPS. Use Host: localhost or 127.0.0.1`;
+        } else {
+          statusEl.textContent = `TCI failed — check TCI is enabled on ${tciHost}:${tciPort}`;
+        }
+      }
 
     } else {
       // --- Real radio: protocol-family-first connect ---
@@ -848,6 +888,27 @@ export function initOnAirRig() {
         if (isRigConnected()) {
           sendRigCommand('setRFPower', val, 1);
         }
+      });
+    }
+    // VFO A ↔ B swap button
+    const vfoSwapBtn = $('rigVfoSwapBtn');
+    if (vfoSwapBtn) {
+      vfoSwapBtn.addEventListener('click', () => {
+        if (isRigConnected()) sendRigCommand('swapVfo', null, 1);
+      });
+    }
+    // Power off button — sends powerOff command then disconnects
+    const powerOffBtn = $('rigPowerOffBtn');
+    if (powerOffBtn) {
+      powerOffBtn.addEventListener('click', async () => {
+        if (!isRigConnected()) return;
+        if (!confirm('Power off the radio?')) return;
+        sendRigCommand('powerOff', null, 1);
+        // Brief delay for command to reach radio, then disconnect CAT
+        setTimeout(async () => {
+          stopScope();
+          try { await disconnectRig(); } catch (_) { /* ignore */ }
+        }, 500); // 500ms — enough for serial/TCI round-trip
       });
     }
     listenersAttached = true;

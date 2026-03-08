@@ -1,7 +1,7 @@
 {
   "name": "hamtab",
-  "version": "0.63.1",
-  "description": "HamTab — Free modern alternative to HamClock. POTA, SOTA, DX cluster, propagation, satellite tracking, and space weather dashboard for amateur radio operators.",
+  "version": "0.63.5",
+  "description": "HamTab — Free modern alternative to HamClock. POTA, SOTA, DX cluster, propagation, satellite tracking, space weather, and live rig control (CAT) dashboard for amateur radio operators.",
   "keywords": [
     "amateur radio",
     "ham radio",
@@ -16,7 +16,10 @@
     "satellite tracking",
     "space weather",
     "ham radio dashboard",
-    "dx spotting"
+    "dx spotting",
+    "rig control",
+    "CAT control",
+    "WebSerial"
   ],
   "main": "server.js",
   "scripts": {

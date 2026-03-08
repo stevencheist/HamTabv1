@@ -94,6 +94,8 @@ export const elecraftAscii = {
       'meter_signal',
       'meter_swr',
       'rf_power',
+      'vfo_swap',
+      'power_off',
     ];
   },
 
@@ -116,6 +118,8 @@ export const elecraftAscii = {
       case 'getSWR':        return 'SW;';   // Elecraft SWR command
       case 'getRFPower':    return 'PC;';
       case 'setRFPower':    return `PC${String(params).padStart(3, '0')};`;
+      case 'swapVfo':       return 'SWT11;';  // Elecraft: switch VFO A ↔ B
+      case 'powerOff':      return 'PS0;';    // Power off radio
       case 'getBandwidth':  return 'BW;';
       case 'getID':         return 'OM;';   // Option module as ID proxy
       default:
@@ -185,6 +189,7 @@ export const elecraftAscii = {
   pollCommands() {
     return [
       'getFrequency',
+      'getFrequencyB',
       'getMode',
       'getPTT',
     ];

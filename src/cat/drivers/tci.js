@@ -91,6 +91,7 @@ export const tciDriver = {
   pollCommands() {
     return [
       'getFrequency',
+      'getFrequencyB',
       'getMode',
       'getPTT',
     ];

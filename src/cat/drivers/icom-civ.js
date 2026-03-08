@@ -154,6 +154,8 @@ export const icomCiv = {
       'meter_signal',
       'meter_swr',
       'rf_power',
+      'vfo_swap',
+      'power_off',
     ];
   },
 
@@ -201,6 +203,12 @@ export const icomCiv = {
         frame = buildFrame(civAddress, 0x14, 0x0A, new Uint8Array([pctByte >> 4, pctByte & 0x0F]));
         break;
       }
+      case 'swapVfo':
+        frame = buildFrame(civAddress, 0x07, 0xB0, null);  // Cmd 07 sub B0: exchange VFO A ↔ B
+        break;
+      case 'powerOff':
+        frame = buildFrame(civAddress, 0x18, 0x00, null);  // Cmd 18 sub 00: power off
+        break;
       case 'getID':
         frame = buildFrame(civAddress, 0x19, 0x00, null);  // Cmd 19 sub 00: read transceiver ID
         break;

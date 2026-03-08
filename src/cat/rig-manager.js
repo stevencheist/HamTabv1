@@ -104,6 +104,7 @@ export function createRigManager(transport, driver, store, options = {}) {
     for (const part of parts) {
       const event = driver.parse(part + terminator);
       if (event) {
+        console.warn('[cat] PARSED →', event.type, event.value);
         store.applyEvent(event);
       }
     }

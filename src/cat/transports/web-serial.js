@@ -120,10 +120,13 @@ export class WebSerialTransport {
       } finally {
         console.warn('[cat] Read loop ended — reason:', exitReason);
         this._readLoopRunning = false;
+        // Release the reader lock. Do NOT call reader.cancel() here —
+        // Chrome WebSerial permanently destroys the ReadableStream on cancel,
+        // breaking all future reads on this port. releaseLock() alone is
+        // sufficient when the loop has already exited (no pending read()).
+        // If releaseLock() fails (edge case), the close/reopen fallback in
+        // connect() handles the stale lock.
         if (this._reader) {
-          // Cancel first to resolve any pending read(), then release the lock.
-          // releaseLock() throws if there are pending reads — cancel ensures there aren't.
-          try { await this._reader.cancel(); } catch { /* ignore */ }
           try { this._reader.releaseLock(); } catch { /* ignore */ }
         }
         this._reader = null;

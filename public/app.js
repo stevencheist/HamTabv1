@@ -2536,6 +2536,9 @@
     }
     return cal[cal.length - 1][1];
   }
+  function pad(n, width) {
+    return String(n).padStart(width, "0");
+  }
   var MODE_CODES, MODE_TO_CODE, SMETER_CAL, SWR_CAL, POWER_CAL, yaesuAscii;
   var init_yaesu_ascii = __esm({
     "src/cat/drivers/yaesu-ascii.js"() {
@@ -2618,7 +2621,9 @@
             "meter_power",
             "rf_power",
             "vfo_swap",
-            "power_off"
+            "power_off",
+            "menu_read",
+            "menu_set"
           ];
         },
         // --- Command encoding ---
@@ -2663,6 +2668,17 @@
               return "IF;";
             case "getID":
               return "ID;";
+            // EX (Menu) — read/write radio menu settings
+            // params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set
+            // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
+            case "getMenu": {
+              const { p1, p2, p3 } = params;
+              return `EX${pad(p1, 2)}${pad(p2, 2)}${pad(p3, 2)};`;
+            }
+            case "setMenu": {
+              const { p1, p2, p3, value, digits } = params;
+              return `EX${pad(p1, 2)}${pad(p2, 2)}${pad(p3, 2)}${String(value).padStart(digits || 1, "0")};`;
+            }
             default:
               return null;
           }
@@ -2715,6 +2731,16 @@
                 frequency: parseInt(data.slice(0, 9), 10),
                 raw: data
               }
+            };
+          }
+          if (resp.startsWith("EX") && resp.length >= 8) {
+            const p1 = parseInt(resp.slice(2, 4), 10);
+            const p2 = parseInt(resp.slice(4, 6), 10);
+            const p3 = parseInt(resp.slice(6, 8), 10);
+            const value = resp.length > 8 ? resp.slice(8) : "";
+            return {
+              type: "menu",
+              value: { p1, p2, p3, raw: value, numeric: parseInt(value, 10) || 0 }
             };
           }
           return null;
@@ -4022,7 +4048,10 @@
       // detected band name (e.g., "20m")
       // Safety
       txLocked: false,
-      txLockReason: ""
+      txLockReason: "",
+      // Menu responses — keyed by address string (e.g. "010416" for P1=01 P2=04 P3=16)
+      // Populated by EX command responses, used by digital setup to read/restore settings
+      menuResponses: {}
     };
     const subscribers = [];
     function subscribe(callback) {
@@ -4100,6 +4129,12 @@
             state2.band = detectBand2(event.value.frequency);
           }
           break;
+        case "menu":
+          if (event.value) {
+            const key = `${String(event.value.p1).padStart(2, "0")}${String(event.value.p2).padStart(2, "0")}${String(event.value.p3).padStart(2, "0")}`;
+            state2.menuResponses[key] = event.value;
+          }
+          break;
         case "error":
           break;
         default:
@@ -4137,6 +4172,7 @@
       state2.band = null;
       state2.txLocked = false;
       state2.txLockReason = "";
+      state2.menuResponses = {};
       notify();
     }
     function updateTuneConfidence() {
@@ -6947,7 +6983,7 @@
   function redistributeRightColumn() {
     if (state_default.customLayout) return;
     const { height: H } = getWidgetArea();
-    const pad = 6;
+    const pad2 = 6;
     const solarEl = document.getElementById("widget-solar");
     if (!solarEl || solarEl.style.display === "none") return;
     const solarBottom = (parseInt(solarEl.style.top) || 0) + (parseInt(solarEl.style.height) || 0);
@@ -6957,10 +6993,10 @@
     const vis = state_default.widgetVisibility || {};
     const visible = rightBottomIds.filter((id) => vis[id] !== false);
     if (visible.length === 0) return;
-    const bottomSpace = H - solarBottom - pad;
+    const bottomSpace = H - solarBottom - pad2;
     const gaps = visible.length - 1;
-    const slotH = Math.round((bottomSpace - gaps * pad) / visible.length);
-    let curY = solarBottom + pad;
+    const slotH = Math.round((bottomSpace - gaps * pad2) / visible.length);
+    let curY = solarBottom + pad2;
     visible.forEach((id) => {
       const el2 = document.getElementById(id);
       if (!el2) return;
@@ -6968,7 +7004,7 @@
       el2.style.top = curY + "px";
       el2.style.width = rightW + "px";
       el2.style.height = slotH + "px";
-      curY += slotH + pad;
+      curY += slotH + pad2;
     });
     saveWidgets();
   }
@@ -6978,33 +7014,33 @@
   }
   function getDefaultLayout() {
     const { width: W, height: H } = getWidgetArea();
-    const pad = 6;
+    const pad2 = 6;
     const leftW = Math.round(W * 0.3);
     const rightW = Math.round(W * 0.25);
-    const centerW = W - leftW - rightW - pad * 4;
-    const rightHalf = Math.round((H - pad * 3) / 2);
-    const rightX = leftW + centerW + pad * 3;
+    const centerW = W - leftW - rightW - pad2 * 4;
+    const rightHalf = Math.round((H - pad2 * 3) / 2);
+    const rightX = leftW + centerW + pad2 * 3;
     const filtersH = 220;
-    const activationsH = H - filtersH - pad * 3;
+    const activationsH = H - filtersH - pad2 * 3;
     const layout = {
-      "widget-filters": { left: pad, top: pad, width: leftW, height: filtersH },
-      "widget-activations": { left: pad, top: filtersH + pad * 2, width: leftW, height: activationsH },
-      "widget-map": { left: leftW + pad * 2, top: pad, width: centerW, height: H - pad * 2 },
-      "widget-solar": { left: rightX, top: pad, width: rightW, height: rightHalf }
+      "widget-filters": { left: pad2, top: pad2, width: leftW, height: filtersH },
+      "widget-activations": { left: pad2, top: filtersH + pad2 * 2, width: leftW, height: activationsH },
+      "widget-map": { left: leftW + pad2 * 2, top: pad2, width: centerW, height: H - pad2 * 2 },
+      "widget-solar": { left: rightX, top: pad2, width: rightW, height: rightHalf }
     };
     const rightBottomIds = ["widget-spacewx", "widget-propagation", "widget-voacap", "widget-live-spots", "widget-lunar", "widget-satellites", "widget-rst", "widget-spot-detail", "widget-contests", "widget-dxpeditions", "widget-beacons", "widget-dedx", "widget-stopwatch", "widget-analog-clock"];
     const vis = state_default.widgetVisibility || {};
     const visibleBottom = rightBottomIds.filter((id) => vis[id] !== false);
-    const bottomSpace = H - rightHalf - pad * 2;
+    const bottomSpace = H - rightHalf - pad2 * 2;
     const gaps = visibleBottom.length > 0 ? visibleBottom.length - 1 : 0;
-    const slotH = visibleBottom.length > 0 ? Math.round((bottomSpace - gaps * pad) / visibleBottom.length) : 0;
-    let curY = rightHalf + pad * 2;
+    const slotH = visibleBottom.length > 0 ? Math.round((bottomSpace - gaps * pad2) / visibleBottom.length) : 0;
+    let curY = rightHalf + pad2 * 2;
     visibleBottom.forEach((id) => {
       layout[id] = { left: rightX, top: curY, width: rightW, height: slotH };
-      curY += slotH + pad;
+      curY += slotH + pad2;
     });
     rightBottomIds.filter((id) => vis[id] === false).forEach((id) => {
-      layout[id] = { left: rightX, top: rightHalf + pad * 2, width: rightW, height: 150 };
+      layout[id] = { left: rightX, top: rightHalf + pad2 * 2, width: rightW, height: 150 };
     });
     return layout;
   }
@@ -7056,7 +7092,7 @@
   }
   function resolveOverlaps(movedWidget) {
     const { width: aW, height: aH } = getWidgetArea();
-    const pad = 6;
+    const pad2 = 6;
     const maxIterations = 10;
     for (let iter = 0; iter < maxIterations; iter++) {
       let anyMoved = false;
@@ -7072,10 +7108,10 @@
         const overlapTop = movedRect.top + movedRect.height - otherRect.top;
         const overlapBottom = otherRect.top + otherRect.height - movedRect.top;
         const pushes = [
-          { dir: "right", dist: overlapLeft, newLeft: movedRect.left + movedRect.width + pad, newTop: otherRect.top },
-          { dir: "left", dist: overlapRight, newLeft: movedRect.left - otherRect.width - pad, newTop: otherRect.top },
-          { dir: "down", dist: overlapTop, newLeft: otherRect.left, newTop: movedRect.top + movedRect.height + pad },
-          { dir: "up", dist: overlapBottom, newLeft: otherRect.left, newTop: movedRect.top - otherRect.height - pad }
+          { dir: "right", dist: overlapLeft, newLeft: movedRect.left + movedRect.width + pad2, newTop: otherRect.top },
+          { dir: "left", dist: overlapRight, newLeft: movedRect.left - otherRect.width - pad2, newTop: otherRect.top },
+          { dir: "down", dist: overlapTop, newLeft: otherRect.left, newTop: movedRect.top + movedRect.height + pad2 },
+          { dir: "up", dist: overlapBottom, newLeft: otherRect.left, newTop: movedRect.top - otherRect.height - pad2 }
         ];
         const validPushes = pushes.filter((p) => {
           return p.newLeft >= 0 && p.newTop >= 0 && p.newLeft + otherRect.width <= aW && p.newTop + otherRect.height <= aH;
@@ -7098,7 +7134,7 @@
       return w.style.display !== "none" && (!state_default.widgetVisibility || state_default.widgetVisibility[w.id] !== false);
     });
     const { width: aW, height: aH } = getWidgetArea();
-    const pad = 6;
+    const pad2 = 6;
     const maxIterations = 20;
     for (let iter = 0; iter < maxIterations; iter++) {
       let anyMoved = false;
@@ -7112,10 +7148,10 @@
           const overlapTop = r1.top + r1.height - r2.top;
           const overlapBottom = r2.top + r2.height - r1.top;
           const pushes = [
-            { dist: overlapLeft, newLeft: r1.left + r1.width + pad, newTop: r2.top },
-            { dist: overlapRight, newLeft: r1.left - r2.width - pad, newTop: r2.top },
-            { dist: overlapTop, newLeft: r2.left, newTop: r1.top + r1.height + pad },
-            { dist: overlapBottom, newLeft: r2.left, newTop: r1.top - r2.height - pad }
+            { dist: overlapLeft, newLeft: r1.left + r1.width + pad2, newTop: r2.top },
+            { dist: overlapRight, newLeft: r1.left - r2.width - pad2, newTop: r2.top },
+            { dist: overlapTop, newLeft: r2.left, newTop: r1.top + r1.height + pad2 },
+            { dist: overlapBottom, newLeft: r2.left, newTop: r1.top - r2.height - pad2 }
           ];
           const validPushes = pushes.filter((p) => {
             return p.newLeft >= 0 && p.newTop >= 0 && p.newLeft + r2.width <= aW && p.newTop + r2.height <= aH;
@@ -20995,14 +21031,47 @@ ${beacon.location}`);
     }
     hideFreqInput();
   }
+  var DIGITAL_MENU_SETTINGS = [
+    { p1: 1, p2: 4, p3: 16, digits: 1, digitalValue: 1, label: "REAR SELECT \u2192 USB" },
+    // 0=DATA, 1=USB
+    { p1: 1, p2: 4, p3: 15, digits: 1, digitalValue: 1, label: "DATA MOD SOURCE \u2192 REAR" },
+    // 0=MIC, 1=REAR
+    { p1: 3, p2: 4, p3: 5, digits: 1, digitalValue: 1, label: "VOX SELECT \u2192 DATA" },
+    // 0=MIC, 1=DATA
+    { p1: 3, p2: 4, p3: 6, digits: 3, digitalValue: 50, label: "DATA VOX GAIN \u2192 50" }
+    // 0-100
+  ];
   function snapshotRigState() {
     const store = getRigStore();
     const s = store.get();
     return {
       frequency: s.frequency,
       mode: s.mode,
-      rfPower: s.rfPower
+      rfPower: s.rfPower,
+      menuSettings: {}
+      // populated async by readMenuSettings()
     };
+  }
+  function readMenuSettings() {
+    const store = getRigStore();
+    const caps = store.get().capabilities || [];
+    if (!caps.includes("menu_read")) return;
+    for (const m of DIGITAL_MENU_SETTINGS) {
+      sendRigCommand("getMenu", { p1: m.p1, p2: m.p2, p3: m.p3 }, 1);
+    }
+  }
+  function captureMenuSnapshot() {
+    if (!state_default.digitalRestoreState) return;
+    const store = getRigStore();
+    const s = store.get();
+    const saved = {};
+    for (const m of DIGITAL_MENU_SETTINGS) {
+      const key = `${String(m.p1).padStart(2, "0")}${String(m.p2).padStart(2, "0")}${String(m.p3).padStart(2, "0")}`;
+      if (s.menuResponses[key]) {
+        saved[key] = s.menuResponses[key].numeric;
+      }
+    }
+    state_default.digitalRestoreState.menuSettings = saved;
   }
   function applyDigitalSetup() {
     const mode2 = state_default.digitalSetupMode;
@@ -21017,6 +21086,17 @@ ${beacon.location}`);
     const caps = store.get().capabilities || [];
     if (caps.includes("rf_power") && power > 0) {
       sendRigCommand("setRFPower", power, 1);
+    }
+    if (caps.includes("menu_set")) {
+      for (const m of DIGITAL_MENU_SETTINGS) {
+        sendRigCommand("setMenu", {
+          p1: m.p1,
+          p2: m.p2,
+          p3: m.p3,
+          value: m.digitalValue,
+          digits: m.digits
+        }, 1);
+      }
     }
   }
   function restoreRigState() {
@@ -21033,6 +21113,20 @@ ${beacon.location}`);
     if (caps.includes("rf_power") && snapshot.rfPower > 0) {
       sendRigCommand("setRFPower", snapshot.rfPower, 1);
     }
+    if (caps.includes("menu_set") && snapshot.menuSettings) {
+      for (const m of DIGITAL_MENU_SETTINGS) {
+        const key = `${String(m.p1).padStart(2, "0")}${String(m.p2).padStart(2, "0")}${String(m.p3).padStart(2, "0")}`;
+        if (key in snapshot.menuSettings) {
+          sendRigCommand("setMenu", {
+            p1: m.p1,
+            p2: m.p2,
+            p3: m.p3,
+            value: snapshot.menuSettings[key],
+            digits: m.digits
+          }, 1);
+        }
+      }
+    }
     state_default.digitalRestoreState = null;
   }
   function handleDigitalToggle() {
@@ -21045,7 +21139,12 @@ ${beacon.location}`);
     if (toggle.checked) {
       state_default.digitalSetupEnabled = true;
       state_default.digitalRestoreState = snapshotRigState();
-      applyDigitalSetup();
+      readMenuSettings();
+      setTimeout(() => {
+        captureMenuSnapshot();
+        applyDigitalSetup();
+        updateDigitalUI();
+      }, 500);
       updateDigitalUI();
     } else {
       state_default.digitalSetupEnabled = false;
@@ -21671,8 +21770,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.66.3";
-    $("aboutVersion").textContent = "0.66.3";
+    $("splashVersion").textContent = "0.66.4";
+    $("aboutVersion").textContent = "0.66.4";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

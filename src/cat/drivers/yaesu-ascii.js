@@ -89,6 +89,7 @@ export const yaesuAscii = {
       'meter_power',
       'rf_power',
       'vfo_swap',
+      'power_off',
     ];
   },
 
@@ -113,6 +114,7 @@ export const yaesuAscii = {
       case 'getRFPower':    return 'PC;';
       case 'setRFPower':    return `PC${String(params).padStart(3, '0')};`;
       case 'swapVfo':       return 'SV;';  // Swap VFO A ↔ B
+      case 'powerOff':      return 'PS0;'; // Power off radio
       case 'getInfo':       return 'IF;';
       case 'getID':         return 'ID;';
       default:

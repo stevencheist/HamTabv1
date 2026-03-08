@@ -34,6 +34,10 @@ export function createRigStateStore() {
     // Safety
     txLocked: false,
     txLockReason: '',
+
+    // Menu responses — keyed by address string (e.g. "010416" for P1=01 P2=04 P3=16)
+    // Populated by EX command responses, used by digital setup to read/restore settings
+    menuResponses: {},
   };
 
   const subscribers = [];
@@ -117,6 +121,13 @@ export function createRigStateStore() {
           state.band = detectBand(event.value.frequency);
         }
         break;
+      case 'menu':
+        // Store latest menu response keyed by address (e.g. "010416")
+        if (event.value) {
+          const key = `${String(event.value.p1).padStart(2,'0')}${String(event.value.p2).padStart(2,'0')}${String(event.value.p3).padStart(2,'0')}`;
+          state.menuResponses[key] = event.value;
+        }
+        break;
       case 'error':
         // Log but don't crash
         break;
@@ -159,6 +170,7 @@ export function createRigStateStore() {
     state.band = null;
     state.txLocked = false;
     state.txLockReason = '';
+    state.menuResponses = {};
     notify();
   }
 

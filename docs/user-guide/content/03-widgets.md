@@ -679,3 +679,99 @@ Click the **✕** button in the widget header to clear all imported QSOs. This r
 <div class="tip">Your log never leaves your browser. ADIF files are parsed and stored entirely client-side using IndexedDB — nothing is uploaded to any server.</div>
 
 <div class="warning">Clearing the log is permanent. If you need the data again, re-import the ADIF file from your logging software.</div>
+
+## On-Air Rig Widget
+
+The On-Air Rig widget connects to your radio via USB serial (CAT control) or TCI network protocol for live frequency, mode, and meter display — plus direct radio control from your browser.
+
+### Supported Protocols
+
+| Protocol | Radios | Connection |
+|----------|--------|------------|
+| **Yaesu NewCAT** | FT-DX10, FT-991A, FT-710, FTDX101D, FT-891, FT-DX3000 | USB serial |
+| **Kenwood** | TS-590S/SG, TS-890S, TS-990S, TS-2000 | USB serial |
+| **Elecraft** | KX3, KX2, K3, K3S, K4, K4D | USB serial |
+| **Icom CI-V** | IC-7300, IC-7610, IC-9700, IC-705, IC-7100, IC-7851 | USB serial |
+| **TCI** | ExpertSDR2/3 (SunSDR2 DX, MB1, QRP) | Network (WebSocket) |
+
+### Connecting Your Radio
+
+1. Select your radio profile from the dropdown (or leave on "Use Radio Settings" if configured in Config > Radio)
+2. Click **Connect**
+3. Your browser will show a serial port picker — select the CAT/command port (most radios expose two USB ports: use the CAT port, not the audio port)
+4. HamTab begins polling frequency, mode, and meters automatically
+
+For **TCI radios** (ExpertSDR), configure the host and port in Config > Radio settings. No serial port picker is needed — TCI connects via WebSocket.
+
+**Auto-detect:** If your protocol is set to "Auto" in Radio settings, HamTab will probe the serial port to identify your radio model and fill settings automatically.
+
+### VFO A Display
+
+The large LCD-style display shows your current VFO A frequency in MHz.kHz.Hz format (e.g., 14.074.000). The display includes:
+
+- **Mode badge** — Current operating mode (USB, LSB, CW, DATA, AM, FM)
+- **Band badge** — Current amateur band (160m–6m)
+- **TX/RX indicator** — Green "RX" during receive, pulsing red "TX" during transmit. The entire LCD color scheme shifts to red during transmit for clear visual feedback
+- **Confidence ring** — During TX, a colored ring around the frequency indicates tune safety: green (good), amber (caution — near band edge), red (unsafe — outside band plan)
+
+### VFO B Display
+
+When your radio provides a secondary VFO frequency, a smaller VFO B row appears below the main display showing the VFO B frequency. This is polled automatically from radios that support dual VFOs.
+
+### VFO A↔B Swap
+
+A **⇅** button appears next to VFO B when the connected radio supports VFO swap. Click it to exchange VFO A and B frequencies on the radio. The display updates immediately as the radio reports the new frequencies.
+
+### S-Meter
+
+A horizontal LED bar-graph shows received signal strength from S1 to S9+40dB. The meter uses a green/amber gradient:
+- **Green** — S1 through S9
+- **Amber/red** — Above S9 (S9+10, S9+20, etc.)
+
+### RST Badge
+
+An estimated signal report badge (e.g., "RST 599") is shown during receive, derived from the S-meter reading. The badge hides during transmit.
+
+### SWR Display
+
+SWR is shown **only during transmit** to avoid erratic readings from stale meter data during RX. The display is color-coded:
+- **Green** — SWR below 1.5:1 (good match)
+- **Amber "CAUTION"** — SWR 1.5:1 to 3.0:1
+- **Red "DANGER"** — SWR above 3.0:1
+
+### TX Power
+
+During transmit, the actual output power reading is displayed (e.g., "87W"). During receive, the configured power setting is shown (e.g., "Set: 100W"). A power slider lets you adjust the radio's TX power level directly.
+
+### Band Quick-Tune
+
+Compact pill buttons for each HF band (160m through 6m). Click any band to tune to an appropriate frequency for your current mode:
+- **SSB** — Lands in the phone portion of the band (auto-selects correct sideband: LSB for 160/80/40m, USB for 20m and above)
+- **CW** — Tunes to the CW sub-band
+- **DATA** — Tunes to the FT8 dial frequency for that band
+
+A band/mode dropdown is also available for more precise control.
+
+### Band Plan Overlay
+
+A color-coded bar shows the CW, DATA, and PHONE zones for your current band with a needle indicator showing your exact position within the band.
+
+### Audio Scope
+
+When USB audio is enabled in Config > Radio, a real-time audio-frequency spectrum and waterfall display shows the 0–4 kHz audio passband from your radio. This visualizes decoded audio content (voice, CW tones, FT8 signals).
+
+### Power Off
+
+The **⏻** button appears when connected to a real radio that supports remote power-off. Click it to power off the radio via CAT command. A confirmation dialog prevents accidental presses. After sending the power-off command, HamTab automatically disconnects.
+
+<div class="warning">Power off sends the command immediately after confirmation. Make sure your radio's CAT power-off function is configured correctly — some radios require a specific setting to allow remote power control.</div>
+
+### KiwiSDR (Online RX)
+
+On LAN mode (HTTP), you can connect to a KiwiSDR online receiver for receive-only operation. Enter the KiwiSDR host address (e.g., `sdr.example.com:8073`) and click Connect. The widget displays frequency and signal data from the remote receiver with an "RX ONLY" badge. A mute button controls the SDR audio stream.
+
+<div class="tip">KiwiSDR connections require HTTP (not HTTPS) because KiwiSDR uses unencrypted WebSocket connections that browsers block from HTTPS pages.</div>
+
+### Demo Mode
+
+Select "Demo Mode" from the dropdown to explore the widget without a radio. Demo mode simulates rig data with propagation-based band changes — the simulated radio moves between bands based on real-time propagation conditions at your location.

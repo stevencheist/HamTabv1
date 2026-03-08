@@ -83,6 +83,11 @@ updateClocks();
 setInterval(() => { if (document.hidden) return; updateClocks(); updateBigClock(); updateAnalogClock(); }, 1000);
 setInterval(() => { if (document.hidden) return; updateSpotAges(); }, 30000); // 30 s — patch age cells in place (avoids full table rebuild)
 
+// --- Safe widget init — isolates crashes so one widget can't break the rest ---
+function safeInit(name, fn) {
+  try { fn(); } catch (err) { console.error(`[init] ${name} failed:`, err); }
+}
+
 // Set up all event listeners
 initSourceListeners();
 initFilterListeners();
@@ -114,8 +119,8 @@ initAnalogClock();
 initClockConfigListeners();
 initMobileMenu();
 initTabs();
-initOnAirRig(); // RADIO_HIDDEN — temporarily re-enabled for scope testing
-initLogbook();
+safeInit('on-air-rig', initOnAirRig); // RADIO_HIDDEN — temporarily re-enabled for scope testing
+safeInit('logbook', initLogbook);
 
 // --- New widget notification popup ---
 // Listeners registered once to prevent accumulation on repeated calls

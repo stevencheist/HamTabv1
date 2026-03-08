@@ -495,6 +495,14 @@ function render(state) {
     }
   }
 
+  // Power off button — show when connected to a real radio with power_off capability
+  const powerOffBtn = $('rigPowerOffBtn');
+  if (powerOffBtn) {
+    const hasPowerOff = state.connected && !state.demo && !state.rxOnly
+      && (state.capabilities || []).includes('power_off');
+    powerOffBtn.style.display = hasPowerOff ? '' : 'none';
+  }
+
   // SDR mute button — show only when KiwiSDR is connected
   const muteBtn = $('rigSdrMute');
   if (muteBtn) {
@@ -887,6 +895,20 @@ export function initOnAirRig() {
     if (vfoSwapBtn) {
       vfoSwapBtn.addEventListener('click', () => {
         if (isRigConnected()) sendRigCommand('swapVfo', null, 1);
+      });
+    }
+    // Power off button — sends powerOff command then disconnects
+    const powerOffBtn = $('rigPowerOffBtn');
+    if (powerOffBtn) {
+      powerOffBtn.addEventListener('click', async () => {
+        if (!isRigConnected()) return;
+        if (!confirm('Power off the radio?')) return;
+        sendRigCommand('powerOff', null, 1);
+        // Brief delay for command to reach radio, then disconnect CAT
+        setTimeout(async () => {
+          stopScope();
+          try { await disconnectRig(); } catch (_) { /* ignore */ }
+        }, 500); // 500ms — enough for serial/TCI round-trip
       });
     }
     listenersAttached = true;

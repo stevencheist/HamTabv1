@@ -1170,7 +1170,10 @@
               <span class="rig-tx-state" id="rigTxState">RX</span>
             </div>
             <div class="rig-confidence" id="rigConfidence">
-              <div class="rig-frequency" id="rigFrequency">-.---.---</div>
+              <div class="rig-frequency" id="rigFrequency" title="Click to enter frequency">-.---.---</div>
+              <input type="text" class="rig-freq-input" id="rigFreqInput" style="display:none"
+                     placeholder="14.074.000" spellcheck="false" autocomplete="off"
+                     inputmode="decimal" maxlength="12">
               <span class="rig-freq-unit">MHz</span>
             </div>
             <div class="rig-vfob-row" id="rigVfoBRow" style="display:none">
@@ -1207,7 +1210,7 @@
           </div>
           <!-- Band plan overlay -->
           <div class="rig-band-overlay" id="rigBandOverlay"></div>
-          <!-- Band + Mode selectors (WIP — needs live radio testing)
+          <!-- Band + Mode selectors — shown when connected -->
           <div class="rig-band-mode-row hidden" id="rigBandModeRow">
             <select id="rigBandSelect" class="rig-band-select">
               <option value="">Band</option>
@@ -1216,7 +1219,6 @@
               <option value="">Mode</option>
             </select>
           </div>
-          -->
           <!-- Digital Setup Assistant — shown when connected to a real radio -->
           <div class="rig-digital-section" id="rigDigitalSection" style="display:none">
             <div class="rig-digital-header">

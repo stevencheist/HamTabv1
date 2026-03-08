@@ -55,6 +55,8 @@ export class WebSerialTransport {
   // --- Connect ---
   // Opens the browser serial port picker, then opens with configured params.
   // Asserts DTR after open. Falls back to no flow control if HW not supported.
+  // If the port is already open (reused from smart-detect), skips open and
+  // just adopts the port reference.
   async connect(existingPort) {
     if (!WebSerialTransport.isSupported()) {
       throw new Error('Web Serial API not supported in this browser');
@@ -65,6 +67,13 @@ export class WebSerialTransport {
 
       // Use existing port or prompt user to pick one
       this.port = existingPort || await navigator.serial.requestPort();
+
+      // If port is already open (reused transport from smart-detect), skip open
+      if (this.port.readable && this.port.writable) {
+        console.debug('[cat] Port already open — reusing connection');
+        this._setState(ConnectionState.CONNECTED);
+        return true;
+      }
 
       // Try with configured flow control
       this._hwFlowControl = false;

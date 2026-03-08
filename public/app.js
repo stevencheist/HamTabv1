@@ -1375,6 +1375,8 @@
         // --- Connect ---
         // Opens the browser serial port picker, then opens with configured params.
         // Asserts DTR after open. Falls back to no flow control if HW not supported.
+        // If the port is already open (reused from smart-detect), skips open and
+        // just adopts the port reference.
         async connect(existingPort) {
           if (!_WebSerialTransport.isSupported()) {
             throw new Error("Web Serial API not supported in this browser");
@@ -1382,6 +1384,11 @@
           try {
             this._setState(ConnectionState.CONNECTING);
             this.port = existingPort || await navigator.serial.requestPort();
+            if (this.port.readable && this.port.writable) {
+              console.debug("[cat] Port already open \u2014 reusing connection");
+              this._setState(ConnectionState.CONNECTED);
+              return true;
+            }
             this._hwFlowControl = false;
             try {
               await this.port.open(this.config);
@@ -4748,9 +4755,9 @@
         onProgress({ step: i + 1, total, trying: probe.name });
       }
       try {
-        const result = await runProbe(port, probe);
+        const { result, transport } = await runProbe(port, probe);
         if (result) {
-          return result;
+          return { ...result, transport };
         }
       } catch (err2) {
         console.debug(`[smart-detect] ${probe.name} failed:`, err2.message);
@@ -4784,8 +4791,11 @@
       }
       const result = probe.parse(response);
       console.debug(`[smart-detect] ${probe.name} \u2192 parse result:`, result);
+      if (result) {
+        return { result, transport };
+      }
       await transport.disconnect();
-      return result;
+      return { result: null, transport: null };
     } catch (err2) {
       try {
         await transport.disconnect();
@@ -5175,12 +5185,14 @@
     let resolvedProfileId = config.profileId;
     let resolvedProtocol = config.protocol || config.protocolFamily;
     let resolvedSerialConfig = config.serialConfig;
+    let detectedTransport = null;
     if (config.autoDetect && config.existingPort && !isDemo) {
       const detected = await smartDetect(config.existingPort, config.onDetectProgress);
       if (detected) {
         resolvedProfileId = detected.profileId;
         resolvedProtocol = detected.protocol;
         resolvedSerialConfig = detected.serialConfig;
+        detectedTransport = detected.transport || null;
       } else {
         return false;
       }
@@ -5224,6 +5236,8 @@
         host: config.tciHost || "localhost",
         port: config.tciPort || 50001
       });
+    } else if (detectedTransport) {
+      transport = detectedTransport;
     } else {
       const serialConfig = buildSerialConfig();
       transport = new WebSerialTransport(serialConfig);
@@ -21117,8 +21131,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.63.0";
-    $("aboutVersion").textContent = "0.63.0";
+    $("splashVersion").textContent = "0.63.1";
+    $("aboutVersion").textContent = "0.63.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

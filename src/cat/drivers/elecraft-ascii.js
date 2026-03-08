@@ -94,6 +94,7 @@ export const elecraftAscii = {
       'meter_signal',
       'meter_swr',
       'rf_power',
+      'vfo_swap',
     ];
   },
 
@@ -116,6 +117,7 @@ export const elecraftAscii = {
       case 'getSWR':        return 'SW;';   // Elecraft SWR command
       case 'getRFPower':    return 'PC;';
       case 'setRFPower':    return `PC${String(params).padStart(3, '0')};`;
+      case 'swapVfo':       return 'SWT11;';  // Elecraft: switch VFO A ↔ B
       case 'getBandwidth':  return 'BW;';
       case 'getID':         return 'OM;';   // Option module as ID proxy
       default:

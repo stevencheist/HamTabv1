@@ -148,7 +148,12 @@ app.get('/api', (req, res) => res.redirect('/api/docs'));
 app.get('/api/spots', async (req, res) => {
   try {
     const data = await fetchJSON('https://api.pota.app/spot/activator');
-    res.json(data);
+    // Normalize frequency from kHz (POTA API) to MHz (consistent with all other sources)
+    const spots = (Array.isArray(data) ? data : []).map(s => ({
+      ...s,
+      frequency: s.frequency ? (parseFloat(s.frequency) / 1000).toFixed(3) : '',
+    }));
+    res.json(spots);
   } catch (err) {
     console.error('Error fetching spots:', err.message);
     res.status(502).json({ error: 'Failed to fetch POTA spots' });

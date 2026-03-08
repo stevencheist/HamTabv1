@@ -283,10 +283,16 @@ function render(state) {
   // VFO B — show only when radio provides a secondary frequency
   const vfoBRow = $('rigVfoBRow');
   const freqBEl = $('rigFrequencyB');
+  const swapBtn = $('rigVfoSwapBtn');
   if (vfoBRow && freqBEl) {
     if (state.frequencyB > 0) {
       freqBEl.textContent = formatFrequency(state.frequencyB);
       vfoBRow.style.display = '';
+      // Show swap button only if radio supports VFO swap
+      if (swapBtn) {
+        const hasSwap = (state.capabilities || []).includes('vfo_swap');
+        swapBtn.style.display = hasSwap ? '' : 'none';
+      }
     } else {
       vfoBRow.style.display = 'none';
     }
@@ -874,6 +880,13 @@ export function initOnAirRig() {
         if (isRigConnected()) {
           sendRigCommand('setRFPower', val, 1);
         }
+      });
+    }
+    // VFO A ↔ B swap button
+    const vfoSwapBtn = $('rigVfoSwapBtn');
+    if (vfoSwapBtn) {
+      vfoSwapBtn.addEventListener('click', () => {
+        if (isRigConnected()) sendRigCommand('swapVfo', null, 1);
       });
     }
     listenersAttached = true;

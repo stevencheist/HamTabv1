@@ -1502,8 +1502,13 @@
                     await this.port.close();
                   } catch {
                   }
+                  await new Promise((r) => setTimeout(r, 500));
                   await this.port.open(this.config);
-                  await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+                  if (this._hwFlowControl) {
+                    await this.port.setSignals({ dataTerminalReady: true });
+                  } else {
+                    await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+                  }
                   this._startReadLoop();
                 }
               }
@@ -4866,16 +4871,18 @@
     const total = PROBES.length;
     for (let i = 0; i < PROBES.length; i++) {
       const probe = PROBES[i];
+      console.warn(`[smart-detect] Probe ${i + 1}/${total}: ${probe.name}`);
       if (onProgress) {
         onProgress({ step: i + 1, total, trying: probe.name });
       }
       try {
         const { result, transport } = await runProbe(port, probe);
         if (result) {
+          console.warn(`[smart-detect] SUCCESS: ${probe.name} \u2192`, result.profileId);
           return { ...result, transport };
         }
       } catch (err2) {
-        console.debug(`[smart-detect] ${probe.name} failed:`, err2.message);
+        console.warn(`[smart-detect] ${probe.name} failed:`, err2.message);
       }
       await new Promise((r) => setTimeout(r, 300));
     }

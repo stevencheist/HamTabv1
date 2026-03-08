@@ -20992,7 +20992,7 @@ ${beacon.location}`);
   }
   function snapshotRigState() {
     const store = getRigStore();
-    const s = store.getState();
+    const s = store.get();
     return {
       frequency: s.frequency,
       mode: s.mode,
@@ -21009,7 +21009,7 @@ ${beacon.location}`);
     }
     sendRigCommand("setMode", "DATA-U", 1);
     const store = getRigStore();
-    const caps = store.getState().capabilities || [];
+    const caps = store.get().capabilities || [];
     if (caps.includes("rf_power") && power > 0) {
       sendRigCommand("setRFPower", power, 1);
     }
@@ -21024,7 +21024,7 @@ ${beacon.location}`);
       sendRigCommand("setMode", snapshot.mode, 1);
     }
     const store = getRigStore();
-    const caps = store.getState().capabilities || [];
+    const caps = store.get().capabilities || [];
     if (caps.includes("rf_power") && snapshot.rfPower > 0) {
       sendRigCommand("setRFPower", snapshot.rfPower, 1);
     }
@@ -21084,7 +21084,7 @@ ${beacon.location}`);
     }
     if (state_default.digitalSetupEnabled && isRigConnected()) {
       const store = getRigStore();
-      const caps = store.getState().capabilities || [];
+      const caps = store.get().capabilities || [];
       if (caps.includes("rf_power")) {
         sendRigCommand("setRFPower", watts, 1);
       }
@@ -21136,7 +21136,7 @@ ${beacon.location}`);
     if (!section) return;
     const connected = isRigConnected();
     const store = getRigStore();
-    const s = store.getState();
+    const s = store.get();
     const isRealRadio = connected && !s.demo && !s.rxOnly;
     section.style.display = isRealRadio ? "" : "none";
     if (!connected && state_default.digitalSetupEnabled) {
@@ -21666,8 +21666,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.66.1";
-    $("aboutVersion").textContent = "0.66.1";
+    $("splashVersion").textContent = "0.66.2";
+    $("aboutVersion").textContent = "0.66.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

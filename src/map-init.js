@@ -66,7 +66,20 @@ export function initMap() {
     state.map.getPane('mapOverlays').style.zIndex = 350;
     state.map.getPane('mapOverlays').style.pointerEvents = 'none';
 
-    state.map.on('zoomend', () => {
+    // --- Unified map view-change handler ---
+    // Leaflet fires both zoomend and moveend on zoom, causing duplicate renders.
+    // Debounce into a single handler and skip no-op redraws via view-state memoization.
+    let lastViewKey = '';
+    let viewChangeTimer = null;
+
+    function onMapViewChange() {
+      // Memoize: skip if zoom bucket + rounded bounds haven't changed
+      const z = state.map.getZoom();
+      const b = state.map.getBounds();
+      const key = `${z}|${Math.round(b.getSouth())}|${Math.round(b.getWest())}|${Math.round(b.getNorth())}|${Math.round(b.getEast())}`;
+      if (key === lastViewKey) return;
+      lastViewKey = key;
+
       if (state.mapOverlays.latLonGrid) {
         const { renderLatLonGrid } = require('./map-overlays.js');
         renderLatLonGrid();
@@ -91,33 +104,15 @@ export function initMap() {
         const { renderWsprHeatmapCanvas } = require('./wspr-heatmap.js');
         state.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas(state.wsprHeatmapBand), 200);
       }
-    });
-    state.map.on('moveend', () => {
-      if (state.mapOverlays.latLonGrid) {
-        const { renderLatLonGrid } = require('./map-overlays.js');
-        renderLatLonGrid();
-      }
-      if (state.mapOverlays.maidenheadGrid) {
-        clearTimeout(state.maidenheadDebounceTimer);
-        const { renderMaidenheadGrid } = require('./map-overlays.js');
-        state.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid, 150);
-      }
-      if (state.mapOverlays.tropicsLines) renderTropicsLines();
-      if (state.hfPropOverlayBand && state.heatmapOverlayMode === 'heatmap') {
-        clearTimeout(state.heatmapRenderTimer);
-        const { renderHeatmapCanvas } = require('./rel-heatmap.js');
-        state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.hfPropOverlayBand), 200);
-      } else if (state.mapOverlays.propagationHeatmap) {
-        clearTimeout(state.heatmapRenderTimer);
-        const { renderHeatmapCanvas } = require('./rel-heatmap.js');
-        state.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas(state.propagationHeatmapBand), 200);
-      }
-      if (state.mapOverlays.wsprHeatmap) {
-        clearTimeout(state.wsprHeatmapRenderTimer);
-        const { renderWsprHeatmapCanvas } = require('./wspr-heatmap.js');
-        state.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas(state.wsprHeatmapBand), 200);
-      }
-    });
+    }
+
+    function debouncedViewChange() {
+      clearTimeout(viewChangeTimer);
+      viewChangeTimer = setTimeout(onMapViewChange, 80); // 80ms — collapses zoom+move into one call
+    }
+
+    state.map.on('zoomend', debouncedViewChange);
+    state.map.on('moveend', debouncedViewChange);
 
     // Recalculate map size after device orientation change (mobile/tablet rotate)
     window.addEventListener('orientationchange', () => {

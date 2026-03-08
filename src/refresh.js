@@ -11,6 +11,7 @@ import { fetchSpaceWxData } from './spacewx-graphs.js';
 import { fetchDxpeditions } from './dxpeditions.js';
 import { fetchContests } from './contests.js';
 import { isWidgetVisible } from './widgets.js';
+import { isLeaderTab } from './cross-tab.js';
 
 export async function fetchSourceData(source) {
   const def = SOURCE_DEFS[source];
@@ -94,7 +95,13 @@ export function startAutoRefresh() {
     if (document.hidden) return; // skip countdown ticks while hidden
     state.countdownSeconds--;
     if (state.countdownSeconds <= 0) {
-      refreshAll();
+      // Follower tabs skip auto-refresh — leader/solo tabs fetch for everyone.
+      // Followers still show countdown and catch up on manual refresh or tab focus.
+      if (isLeaderTab()) {
+        refreshAll();
+      } else {
+        resetCountdown(); // restart countdown without fetching
+      }
     }
     updateCountdownDisplay();
   }, 1000);

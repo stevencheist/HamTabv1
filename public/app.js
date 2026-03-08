@@ -23160,7 +23160,7 @@ ${beacon.location}`);
   init_utils();
   async function checkUpdateStatus() {
     const el2 = $("platformLabel");
-    if (el2 && !el2.textContent) el2.textContent = "v0.63.1";
+    if (el2 && !el2.textContent) el2.textContent = "v0.64.0";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;

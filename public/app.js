@@ -10626,12 +10626,14 @@
         },
         "widget-on-air-rig": {
           title: "On-Air Rig",
-          description: "Live rig control panel that connects to your radio via WebSerial (CAT). Displays frequency, mode, TX/RX state, S-meter, SWR, and power. Includes an audio-frequency spectrum scope when USB audio is enabled.",
+          description: "Live rig control panel that connects to your radio via WebSerial (CAT) or TCI network protocol. Displays VFO A/B frequencies, mode, TX/RX state, S-meter, SWR, and power. Swap VFOs and power off the radio directly. Supports Yaesu, Kenwood, Elecraft, Icom, and TCI protocols with auto-detection.",
           sections: [
-            { heading: "Connecting Your Radio", content: "Click Connect and select the serial port for your radio. HamTab uses CAT commands (Yaesu NewCAT, Icom CI-V) to read and control the radio. The radio must be connected via USB with CAT enabled in its menu. Most Yaesu and Icom radios expose two COM ports \u2014 use the CAT/command port, not the audio port." },
-            { heading: "Frequency & Mode", content: "The large LCD-style display shows your current VFO frequency and operating mode (USB, LSB, CW, FT8, etc.). The frequency updates in real time as you tune the radio. Click the frequency to type a new value directly." },
+            { heading: "Connecting Your Radio", content: "Click Connect and select the serial port for your radio. HamTab supports Yaesu NewCAT, Kenwood, Elecraft, Icom CI-V, and ExpertSDR TCI protocols. The radio must be connected via USB with CAT enabled in its menu. Most radios expose two COM ports \u2014 use the CAT/command port, not the audio port. For TCI (ExpertSDR), configure the host and port in Config > Radio \u2014 no serial port needed." },
+            { heading: "VFO A & VFO B", content: "The large LCD display shows your VFO A frequency. When your radio provides a secondary VFO, a smaller VFO B row appears below showing the VFO B frequency. Both frequencies update in real time as you tune." },
+            { heading: "VFO Swap", content: "When connected to a radio that supports VFO swap, a \u21C5 button appears next to VFO B. Click it to exchange VFO A and B frequencies on the radio." },
             { heading: "S-Meter", content: "The LED bar-graph shows received signal strength from S1 to S9+40dB. Green bars indicate S1\u2013S9, amber indicates over S9. The meter polls the radio 5 times per second for smooth response. The RST badge shows a rough signal report based on the current reading." },
-            { heading: "SWR & Power", content: `SWR and transmit power are only displayed during TX \u2014 they show "---" when receiving. SWR below 1.5 is good (green), 1.5\u20133.0 is caution (amber), above 3.0 is danger (red). These readings come directly from the radio's built-in metering.` },
+            { heading: "SWR & Power", content: "SWR is displayed only during TX to avoid erratic readings during receive. SWR below 1.5 is good (green), 1.5\u20133.0 is caution (amber), above 3.0 is danger (red). TX power shows actual output wattage during transmit. A power slider lets you adjust the radio's TX power level." },
+            { heading: "Power Off", content: "The \u23FB button appears when connected to a real radio. Click it to remotely power off the radio via CAT command. A confirmation dialog prevents accidental presses. HamTab disconnects automatically after powering off." },
             { heading: "Audio Scope (AF FFT)", content: "When enabled in Config, the scope captures USB audio from your radio and displays a real-time audio-frequency spectrum and waterfall. This shows what's in the radio's audio passband (0\u20134 kHz) \u2014 it is NOT an RF panadapter. You'll see voice, CW tones, FT8 signals, and noise within whatever bandwidth your radio is demodulating. Requires browser microphone permission and a USB audio connection to the radio." },
             { heading: "Demo Mode", content: "If no radio is connected, you can enable Demo Mode in Config to see simulated rig data. This is useful for exploring the widget layout and testing the UI without a radio." }
           ]
@@ -21205,8 +21207,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.63.3";
-    $("aboutVersion").textContent = "0.63.3";
+    $("splashVersion").textContent = "0.63.4";
+    $("aboutVersion").textContent = "0.63.4";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

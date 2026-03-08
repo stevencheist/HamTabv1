@@ -14282,6 +14282,7 @@ ${beacon.location}`);
     localStorage.setItem("hamtab_auto_refresh", "true");
     resetCountdown();
     state_default.countdownTimer = setInterval(() => {
+      if (document.hidden) return;
       state_default.countdownSeconds--;
       if (state_default.countdownSeconds <= 0) {
         refreshAll();
@@ -21275,8 +21276,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.63.7";
-    $("aboutVersion").textContent = "0.63.7";
+    $("splashVersion").textContent = "0.64.0";
+    $("aboutVersion").textContent = "0.64.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -24923,23 +24924,30 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   updateGrayLine();
   updateSunMarker();
   setInterval(() => {
+    if (document.hidden) return;
     updateGrayLine();
     updateSunMarker();
   }, 6e4);
   initSatellites();
   setInterval(() => {
-    if (isWidgetVisible("widget-satellites")) fetchIssPosition();
+    if (document.hidden || !isWidgetVisible("widget-satellites")) return;
+    fetchIssPosition();
   }, 1e4);
   setInterval(() => {
-    if (isWidgetVisible("widget-satellites")) fetchSatellitePositions();
+    if (document.hidden || !isWidgetVisible("widget-satellites")) return;
+    fetchSatellitePositions();
   }, 1e4);
   updateClocks();
   setInterval(() => {
+    if (document.hidden) return;
     updateClocks();
     updateBigClock();
     updateAnalogClock();
   }, 1e3);
-  setInterval(updateSpotAges, 3e4);
+  setInterval(() => {
+    if (document.hidden) return;
+    updateSpotAges();
+  }, 3e4);
   initSourceListeners();
   initFilterListeners();
   initTooltipListeners();
@@ -24971,6 +24979,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initTabs();
   initOnAirRig();
   initLogbook();
+  var newWidgetPopupListenersAttached = false;
   function showNewWidgetPopup(widgetNames) {
     const popup = $("newWidgetPopup");
     const list = $("newWidgetList");
@@ -24982,18 +24991,21 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       list.appendChild(li);
     });
     openModal(popup, { focusEl: $("newWidgetDismiss") });
-    $("newWidgetDismiss").addEventListener("click", () => {
-      closeModal(popup);
-    });
-    popup.addEventListener("click", (e) => {
-      if (e.target === popup) closeModal(popup);
-    });
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && !popup.classList.contains("hidden")) {
-        if (!state_default.a11yEscapeClose) return;
+    if (!newWidgetPopupListenersAttached) {
+      newWidgetPopupListenersAttached = true;
+      $("newWidgetDismiss").addEventListener("click", () => {
         closeModal(popup);
-      }
-    });
+      });
+      popup.addEventListener("click", (e) => {
+        if (e.target === popup) closeModal(popup);
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && !popup.classList.contains("hidden")) {
+          if (!state_default.a11yEscapeClose) return;
+          closeModal(popup);
+        }
+      });
+    }
   }
   function initApp() {
     if (state_default.appInitialized) return;
@@ -25016,17 +25028,32 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
   }
   setInterval(() => {
-    if (isWidgetVisible("widget-live-spots")) fetchLiveSpots();
+    if (document.hidden || !isWidgetVisible("widget-live-spots")) return;
+    fetchLiveSpots();
   }, 5 * 60 * 1e3);
   setInterval(() => {
+    if (document.hidden) return;
     if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) renderVoacapMatrix();
   }, 60 * 1e3);
   setInterval(() => {
+    if (document.hidden) return;
     if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) fetchVoacapMatrixThrottled();
   }, 60 * 1e3);
   setInterval(() => {
-    if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
+    if (document.hidden || !isWidgetVisible("widget-beacons")) return;
+    updateBeaconMarkers();
   }, 1e4);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden || !state_default.appInitialized) return;
+    updateClocks();
+    updateBigClock();
+    updateAnalogClock();
+    updateSpotAges();
+    updateGrayLine();
+    updateSunMarker();
+    if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
+    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) renderVoacapMatrix();
+  });
   setInitApp(initApp);
   initWidgets();
   initLayoutDropdown();

@@ -148,7 +148,7 @@ function onBandButtonClick(bandId) {
 
   // Get current mode from rig state, default to USB
   const store = getRigStore();
-  const rigState = store.getState();
+  const rigState = store.get();
   let userMode = catModeToUserLabel(rigState.mode) || 'USB';
 
   // Auto-correct SSB sideband for target band
@@ -302,6 +302,7 @@ function render(state) {
   // Frequency display with confidence ring — diff: only update if changed
   const freqText = formatFrequency(state.frequency);
   if (freqText !== prev.freqText) {
+    console.warn('[rig-ui] freq update:', state.frequency, '→', freqText, 'dom.freq=', !!dom.freq);
     dom.freq.textContent = freqText;
     prev.freqText = freqText;
   }

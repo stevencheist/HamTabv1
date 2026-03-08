@@ -3816,6 +3816,7 @@
       for (const part of parts) {
         const event = driver.parse(part + terminator);
         if (event) {
+          console.warn("[cat] PARSED \u2192", event.type, event.value);
           store.applyEvent(event);
         }
       }
@@ -20280,7 +20281,7 @@ ${beacon.location}`);
   function onBandButtonClick(bandId) {
     if (!isRigConnected()) return;
     const store = getRigStore();
-    const rigState = store.getState();
+    const rigState = store.get();
     let userMode = catModeToUserLabel(rigState.mode) || "USB";
     if (userMode === "LSB" || userMode === "USB") {
       const correct = BAND_SIDEBAND[bandId];
@@ -20399,6 +20400,7 @@ ${beacon.location}`);
     if (!dom.freq) return;
     const freqText = formatFrequency(state2.frequency);
     if (freqText !== prev.freqText) {
+      console.warn("[rig-ui] freq update:", state2.frequency, "\u2192", freqText, "dom.freq=", !!dom.freq);
       dom.freq.textContent = freqText;
       prev.freqText = freqText;
     }

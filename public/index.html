@@ -1173,6 +1173,12 @@
               <div class="rig-frequency" id="rigFrequency">-.---.---</div>
               <span class="rig-freq-unit">MHz</span>
             </div>
+            <div class="rig-vfob-row" id="rigVfoBRow" style="display:none">
+              <button class="rig-vfo-swap-btn" id="rigVfoSwapBtn" title="Swap VFO A ↔ B" style="display:none">⇅</button>
+              <span class="rig-vfo-label">VFO B</span>
+              <span class="rig-frequency-b" id="rigFrequencyB">-.---.---</span>
+              <span class="rig-freq-unit">MHz</span>
+            </div>
             <div class="rig-info-row">
               <span class="rig-band" id="rigBand"></span>
               <span class="rig-mode" id="rigMode">---</span>
@@ -1230,6 +1236,7 @@
             </select>
             <button id="rigConnectBtn" class="rig-connect-btn">Connect</button>
             <button id="rigSdrMute" class="rig-sdr-mute-btn" style="display:none" title="Mute/Unmute SDR audio">&#x1F50A;</button>
+            <button id="rigPowerOffBtn" class="rig-power-off-btn" style="display:none" title="Power off radio">&#x23FB;</button>
           </div>
           <div class="rig-status" id="rigStatus"></div>
         </div>

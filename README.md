@@ -36,7 +36,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **NCDXF Beacons** — Real-time NCDXF/IARU International Beacon Project display — 18 synchronized worldwide beacons on 5 HF frequencies with 3-minute cycle countdown timer
 
 ### Rig Control
-- **On-Air Rig** — Live rig control panel that connects to your radio via WebSerial (CAT). Displays frequency, mode, TX/RX state, S-meter, SWR, and power with a realistic LCD-style interface. Supports Yaesu NewCAT and Icom CI-V protocols with auto-detection
+- **On-Air Rig** — Live rig control panel that connects to your radio via WebSerial (CAT) or TCI network protocol. Displays VFO A/B frequencies, mode, TX/RX state, S-meter, SWR, and power with a realistic LCD-style interface. Swap VFOs and power off the radio directly from the widget. Supports Yaesu NewCAT, Kenwood, Elecraft, Icom CI-V, and TCI protocols with auto-detection
 - **Band Quick-Tune** — Compact pill buttons for all HF bands (160m–6m). Click any band to tune to the appropriate frequency for your current mode — SSB lands in the phone zone, CW in the CW zone, DATA on the FT8 frequency
 - **Audio Scope** — Real-time audio-frequency spectrum and waterfall from your radio's USB audio, showing decoded audio content (voice, CW tones, FT8 signals) in the 0–4 kHz passband
 - **Demo Mode** — Simulated rig data with propagation-based band changes for exploring the widget without a radio
@@ -761,23 +761,26 @@ Rules are independent per source tab and persist across sessions. Precedence: On
 
 ### On-Air Rig
 
-Live rig control panel for HF radios connected via USB serial (CAT control). Supports Yaesu NewCAT and Icom CI-V protocols.
+Live rig control panel for HF radios connected via USB serial (CAT control) or TCI network protocol. Supports Yaesu NewCAT, Kenwood, Elecraft, Icom CI-V, and ExpertSDR TCI protocols.
 
 | Feature | Description |
 |---------|-------------|
-| **Frequency display** | Large LCD-style readout showing VFO frequency in MHz.kHz.Hz format |
+| **Frequency display** | Large LCD-style readout showing VFO A frequency in MHz.kHz.Hz format |
+| **VFO B display** | Secondary VFO frequency shown when the radio provides it. Auto-polled from supported radios |
+| **VFO A↔B swap** | ⇅ button to swap VFO A and B on the radio. Visible only when the radio supports VFO swap |
 | **Mode & band badges** | Current operating mode (USB, LSB, CW, DATA, AM, FM) and band (160m–6m) shown as colored badges |
 | **TX/RX indicator** | Green RX / pulsing red TX indicator. LCD color scheme shifts to red during transmit |
 | **Band quick-tune** | Pill buttons for each HF band. Click to tune to the calling frequency for your current mode — SSB lands in the phone zone, CW in the CW sub-band, DATA on the FT8 dial frequency |
 | **S-meter** | LED bar-graph from S1 to S9+40dB with green/amber/red gradient |
-| **SWR & power** | Displayed during TX only. SWR color-coded: green (<1.5), amber (1.5–3.0), red (>3.0) |
+| **SWR & power** | SWR displayed during TX only (suppresses noise during RX). SWR color-coded: green (<1.5), amber (1.5–3.0), red (>3.0) |
 | **RST badge** | Estimated signal report based on S-meter reading |
 | **Audio scope** | AF spectrum and waterfall from USB audio (enable in Config). Shows 0–4 kHz audio passband |
 | **Band plan overlay** | Color-coded CW/DATA/PHONE zone bar with tuning needle showing your position in the band |
+| **Power off** | ⏻ button to remotely power off the radio via CAT command. Requires confirmation. Auto-disconnects after sending |
 | **Auto-detect** | Config button probes the serial port to identify your radio model and fill settings automatically |
 | **Demo mode** | Simulated rig with propagation-based band changes for exploring the UI without a radio |
 
-**Connecting:** Click Connect, select your radio's CAT/command serial port, and HamTab will begin polling frequency, mode, and meters. Most radios expose two USB ports — use the CAT port, not the audio port.
+**Connecting:** Click Connect, select your radio's CAT/command serial port, and HamTab will begin polling frequency, mode, and meters. Most radios expose two USB ports — use the CAT port, not the audio port. For TCI-enabled radios (ExpertSDR), configure the host and port in Radio settings — no serial port needed.
 
 ### Reference
 

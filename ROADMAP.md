@@ -24,14 +24,12 @@ A high-level overview of where HamTab is headed. For feature requests or feedbac
 - DRAP storm overlay (auto-triggers on Kp >= 5)
 - In-app feedback system
 - Two deployment modes: self-hosted (lanmode) and cloud (hamtab.net)
+- ADIF logbook with drag-and-drop import, sortable/filterable table, map markers with geodesic paths
+- On-Air Rig: live CAT control via WebSerial (Yaesu NewCAT, Kenwood, Elecraft, Icom CI-V) and TCI network protocol with auto-detection, VFO A/B display, VFO swap, S-meter, SWR (TX only), RF power control, band quick-tune, band plan overlay, audio scope (AF FFT), remote power off, KiwiSDR online RX, and demo mode
+- WWFF (World Wide Flora & Fauna) spot source
+- WSPR propagation data via wspr.live API
 
 ## Next Up
-
-### ADIF Log Integration (In Progress)
-Import and view contact logs from any logging software. Sortable table with band/mode/date filters, QSO markers on the map, and drag-and-drop file import. Client-side only — your log stays in your browser.
-
-### WSPR Propagation Data
-Real-time WSPR beacon reception reports via wspr.live API. Automated propagation measurement — see which bands are actually open right now, not just what VOACAP predicts. Works in both deployment modes (HTTP polling).
 
 ### DX Cluster Live TCP + RBN
 Replace HTTP polling with a direct telnet connection to DX cluster nodes for real-time spot flow. Same architecture extends to Reverse Beacon Network (automated CW/digital skimmer spots). Lanmode first, hostedmode with HTTP fallback.
@@ -63,7 +61,6 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - CQ/ITU zone overlays
 
 ### Hardware Integration
-- CAT rig control via WebSerial (Yaesu, Icom, Kenwood, Elecraft)
 - Click-to-tune from spot table
 - Panadapter / spectrum scope for connected rigs (IC-7300, FT-DX10)
 - hamlib/flrig rig control (lanmode)
@@ -89,6 +86,9 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 ### Platform & Architecture
 - Decompose monolithic `server.js` into domain routers (`routes/spots.js`, `routes/weather.js`, `routes/solar.js`, etc.) and shared services (`services/cache-store.js`, `services/http-fetch.js`)
 - Version and migrate client state schema — `stateSchemaVersion` with declarative migration registry, validation layer, per-subsystem safe reset
+
+### CI/CD
+- Auto-retry for transient Cloudflare deploy failures — add step-level retry logic (2-3 attempts with backoff) to the wrangler deploy step in `deploy.yml` to handle 504 Gateway Timeouts without manual re-run
 
 ### Security Hardening
 - Harden config/admin endpoints — require `CONFIG_ADMIN_TOKEN` for write operations (no IP-only fallback), add request audit log with value redaction, anti-CSRF tokens, endpoint-level strict rate limits

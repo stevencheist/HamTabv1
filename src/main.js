@@ -71,17 +71,17 @@ initMap();
 // Initialize gray line + sun marker
 updateGrayLine();
 updateSunMarker();
-setInterval(() => { updateGrayLine(); updateSunMarker(); }, 60000); // 60 s — gray line + sun marker refresh
+setInterval(() => { if (document.hidden) return; updateGrayLine(); updateSunMarker(); }, 60000); // 60 s — gray line + sun marker refresh
 
 // Satellite tracking (multi-satellite via N2YO)
 initSatellites();
-setInterval(() => { if (isWidgetVisible('widget-satellites')) fetchIssPosition(); }, 10000); // 10 s — ISS position refresh (free, no API key)
-setInterval(() => { if (isWidgetVisible('widget-satellites')) fetchSatellitePositions(); }, 10000); // 10 s — other satellite position refresh (N2YO)
+setInterval(() => { if (document.hidden || !isWidgetVisible('widget-satellites')) return; fetchIssPosition(); }, 10000); // 10 s — ISS position refresh (free, no API key)
+setInterval(() => { if (document.hidden || !isWidgetVisible('widget-satellites')) return; fetchSatellitePositions(); }, 10000); // 10 s — other satellite position refresh (N2YO)
 
-// Clocks
+// Clocks — purely visual, skip entirely when hidden
 updateClocks();
-setInterval(() => { updateClocks(); updateBigClock(); updateAnalogClock(); }, 1000);
-setInterval(updateSpotAges, 30000); // 30 s — patch age cells in place (avoids full table rebuild)
+setInterval(() => { if (document.hidden) return; updateClocks(); updateBigClock(); updateAnalogClock(); }, 1000);
+setInterval(() => { if (document.hidden) return; updateSpotAges(); }, 30000); // 30 s — patch age cells in place (avoids full table rebuild)
 
 // Set up all event listeners
 initSourceListeners();
@@ -118,6 +118,8 @@ initOnAirRig(); // RADIO_HIDDEN — temporarily re-enabled for scope testing
 initLogbook();
 
 // --- New widget notification popup ---
+// Listeners registered once to prevent accumulation on repeated calls
+let newWidgetPopupListenersAttached = false;
 function showNewWidgetPopup(widgetNames) {
   const popup = $('newWidgetPopup');
   const list = $('newWidgetList');
@@ -129,20 +131,21 @@ function showNewWidgetPopup(widgetNames) {
     list.appendChild(li);
   });
   openModal(popup, { focusEl: $('newWidgetDismiss') });
-  $('newWidgetDismiss').addEventListener('click', () => {
-    closeModal(popup);
-  });
-  // Also dismiss on overlay click
-  popup.addEventListener('click', (e) => {
-    if (e.target === popup) closeModal(popup);
-  });
-  // Escape to close
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !popup.classList.contains('hidden')) {
-      if (!state.a11yEscapeClose) return;
+  if (!newWidgetPopupListenersAttached) {
+    newWidgetPopupListenersAttached = true;
+    $('newWidgetDismiss').addEventListener('click', () => {
       closeModal(popup);
-    }
-  });
+    });
+    popup.addEventListener('click', (e) => {
+      if (e.target === popup) closeModal(popup);
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !popup.classList.contains('hidden')) {
+        if (!state.a11yEscapeClose) return;
+        closeModal(popup);
+      }
+    });
+  }
 }
 
 // Wire initApp into splash dismissal
@@ -171,16 +174,31 @@ function initApp() {
 }
 
 // Live Spots refresh (5 min — PSKReporter rate limit)
-setInterval(() => { if (isWidgetVisible('widget-live-spots')) fetchLiveSpots(); }, 5 * 60 * 1000);
+setInterval(() => { if (document.hidden || !isWidgetVisible('widget-live-spots')) return; fetchLiveSpots(); }, 5 * 60 * 1000);
 
 // VOACAP matrix refresh — render every minute (for hour transitions), server fetch throttled to 5 min
-setInterval(() => { if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) renderVoacapMatrix(); }, 60 * 1000);
-setInterval(() => { if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) fetchVoacapMatrixThrottled(); }, 60 * 1000);
+setInterval(() => { if (document.hidden) return; if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) renderVoacapMatrix(); }, 60 * 1000);
+setInterval(() => { if (document.hidden) return; if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) fetchVoacapMatrixThrottled(); }, 60 * 1000);
 
 // Beacon map markers — refresh every 10s (same as beacon rotation)
-setInterval(() => { if (isWidgetVisible('widget-beacons')) updateBeaconMarkers(); }, 10000);
+setInterval(() => { if (document.hidden || !isWidgetVisible('widget-beacons')) return; updateBeaconMarkers(); }, 10000);
 
 // DE/DX Info refresh — timer managed internally by dedx-info.js (1s for live clocks)
+
+// --- Hidden-tab catch-up ---
+// When the tab returns to foreground, immediately refresh visual state that was skipped
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden || !state.appInitialized) return;
+  // Catch up visual-only updates immediately
+  updateClocks();
+  updateBigClock();
+  updateAnalogClock();
+  updateSpotAges();
+  updateGrayLine();
+  updateSunMarker();
+  if (isWidgetVisible('widget-beacons')) updateBeaconMarkers();
+  if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) renderVoacapMatrix();
+});
 
 setInitApp(initApp);
 

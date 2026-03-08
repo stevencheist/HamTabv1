@@ -1400,10 +1400,14 @@
           }
           console.debug("[cat] Read loop started");
           this._readLoopPromise = (async () => {
+            let exitReason = "unknown";
             try {
               while (this._readLoopRunning) {
                 const { value, done } = await this._reader.read();
-                if (done) break;
+                if (done) {
+                  exitReason = "done";
+                  break;
+                }
                 if (value && value.length > 0) {
                   const combined = new Uint8Array(this._rawBuffer.length + value.length);
                   combined.set(this._rawBuffer, 0);
@@ -1416,16 +1420,24 @@
                   }
                 }
               }
+              if (!this._readLoopRunning) exitReason = "stopped";
             } catch (err2) {
+              exitReason = err2.name || err2.message;
               if (err2.name !== "AbortError" && this._readLoopRunning) {
                 console.warn("[cat] Read loop error:", err2.message);
               }
             } finally {
-              console.debug("[cat] Read loop ended");
+              console.warn("[cat] Read loop ended \u2014 reason:", exitReason);
               this._readLoopRunning = false;
-              try {
-                this._reader.releaseLock();
-              } catch {
+              if (this._reader) {
+                try {
+                  await this._reader.cancel();
+                } catch {
+                }
+                try {
+                  this._reader.releaseLock();
+                } catch {
+                }
               }
               this._reader = null;
             }
@@ -1483,7 +1495,19 @@
                 "[cat] Port already open \u2014 reusing connection",
                 { readLoopRunning: this._readLoopRunning, hasReader: !!this._reader }
               );
-              if (!this._readLoopRunning) this._startReadLoop();
+              if (!this._readLoopRunning) {
+                this._startReadLoop();
+                if (!this._readLoopRunning) {
+                  console.warn("[cat] Stream locked \u2014 closing and reopening port");
+                  try {
+                    await this.port.close();
+                  } catch {
+                  }
+                  await this.port.open(this.config);
+                  await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+                  this._startReadLoop();
+                }
+              }
               this._setState(ConnectionState.CONNECTED);
               return true;
             }

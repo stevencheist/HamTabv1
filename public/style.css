@@ -7335,6 +7335,20 @@ body.grayscale {
 }
 .rig-vfob-row .rig-vfo-label { font-size: 0.5rem; }
 .rig-vfob-row .rig-freq-unit { font-size: 0.5rem; }
+.rig-vfo-swap-btn {
+  font-size: 0.85rem;
+  padding: 1px 6px;
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  color: var(--accent);
+  cursor: pointer;
+  line-height: 1;
+}
+.rig-vfo-swap-btn:hover {
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  border-color: var(--accent);
+}
 
 /* Info row: band, mode, RST, power badges */
 .rig-info-row {

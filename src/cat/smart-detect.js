@@ -214,6 +214,7 @@ export async function smartDetect(port, onProgress) {
 
   for (let i = 0; i < PROBES.length; i++) {
     const probe = PROBES[i];
+    console.warn(`[smart-detect] Probe ${i + 1}/${total}: ${probe.name}`);
 
     if (onProgress) {
       onProgress({ step: i + 1, total, trying: probe.name });
@@ -222,11 +223,12 @@ export async function smartDetect(port, onProgress) {
     try {
       const { result, transport } = await runProbe(port, probe);
       if (result) {
+        console.warn(`[smart-detect] SUCCESS: ${probe.name} →`, result.profileId);
         return { ...result, transport };
       }
     } catch (err) {
       // Probe failed — continue to next
-      console.debug(`[smart-detect] ${probe.name} failed:`, err.message);
+      console.warn(`[smart-detect] ${probe.name} failed:`, err.message);
     }
 
     // 300ms delay between probes for port settle (close → reopen needs time)

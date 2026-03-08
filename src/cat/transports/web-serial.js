@@ -90,10 +90,11 @@ export class WebSerialTransport {
     console.debug('[cat] Read loop started');
 
     this._readLoopPromise = (async () => {
+      let exitReason = 'unknown';
       try {
         while (this._readLoopRunning) {
           const { value, done } = await this._reader.read();
-          if (done) break;
+          if (done) { exitReason = 'done'; break; }
           if (value && value.length > 0) {
             // Append to buffer
             const combined = new Uint8Array(this._rawBuffer.length + value.length);
@@ -109,15 +110,25 @@ export class WebSerialTransport {
             }
           }
         }
+        if (!this._readLoopRunning) exitReason = 'stopped';
       } catch (err) {
+        exitReason = err.name || err.message;
         // Stream closed or cancelled — expected during disconnect
         if (err.name !== 'AbortError' && this._readLoopRunning) {
           console.warn('[cat] Read loop error:', err.message);
         }
       } finally {
-        console.debug('[cat] Read loop ended');
+        console.warn('[cat] Read loop ended — reason:', exitReason);
         this._readLoopRunning = false;
-        try { this._reader.releaseLock(); } catch { /* ignore */ }
+        // Release the reader lock. Do NOT call reader.cancel() here —
+        // Chrome WebSerial permanently destroys the ReadableStream on cancel,
+        // breaking all future reads on this port. releaseLock() alone is
+        // sufficient when the loop has already exited (no pending read()).
+        // If releaseLock() fails (edge case), the close/reopen fallback in
+        // connect() handles the stale lock.
+        if (this._reader) {
+          try { this._reader.releaseLock(); } catch { /* ignore */ }
+        }
         this._reader = null;
       }
     })();
@@ -171,13 +182,36 @@ export class WebSerialTransport {
       // Use existing port or prompt user to pick one
       this.port = existingPort || await navigator.serial.requestPort();
 
+      console.warn('[cat] connect() — port state:',
+        { existingPort: !!existingPort, readable: !!this.port.readable,
+          writable: !!this.port.writable, readLoopRunning: this._readLoopRunning });
+
       // If port is already open (reused transport from smart-detect), skip open
       if (this.port.readable && this.port.writable) {
         console.warn('[cat] Port already open — reusing connection',
           { readLoopRunning: this._readLoopRunning, hasReader: !!this._reader });
         // Restart read loop if not already running (e.g. when rig-manager
         // calls connect on the transport that smart-detect returned)
-        if (!this._readLoopRunning) this._startReadLoop();
+        if (!this._readLoopRunning) {
+          this._startReadLoop();
+          // If read loop failed to start (stream locked by stale reader),
+          // close and reopen the port to get fresh readable/writable streams.
+          // reader.cancel() in Chrome WebSerial can permanently close the
+          // ReadableStream, so we can't just release — must reopen.
+          if (!this._readLoopRunning) {
+            console.warn('[cat] Stream locked — closing and reopening port');
+            try { await this.port.close(); } catch { /* ignore */ }
+            // Settle delay — USB-serial adapters need time after close before reopen
+            await new Promise(r => setTimeout(r, 500));
+            await this.port.open(this.config);
+            if (this._hwFlowControl) {
+              await this.port.setSignals({ dataTerminalReady: true });
+            } else {
+              await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
+            }
+            this._startReadLoop();
+          }
+        }
         this._setState(ConnectionState.CONNECTED);
         return true;
       }

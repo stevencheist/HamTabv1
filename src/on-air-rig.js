@@ -58,6 +58,21 @@ const FT8_FREQUENCIES = {
   '10m': 28_074_000,  '6m': 50_313_000,
 };
 
+// FT4 dial frequencies per band (Hz) — WSJT-X conventional frequencies
+const FT4_FREQUENCIES = {
+  '80m': 3_575_000,  '40m': 7_047_500,  '30m': 10_140_000,
+  '20m': 14_080_000, '17m': 18_104_000, '15m': 21_140_000, '12m': 24_919_000,
+  '10m': 28_180_000, '6m': 50_318_000,
+};
+
+// --- Digital Setup frequency lookup ---
+// Returns the conventional dial frequency (Hz) for a digital mode + band combo
+function getDigitalFrequency(mode, bandId) {
+  if (mode === 'FT8') return FT8_FREQUENCIES[bandId] || null;
+  if (mode === 'FT4') return FT4_FREQUENCIES[bandId] || null;
+  return null; // Custom — user must set frequency manually
+}
+
 // --- Compute default frequency for a band+mode combo ---
 // Uses BAND_SEGMENTS zones to land in the right part of the band.
 function getDefaultFrequency(bandId, userMode) {
@@ -148,7 +163,7 @@ function onBandButtonClick(bandId) {
 
   // Get current mode from rig state, default to USB
   const store = getRigStore();
-  const rigState = store.getState();
+  const rigState = store.get();
   let userMode = catModeToUserLabel(rigState.mode) || 'USB';
 
   // Auto-correct SSB sideband for target band
@@ -302,6 +317,7 @@ function render(state) {
   // Frequency display with confidence ring — diff: only update if changed
   const freqText = formatFrequency(state.frequency);
   if (freqText !== prev.freqText) {
+    console.warn('[rig-ui] freq update:', state.frequency, '→', freqText, 'dom.freq=', !!dom.freq);
     dom.freq.textContent = freqText;
     prev.freqText = freqText;
   }
@@ -877,6 +893,234 @@ function updateSdrUrlVisibility() {
   sdrRow.style.display = select.value === 'kiwisdr' ? '' : 'none';
 }
 
+// --- Digital Setup Assistant ---
+// Manages enable/disable cycle: snapshot current rig state, apply digital config,
+// restore previous state on disable. Starts disabled every session.
+
+// Snapshot the current rig state before applying digital settings
+function snapshotRigState() {
+  const store = getRigStore();
+  const s = store.getState();
+  return {
+    frequency: s.frequency,
+    mode: s.mode,
+    rfPower: s.rfPower,
+  };
+}
+
+// Apply digital mode settings to the radio
+function applyDigitalSetup() {
+  const mode = state.digitalSetupMode;
+  const band = state.digitalSetupBand;
+  const power = state.digitalSetupPower;
+
+  const freq = getDigitalFrequency(mode, band);
+
+  // Send frequency + mode. For Custom mode, only set mode + power (user tunes manually)
+  if (freq) {
+    sendRigCommand('setFrequency', freq, 1);
+  }
+  sendRigCommand('setMode', 'DATA-U', 1); // all digital modes use DATA-U (upper sideband data)
+
+  // Set power if radio supports it
+  const store = getRigStore();
+  const caps = store.getState().capabilities || [];
+  if (caps.includes('rf_power') && power > 0) {
+    sendRigCommand('setRFPower', power, 1);
+  }
+}
+
+// Restore rig to pre-digital state
+function restoreRigState() {
+  const snapshot = state.digitalRestoreState;
+  if (!snapshot) return;
+
+  if (snapshot.frequency > 0) {
+    sendRigCommand('setFrequency', snapshot.frequency, 1);
+  }
+  if (snapshot.mode) {
+    sendRigCommand('setMode', snapshot.mode, 1);
+  }
+  const store = getRigStore();
+  const caps = store.getState().capabilities || [];
+  if (caps.includes('rf_power') && snapshot.rfPower > 0) {
+    sendRigCommand('setRFPower', snapshot.rfPower, 1);
+  }
+
+  state.digitalRestoreState = null;
+}
+
+// Handle enable/disable toggle
+function handleDigitalToggle() {
+  const toggle = $('rigDigitalToggle');
+  if (!toggle) return;
+
+  if (!isRigConnected()) {
+    toggle.checked = false;
+    return;
+  }
+
+  if (toggle.checked) {
+    // Enable — snapshot then apply
+    state.digitalSetupEnabled = true;
+    state.digitalRestoreState = snapshotRigState();
+    applyDigitalSetup();
+    updateDigitalUI();
+  } else {
+    // Disable — restore previous state
+    state.digitalSetupEnabled = false;
+    restoreRigState();
+    updateDigitalUI();
+  }
+}
+
+// Handle Apply button — re-apply current digital settings without toggling
+function handleDigitalApply() {
+  if (!state.digitalSetupEnabled || !isRigConnected()) return;
+  applyDigitalSetup();
+}
+
+// Handle mode/band/power changes — persist and re-apply if enabled
+function handleDigitalModeChange() {
+  const modeSelect = $('rigDigitalMode');
+  if (modeSelect) {
+    state.digitalSetupMode = modeSelect.value;
+    localStorage.setItem('hamtab_digital_mode', modeSelect.value);
+  }
+  // Update band options (FT4 doesn't have 160m)
+  populateDigitalBands();
+  if (state.digitalSetupEnabled && isRigConnected()) applyDigitalSetup();
+}
+
+function handleDigitalBandChange() {
+  const bandSelect = $('rigDigitalBand');
+  if (bandSelect) {
+    state.digitalSetupBand = bandSelect.value;
+    localStorage.setItem('hamtab_digital_band', bandSelect.value);
+  }
+  if (state.digitalSetupEnabled && isRigConnected()) applyDigitalSetup();
+}
+
+function handleDigitalPowerClick(e) {
+  const btn = e.target.closest('.rig-digital-power-chip');
+  if (!btn) return;
+  const watts = parseInt(btn.dataset.watts, 10);
+  if (isNaN(watts)) return;
+
+  state.digitalSetupPower = watts;
+  localStorage.setItem('hamtab_digital_power', String(watts));
+
+  // Update active chip highlight
+  const container = $('rigDigitalPowerChips');
+  if (container) {
+    for (const chip of container.querySelectorAll('.rig-digital-power-chip')) {
+      chip.classList.toggle('active', parseInt(chip.dataset.watts, 10) === watts);
+    }
+  }
+
+  if (state.digitalSetupEnabled && isRigConnected()) {
+    const store = getRigStore();
+    const caps = store.getState().capabilities || [];
+    if (caps.includes('rf_power')) {
+      sendRigCommand('setRFPower', watts, 1);
+    }
+  }
+}
+
+// Handle "Release for WSJT-X" — disconnect CAT so WSJT-X can claim the port
+async function handleReleaseForWSJTX() {
+  if (!isRigConnected()) return;
+  if (!confirm('Disconnect from the radio so WSJT-X can connect?\n\nYour digital settings have been applied. Reconnect when your WSJT-X session is over to restore your previous radio settings.')) return;
+
+  stopScope();
+  try { await disconnectRig(); } catch (_) { /* ignore */ }
+
+  // Update status to show what happened
+  const statusEl = $('rigStatus');
+  if (statusEl) statusEl.textContent = 'Released for WSJT-X — reconnect when done';
+}
+
+// Populate digital band dropdown based on selected mode
+function populateDigitalBands() {
+  const bandSelect = $('rigDigitalBand');
+  if (!bandSelect) return;
+
+  const mode = state.digitalSetupMode;
+  const freqTable = mode === 'FT4' ? FT4_FREQUENCIES : FT8_FREQUENCIES;
+  const currentBand = bandSelect.value || state.digitalSetupBand;
+
+  bandSelect.innerHTML = '';
+  for (const band of BAND_IDS) {
+    // For Custom mode, show all bands. For FT8/FT4, only show bands with defined frequencies
+    if (mode === 'Custom' || freqTable[band]) {
+      const opt = document.createElement('option');
+      opt.value = band;
+      opt.textContent = band;
+      if (freqTable[band]) {
+        opt.textContent += ` (${(freqTable[band] / 1_000_000).toFixed(3)})`;
+      }
+      bandSelect.appendChild(opt);
+    }
+  }
+
+  // Restore selection if still valid, otherwise pick first
+  if (bandSelect.querySelector(`option[value="${currentBand}"]`)) {
+    bandSelect.value = currentBand;
+  } else if (bandSelect.options.length > 0) {
+    bandSelect.value = bandSelect.options[0].value;
+    state.digitalSetupBand = bandSelect.value;
+    localStorage.setItem('hamtab_digital_band', bandSelect.value);
+  }
+}
+
+// Update digital setup UI visibility and state indicators
+function updateDigitalUI() {
+  const section = $('rigDigitalSection');
+  const toggle = $('rigDigitalToggle');
+  const controls = $('rigDigitalControls');
+  const releaseBtn = $('rigDigitalRelease');
+  const statusBadge = $('rigDigitalStatus');
+  if (!section) return;
+
+  const connected = isRigConnected();
+  const store = getRigStore();
+  const s = store.getState();
+  const isRealRadio = connected && !s.demo && !s.rxOnly;
+
+  // Show section only when connected to a real radio
+  section.style.display = isRealRadio ? '' : 'none';
+
+  // Auto-disable digital mode when rig disconnects (prevents stale snapshot)
+  if (!connected && state.digitalSetupEnabled) {
+    state.digitalSetupEnabled = false;
+    state.digitalRestoreState = null;
+  }
+
+  // Toggle state
+  if (toggle) toggle.checked = state.digitalSetupEnabled;
+
+  // Controls enabled only when toggle is on
+  if (controls) {
+    controls.classList.toggle('rig-digital-disabled', !state.digitalSetupEnabled);
+  }
+
+  // Release button visible only when enabled and connected
+  if (releaseBtn) {
+    releaseBtn.style.display = (state.digitalSetupEnabled && connected) ? '' : 'none';
+  }
+
+  // Status badge
+  if (statusBadge) {
+    if (state.digitalSetupEnabled) {
+      statusBadge.textContent = 'DIGITAL';
+      statusBadge.className = 'rig-digital-status rig-digital-active';
+    } else {
+      statusBadge.textContent = '';
+      statusBadge.className = 'rig-digital-status';
+    }
+  }
+}
+
 // --- Initialize widget (idempotent — safe to call multiple times) ---
 export function initOnAirRig() {
   if (initialized) return;
@@ -961,12 +1205,49 @@ export function initOnAirRig() {
         }, 500); // 500ms — enough for serial/TCI round-trip
       });
     }
+
+    // --- Digital Setup Assistant listeners ---
+    const digitalToggle = $('rigDigitalToggle');
+    if (digitalToggle) digitalToggle.addEventListener('change', handleDigitalToggle);
+
+    const digitalModeSelect = $('rigDigitalMode');
+    if (digitalModeSelect) {
+      digitalModeSelect.value = state.digitalSetupMode;
+      digitalModeSelect.addEventListener('change', handleDigitalModeChange);
+    }
+
+    const digitalBandSelect = $('rigDigitalBand');
+    if (digitalBandSelect) digitalBandSelect.addEventListener('change', handleDigitalBandChange);
+
+    const digitalPowerChips = $('rigDigitalPowerChips');
+    if (digitalPowerChips) digitalPowerChips.addEventListener('click', handleDigitalPowerClick);
+
+    const digitalApplyBtn = $('rigDigitalApply');
+    if (digitalApplyBtn) digitalApplyBtn.addEventListener('click', handleDigitalApply);
+
+    const digitalReleaseBtn = $('rigDigitalRelease');
+    if (digitalReleaseBtn) digitalReleaseBtn.addEventListener('click', handleReleaseForWSJTX);
+
+    // Populate band dropdown and power chip active state
+    populateDigitalBands();
+    const initPowerChips = $('rigDigitalPowerChips');
+    if (initPowerChips) {
+      for (const chip of initPowerChips.querySelectorAll('.rig-digital-power-chip')) {
+        chip.classList.toggle('active', parseInt(chip.dataset.watts, 10) === state.digitalSetupPower);
+      }
+    }
+
     listenersAttached = true;
   }
 
   // Subscribe to rig state — this is the active part we start/stop
   const store = getRigStore();
   unsubscribe = store.subscribe(render);
+
+  // Update digital UI on every rig state change (show/hide based on connection)
+  store.subscribe(updateDigitalUI);
+  updateDigitalUI(); // initial state
+
   initialized = true;
 }
 

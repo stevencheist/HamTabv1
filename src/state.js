@@ -330,6 +330,13 @@ const state = {
   radioAudioScopeEnabled: localStorage.getItem('hamtab_radio_audio_scope') !== 'false', // default on
   radioAudioDeviceId: localStorage.getItem('hamtab_radio_audio_device') || '',
   radioAudioSampleRate: parseInt(localStorage.getItem('hamtab_radio_audio_sample_rate'), 10) || 48000,
+
+  // --- Digital setup assistant (persisted to localStorage) ---
+  digitalSetupEnabled: false, // runtime only — always starts disabled
+  digitalSetupMode: localStorage.getItem('hamtab_digital_mode') || 'FT8',   // 'FT8' | 'FT4' | 'Custom'
+  digitalSetupBand: localStorage.getItem('hamtab_digital_band') || '20m',
+  digitalSetupPower: parseInt(localStorage.getItem('hamtab_digital_power'), 10) || 20,  // watts
+  digitalRestoreState: null, // runtime only — snapshot of freq/mode/power before digital enable
 };
 
 // Migrate old SVG metric values

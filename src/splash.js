@@ -1332,8 +1332,12 @@ function dismissSplash() {
   if (justHidden('widget-dedx')) { stopDedxTimer(); }
 
   // On-Air Rig — init/destroy: stops all CAT polling, safety, propagation when hidden
-  if (justShown('widget-on-air-rig'))  { initOnAirRig(); }
-  if (justHidden('widget-on-air-rig')) { destroyOnAirRig(); }
+  if (justShown('widget-on-air-rig'))  {
+    try { initOnAirRig(); } catch (err) { console.error('[init] on-air-rig failed:', err); }
+  }
+  if (justHidden('widget-on-air-rig')) {
+    try { destroyOnAirRig(); } catch (err) { console.error('[destroy] on-air-rig failed:', err); }
+  }
 
   // Update interval — lanmode only (element absent in hostedmode)
   const intervalSelect = $('splashUpdateInterval');

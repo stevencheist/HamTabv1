@@ -4024,7 +4024,11 @@
     const subscribers = [];
     function subscribe(callback) {
       subscribers.push(callback);
-      callback({ ...state2 });
+      try {
+        callback({ ...state2 });
+      } catch (err2) {
+        console.error("[rig-store] subscriber threw on initial call:", err2);
+      }
       return () => {
         const idx = subscribers.indexOf(callback);
         if (idx >= 0) subscribers.splice(idx, 1);
@@ -4035,7 +4039,8 @@
       for (const cb of subscribers) {
         try {
           cb(snapshot);
-        } catch {
+        } catch (err2) {
+          console.error("[rig-store] subscriber threw on notify:", err2);
         }
       }
     }
@@ -21662,8 +21667,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.66.2";
-    $("aboutVersion").textContent = "0.66.2";
+    $("splashVersion").textContent = "0.66.3";
+    $("aboutVersion").textContent = "0.66.3";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -22318,10 +22323,18 @@ ${beacon.location}`);
       stopDedxTimer();
     }
     if (justShown("widget-on-air-rig")) {
-      initOnAirRig();
+      try {
+        initOnAirRig();
+      } catch (err2) {
+        console.error("[init] on-air-rig failed:", err2);
+      }
     }
     if (justHidden("widget-on-air-rig")) {
-      destroyOnAirRig();
+      try {
+        destroyOnAirRig();
+      } catch (err2) {
+        console.error("[destroy] on-air-rig failed:", err2);
+      }
     }
     const intervalSelect = $("splashUpdateInterval");
     if (intervalSelect) {
@@ -25334,6 +25347,13 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (document.hidden) return;
     updateSpotAges();
   }, 3e4);
+  function safeInit(name, fn) {
+    try {
+      fn();
+    } catch (err2) {
+      console.error(`[init] ${name} failed:`, err2);
+    }
+  }
   initSourceListeners();
   initFilterListeners();
   initTooltipListeners();
@@ -25363,8 +25383,8 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initClockConfigListeners();
   initMobileMenu();
   initTabs();
-  initOnAirRig();
-  initLogbook();
+  safeInit("on-air-rig", initOnAirRig);
+  safeInit("logbook", initLogbook);
   var newWidgetPopupListenersAttached = false;
   function showNewWidgetPopup(widgetNames) {
     const popup = $("newWidgetPopup");

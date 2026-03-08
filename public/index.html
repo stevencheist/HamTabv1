@@ -1221,6 +1221,48 @@
             </select>
           </div>
           -->
+          <!-- Digital Setup Assistant — shown when connected to a real radio -->
+          <div class="rig-digital-section" id="rigDigitalSection" style="display:none">
+            <div class="rig-digital-header">
+              <span class="rig-digital-title">Digital Setup</span>
+              <span class="rig-digital-status" id="rigDigitalStatus"></span>
+              <label class="rig-digital-toggle-label">
+                <input type="checkbox" id="rigDigitalToggle" class="rig-digital-toggle">
+                <span class="rig-digital-toggle-slider"></span>
+              </label>
+            </div>
+            <div class="rig-digital-controls" id="rigDigitalControls">
+              <div class="rig-digital-row">
+                <select id="rigDigitalMode" class="rig-digital-select">
+                  <option value="FT8">FT8</option>
+                  <option value="FT4">FT4</option>
+                  <option value="Custom">Custom</option>
+                </select>
+                <select id="rigDigitalBand" class="rig-digital-select"></select>
+              </div>
+              <div class="rig-digital-row">
+                <span class="rig-digital-label">Power</span>
+                <div class="rig-digital-power-chips" id="rigDigitalPowerChips">
+                  <button class="rig-digital-power-chip" data-watts="5">5W</button>
+                  <button class="rig-digital-power-chip" data-watts="10">10W</button>
+                  <button class="rig-digital-power-chip" data-watts="20">20W</button>
+                  <button class="rig-digital-power-chip" data-watts="30">30W</button>
+                  <button class="rig-digital-power-chip" data-watts="50">50W</button>
+                </div>
+              </div>
+              <div class="rig-digital-row rig-digital-actions">
+                <button id="rigDigitalApply" class="rig-digital-apply-btn">Apply</button>
+                <button id="rigDigitalRelease" class="rig-digital-release-btn" style="display:none">Release for WSJT-X</button>
+              </div>
+              <div class="rig-digital-checklist">
+                <div class="rig-digital-check-title">Pre-Flight Checklist</div>
+                <label><input type="checkbox"> WSJT-X installed &amp; configured</label>
+                <label><input type="checkbox"> USB audio device visible in OS</label>
+                <label><input type="checkbox"> ALC barely moves on TX</label>
+                <label><input type="checkbox"> Correct COM ports in WSJT-X</label>
+              </div>
+            </div>
+          </div>
           <!-- Power slider -->
           <div class="rig-power-row hidden" id="rigPowerRow">
             <label>PWR</label>

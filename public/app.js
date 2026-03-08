@@ -400,7 +400,17 @@
         radioAudioScopeEnabled: localStorage.getItem("hamtab_radio_audio_scope") !== "false",
         // default on
         radioAudioDeviceId: localStorage.getItem("hamtab_radio_audio_device") || "",
-        radioAudioSampleRate: parseInt(localStorage.getItem("hamtab_radio_audio_sample_rate"), 10) || 48e3
+        radioAudioSampleRate: parseInt(localStorage.getItem("hamtab_radio_audio_sample_rate"), 10) || 48e3,
+        // --- Digital setup assistant (persisted to localStorage) ---
+        digitalSetupEnabled: false,
+        // runtime only — always starts disabled
+        digitalSetupMode: localStorage.getItem("hamtab_digital_mode") || "FT8",
+        // 'FT8' | 'FT4' | 'Custom'
+        digitalSetupBand: localStorage.getItem("hamtab_digital_band") || "20m",
+        digitalSetupPower: parseInt(localStorage.getItem("hamtab_digital_power"), 10) || 20,
+        // watts
+        digitalRestoreState: null
+        // runtime only — snapshot of freq/mode/power before digital enable
       };
       if (state.propMetric === "mof_sp" || state.propMetric === "lof_sp") {
         state.propMetric = "mufd";
@@ -20253,6 +20263,22 @@ ${beacon.location}`);
     "10m": 28074e3,
     "6m": 50313e3
   };
+  var FT4_FREQUENCIES = {
+    "80m": 3575e3,
+    "40m": 7047500,
+    "30m": 1014e4,
+    "20m": 1408e4,
+    "17m": 18104e3,
+    "15m": 2114e4,
+    "12m": 24919e3,
+    "10m": 2818e4,
+    "6m": 50318e3
+  };
+  function getDigitalFrequency(mode2, bandId) {
+    if (mode2 === "FT8") return FT8_FREQUENCIES[bandId] || null;
+    if (mode2 === "FT4") return FT4_FREQUENCIES[bandId] || null;
+    return null;
+  }
   function getDefaultFrequency(bandId, userMode) {
     const segments = BAND_SEGMENTS[bandId];
     if (!segments || segments.length === 0) return null;
@@ -20915,6 +20941,176 @@ ${beacon.location}`);
     if (!select || !sdrRow) return;
     sdrRow.style.display = select.value === "kiwisdr" ? "" : "none";
   }
+  function snapshotRigState() {
+    const store = getRigStore();
+    const s = store.getState();
+    return {
+      frequency: s.frequency,
+      mode: s.mode,
+      rfPower: s.rfPower
+    };
+  }
+  function applyDigitalSetup() {
+    const mode2 = state_default.digitalSetupMode;
+    const band = state_default.digitalSetupBand;
+    const power = state_default.digitalSetupPower;
+    const freq = getDigitalFrequency(mode2, band);
+    if (freq) {
+      sendRigCommand("setFrequency", freq, 1);
+    }
+    sendRigCommand("setMode", "DATA-U", 1);
+    const store = getRigStore();
+    const caps = store.getState().capabilities || [];
+    if (caps.includes("rf_power") && power > 0) {
+      sendRigCommand("setRFPower", power, 1);
+    }
+  }
+  function restoreRigState() {
+    const snapshot = state_default.digitalRestoreState;
+    if (!snapshot) return;
+    if (snapshot.frequency > 0) {
+      sendRigCommand("setFrequency", snapshot.frequency, 1);
+    }
+    if (snapshot.mode) {
+      sendRigCommand("setMode", snapshot.mode, 1);
+    }
+    const store = getRigStore();
+    const caps = store.getState().capabilities || [];
+    if (caps.includes("rf_power") && snapshot.rfPower > 0) {
+      sendRigCommand("setRFPower", snapshot.rfPower, 1);
+    }
+    state_default.digitalRestoreState = null;
+  }
+  function handleDigitalToggle() {
+    const toggle = $("rigDigitalToggle");
+    if (!toggle) return;
+    if (!isRigConnected()) {
+      toggle.checked = false;
+      return;
+    }
+    if (toggle.checked) {
+      state_default.digitalSetupEnabled = true;
+      state_default.digitalRestoreState = snapshotRigState();
+      applyDigitalSetup();
+      updateDigitalUI();
+    } else {
+      state_default.digitalSetupEnabled = false;
+      restoreRigState();
+      updateDigitalUI();
+    }
+  }
+  function handleDigitalApply() {
+    if (!state_default.digitalSetupEnabled || !isRigConnected()) return;
+    applyDigitalSetup();
+  }
+  function handleDigitalModeChange() {
+    const modeSelect = $("rigDigitalMode");
+    if (modeSelect) {
+      state_default.digitalSetupMode = modeSelect.value;
+      localStorage.setItem("hamtab_digital_mode", modeSelect.value);
+    }
+    populateDigitalBands();
+    if (state_default.digitalSetupEnabled && isRigConnected()) applyDigitalSetup();
+  }
+  function handleDigitalBandChange() {
+    const bandSelect = $("rigDigitalBand");
+    if (bandSelect) {
+      state_default.digitalSetupBand = bandSelect.value;
+      localStorage.setItem("hamtab_digital_band", bandSelect.value);
+    }
+    if (state_default.digitalSetupEnabled && isRigConnected()) applyDigitalSetup();
+  }
+  function handleDigitalPowerClick(e) {
+    const btn = e.target.closest(".rig-digital-power-chip");
+    if (!btn) return;
+    const watts = parseInt(btn.dataset.watts, 10);
+    if (isNaN(watts)) return;
+    state_default.digitalSetupPower = watts;
+    localStorage.setItem("hamtab_digital_power", String(watts));
+    const container = $("rigDigitalPowerChips");
+    if (container) {
+      for (const chip of container.querySelectorAll(".rig-digital-power-chip")) {
+        chip.classList.toggle("active", parseInt(chip.dataset.watts, 10) === watts);
+      }
+    }
+    if (state_default.digitalSetupEnabled && isRigConnected()) {
+      const store = getRigStore();
+      const caps = store.getState().capabilities || [];
+      if (caps.includes("rf_power")) {
+        sendRigCommand("setRFPower", watts, 1);
+      }
+    }
+  }
+  async function handleReleaseForWSJTX() {
+    if (!isRigConnected()) return;
+    if (!confirm("Disconnect from the radio so WSJT-X can connect?\n\nYour digital settings have been applied. Reconnect when your WSJT-X session is over to restore your previous radio settings.")) return;
+    stopScope();
+    try {
+      await disconnectRig();
+    } catch (_) {
+    }
+    const statusEl = $("rigStatus");
+    if (statusEl) statusEl.textContent = "Released for WSJT-X \u2014 reconnect when done";
+  }
+  function populateDigitalBands() {
+    const bandSelect = $("rigDigitalBand");
+    if (!bandSelect) return;
+    const mode2 = state_default.digitalSetupMode;
+    const freqTable = mode2 === "FT4" ? FT4_FREQUENCIES : FT8_FREQUENCIES;
+    const currentBand = bandSelect.value || state_default.digitalSetupBand;
+    bandSelect.innerHTML = "";
+    for (const band of BAND_IDS) {
+      if (mode2 === "Custom" || freqTable[band]) {
+        const opt = document.createElement("option");
+        opt.value = band;
+        opt.textContent = band;
+        if (freqTable[band]) {
+          opt.textContent += ` (${(freqTable[band] / 1e6).toFixed(3)})`;
+        }
+        bandSelect.appendChild(opt);
+      }
+    }
+    if (bandSelect.querySelector(`option[value="${currentBand}"]`)) {
+      bandSelect.value = currentBand;
+    } else if (bandSelect.options.length > 0) {
+      bandSelect.value = bandSelect.options[0].value;
+      state_default.digitalSetupBand = bandSelect.value;
+      localStorage.setItem("hamtab_digital_band", bandSelect.value);
+    }
+  }
+  function updateDigitalUI() {
+    const section = $("rigDigitalSection");
+    const toggle = $("rigDigitalToggle");
+    const controls = $("rigDigitalControls");
+    const releaseBtn = $("rigDigitalRelease");
+    const statusBadge = $("rigDigitalStatus");
+    if (!section) return;
+    const connected = isRigConnected();
+    const store = getRigStore();
+    const s = store.getState();
+    const isRealRadio = connected && !s.demo && !s.rxOnly;
+    section.style.display = isRealRadio ? "" : "none";
+    if (!connected && state_default.digitalSetupEnabled) {
+      state_default.digitalSetupEnabled = false;
+      state_default.digitalRestoreState = null;
+    }
+    if (toggle) toggle.checked = state_default.digitalSetupEnabled;
+    if (controls) {
+      controls.classList.toggle("rig-digital-disabled", !state_default.digitalSetupEnabled);
+    }
+    if (releaseBtn) {
+      releaseBtn.style.display = state_default.digitalSetupEnabled && connected ? "" : "none";
+    }
+    if (statusBadge) {
+      if (state_default.digitalSetupEnabled) {
+        statusBadge.textContent = "DIGITAL";
+        statusBadge.className = "rig-digital-status rig-digital-active";
+      } else {
+        statusBadge.textContent = "";
+        statusBadge.className = "rig-digital-status";
+      }
+    }
+  }
   function initOnAirRig() {
     if (initialized2) return;
     if (!isWidgetVisible("widget-on-air-rig")) return;
@@ -20984,10 +21180,34 @@ ${beacon.location}`);
           }, 500);
         });
       }
+      const digitalToggle = $("rigDigitalToggle");
+      if (digitalToggle) digitalToggle.addEventListener("change", handleDigitalToggle);
+      const digitalModeSelect = $("rigDigitalMode");
+      if (digitalModeSelect) {
+        digitalModeSelect.value = state_default.digitalSetupMode;
+        digitalModeSelect.addEventListener("change", handleDigitalModeChange);
+      }
+      const digitalBandSelect = $("rigDigitalBand");
+      if (digitalBandSelect) digitalBandSelect.addEventListener("change", handleDigitalBandChange);
+      const digitalPowerChips = $("rigDigitalPowerChips");
+      if (digitalPowerChips) digitalPowerChips.addEventListener("click", handleDigitalPowerClick);
+      const digitalApplyBtn = $("rigDigitalApply");
+      if (digitalApplyBtn) digitalApplyBtn.addEventListener("click", handleDigitalApply);
+      const digitalReleaseBtn = $("rigDigitalRelease");
+      if (digitalReleaseBtn) digitalReleaseBtn.addEventListener("click", handleReleaseForWSJTX);
+      populateDigitalBands();
+      const initPowerChips = $("rigDigitalPowerChips");
+      if (initPowerChips) {
+        for (const chip of initPowerChips.querySelectorAll(".rig-digital-power-chip")) {
+          chip.classList.toggle("active", parseInt(chip.dataset.watts, 10) === state_default.digitalSetupPower);
+        }
+      }
       listenersAttached = true;
     }
     const store = getRigStore();
     unsubscribe = store.subscribe(render);
+    store.subscribe(updateDigitalUI);
+    updateDigitalUI();
     initialized2 = true;
   }
   async function destroyOnAirRig() {
@@ -21381,8 +21601,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.65.0";
-    $("aboutVersion").textContent = "0.65.0";
+    $("splashVersion").textContent = "0.66.0";
+    $("aboutVersion").textContent = "0.66.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

@@ -1361,6 +1361,11 @@
             parity: config.parity || "none",
             flowControl: config.flowControl || "hardware"
           };
+          this._rawBuffer = new Uint8Array(0);
+          this._reader = null;
+          this._readLoopRunning = false;
+          this._readLoopPromise = null;
+          this._onData = null;
         }
         // --- API check ---
         static isSupported() {
@@ -1373,6 +1378,82 @@
         _setState(newState) {
           this.state = newState;
           if (this._onStateChange) this._onStateChange(newState);
+        }
+        // --- Start persistent reader loop ---
+        // Runs in the background, continuously reads from the serial port into
+        // _rawBuffer. Never calls reader.cancel() — the loop ends only when
+        // disconnect() cancels the reader.
+        _startReadLoop() {
+          if (this._readLoopRunning) return;
+          if (!this.port || !this.port.readable) return;
+          this._readLoopRunning = true;
+          this._reader = this.port.readable.getReader();
+          this._readLoopPromise = (async () => {
+            try {
+              while (this._readLoopRunning) {
+                const { value, done } = await this._reader.read();
+                if (done) break;
+                if (value && value.length > 0) {
+                  const combined = new Uint8Array(this._rawBuffer.length + value.length);
+                  combined.set(this._rawBuffer, 0);
+                  combined.set(value, this._rawBuffer.length);
+                  this._rawBuffer = combined;
+                  if (this._onData) {
+                    const resolve = this._onData;
+                    this._onData = null;
+                    resolve();
+                  }
+                }
+              }
+            } catch (err2) {
+              if (err2.name !== "AbortError" && this._readLoopRunning) {
+                console.warn("[cat] Read loop error:", err2.message);
+              }
+            } finally {
+              this._readLoopRunning = false;
+              try {
+                this._reader.releaseLock();
+              } catch {
+              }
+              this._reader = null;
+            }
+          })();
+        }
+        // --- Stop reader loop ---
+        async _stopReadLoop() {
+          this._readLoopRunning = false;
+          if (this._reader) {
+            try {
+              await this._reader.cancel();
+            } catch {
+            }
+          }
+          if (this._readLoopPromise) {
+            try {
+              await this._readLoopPromise;
+            } catch {
+            }
+          }
+          this._reader = null;
+          this._readLoopPromise = null;
+        }
+        // --- Wait for data with timeout ---
+        // Returns true if data arrived, false on timeout.
+        _waitForData(timeoutMs) {
+          return new Promise((resolve) => {
+            if (this._rawBuffer.length > 0) {
+              resolve(true);
+              return;
+            }
+            const timer = setTimeout(() => {
+              this._onData = null;
+              resolve(false);
+            }, timeoutMs);
+            this._onData = () => {
+              clearTimeout(timer);
+              resolve(true);
+            };
+          });
         }
         // --- Connect ---
         // Opens the browser serial port picker, then opens with configured params.
@@ -1388,6 +1469,7 @@
             this.port = existingPort || await navigator.serial.requestPort();
             if (this.port.readable && this.port.writable) {
               console.debug("[cat] Port already open \u2014 reusing connection");
+              if (!this._readLoopRunning) this._startReadLoop();
               this._setState(ConnectionState.CONNECTED);
               return true;
             }
@@ -1410,6 +1492,7 @@
             } else {
               await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
             }
+            this._startReadLoop();
             this._setState(ConnectionState.CONNECTED);
             return true;
           } catch (err2) {
@@ -1422,8 +1505,10 @@
           }
         }
         // --- Disconnect ---
-        // Deasserts DTR/RTS before closing to prevent radio hangs.
+        // Stops read loop, deasserts DTR/RTS, closes port.
         async disconnect() {
+          await this._stopReadLoop();
+          this._rawBuffer = new Uint8Array(0);
           try {
             if (this.port) {
               try {
@@ -1433,8 +1518,6 @@
               } catch {
               }
               try {
-                if (this.port.readable && this.port.readable.locked) {
-                }
                 await this.port.close();
               } catch {
               }
@@ -1471,80 +1554,49 @@
           }
         }
         // --- Read until terminator ---
-        // Reads ASCII data until the terminator character (default ";") is found.
-        // Returns the complete response string including terminator.
-        // Used for Yaesu/Kenwood/Elecraft ASCII protocols.
+        // Reads ASCII data from the internal buffer until the terminator character
+        // (default ";") is found. Returns the complete response string including
+        // terminator. Used for Yaesu/Kenwood/Elecraft ASCII protocols.
         async readUntil(terminator = ";", timeoutMs = 2e3) {
-          if (!this.port || !this.port.readable) {
+          if (!this.port) {
             throw new Error("Serial port not open");
           }
-          let buffer = "";
-          const reader = this.port.readable.getReader();
-          const timer = setTimeout(() => reader.cancel(), timeoutMs);
-          try {
-            while (true) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              if (value) {
-                buffer += decoder.decode(value, { stream: true });
-                if (buffer.includes(terminator)) break;
-              }
+          const deadline = Date.now() + timeoutMs;
+          const termByte = terminator.charCodeAt(0);
+          while (Date.now() < deadline) {
+            const idx = this._rawBuffer.indexOf(termByte);
+            if (idx >= 0) {
+              const result = decoder.decode(this._rawBuffer.slice(0, idx + 1));
+              this._rawBuffer = this._rawBuffer.slice(idx + 1);
+              return result;
             }
-          } catch (err2) {
-            if (err2.name !== "AbortError") throw err2;
-          } finally {
-            clearTimeout(timer);
-            reader.releaseLock();
+            const remaining = deadline - Date.now();
+            if (remaining <= 0) break;
+            await this._waitForData(remaining);
           }
-          if (!buffer.includes(terminator)) {
-            throw new Error(`Read timeout: no terminator in response ("${buffer}")`);
-          }
-          return buffer;
+          const partial = decoder.decode(this._rawBuffer);
+          throw new Error(`Read timeout: no terminator in response ("${partial}")`);
         }
         // --- Read until sentinel byte ---
         // For binary protocols (Icom CI-V). Reads until a specific byte is found.
         // Returns the complete frame including the sentinel.
         async readUntilByte(sentinel, timeoutMs = 2e3) {
-          if (!this.port || !this.port.readable) {
+          if (!this.port) {
             throw new Error("Serial port not open");
           }
-          const chunks = [];
-          let totalLen = 0;
-          let found = false;
-          const reader = this.port.readable.getReader();
-          const timer = setTimeout(() => reader.cancel(), timeoutMs);
-          try {
-            while (!found) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              if (value) {
-                chunks.push(value);
-                totalLen += value.length;
-                for (let i = 0; i < value.length; i++) {
-                  if (value[i] === sentinel) {
-                    found = true;
-                    break;
-                  }
-                }
-              }
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            const idx = this._rawBuffer.indexOf(sentinel);
+            if (idx >= 0) {
+              const result = this._rawBuffer.slice(0, idx + 1);
+              this._rawBuffer = this._rawBuffer.slice(idx + 1);
+              return result;
             }
-          } catch (err2) {
-            if (err2.name !== "AbortError") throw err2;
-          } finally {
-            clearTimeout(timer);
-            reader.releaseLock();
+            const remaining = deadline - Date.now();
+            if (remaining <= 0) break;
+            await this._waitForData(remaining);
           }
-          if (!found) {
-            throw new Error(`Read timeout: sentinel 0x${sentinel.toString(16)} not found`);
-          }
-          const result = new Uint8Array(totalLen);
-          let offset = 0;
-          for (const chunk of chunks) {
-            result.set(chunk, offset);
-            offset += chunk.length;
-          }
-          const sentinelIdx = result.indexOf(sentinel);
-          return result.slice(0, sentinelIdx + 1);
+          throw new Error(`Read timeout: sentinel 0x${sentinel.toString(16)} not found`);
         }
         // --- Send binary command and read until sentinel ---
         // For CI-V: sends raw bytes and reads until EOM (0xFD).
@@ -1555,32 +1607,21 @@
         // --- Read exact bytes ---
         // For binary protocols (Icom CI-V). Reads exactly N bytes.
         async readBytes(length, timeoutMs = 2e3) {
-          if (!this.port || !this.port.readable) {
+          if (!this.port) {
             throw new Error("Serial port not open");
           }
-          const result = new Uint8Array(length);
-          let offset = 0;
-          const reader = this.port.readable.getReader();
-          const timer = setTimeout(() => reader.cancel(), timeoutMs);
-          try {
-            while (offset < length) {
-              const { value, done } = await reader.read();
-              if (done) break;
-              if (value) {
-                const remaining = length - offset;
-                const chunk = value.length > remaining ? value.slice(0, remaining) : value;
-                result.set(chunk, offset);
-                offset += chunk.length;
-              }
+          const deadline = Date.now() + timeoutMs;
+          while (Date.now() < deadline) {
+            if (this._rawBuffer.length >= length) {
+              const result = this._rawBuffer.slice(0, length);
+              this._rawBuffer = this._rawBuffer.slice(length);
+              return result;
             }
-          } finally {
-            clearTimeout(timer);
-            reader.releaseLock();
+            const remaining = deadline - Date.now();
+            if (remaining <= 0) break;
+            await this._waitForData(remaining);
           }
-          if (offset < length) {
-            throw new Error(`Read timeout: got ${offset}/${length} bytes`);
-          }
-          return result;
+          throw new Error(`Read timeout: got ${this._rawBuffer.length}/${length} bytes`);
         }
         // --- Send command and read response ---
         // Writes an ASCII command and reads until terminator.
@@ -1589,21 +1630,11 @@
           return this.readUntil(";", timeoutMs);
         }
         // --- Flush ---
-        // Clear stale data from the serial buffer before starting.
+        // Clear stale data from the internal buffer.
         async flush() {
-          if (!this.port || !this.port.readable) return;
-          const reader = this.port.readable.getReader();
-          const timer = setTimeout(() => reader.cancel(), 200);
-          try {
-            while (true) {
-              const { done } = await reader.read();
-              if (done) break;
-            }
-          } catch {
-          } finally {
-            clearTimeout(timer);
-            reader.releaseLock();
-          }
+          this._rawBuffer = new Uint8Array(0);
+          await new Promise((r) => setTimeout(r, 200));
+          this._rawBuffer = new Uint8Array(0);
         }
       };
     }
@@ -21223,8 +21254,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.63.5";
-    $("aboutVersion").textContent = "0.63.5";
+    $("splashVersion").textContent = "0.63.6";
+    $("aboutVersion").textContent = "0.63.6";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

@@ -40,8 +40,11 @@ export function createRigStateStore() {
 
   function subscribe(callback) {
     subscribers.push(callback);
-    // Immediately call with current state
-    callback({ ...state });
+    // Immediately call with current state — wrapped so a bad subscriber
+    // doesn't crash the caller (e.g. initOnAirRig)
+    try { callback({ ...state }); } catch (err) {
+      console.error('[rig-store] subscriber threw on initial call:', err);
+    }
     // Return unsubscribe function
     return () => {
       const idx = subscribers.indexOf(callback);
@@ -52,7 +55,9 @@ export function createRigStateStore() {
   function notify() {
     const snapshot = { ...state };
     for (const cb of subscribers) {
-      try { cb(snapshot); } catch { /* don't let subscriber errors kill updates */ }
+      try { cb(snapshot); } catch (err) {
+        console.error('[rig-store] subscriber threw on notify:', err);
+      }
     }
   }
 

@@ -59,6 +59,11 @@ function interpolate(cal, raw) {
   return cal[cal.length - 1][1];
 }
 
+// --- Zero-padded number helper for EX command encoding ---
+function pad(n, width) {
+  return String(n).padStart(width, '0');
+}
+
 // --- Driver interface ---
 export const yaesuAscii = {
   name: 'yaesu_ascii',
@@ -90,6 +95,8 @@ export const yaesuAscii = {
       'rf_power',
       'vfo_swap',
       'power_off',
+      'menu_read',
+      'menu_set',
     ];
   },
 
@@ -117,6 +124,17 @@ export const yaesuAscii = {
       case 'powerOff':      return 'PS0;'; // Power off radio
       case 'getInfo':       return 'IF;';
       case 'getID':         return 'ID;';
+      // EX (Menu) — read/write radio menu settings
+      // params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set
+      // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
+      case 'getMenu': {
+        const { p1, p2, p3 } = params;
+        return `EX${pad(p1,2)}${pad(p2,2)}${pad(p3,2)};`;
+      }
+      case 'setMenu': {
+        const { p1, p2, p3, value, digits } = params;
+        return `EX${pad(p1,2)}${pad(p2,2)}${pad(p3,2)}${String(value).padStart(digits || 1, '0')};`;
+      }
       default:
         return null;
     }
@@ -190,6 +208,19 @@ export const yaesuAscii = {
           frequency: parseInt(data.slice(0, 9), 10),
           raw: data,
         },
+      };
+    }
+
+    // --- Menu (EX P1P1 P2P2 P3P3 P4~P4) ---
+    // Response: EX + 6 digits (address) + value digits
+    if (resp.startsWith('EX') && resp.length >= 8) {
+      const p1 = parseInt(resp.slice(2, 4), 10);
+      const p2 = parseInt(resp.slice(4, 6), 10);
+      const p3 = parseInt(resp.slice(6, 8), 10);
+      const value = resp.length > 8 ? resp.slice(8) : '';
+      return {
+        type: 'menu',
+        value: { p1, p2, p3, raw: value, numeric: parseInt(value, 10) || 0 },
       };
     }
 

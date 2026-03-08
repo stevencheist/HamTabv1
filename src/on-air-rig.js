@@ -959,6 +959,16 @@ function commitFreqInput() {
 // Manages enable/disable cycle: snapshot current rig state, apply digital config,
 // restore previous state on disable. Starts disabled every session.
 
+// --- Digital mode menu addresses (DX10 EX command) ---
+// Each entry: { p1, p2, p3, digits, digitalValue, label }
+// digitalValue = what we set for FT8/FT4 operation
+const DIGITAL_MENU_SETTINGS = [
+  { p1: 1, p2: 4, p3: 16, digits: 1, digitalValue: 1, label: 'REAR SELECT → USB' },       // 0=DATA, 1=USB
+  { p1: 1, p2: 4, p3: 15, digits: 1, digitalValue: 1, label: 'DATA MOD SOURCE → REAR' },   // 0=MIC, 1=REAR
+  { p1: 3, p2: 4, p3: 5,  digits: 1, digitalValue: 1, label: 'VOX SELECT → DATA' },         // 0=MIC, 1=DATA
+  { p1: 3, p2: 4, p3: 6,  digits: 3, digitalValue: 50, label: 'DATA VOX GAIN → 50' },       // 0-100
+];
+
 // Snapshot the current rig state before applying digital settings
 function snapshotRigState() {
   const store = getRigStore();
@@ -967,7 +977,35 @@ function snapshotRigState() {
     frequency: s.frequency,
     mode: s.mode,
     rfPower: s.rfPower,
+    menuSettings: {}, // populated async by readMenuSettings()
   };
+}
+
+// Read current menu settings from the radio so we can restore them later.
+// Sends EX read commands — responses arrive async via rig store menuResponses.
+function readMenuSettings() {
+  const store = getRigStore();
+  const caps = store.get().capabilities || [];
+  if (!caps.includes('menu_read')) return;
+
+  for (const m of DIGITAL_MENU_SETTINGS) {
+    sendRigCommand('getMenu', { p1: m.p1, p2: m.p2, p3: m.p3 }, 1);
+  }
+}
+
+// Capture current menu responses into the snapshot (call after a short delay to let responses arrive)
+function captureMenuSnapshot() {
+  if (!state.digitalRestoreState) return;
+  const store = getRigStore();
+  const s = store.get();
+  const saved = {};
+  for (const m of DIGITAL_MENU_SETTINGS) {
+    const key = `${String(m.p1).padStart(2,'0')}${String(m.p2).padStart(2,'0')}${String(m.p3).padStart(2,'0')}`;
+    if (s.menuResponses[key]) {
+      saved[key] = s.menuResponses[key].numeric;
+    }
+  }
+  state.digitalRestoreState.menuSettings = saved;
 }
 
 // Apply digital mode settings to the radio
@@ -990,6 +1028,16 @@ function applyDigitalSetup() {
   if (caps.includes('rf_power') && power > 0) {
     sendRigCommand('setRFPower', power, 1);
   }
+
+  // Apply digital-mode menu settings (REAR SELECT→USB, VOX SELECT→DATA, etc.)
+  if (caps.includes('menu_set')) {
+    for (const m of DIGITAL_MENU_SETTINGS) {
+      sendRigCommand('setMenu', {
+        p1: m.p1, p2: m.p2, p3: m.p3,
+        value: m.digitalValue, digits: m.digits,
+      }, 1);
+    }
+  }
 }
 
 // Restore rig to pre-digital state
@@ -1009,6 +1057,19 @@ function restoreRigState() {
     sendRigCommand('setRFPower', snapshot.rfPower, 1);
   }
 
+  // Restore saved menu settings (REAR SELECT, VOX SELECT, etc.)
+  if (caps.includes('menu_set') && snapshot.menuSettings) {
+    for (const m of DIGITAL_MENU_SETTINGS) {
+      const key = `${String(m.p1).padStart(2,'0')}${String(m.p2).padStart(2,'0')}${String(m.p3).padStart(2,'0')}`;
+      if (key in snapshot.menuSettings) {
+        sendRigCommand('setMenu', {
+          p1: m.p1, p2: m.p2, p3: m.p3,
+          value: snapshot.menuSettings[key], digits: m.digits,
+        }, 1);
+      }
+    }
+  }
+
   state.digitalRestoreState = null;
 }
 
@@ -1023,11 +1084,17 @@ function handleDigitalToggle() {
   }
 
   if (toggle.checked) {
-    // Enable — snapshot then apply
+    // Enable — read menu settings first, snapshot, then apply after a short delay
     state.digitalSetupEnabled = true;
     state.digitalRestoreState = snapshotRigState();
-    applyDigitalSetup();
-    updateDigitalUI();
+    readMenuSettings(); // fire EX read commands
+    // Wait 500ms for menu responses to arrive, then capture and apply
+    setTimeout(() => {
+      captureMenuSnapshot();
+      applyDigitalSetup();
+      updateDigitalUI();
+    }, 500); // 500 ms — enough for 4 EX read round-trips at 38400 baud
+    updateDigitalUI(); // show enabled state immediately
   } else {
     // Disable — restore previous state
     state.digitalSetupEnabled = false;

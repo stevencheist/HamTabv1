@@ -7823,10 +7823,10 @@
   }
   function becomeLeader() {
     const ct = state_default.crossTab;
-    const prev = ct.role;
+    const prev2 = ct.role;
     ct.role = "leader";
     ct.leaderId = ct.tabId;
-    log(`Role: ${prev} -> leader`);
+    log(`Role: ${prev2} -> leader`);
     clearInterval(ct.heartbeatTimer);
     clearTimeout(ct.electionTimer);
     leaderHeartbeatTick();
@@ -7834,11 +7834,11 @@
   }
   function becomeFollower(leaderId) {
     const ct = state_default.crossTab;
-    const prev = ct.role;
+    const prev2 = ct.role;
     ct.role = "follower";
     ct.leaderId = leaderId;
     ct.lastHeartbeat = Date.now();
-    log(`Role: ${prev} -> follower (leader: ${leaderId ? leaderId.slice(0, 8) : "?"})`);
+    log(`Role: ${prev2} -> follower (leader: ${leaderId ? leaderId.slice(0, 8) : "?"})`);
     clearInterval(ct.heartbeatTimer);
     clearTimeout(ct.electionTimer);
     ct.heartbeatTimer = setInterval(followerMissDetectionTick, XTAB_HEARTBEAT_MS);
@@ -7846,7 +7846,7 @@
   }
   function becomeSolo(reason) {
     const ct = state_default.crossTab;
-    const prev = ct.role;
+    const prev2 = ct.role;
     ct.role = "solo";
     ct.leaderId = null;
     ct.peerCount = 0;
@@ -7857,7 +7857,7 @@
     ct.heartbeatTimer = null;
     ct.electionTimer = null;
     ct.interestDebounceTimer = null;
-    if (prev !== "solo") log(`Role: ${prev} -> solo (${reason})`);
+    if (prev2 !== "solo") log(`Role: ${prev2} -> solo (${reason})`);
   }
   function leaderHeartbeatTick() {
     const ct = state_default.crossTab;
@@ -8036,6 +8036,10 @@
       }
     }
     return clean;
+  }
+  function isLeaderTab() {
+    const role = state_default.crossTab.role;
+    return role === "leader" || role === "solo";
   }
   function getCrossTabState() {
     const ct = state_default.crossTab;
@@ -12240,8 +12244,14 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         }
         ctx.putImageData(imageData, 0, 0);
         const bounds = [[-90, -180], [90, 180]];
-        if (drapImageLayer) state_default.map.removeLayer(drapImageLayer);
-        drapImageLayer = L2.imageOverlay(canvas.toDataURL(), bounds, {
+        const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+        const url = URL.createObjectURL(blob);
+        if (drapImageLayer) {
+          const oldUrl = drapImageLayer._url;
+          state_default.map.removeLayer(drapImageLayer);
+          if (oldUrl && oldUrl.startsWith("blob:")) URL.revokeObjectURL(oldUrl);
+        }
+        drapImageLayer = L2.imageOverlay(url, bounds, {
           opacity: 0.55,
           pane: "propagation",
           interactive: false
@@ -12523,6 +12533,40 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     if (!hasLeaflet) return;
     const isMobile = window.innerWidth < BREAKPOINT_MOBILE;
     try {
+      let onMapViewChange = function() {
+        const z = state_default.map.getZoom();
+        const b = state_default.map.getBounds();
+        const key = `${z}|${Math.round(b.getSouth())}|${Math.round(b.getWest())}|${Math.round(b.getNorth())}|${Math.round(b.getEast())}`;
+        if (key === lastViewKey) return;
+        lastViewKey = key;
+        if (state_default.mapOverlays.latLonGrid) {
+          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
+          renderLatLonGrid2();
+        }
+        if (state_default.mapOverlays.maidenheadGrid) {
+          clearTimeout(state_default.maidenheadDebounceTimer);
+          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
+          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
+        }
+        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
+        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
+          clearTimeout(state_default.heatmapRenderTimer);
+          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
+          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
+        } else if (state_default.mapOverlays.propagationHeatmap) {
+          clearTimeout(state_default.heatmapRenderTimer);
+          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
+          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.propagationHeatmapBand), 200);
+        }
+        if (state_default.mapOverlays.wsprHeatmap) {
+          clearTimeout(state_default.wsprHeatmapRenderTimer);
+          const { renderWsprHeatmapCanvas: renderWsprHeatmapCanvas2 } = (init_wspr_heatmap(), __toCommonJS(wspr_heatmap_exports));
+          state_default.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas2(state_default.wsprHeatmapBand), 200);
+        }
+      }, debouncedViewChange = function() {
+        clearTimeout(viewChangeTimer);
+        viewChangeTimer = setTimeout(onMapViewChange, 80);
+      };
       state_default.map = L.map("map", {
         worldCopyJump: true,
         maxBoundsViscosity: 1,
@@ -12566,58 +12610,10 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       state_default.map.createPane("mapOverlays");
       state_default.map.getPane("mapOverlays").style.zIndex = 350;
       state_default.map.getPane("mapOverlays").style.pointerEvents = "none";
-      state_default.map.on("zoomend", () => {
-        if (state_default.mapOverlays.latLonGrid) {
-          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          renderLatLonGrid2();
-        }
-        if (state_default.mapOverlays.maidenheadGrid) {
-          clearTimeout(state_default.maidenheadDebounceTimer);
-          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
-        }
-        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
-        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
-          clearTimeout(state_default.heatmapRenderTimer);
-          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
-          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
-        } else if (state_default.mapOverlays.propagationHeatmap) {
-          clearTimeout(state_default.heatmapRenderTimer);
-          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
-          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.propagationHeatmapBand), 200);
-        }
-        if (state_default.mapOverlays.wsprHeatmap) {
-          clearTimeout(state_default.wsprHeatmapRenderTimer);
-          const { renderWsprHeatmapCanvas: renderWsprHeatmapCanvas2 } = (init_wspr_heatmap(), __toCommonJS(wspr_heatmap_exports));
-          state_default.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas2(state_default.wsprHeatmapBand), 200);
-        }
-      });
-      state_default.map.on("moveend", () => {
-        if (state_default.mapOverlays.latLonGrid) {
-          const { renderLatLonGrid: renderLatLonGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          renderLatLonGrid2();
-        }
-        if (state_default.mapOverlays.maidenheadGrid) {
-          clearTimeout(state_default.maidenheadDebounceTimer);
-          const { renderMaidenheadGrid: renderMaidenheadGrid2 } = (init_map_overlays(), __toCommonJS(map_overlays_exports));
-          state_default.maidenheadDebounceTimer = setTimeout(renderMaidenheadGrid2, 150);
-        }
-        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
-        if (state_default.hfPropOverlayBand && state_default.heatmapOverlayMode === "heatmap") {
-          clearTimeout(state_default.heatmapRenderTimer);
-          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
-          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.hfPropOverlayBand), 200);
-        } else if (state_default.mapOverlays.propagationHeatmap) {
-          clearTimeout(state_default.heatmapRenderTimer);
-          const { renderHeatmapCanvas: renderHeatmapCanvas2 } = (init_rel_heatmap(), __toCommonJS(rel_heatmap_exports));
-          state_default.heatmapRenderTimer = setTimeout(() => renderHeatmapCanvas2(state_default.propagationHeatmapBand), 200);
-        }
-        if (state_default.mapOverlays.wsprHeatmap) {
-          clearTimeout(state_default.wsprHeatmapRenderTimer);
-          const { renderWsprHeatmapCanvas: renderWsprHeatmapCanvas2 } = (init_wspr_heatmap(), __toCommonJS(wspr_heatmap_exports));
-          state_default.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas2(state_default.wsprHeatmapBand), 200);
-        }
-      });
+      let lastViewKey = "";
+      let viewChangeTimer = null;
+      state_default.map.on("zoomend", debouncedViewChange);
+      state_default.map.on("moveend", debouncedViewChange);
       window.addEventListener("orientationchange", () => {
         setTimeout(() => {
           if (state_default.map) state_default.map.invalidateSize();
@@ -14221,6 +14217,7 @@ ${beacon.location}`);
 
   // src/refresh.js
   init_widgets();
+  init_cross_tab();
   async function fetchSourceData(source) {
     const def = SOURCE_DEFS[source];
     if (!def) return;
@@ -14296,7 +14293,11 @@ ${beacon.location}`);
       if (document.hidden) return;
       state_default.countdownSeconds--;
       if (state_default.countdownSeconds <= 0) {
-        refreshAll();
+        if (isLeaderTab()) {
+          refreshAll();
+        } else {
+          resetCountdown();
+        }
       }
       updateCountdownDisplay();
     }, 1e3);
@@ -14493,8 +14494,8 @@ ${beacon.location}`);
       const radiusMeters = footprintRadiusKm * 1e3;
       const isISS = satId === "25544" || satId === 25544;
       if (state_default.satellites.markers[satId]) {
-        const prev = state_default.satellites.markers[satId].getLatLng();
-        if (Math.abs(prev.lat - pos.lat) > 0.01 || Math.abs(prev.lng - pos.lon) > 0.01) {
+        const prev2 = state_default.satellites.markers[satId].getLatLng();
+        if (Math.abs(prev2.lat - pos.lat) > 0.01 || Math.abs(prev2.lng - pos.lon) > 0.01) {
           state_default.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
         }
       } else {
@@ -15862,7 +15863,7 @@ ${beacon.location}`);
       s.prev[p] = m >= wsize ? m - wsize : 0;
     } while (--n);
   };
-  var HASH_ZLIB = (s, prev, data) => (prev << s.hash_shift ^ data) & s.hash_mask;
+  var HASH_ZLIB = (s, prev2, data) => (prev2 << s.hash_shift ^ data) & s.hash_mask;
   var HASH = HASH_ZLIB;
   var flush_pending = (strm) => {
     const s = strm.state;
@@ -15924,7 +15925,7 @@ ${beacon.location}`);
     const limit = s.strstart > s.w_size - MIN_LOOKAHEAD ? s.strstart - (s.w_size - MIN_LOOKAHEAD) : 0;
     const _win = s.window;
     const wmask = s.w_mask;
-    const prev = s.prev;
+    const prev2 = s.prev;
     const strend = s.strstart + MAX_MATCH;
     let scan_end1 = _win[scan + best_len - 1];
     let scan_end = _win[scan + best_len];
@@ -15954,7 +15955,7 @@ ${beacon.location}`);
         scan_end1 = _win[scan + best_len - 1];
         scan_end = _win[scan + best_len];
       }
-    } while ((cur_match = prev[cur_match & wmask]) > limit && --chain_length !== 0);
+    } while ((cur_match = prev2[cur_match & wmask]) > limit && --chain_length !== 0);
     if (best_len <= s.lookahead) {
       return best_len;
     }
@@ -16270,7 +16271,7 @@ ${beacon.location}`);
   };
   var deflate_rle = (s, flush) => {
     let bflush;
-    let prev;
+    let prev2;
     let scan, strend;
     const _win = s.window;
     for (; ; ) {
@@ -16286,11 +16287,11 @@ ${beacon.location}`);
       s.match_length = 0;
       if (s.lookahead >= MIN_MATCH && s.strstart > 0) {
         scan = s.strstart - 1;
-        prev = _win[scan];
-        if (prev === _win[++scan] && prev === _win[++scan] && prev === _win[++scan]) {
+        prev2 = _win[scan];
+        if (prev2 === _win[++scan] && prev2 === _win[++scan] && prev2 === _win[++scan]) {
           strend = s.strstart + MAX_MATCH;
           do {
-          } while (prev === _win[++scan] && prev === _win[++scan] && prev === _win[++scan] && prev === _win[++scan] && prev === _win[++scan] && prev === _win[++scan] && prev === _win[++scan] && prev === _win[++scan] && scan < strend);
+          } while (prev2 === _win[++scan] && prev2 === _win[++scan] && prev2 === _win[++scan] && prev2 === _win[++scan] && prev2 === _win[++scan] && prev2 === _win[++scan] && prev2 === _win[++scan] && prev2 === _win[++scan] && scan < strend);
           s.match_length = MAX_MATCH - (strend - scan);
           if (s.match_length > s.lookahead) {
             s.match_length = s.lookahead;
@@ -19760,10 +19761,10 @@ ${beacon.location}`);
       buffer[i] = 10 * Math.log10(existing + signalLinear);
     }
   }
-  function blendFrames(prev, current, alpha) {
+  function blendFrames(prev2, current, alpha) {
     const result = new Float32Array(current.length);
     for (let i = 0; i < current.length; i++) {
-      result[i] = prev.length === current.length ? alpha * current[i] + (1 - alpha) * prev[i] : current[i];
+      result[i] = prev2.length === current.length ? alpha * current[i] + (1 - alpha) * prev2[i] : current[i];
     }
     return result;
   }
@@ -20186,6 +20187,8 @@ ${beacon.location}`);
   var unsubscribe = null;
   var initialized2 = false;
   var listenersAttached = false;
+  var dom = {};
+  var prev = {};
   var BAND_IDS = ["160m", "80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m"];
   var USER_MODES = [
     { label: "LSB", cat: "LSB" },
@@ -20366,175 +20369,233 @@ ${beacon.location}`);
         return "";
     }
   }
+  function cacheDomRefs() {
+    dom.freq = $("rigFrequency");
+    dom.mode = $("rigMode");
+    dom.tx = $("rigTxState");
+    dom.sMeter = $("rigSMeter");
+    dom.swr = $("rigSWR");
+    dom.rst = $("rigRST");
+    dom.power = $("rigPower");
+    dom.band = $("rigBand");
+    dom.status = $("rigStatus");
+    dom.connectBtn = $("rigConnectBtn");
+    dom.conf = $("rigConfidence");
+    dom.lcd = $("rigLcd");
+    dom.vfoBRow = $("rigVfoBRow");
+    dom.freqB = $("rigFrequencyB");
+    dom.swapBtn = $("rigVfoSwapBtn");
+    dom.bandModeRow = $("rigBandModeRow");
+    dom.bandSelect = $("rigBandSelect");
+    dom.modeSelect = $("rigModeSelect");
+    dom.powerRow = $("rigPowerRow");
+    dom.powerSlider = $("rigPowerSlider");
+    dom.powerValue = $("rigPowerValue");
+    dom.powerOffBtn = $("rigPowerOffBtn");
+    dom.muteBtn = $("rigSdrMute");
+    dom.bandOverlay = $("rigBandOverlay");
+    const container = $("rigBandButtons");
+    dom.bandBtns = container ? Array.from(container.querySelectorAll(".rig-band-btn")) : [];
+  }
   function render(state2) {
     if (!isWidgetVisible("widget-on-air-rig")) return;
-    const freqEl = $("rigFrequency");
-    const modeEl = $("rigMode");
-    const txEl = $("rigTxState");
-    const sMeterEl = $("rigSMeter");
-    const swrEl = $("rigSWR");
-    const rstEl = $("rigRST");
-    const powerEl = $("rigPower");
-    const bandEl = $("rigBand");
-    const statusEl = $("rigStatus");
-    const connectBtn = $("rigConnectBtn");
-    const confEl = $("rigConfidence");
-    const lcdEl = $("rigLcd");
-    if (!freqEl) return;
-    freqEl.textContent = formatFrequency(state2.frequency);
-    if (confEl) {
-      confEl.className = `rig-confidence ${state2.ptt ? confidenceClass(state2.tuneConfidence) : ""}`;
+    if (!dom.freq) return;
+    const freqText = formatFrequency(state2.frequency);
+    if (freqText !== prev.freqText) {
+      dom.freq.textContent = freqText;
+      prev.freqText = freqText;
     }
-    const vfoBRow = $("rigVfoBRow");
-    const freqBEl = $("rigFrequencyB");
-    const swapBtn = $("rigVfoSwapBtn");
-    if (vfoBRow && freqBEl) {
+    if (dom.conf) {
+      const confClass = `rig-confidence ${state2.ptt ? confidenceClass(state2.tuneConfidence) : ""}`;
+      if (confClass !== prev.confClass) {
+        dom.conf.className = confClass;
+        prev.confClass = confClass;
+      }
+    }
+    if (dom.vfoBRow && dom.freqB) {
       if (state2.frequencyB > 0) {
-        freqBEl.textContent = formatFrequency(state2.frequencyB);
-        vfoBRow.style.display = "";
-        if (swapBtn) {
+        const freqBText = formatFrequency(state2.frequencyB);
+        if (freqBText !== prev.freqBText) {
+          dom.freqB.textContent = freqBText;
+          prev.freqBText = freqBText;
+        }
+        if (prev.vfoBVisible !== true) {
+          dom.vfoBRow.style.display = "";
+          prev.vfoBVisible = true;
+        }
+        if (dom.swapBtn) {
           const hasSwap = (state2.capabilities || []).includes("vfo_swap");
-          swapBtn.style.display = hasSwap ? "" : "none";
+          dom.swapBtn.style.display = hasSwap ? "" : "none";
         }
       } else {
-        vfoBRow.style.display = "none";
+        if (prev.vfoBVisible !== false) {
+          dom.vfoBRow.style.display = "none";
+          prev.vfoBVisible = false;
+        }
       }
     }
-    if (bandEl) {
-      bandEl.textContent = state2.band || "";
+    if (dom.band && state2.band !== prev.band) {
+      dom.band.textContent = state2.band || "";
+      for (const btn of dom.bandBtns) {
+        btn.classList.toggle("active", btn.dataset.band === state2.band);
+      }
+      prev.band = state2.band;
     }
-    const bandBtns = document.querySelectorAll("#rigBandButtons .rig-band-btn");
-    for (const btn of bandBtns) {
-      btn.classList.toggle("active", btn.dataset.band === state2.band);
+    const modeText = state2.mode || "---";
+    if (modeText !== prev.modeText) {
+      dom.mode.textContent = modeText;
+      prev.modeText = modeText;
     }
-    modeEl.textContent = state2.mode || "---";
-    if (state2.rxOnly) {
-      txEl.textContent = "RX";
-      txEl.classList.remove("rig-tx-active");
-      if (lcdEl) lcdEl.classList.remove("rig-lcd-tx");
-    } else if (state2.ptt) {
-      txEl.textContent = "TX";
-      txEl.classList.add("rig-tx-active");
-      if (lcdEl) lcdEl.classList.add("rig-lcd-tx");
-    } else {
-      txEl.textContent = "RX";
-      txEl.classList.remove("rig-tx-active");
-      if (lcdEl) lcdEl.classList.remove("rig-lcd-tx");
-    }
-    if (rstEl) {
-      if (state2.signal > 0 && !state2.ptt) {
-        rstEl.textContent = `RST ${buildRST(state2.sUnits)}`;
-        rstEl.classList.remove("hidden");
+    const txKey = state2.rxOnly ? "rx-only" : state2.ptt ? "tx" : "rx";
+    if (txKey !== prev.txKey) {
+      if (state2.rxOnly || !state2.ptt) {
+        dom.tx.textContent = "RX";
+        dom.tx.classList.remove("rig-tx-active");
+        if (dom.lcd) dom.lcd.classList.remove("rig-lcd-tx");
       } else {
-        rstEl.classList.add("hidden");
+        dom.tx.textContent = "TX";
+        dom.tx.classList.add("rig-tx-active");
+        if (dom.lcd) dom.lcd.classList.add("rig-lcd-tx");
+      }
+      prev.txKey = txKey;
+    }
+    if (dom.rst) {
+      const rstVisible = state2.signal > 0 && !state2.ptt;
+      const rstText = rstVisible ? `RST ${buildRST(state2.sUnits)}` : "";
+      if (rstText !== prev.rstText) {
+        if (rstVisible) {
+          dom.rst.textContent = rstText;
+          dom.rst.classList.remove("hidden");
+        } else {
+          dom.rst.classList.add("hidden");
+        }
+        prev.rstText = rstText;
       }
     }
-    let sMeterPct;
-    if (state2.signal <= 150) {
-      sMeterPct = state2.signal / 150 * 71;
-    } else {
-      sMeterPct = 71 + (state2.signal - 150) / 105 * 29;
-    }
-    sMeterPct = Math.min(100, Math.max(0, sMeterPct));
-    sMeterEl.style.width = sMeterPct + "%";
-    if (state2.signal > 150) {
-      sMeterEl.classList.add("rig-meter-over");
-    } else {
-      sMeterEl.classList.remove("rig-meter-over");
+    const rawSignal = state2.signal;
+    if (rawSignal !== prev.rawSignal) {
+      prev.rawSignal = rawSignal;
+      if (!prev.sMeterRafPending) {
+        prev.sMeterRafPending = true;
+        requestAnimationFrame(() => {
+          prev.sMeterRafPending = false;
+          let pct;
+          if (rawSignal <= 150) {
+            pct = rawSignal / 150 * 71;
+          } else {
+            pct = 71 + (rawSignal - 150) / 105 * 29;
+          }
+          pct = Math.min(100, Math.max(0, pct));
+          dom.sMeter.style.width = pct + "%";
+          if (rawSignal > 150) {
+            dom.sMeter.classList.add("rig-meter-over");
+          } else {
+            dom.sMeter.classList.remove("rig-meter-over");
+          }
+        });
+      }
     }
     const caps = state2.capabilities || [];
     const hasSwr = caps.includes("meter_swr");
-    if (swrEl) {
-      if (state2.rxOnly || !hasSwr || !state2.ptt) {
-        swrEl.style.display = "none";
-        swrEl.classList.remove("rig-swr-danger", "rig-swr-caution");
-      } else {
-        swrEl.style.display = "";
-        if (state2.swr > 0 && state2.swr < 20) {
-          const swrLabel = state2.swr > 3 ? " DANGER" : state2.swr > 1.5 ? " CAUTION" : "";
-          swrEl.textContent = `SWR ${state2.swr.toFixed(1)}:1${swrLabel}`;
-          if (state2.swr > 3) {
-            swrEl.classList.add("rig-swr-danger");
-            swrEl.classList.remove("rig-swr-caution");
-          } else if (state2.swr > 1.5) {
-            swrEl.classList.remove("rig-swr-danger");
-            swrEl.classList.add("rig-swr-caution");
+    if (dom.swr) {
+      const swrVisible = !state2.rxOnly && hasSwr && state2.ptt;
+      if (swrVisible !== prev.swrVisible) {
+        dom.swr.style.display = swrVisible ? "" : "none";
+        if (!swrVisible) dom.swr.classList.remove("rig-swr-danger", "rig-swr-caution");
+        prev.swrVisible = swrVisible;
+      }
+      if (swrVisible) {
+        const swrRounded = state2.swr > 0 && state2.swr < 20 ? state2.swr.toFixed(1) : null;
+        if (swrRounded !== prev.swrRounded) {
+          if (swrRounded) {
+            const swrLabel = state2.swr > 3 ? " DANGER" : state2.swr > 1.5 ? " CAUTION" : "";
+            dom.swr.textContent = `SWR ${swrRounded}:1${swrLabel}`;
+            dom.swr.classList.toggle("rig-swr-danger", state2.swr > 3);
+            dom.swr.classList.toggle("rig-swr-caution", state2.swr > 1.5 && state2.swr <= 3);
           } else {
-            swrEl.classList.remove("rig-swr-danger", "rig-swr-caution");
+            dom.swr.textContent = "SWR ---";
+            dom.swr.classList.remove("rig-swr-danger", "rig-swr-caution");
           }
-        } else {
-          swrEl.textContent = "SWR ---";
-          swrEl.classList.remove("rig-swr-danger", "rig-swr-caution");
+          prev.swrRounded = swrRounded;
         }
       }
     }
-    if (powerEl) {
-      if (state2.rxOnly || !caps.includes("meter_power")) {
-        powerEl.style.display = "none";
+    if (dom.power) {
+      const hasPowerMeter = caps.includes("meter_power");
+      if (state2.rxOnly || !hasPowerMeter) {
+        if (prev.powerDisplay !== "none") {
+          dom.power.style.display = "none";
+          prev.powerDisplay = "none";
+        }
       } else {
-        powerEl.style.display = "";
+        if (prev.powerDisplay !== "") {
+          dom.power.style.display = "";
+          prev.powerDisplay = "";
+        }
+        let powerText;
         if (state2.ptt && state2.powerMeter > 0) {
-          powerEl.textContent = `${Math.round(state2.powerMeter)}W`;
-          powerEl.classList.remove("hidden");
+          powerText = `${Math.round(state2.powerMeter)}W`;
         } else if (state2.rfPower > 0) {
-          powerEl.textContent = `Set: ${state2.rfPower}W`;
-          powerEl.classList.remove("hidden");
+          powerText = `Set: ${state2.rfPower}W`;
         } else {
-          powerEl.classList.add("hidden");
+          powerText = null;
+        }
+        if (powerText !== prev.powerText) {
+          if (powerText) {
+            dom.power.textContent = powerText;
+            dom.power.classList.remove("hidden");
+          } else {
+            dom.power.classList.add("hidden");
+          }
+          prev.powerText = powerText;
         }
       }
     }
     renderBandOverlay(state2);
-    const bandModeRow = $("rigBandModeRow");
-    const bandSelect = $("rigBandSelect");
-    const modeSelect = $("rigModeSelect");
-    if (bandModeRow) {
+    if (dom.bandModeRow) {
       if (state2.connected) {
-        bandModeRow.classList.remove("hidden");
-        if (bandSelect && !bandSelect.matches(":focus") && state2.band) {
-          bandSelect.value = state2.band;
+        dom.bandModeRow.classList.remove("hidden");
+        if (dom.bandSelect && !dom.bandSelect.matches(":focus") && state2.band) {
+          dom.bandSelect.value = state2.band;
         }
-        if (modeSelect && !modeSelect.matches(":focus") && state2.mode) {
-          modeSelect.value = catModeToUserLabel(state2.mode);
+        if (dom.modeSelect && !dom.modeSelect.matches(":focus") && state2.mode) {
+          dom.modeSelect.value = catModeToUserLabel(state2.mode);
         }
       } else {
-        bandModeRow.classList.add("hidden");
+        dom.bandModeRow.classList.add("hidden");
       }
     }
-    const powerRow = $("rigPowerRow");
-    const powerSlider = $("rigPowerSlider");
-    const powerValue = $("rigPowerValue");
-    if (powerRow && state2.connected && !state2.rxOnly && caps.includes("rf_power")) {
-      powerRow.classList.remove("hidden");
-      if (powerValue && state2.rfPower > 0) {
-        powerValue.textContent = `${state2.rfPower}W`;
+    if (dom.powerRow && state2.connected && !state2.rxOnly && caps.includes("rf_power")) {
+      dom.powerRow.classList.remove("hidden");
+      if (dom.powerValue && state2.rfPower > 0) {
+        dom.powerValue.textContent = `${state2.rfPower}W`;
       }
-      if (powerSlider && !powerSlider.matches(":active") && state2.rfPower > 0) {
-        powerSlider.value = state2.rfPower;
+      if (dom.powerSlider && !dom.powerSlider.matches(":active") && state2.rfPower > 0) {
+        dom.powerSlider.value = state2.rfPower;
       }
-    } else if (powerRow) {
-      powerRow.classList.add("hidden");
+    } else if (dom.powerRow) {
+      dom.powerRow.classList.add("hidden");
     }
     if (state2.txLocked && state2.txLockReason) {
-      statusEl.textContent = state2.txLockReason;
-      statusEl.classList.add("rig-status-warn");
+      dom.status.textContent = state2.txLockReason;
+      dom.status.classList.add("rig-status-warn");
     } else {
-      statusEl.classList.remove("rig-status-warn");
+      dom.status.classList.remove("rig-status-warn");
     }
     if (state2.connected) {
       if (!state2.txLocked) {
         if (state2.sourceType === "sdr") {
-          statusEl.textContent = `KiwiSDR: ${state2.remoteName || "connected"}`;
+          dom.status.textContent = `KiwiSDR: ${state2.remoteName || "connected"}`;
         } else if (state2.demo) {
-          statusEl.textContent = "DEMO MODE";
+          dom.status.textContent = "DEMO MODE";
         } else {
-          statusEl.textContent = state2.radioId ? `Connected (${state2.radioId})` : "Connected";
+          dom.status.textContent = state2.radioId ? `Connected (${state2.radioId})` : "Connected";
         }
       }
-      connectBtn.textContent = "Disconnect";
+      dom.connectBtn.textContent = "Disconnect";
     } else {
-      statusEl.textContent = "";
-      connectBtn.textContent = "Connect";
+      dom.status.textContent = "";
+      dom.connectBtn.textContent = "Connect";
     }
     const header = document.querySelector("#widget-on-air-rig .widget-header");
     if (header) {
@@ -20561,26 +20622,24 @@ ${beacon.location}`);
         sdrBadge.remove();
       }
     }
-    const powerOffBtn = $("rigPowerOffBtn");
-    if (powerOffBtn) {
+    if (dom.powerOffBtn) {
       const hasPowerOff = state2.connected && !state2.demo && !state2.rxOnly && (state2.capabilities || []).includes("power_off");
-      powerOffBtn.style.display = hasPowerOff ? "" : "none";
+      dom.powerOffBtn.style.display = hasPowerOff ? "" : "none";
     }
-    const muteBtn = $("rigSdrMute");
-    if (muteBtn) {
+    if (dom.muteBtn) {
       if (state2.rxOnly && state2.connected) {
-        muteBtn.style.display = "";
+        dom.muteBtn.style.display = "";
         const player = getSdrAudioPlayer();
         const isMuted = player ? player.isMuted() : false;
-        muteBtn.textContent = isMuted ? "\u{1F507}" : "\u{1F50A}";
-        muteBtn.classList.toggle("muted", isMuted);
+        dom.muteBtn.textContent = isMuted ? "\u{1F507}" : "\u{1F50A}";
+        dom.muteBtn.classList.toggle("muted", isMuted);
       } else {
-        muteBtn.style.display = "none";
+        dom.muteBtn.style.display = "none";
       }
     }
   }
   function renderBandOverlay(state2) {
-    const container = $("rigBandOverlay");
+    const container = dom.bandOverlay;
     if (!container) return;
     if (!state2.band || !state2.connected) {
       container.innerHTML = "";
@@ -20830,6 +20889,8 @@ ${beacon.location}`);
     if (!isWidgetVisible("widget-on-air-rig")) return;
     const connectBtn = $("rigConnectBtn");
     if (!connectBtn) return;
+    cacheDomRefs();
+    prev = {};
     if (!listenersAttached) {
       populateProfiles();
       populateBandMode();
@@ -20913,6 +20974,7 @@ ${beacon.location}`);
       unsubscribe = null;
     }
     lastBandOverlay = "";
+    prev = {};
     initialized2 = false;
   }
   onWidgetHide("widget-on-air-rig", destroyOnAirRig);
@@ -21288,8 +21350,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.64.1";
-    $("aboutVersion").textContent = "0.64.1";
+    $("splashVersion").textContent = "0.65.0";
+    $("aboutVersion").textContent = "0.65.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -24932,11 +24994,11 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   }, 6e4);
   initSatellites();
   setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-satellites")) return;
+    if (document.hidden || !isWidgetVisible("widget-satellites") || !isLeaderTab()) return;
     fetchIssPosition();
   }, 1e4);
   setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-satellites")) return;
+    if (document.hidden || !isWidgetVisible("widget-satellites") || !isLeaderTab()) return;
     fetchSatellitePositions();
   }, 1e4);
   updateClocks();
@@ -25032,7 +25094,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
   }
   setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-live-spots")) return;
+    if (document.hidden || !isWidgetVisible("widget-live-spots") || !isLeaderTab()) return;
     fetchLiveSpots();
   }, 5 * 60 * 1e3);
   setInterval(() => {
@@ -25040,7 +25102,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) renderVoacapMatrix();
   }, 60 * 1e3);
   setInterval(() => {
-    if (document.hidden) return;
+    if (document.hidden || !isLeaderTab()) return;
     if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) fetchVoacapMatrixThrottled();
   }, 60 * 1e3);
   setInterval(() => {

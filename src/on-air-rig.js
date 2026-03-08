@@ -20,6 +20,14 @@ let unsubscribe = null;
 let initialized = false;
 let listenersAttached = false; // event listeners persist across show/hide — only attach once
 
+// --- Cached DOM refs (populated once in initOnAirRig) ---
+// Avoids repeated $() lookups on every 200-500ms render cycle
+const dom = {};
+
+// --- Last rendered values for diff-based updates ---
+// Only write to DOM when a value actually changed
+let prev = {};
+
 // --- Band/Mode selector data ---
 
 const BAND_IDS = ['160m', '80m', '40m', '30m', '20m', '17m', '15m', '12m', '10m', '6m'];
@@ -255,150 +263,196 @@ function confidenceClass(confidence) {
   }
 }
 
+// --- Cache DOM element references (called once from initOnAirRig) ---
+function cacheDomRefs() {
+  dom.freq = $('rigFrequency');
+  dom.mode = $('rigMode');
+  dom.tx = $('rigTxState');
+  dom.sMeter = $('rigSMeter');
+  dom.swr = $('rigSWR');
+  dom.rst = $('rigRST');
+  dom.power = $('rigPower');
+  dom.band = $('rigBand');
+  dom.status = $('rigStatus');
+  dom.connectBtn = $('rigConnectBtn');
+  dom.conf = $('rigConfidence');
+  dom.lcd = $('rigLcd');
+  dom.vfoBRow = $('rigVfoBRow');
+  dom.freqB = $('rigFrequencyB');
+  dom.swapBtn = $('rigVfoSwapBtn');
+  dom.bandModeRow = $('rigBandModeRow');
+  dom.bandSelect = $('rigBandSelect');
+  dom.modeSelect = $('rigModeSelect');
+  dom.powerRow = $('rigPowerRow');
+  dom.powerSlider = $('rigPowerSlider');
+  dom.powerValue = $('rigPowerValue');
+  dom.powerOffBtn = $('rigPowerOffBtn');
+  dom.muteBtn = $('rigSdrMute');
+  dom.bandOverlay = $('rigBandOverlay');
+  // Band buttons: cache once, avoids querySelectorAll each render
+  const container = $('rigBandButtons');
+  dom.bandBtns = container ? Array.from(container.querySelectorAll('.rig-band-btn')) : [];
+}
+
 // --- Render rig state into widget DOM ---
 function render(state) {
   if (!isWidgetVisible('widget-on-air-rig')) return;
+  if (!dom.freq) return;
 
-  const freqEl = $('rigFrequency');
-  const modeEl = $('rigMode');
-  const txEl = $('rigTxState');
-  const sMeterEl = $('rigSMeter');
-  const swrEl = $('rigSWR');
-  const rstEl = $('rigRST');
-  const powerEl = $('rigPower');
-  const bandEl = $('rigBand');
-  const statusEl = $('rigStatus');
-  const connectBtn = $('rigConnectBtn');
-  const confEl = $('rigConfidence');
-  const lcdEl = $('rigLcd');
-
-  if (!freqEl) return;
-
-  // Frequency display with confidence ring
-  freqEl.textContent = formatFrequency(state.frequency);
-  if (confEl) {
-    confEl.className = `rig-confidence ${state.ptt ? confidenceClass(state.tuneConfidence) : ''}`;
+  // Frequency display with confidence ring — diff: only update if changed
+  const freqText = formatFrequency(state.frequency);
+  if (freqText !== prev.freqText) {
+    dom.freq.textContent = freqText;
+    prev.freqText = freqText;
+  }
+  if (dom.conf) {
+    const confClass = `rig-confidence ${state.ptt ? confidenceClass(state.tuneConfidence) : ''}`;
+    if (confClass !== prev.confClass) {
+      dom.conf.className = confClass;
+      prev.confClass = confClass;
+    }
   }
 
   // VFO B — show only when radio provides a secondary frequency
-  const vfoBRow = $('rigVfoBRow');
-  const freqBEl = $('rigFrequencyB');
-  const swapBtn = $('rigVfoSwapBtn');
-  if (vfoBRow && freqBEl) {
+  if (dom.vfoBRow && dom.freqB) {
     if (state.frequencyB > 0) {
-      freqBEl.textContent = formatFrequency(state.frequencyB);
-      vfoBRow.style.display = '';
-      // Show swap button only if radio supports VFO swap
-      if (swapBtn) {
+      const freqBText = formatFrequency(state.frequencyB);
+      if (freqBText !== prev.freqBText) {
+        dom.freqB.textContent = freqBText;
+        prev.freqBText = freqBText;
+      }
+      if (prev.vfoBVisible !== true) { dom.vfoBRow.style.display = ''; prev.vfoBVisible = true; }
+      if (dom.swapBtn) {
         const hasSwap = (state.capabilities || []).includes('vfo_swap');
-        swapBtn.style.display = hasSwap ? '' : 'none';
+        dom.swapBtn.style.display = hasSwap ? '' : 'none';
       }
     } else {
-      vfoBRow.style.display = 'none';
+      if (prev.vfoBVisible !== false) { dom.vfoBRow.style.display = 'none'; prev.vfoBVisible = false; }
     }
   }
 
   // Band indicator
-  if (bandEl) {
-    bandEl.textContent = state.band || '';
+  if (dom.band && state.band !== prev.band) {
+    dom.band.textContent = state.band || '';
+    // Band quick-tune button active state — only update when band changes
+    for (const btn of dom.bandBtns) {
+      btn.classList.toggle('active', btn.dataset.band === state.band);
+    }
+    prev.band = state.band;
   }
 
-  // Band quick-tune button active state
-  const bandBtns = document.querySelectorAll('#rigBandButtons .rig-band-btn');
-  for (const btn of bandBtns) {
-    btn.classList.toggle('active', btn.dataset.band === state.band);
+  // Mode — diff update
+  const modeText = state.mode || '---';
+  if (modeText !== prev.modeText) {
+    dom.mode.textContent = modeText;
+    prev.modeText = modeText;
   }
 
-  // Mode
-  modeEl.textContent = state.mode || '---';
-
-  // TX/RX state — toggles LCD color scheme (force RX for SDR)
-  if (state.rxOnly) {
-    txEl.textContent = 'RX';
-    txEl.classList.remove('rig-tx-active');
-    if (lcdEl) lcdEl.classList.remove('rig-lcd-tx');
-  } else if (state.ptt) {
-    txEl.textContent = 'TX';
-    txEl.classList.add('rig-tx-active');
-    if (lcdEl) lcdEl.classList.add('rig-lcd-tx');
-  } else {
-    txEl.textContent = 'RX';
-    txEl.classList.remove('rig-tx-active');
-    if (lcdEl) lcdEl.classList.remove('rig-lcd-tx');
-  }
-
-  // RST badge
-  if (rstEl) {
-    if (state.signal > 0 && !state.ptt) {
-      rstEl.textContent = `RST ${buildRST(state.sUnits)}`;
-      rstEl.classList.remove('hidden');
+  // TX/RX state — diff: only toggle classes when ptt/rxOnly changes
+  const txKey = state.rxOnly ? 'rx-only' : state.ptt ? 'tx' : 'rx';
+  if (txKey !== prev.txKey) {
+    if (state.rxOnly || !state.ptt) {
+      dom.tx.textContent = 'RX';
+      dom.tx.classList.remove('rig-tx-active');
+      if (dom.lcd) dom.lcd.classList.remove('rig-lcd-tx');
     } else {
-      rstEl.classList.add('hidden');
+      dom.tx.textContent = 'TX';
+      dom.tx.classList.add('rig-tx-active');
+      if (dom.lcd) dom.lcd.classList.add('rig-lcd-tx');
+    }
+    prev.txKey = txKey;
+  }
+
+  // RST badge — diff update
+  if (dom.rst) {
+    const rstVisible = state.signal > 0 && !state.ptt;
+    const rstText = rstVisible ? `RST ${buildRST(state.sUnits)}` : '';
+    if (rstText !== prev.rstText) {
+      if (rstVisible) {
+        dom.rst.textContent = rstText;
+        dom.rst.classList.remove('hidden');
+      } else {
+        dom.rst.classList.add('hidden');
+      }
+      prev.rstText = rstText;
     }
   }
 
-  // S-meter bar — scale matches labels: S1-S9 = first 71%, +20/+40 = rest
-  // Raw 0-150 → S1-S9 (0-71%), raw 150-255 → S9+ (71-100%)
-  let sMeterPct;
-  if (state.signal <= 150) {
-    sMeterPct = (state.signal / 150) * 71;  // S1-S9 range
-  } else {
-    sMeterPct = 71 + ((state.signal - 150) / 105) * 29; // S9+ range
+  // S-meter bar — throttle to rAF since this updates at meter cadence (200ms)
+  const rawSignal = state.signal;
+  if (rawSignal !== prev.rawSignal) {
+    prev.rawSignal = rawSignal;
+    if (!prev.sMeterRafPending) {
+      prev.sMeterRafPending = true;
+      requestAnimationFrame(() => {
+        prev.sMeterRafPending = false;
+        let pct;
+        if (rawSignal <= 150) {
+          pct = (rawSignal / 150) * 71;
+        } else {
+          pct = 71 + ((rawSignal - 150) / 105) * 29;
+        }
+        pct = Math.min(100, Math.max(0, pct));
+        dom.sMeter.style.width = pct + '%';
+        if (rawSignal > 150) {
+          dom.sMeter.classList.add('rig-meter-over');
+        } else {
+          dom.sMeter.classList.remove('rig-meter-over');
+        }
+      });
+    }
   }
-  sMeterPct = Math.min(100, Math.max(0, sMeterPct));
-  sMeterEl.style.width = sMeterPct + '%';
 
-  // Color: green up to S9, amber above
-  if (state.signal > 150) {
-    sMeterEl.classList.add('rig-meter-over');
-  } else {
-    sMeterEl.classList.remove('rig-meter-over');
-  }
-
-  // SWR display — only show during TX, hide for RX-only or if radio lacks meter_swr.
-  // SWR meters return noise/stale values during RX and TX→RX transitions,
-  // causing erratic readings (e.g., 1:1 ↔ 25:1). Only display when PTT is active.
+  // SWR display — only show during TX, hide for RX-only or if radio lacks meter_swr
   const caps = state.capabilities || [];
   const hasSwr = caps.includes('meter_swr');
-  if (swrEl) {
-    if (state.rxOnly || !hasSwr || !state.ptt) {
-      swrEl.style.display = 'none';
-      swrEl.classList.remove('rig-swr-danger', 'rig-swr-caution');
-    } else {
-      swrEl.style.display = '';
-      if (state.swr > 0 && state.swr < 20) {
-        const swrLabel = state.swr > 3.0 ? ' DANGER' : state.swr > 1.5 ? ' CAUTION' : '';
-        swrEl.textContent = `SWR ${state.swr.toFixed(1)}:1${swrLabel}`;
-        if (state.swr > 3.0) {
-          swrEl.classList.add('rig-swr-danger');
-          swrEl.classList.remove('rig-swr-caution');
-        } else if (state.swr > 1.5) {
-          swrEl.classList.remove('rig-swr-danger');
-          swrEl.classList.add('rig-swr-caution');
+  if (dom.swr) {
+    const swrVisible = !state.rxOnly && hasSwr && state.ptt;
+    if (swrVisible !== prev.swrVisible) {
+      dom.swr.style.display = swrVisible ? '' : 'none';
+      if (!swrVisible) dom.swr.classList.remove('rig-swr-danger', 'rig-swr-caution');
+      prev.swrVisible = swrVisible;
+    }
+    if (swrVisible) {
+      const swrRounded = state.swr > 0 && state.swr < 20 ? state.swr.toFixed(1) : null;
+      if (swrRounded !== prev.swrRounded) {
+        if (swrRounded) {
+          const swrLabel = state.swr > 3.0 ? ' DANGER' : state.swr > 1.5 ? ' CAUTION' : '';
+          dom.swr.textContent = `SWR ${swrRounded}:1${swrLabel}`;
+          dom.swr.classList.toggle('rig-swr-danger', state.swr > 3.0);
+          dom.swr.classList.toggle('rig-swr-caution', state.swr > 1.5 && state.swr <= 3.0);
         } else {
-          swrEl.classList.remove('rig-swr-danger', 'rig-swr-caution');
+          dom.swr.textContent = 'SWR ---';
+          dom.swr.classList.remove('rig-swr-danger', 'rig-swr-caution');
         }
-      } else {
-        swrEl.textContent = 'SWR ---';
-        swrEl.classList.remove('rig-swr-danger', 'rig-swr-caution');
+        prev.swrRounded = swrRounded;
       }
     }
   }
 
   // TX Power display — hide for RX-only or if radio lacks meter_power capability
-  if (powerEl) {
-    if (state.rxOnly || !caps.includes('meter_power')) {
-      powerEl.style.display = 'none';
+  if (dom.power) {
+    const hasPowerMeter = caps.includes('meter_power');
+    if (state.rxOnly || !hasPowerMeter) {
+      if (prev.powerDisplay !== 'none') { dom.power.style.display = 'none'; prev.powerDisplay = 'none'; }
     } else {
-      powerEl.style.display = '';
+      if (prev.powerDisplay !== '') { dom.power.style.display = ''; prev.powerDisplay = ''; }
+      let powerText;
       if (state.ptt && state.powerMeter > 0) {
-        powerEl.textContent = `${Math.round(state.powerMeter)}W`;
-        powerEl.classList.remove('hidden');
+        powerText = `${Math.round(state.powerMeter)}W`;
       } else if (state.rfPower > 0) {
-        powerEl.textContent = `Set: ${state.rfPower}W`;
-        powerEl.classList.remove('hidden');
+        powerText = `Set: ${state.rfPower}W`;
       } else {
-        powerEl.classList.add('hidden');
+        powerText = null;
+      }
+      if (powerText !== prev.powerText) {
+        if (powerText) {
+          dom.power.textContent = powerText;
+          dom.power.classList.remove('hidden');
+        } else {
+          dom.power.classList.add('hidden');
+        }
+        prev.powerText = powerText;
       }
     }
   }
@@ -407,63 +461,57 @@ function render(state) {
   renderBandOverlay(state);
 
   // Band + Mode selectors
-  const bandModeRow = $('rigBandModeRow');
-  const bandSelect = $('rigBandSelect');
-  const modeSelect = $('rigModeSelect');
-  if (bandModeRow) {
+  if (dom.bandModeRow) {
     if (state.connected) {
-      bandModeRow.classList.remove('hidden');
-      if (bandSelect && !bandSelect.matches(':focus') && state.band) {
-        bandSelect.value = state.band;
+      dom.bandModeRow.classList.remove('hidden');
+      if (dom.bandSelect && !dom.bandSelect.matches(':focus') && state.band) {
+        dom.bandSelect.value = state.band;
       }
-      if (modeSelect && !modeSelect.matches(':focus') && state.mode) {
-        modeSelect.value = catModeToUserLabel(state.mode);
+      if (dom.modeSelect && !dom.modeSelect.matches(':focus') && state.mode) {
+        dom.modeSelect.value = catModeToUserLabel(state.mode);
       }
     } else {
-      bandModeRow.classList.add('hidden');
+      dom.bandModeRow.classList.add('hidden');
     }
   }
 
   // Power slider — show when connected and radio supports rf_power
-  const powerRow = $('rigPowerRow');
-  const powerSlider = $('rigPowerSlider');
-  const powerValue = $('rigPowerValue');
-  if (powerRow && state.connected && !state.rxOnly && caps.includes('rf_power')) {
-    powerRow.classList.remove('hidden');
-    if (powerValue && state.rfPower > 0) {
-      powerValue.textContent = `${state.rfPower}W`;
+  if (dom.powerRow && state.connected && !state.rxOnly && caps.includes('rf_power')) {
+    dom.powerRow.classList.remove('hidden');
+    if (dom.powerValue && state.rfPower > 0) {
+      dom.powerValue.textContent = `${state.rfPower}W`;
     }
     // Sync slider to rig power (don't fight user drag)
-    if (powerSlider && !powerSlider.matches(':active') && state.rfPower > 0) {
-      powerSlider.value = state.rfPower;
+    if (dom.powerSlider && !dom.powerSlider.matches(':active') && state.rfPower > 0) {
+      dom.powerSlider.value = state.rfPower;
     }
-  } else if (powerRow) {
-    powerRow.classList.add('hidden');
+  } else if (dom.powerRow) {
+    dom.powerRow.classList.add('hidden');
   }
 
   // TX lock indicator
   if (state.txLocked && state.txLockReason) {
-    statusEl.textContent = state.txLockReason;
-    statusEl.classList.add('rig-status-warn');
+    dom.status.textContent = state.txLockReason;
+    dom.status.classList.add('rig-status-warn');
   } else {
-    statusEl.classList.remove('rig-status-warn');
+    dom.status.classList.remove('rig-status-warn');
   }
 
   // Connection status + demo/SDR badge
   if (state.connected) {
     if (!state.txLocked) {
       if (state.sourceType === 'sdr') {
-        statusEl.textContent = `KiwiSDR: ${state.remoteName || 'connected'}`;
+        dom.status.textContent = `KiwiSDR: ${state.remoteName || 'connected'}`;
       } else if (state.demo) {
-        statusEl.textContent = 'DEMO MODE';
+        dom.status.textContent = 'DEMO MODE';
       } else {
-        statusEl.textContent = state.radioId ? `Connected (${state.radioId})` : 'Connected';
+        dom.status.textContent = state.radioId ? `Connected (${state.radioId})` : 'Connected';
       }
     }
-    connectBtn.textContent = 'Disconnect';
+    dom.connectBtn.textContent = 'Disconnect';
   } else {
-    statusEl.textContent = '';
-    connectBtn.textContent = 'Connect';
+    dom.status.textContent = '';
+    dom.connectBtn.textContent = 'Connect';
   }
 
   // Demo badge in header
@@ -496,31 +544,29 @@ function render(state) {
   }
 
   // Power off button — show when connected to a real radio with power_off capability
-  const powerOffBtn = $('rigPowerOffBtn');
-  if (powerOffBtn) {
+  if (dom.powerOffBtn) {
     const hasPowerOff = state.connected && !state.demo && !state.rxOnly
       && (state.capabilities || []).includes('power_off');
-    powerOffBtn.style.display = hasPowerOff ? '' : 'none';
+    dom.powerOffBtn.style.display = hasPowerOff ? '' : 'none';
   }
 
   // SDR mute button — show only when KiwiSDR is connected
-  const muteBtn = $('rigSdrMute');
-  if (muteBtn) {
+  if (dom.muteBtn) {
     if (state.rxOnly && state.connected) {
-      muteBtn.style.display = '';
+      dom.muteBtn.style.display = '';
       const player = getSdrAudioPlayer();
       const isMuted = player ? player.isMuted() : false;
-      muteBtn.textContent = isMuted ? '\u{1F507}' : '\u{1F50A}';
-      muteBtn.classList.toggle('muted', isMuted);
+      dom.muteBtn.textContent = isMuted ? '\u{1F507}' : '\u{1F50A}';
+      dom.muteBtn.classList.toggle('muted', isMuted);
     } else {
-      muteBtn.style.display = 'none';
+      dom.muteBtn.style.display = 'none';
     }
   }
 }
 
 // --- Band overlay: shows CW/DIGI/PHONE zones for current band ---
 function renderBandOverlay(state) {
-  const container = $('rigBandOverlay');
+  const container = dom.bandOverlay;
   if (!container) return;
 
   if (!state.band || !state.connected) {
@@ -839,6 +885,10 @@ export function initOnAirRig() {
   const connectBtn = $('rigConnectBtn');
   if (!connectBtn) return;
 
+  // Cache DOM refs once — avoids repeated $() lookups in render()
+  cacheDomRefs();
+  prev = {}; // reset diff state
+
   // Attach DOM listeners once — they persist across show/hide cycles
   // (DOM elements stay in the page, just hidden via display:none)
   if (!listenersAttached) {
@@ -943,6 +993,7 @@ export async function destroyOnAirRig() {
   }
 
   lastBandOverlay = '';
+  prev = {}; // reset diff state for next init
   initialized = false;
 }
 

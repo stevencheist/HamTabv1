@@ -477,6 +477,15 @@ function sanitizeSpot(spot) {
   return clean;
 }
 
+// --- Should this tab perform periodic network fetches? ---
+// Leader and solo tabs fetch normally. Follower tabs skip periodic fetches
+// to avoid duplicate network requests across tabs hitting the same server cache.
+// Followers catch up on visibility change (tab foreground) or manual refresh.
+export function isLeaderTab() {
+  const role = state.crossTab.role;
+  return role === 'leader' || role === 'solo';
+}
+
 export function getCrossTabState() {
   const ct = state.crossTab;
   const snapshot = {

@@ -48,6 +48,8 @@ export class KiwiSdrSocketTransport {
     this._mode = 'USB';
     this._smeter = 0;           // raw 0-255 scale
     this._serverName = '';
+    this._onAudioData = null;   // callback(Int16Array) — receives PCM samples
+    this._audioInitDone = false; // gate: only respond to audio_init once
   }
 
   static isSupported() {
@@ -56,6 +58,10 @@ export class KiwiSdrSocketTransport {
 
   onStateChange(callback) {
     this._onStateChange = callback;
+  }
+
+  onAudioData(callback) {
+    this._onAudioData = callback;
   }
 
   _setState(newState) {
@@ -96,11 +102,9 @@ export class KiwiSdrSocketTransport {
 
       this._ws.onopen = () => {
         clearTimeout(this._connectTimeout);
-        // Send auth + initial tune
+        // Only send auth on open — remaining setup (AR OK, tune, compression)
+        // is deferred until the server sends audio_init (see _handleTextMsg)
         this._send(`SET auth t=kiwi p=${this.password}`);
-        this._send('SET mod=usb low_cut=300 high_cut=3000 freq=14.074');
-        this._send('SET compression=0');
-        this._send('SET OVERRIDE inactivity_timeout=0');
 
         // 30s keepalive to prevent server disconnect
         this._keepaliveTimer = setInterval(() => {
@@ -202,54 +206,109 @@ export class KiwiSdrSocketTransport {
   async flush() {}
 
   // --- Internal: handle incoming WebSocket message ---
+  // KiwiSDR sends ALL frames as binary ArrayBuffers with a 3-byte ASCII tag:
+  //   "SND" — audio + S-meter data
+  //   "MSG" — text key=value protocol messages (sent as binary, not WS text)
   _handleMessage(event) {
-    // Binary frames — contain audio data + S-meter
     if (event.data instanceof ArrayBuffer) {
+      const len = event.data.byteLength;
+      if (len < 3) return;
+
       const view = new DataView(event.data);
-      // KiwiSDR SND binary frame: first byte is flags, bytes 2-3 are S-meter (big-endian)
-      // Actual format varies; S-meter is typically in the header
-      if (event.data.byteLength >= 7) {
-        // Byte 0: flags, Bytes 1-2: sequence, Bytes 3-6: S-meter (dBm as float32? or int)
-        // KiwiSDR sends smeter as raw value in specific offset
-        // Extract S-meter from binary frame header — offset depends on KiwiSDR version
-        // Most common: bytes 2-3 as int16 = dBm * 10
+      const t0 = view.getUint8(0), t1 = view.getUint8(1), t2 = view.getUint8(2);
+
+      // --- SND frame: audio + S-meter ---
+      // Layout: "SND"(3) + flags(1) + seq(4 LE) + smeter(2 BE) + PCM(rest)
+      if (t0 === 0x53 && t1 === 0x4E && t2 === 0x44) { // "SND"
+        if (len < 10) return;
+
         try {
-          const smeterRaw = view.getUint16(2, false); // big-endian
-          // smeterRaw is typically dBm*10 offset — convert
-          const dbm = (smeterRaw / 10) - 127; // approximate dBm
+          const smeterRaw = view.getUint16(8, false); // big-endian, offset 8
+          const dbm = (smeterRaw - 1270) / 10; // decode: raw = dBm*10 + 1270
           this._smeter = this._dbToRaw(dbm);
         } catch { /* ignore malformed frames */ }
+
+        // Extract PCM audio samples after 10-byte header
+        if (len > 10 && this._onAudioData) {
+          try {
+            const flags = view.getUint8(3);
+            const audioBytes = len - 10;
+            const sampleCount = Math.floor(audioBytes / 2);
+            const samples = new Int16Array(sampleCount);
+            const littleEndian = (flags & 0x80) !== 0;
+            for (let i = 0; i < sampleCount; i++) {
+              samples[i] = view.getInt16(10 + i * 2, littleEndian);
+            }
+            this._onAudioData(samples);
+          } catch { /* ignore malformed audio frames */ }
+        }
+        return;
       }
-      return; // skip audio data
+
+      // --- MSG frame: text protocol messages sent as binary ---
+      if (t0 === 0x4D && t1 === 0x53 && t2 === 0x47) { // "MSG"
+        // Decode bytes after "MSG " (4 bytes) as UTF-8 text
+        if (len <= 4) return;
+        const textBytes = new Uint8Array(event.data, 4);
+        const msg = new TextDecoder().decode(textBytes);
+        this._handleTextMsg(msg);
+        return;
+      }
+
+      // Other binary tags (e.g. W/F waterfall) — ignore
+      return;
     }
 
-    // Text frames — MSG key=value pairs
+    // Text frames — fallback (some KiwiSDR versions may send text WS frames)
     if (typeof event.data === 'string') {
-      const msg = event.data;
+      this._handleTextMsg(event.data);
+    }
+  }
 
-      // Server name
-      if (msg.includes('server_de_id=')) {
-        const match = msg.match(/server_de_id="?([^"]+)"?/);
-        if (match) this._serverName = match[1].trim();
+  // --- Process a text protocol message (from MSG binary frame or text WS frame) ---
+  _handleTextMsg(msg) {
+    // Server audio_init — respond with full config to start audio stream.
+    // KiwiSDR requires AR OK + AGC + mod + gen + squelch + compression
+    // before cmd_recv_ok is set and SND frames begin.
+    if (msg.includes('audio_init=')) {
+      if (!this._audioInitDone) {
+        this._audioInitDone = true;
+        const rateMatch = msg.match(/audio_rate=(\d+)/);
+        const rate = rateMatch ? rateMatch[1] : '12000';
+        this._send(`SET AR OK in=${rate} out=${rate}`);
+        this._send('SET agc=1 hang=0 thresh=-100 slope=6 decay=1000 manGain=50');
+        this._send(`SET mod=usb low_cut=300 high_cut=3000 freq=${(this._frequency / 1000).toFixed(3)}`);
+        this._send('SET gen=0 mix=-1');
+        this._send('SET lms_autonotch=0');
+        this._send('SET squelch=0 max=0');
+        this._send('SET de_emp=0');
+        this._send('SET compression=0');
+        this._send('SET OVERRIDE inactivity_timeout=0');
       }
+    }
 
-      // Frequency update from server
-      if (msg.includes('freq=')) {
-        const match = msg.match(/freq=([\d.]+)/);
-        if (match) {
-          const khz = parseFloat(match[1]);
-          if (!isNaN(khz) && khz > 0) {
-            this._frequency = Math.round(khz * 1000); // kHz → Hz
-          }
+    // Server name
+    if (msg.includes('server_de_id=')) {
+      const match = msg.match(/server_de_id="?([^"]+)"?/);
+      if (match) this._serverName = match[1].trim();
+    }
+
+    // Frequency update from server
+    if (msg.includes('freq=')) {
+      const match = msg.match(/freq=([\d.]+)/);
+      if (match) {
+        const khz = parseFloat(match[1]);
+        if (!isNaN(khz) && khz > 0) {
+          this._frequency = Math.round(khz * 1000); // kHz → Hz
         }
       }
+    }
 
-      // Mode update from server
-      if (msg.includes('mode=')) {
-        const match = msg.match(/mode=(\w+)/);
-        if (match && KIWI_MODE_MAP[match[1]]) {
-          this._mode = KIWI_MODE_MAP[match[1]];
-        }
+    // Mode update from server
+    if (msg.includes('mode=')) {
+      const match = msg.match(/mode=(\w+)/);
+      if (match && KIWI_MODE_MAP[match[1]]) {
+        this._mode = KIWI_MODE_MAP[match[1]];
       }
     }
   }

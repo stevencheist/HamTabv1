@@ -20,6 +20,7 @@ import { smartDetect } from './smart-detect.js';
 import { createTxIntentSystem } from './safety/tx-intent-system.js';
 import { createBandTransitionGuard } from './safety/band-transition-guard.js';
 import { createTxPowerGuard } from './safety/tx-power-guard.js';
+import { createKiwiSdrAudioPlayer } from './kiwisdr-audio.js';
 import profiles from './rig-profiles.json';
 
 // --- Driver registry ---
@@ -36,6 +37,7 @@ const DRIVERS = {
 let rigManager = null;
 let rigStore = null;
 let activeSafetyModules = []; // { stop() } — cleaned up on disconnect
+let sdrAudioPlayer = null;    // KiwiSDR audio player — created on SDR connect
 
 // --- Get or create the shared rig state store ---
 export function getRigStore() {
@@ -92,6 +94,10 @@ export async function connectRig(config = {}) {
       rxOnly: true,
       remoteName: sdrTransport.serverName,
     });
+
+    // Wire audio: transport → audio player → speakers
+    sdrAudioPlayer = createKiwiSdrAudioPlayer();
+    sdrTransport.onAudioData((samples) => sdrAudioPlayer.feedSamples(samples));
 
     // No safety modules for RX-only SDR
     return true;
@@ -242,6 +248,12 @@ export async function disconnectRig() {
   }
   activeSafetyModules = [];
 
+  // Clean up SDR audio player
+  if (sdrAudioPlayer) {
+    sdrAudioPlayer.destroy();
+    sdrAudioPlayer = null;
+  }
+
   await rigManager.disconnect();
   rigManager = null;
 
@@ -256,6 +268,11 @@ export function sendRigCommand(command, params, priority) {
     return;
   }
   rigManager.sendCommand(command, params, priority);
+}
+
+// --- Get the SDR audio player (for mute control) ---
+export function getSdrAudioPlayer() {
+  return sdrAudioPlayer;
 }
 
 // --- Check if a rig is connected ---

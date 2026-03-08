@@ -21037,6 +21037,25 @@ ${beacon.location}`);
     { p1: 3, p2: 4, p3: 6, digits: 3, digitalValue: 50, label: "DATA VOX GAIN \u2192 50" }
     // 0-100
   ];
+  var RESTORE_KEY = "hamtab_digital_restore";
+  function persistSnapshot(snapshot) {
+    if (!snapshot) return;
+    try {
+      localStorage.setItem(RESTORE_KEY, JSON.stringify(snapshot));
+    } catch (_) {
+    }
+  }
+  function loadPersistedSnapshot() {
+    try {
+      const raw = localStorage.getItem(RESTORE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+  function clearPersistedSnapshot() {
+    localStorage.removeItem(RESTORE_KEY);
+  }
   function snapshotRigState() {
     const store = getRigStore();
     const s = store.get();
@@ -21068,6 +21087,7 @@ ${beacon.location}`);
       }
     }
     state_default.digitalRestoreState.menuSettings = saved;
+    persistSnapshot(state_default.digitalRestoreState);
   }
   function applyDigitalSetup() {
     const mode2 = state_default.digitalSetupMode;
@@ -21124,6 +21144,7 @@ ${beacon.location}`);
       }
     }
     state_default.digitalRestoreState = null;
+    clearPersistedSnapshot();
   }
   function handleDigitalToggle() {
     const toggle = $("rigDigitalToggle");
@@ -21135,6 +21156,7 @@ ${beacon.location}`);
     if (toggle.checked) {
       state_default.digitalSetupEnabled = true;
       state_default.digitalRestoreState = snapshotRigState();
+      persistSnapshot(state_default.digitalRestoreState);
       readMenuSettings();
       setTimeout(() => {
         captureMenuSnapshot();
@@ -21201,6 +21223,11 @@ ${beacon.location}`);
     const statusEl = $("rigStatus");
     if (statusEl) statusEl.textContent = "Released for WSJT-X \u2014 reconnect when done";
   }
+  function handleRestoreFromWSJTX() {
+    if (!isRigConnected() || !state_default.digitalRestoreState) return;
+    restoreRigState();
+    updateDigitalUI();
+  }
   function populateDigitalBands() {
     const bandSelect = $("rigDigitalBand");
     if (!bandSelect) return;
@@ -21241,7 +21268,10 @@ ${beacon.location}`);
     section.style.display = isRealRadio ? "" : "none";
     if (!connected && state_default.digitalSetupEnabled) {
       state_default.digitalSetupEnabled = false;
-      state_default.digitalRestoreState = null;
+    }
+    const pendingRestore = connected && !state_default.digitalSetupEnabled && !state_default.digitalRestoreState && loadPersistedSnapshot();
+    if (pendingRestore) {
+      state_default.digitalRestoreState = pendingRestore;
     }
     if (toggle) toggle.checked = state_default.digitalSetupEnabled;
     if (controls) {
@@ -21250,10 +21280,18 @@ ${beacon.location}`);
     if (releaseBtn) {
       releaseBtn.style.display = state_default.digitalSetupEnabled && connected ? "" : "none";
     }
+    const restoreBtn = $("rigDigitalRestore");
+    const hasPendingRestore = connected && !state_default.digitalSetupEnabled && state_default.digitalRestoreState;
+    if (restoreBtn) {
+      restoreBtn.style.display = hasPendingRestore ? "" : "none";
+    }
     if (statusBadge) {
       if (state_default.digitalSetupEnabled) {
         statusBadge.textContent = "DIGITAL";
         statusBadge.className = "rig-digital-status rig-digital-active";
+      } else if (hasPendingRestore) {
+        statusBadge.textContent = "RESTORE AVAILABLE";
+        statusBadge.className = "rig-digital-status rig-digital-restore-pending";
       } else {
         statusBadge.textContent = "";
         statusBadge.className = "rig-digital-status";
@@ -21360,6 +21398,8 @@ ${beacon.location}`);
       if (digitalApplyBtn) digitalApplyBtn.addEventListener("click", handleDigitalApply);
       const digitalReleaseBtn = $("rigDigitalRelease");
       if (digitalReleaseBtn) digitalReleaseBtn.addEventListener("click", handleReleaseForWSJTX);
+      const digitalRestoreBtn = $("rigDigitalRestore");
+      if (digitalRestoreBtn) digitalRestoreBtn.addEventListener("click", handleRestoreFromWSJTX);
       populateDigitalBands();
       const initPowerChips = $("rigDigitalPowerChips");
       if (initPowerChips) {
@@ -21766,8 +21806,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.66.4";
-    $("aboutVersion").textContent = "0.66.4";
+    $("splashVersion").textContent = "0.66.5";
+    $("aboutVersion").textContent = "0.66.5";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

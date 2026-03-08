@@ -969,6 +969,26 @@ const DIGITAL_MENU_SETTINGS = [
   { p1: 3, p2: 4, p3: 6,  digits: 3, digitalValue: 50, label: 'DATA VOX GAIN → 50' },       // 0-100
 ];
 
+// --- Persist/load restore snapshot to localStorage ---
+// Survives disconnect → WSJT-X session → reconnect cycle
+const RESTORE_KEY = 'hamtab_digital_restore';
+
+function persistSnapshot(snapshot) {
+  if (!snapshot) return;
+  try { localStorage.setItem(RESTORE_KEY, JSON.stringify(snapshot)); } catch (_) {}
+}
+
+function loadPersistedSnapshot() {
+  try {
+    const raw = localStorage.getItem(RESTORE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) { return null; }
+}
+
+function clearPersistedSnapshot() {
+  localStorage.removeItem(RESTORE_KEY);
+}
+
 // Snapshot the current rig state before applying digital settings
 function snapshotRigState() {
   const store = getRigStore();
@@ -1006,6 +1026,7 @@ function captureMenuSnapshot() {
     }
   }
   state.digitalRestoreState.menuSettings = saved;
+  persistSnapshot(state.digitalRestoreState);
 }
 
 // Apply digital mode settings to the radio
@@ -1071,6 +1092,7 @@ function restoreRigState() {
   }
 
   state.digitalRestoreState = null;
+  clearPersistedSnapshot();
 }
 
 // Handle enable/disable toggle
@@ -1087,6 +1109,7 @@ function handleDigitalToggle() {
     // Enable — read menu settings first, snapshot, then apply after a short delay
     state.digitalSetupEnabled = true;
     state.digitalRestoreState = snapshotRigState();
+    persistSnapshot(state.digitalRestoreState); // persist immediately (menu settings added later)
     readMenuSettings(); // fire EX read commands
     // Wait 500ms for menu responses to arrive, then capture and apply
     setTimeout(() => {
@@ -1169,6 +1192,13 @@ async function handleReleaseForWSJTX() {
   if (statusEl) statusEl.textContent = 'Released for WSJT-X — reconnect when done';
 }
 
+// Handle "Restore Settings" — reconnected after WSJT-X, restore pre-digital state
+function handleRestoreFromWSJTX() {
+  if (!isRigConnected() || !state.digitalRestoreState) return;
+  restoreRigState(); // sends commands + clears snapshot + removes from localStorage
+  updateDigitalUI();
+}
+
 // Populate digital band dropdown based on selected mode
 function populateDigitalBands() {
   const bandSelect = $('rigDigitalBand');
@@ -1219,10 +1249,16 @@ function updateDigitalUI() {
   // Show section only when connected to a real radio
   section.style.display = isRealRadio ? '' : 'none';
 
-  // Auto-disable digital mode when rig disconnects (prevents stale snapshot)
+  // Auto-disable digital mode when rig disconnects — but keep snapshot for restore on reconnect
   if (!connected && state.digitalSetupEnabled) {
     state.digitalSetupEnabled = false;
-    state.digitalRestoreState = null;
+    // Don't null digitalRestoreState — it's persisted in localStorage for post-WSJT-X restore
+  }
+
+  // On reconnect, check for a persisted snapshot that needs restoring
+  const pendingRestore = connected && !state.digitalSetupEnabled && !state.digitalRestoreState && loadPersistedSnapshot();
+  if (pendingRestore) {
+    state.digitalRestoreState = pendingRestore;
   }
 
   // Toggle state
@@ -1238,11 +1274,21 @@ function updateDigitalUI() {
     releaseBtn.style.display = (state.digitalSetupEnabled && connected) ? '' : 'none';
   }
 
+  // Restore button — visible when reconnected with a pending snapshot (post-WSJT-X)
+  const restoreBtn = $('rigDigitalRestore');
+  const hasPendingRestore = connected && !state.digitalSetupEnabled && state.digitalRestoreState;
+  if (restoreBtn) {
+    restoreBtn.style.display = hasPendingRestore ? '' : 'none';
+  }
+
   // Status badge
   if (statusBadge) {
     if (state.digitalSetupEnabled) {
       statusBadge.textContent = 'DIGITAL';
       statusBadge.className = 'rig-digital-status rig-digital-active';
+    } else if (hasPendingRestore) {
+      statusBadge.textContent = 'RESTORE AVAILABLE';
+      statusBadge.className = 'rig-digital-status rig-digital-restore-pending';
     } else {
       statusBadge.textContent = '';
       statusBadge.className = 'rig-digital-status';
@@ -1368,6 +1414,9 @@ export function initOnAirRig() {
 
     const digitalReleaseBtn = $('rigDigitalRelease');
     if (digitalReleaseBtn) digitalReleaseBtn.addEventListener('click', handleReleaseForWSJTX);
+
+    const digitalRestoreBtn = $('rigDigitalRestore');
+    if (digitalRestoreBtn) digitalRestoreBtn.addEventListener('click', handleRestoreFromWSJTX);
 
     // Populate band dropdown and power chip active state
     populateDigitalBands();

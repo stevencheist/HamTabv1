@@ -209,6 +209,44 @@ const DXC_CACHE_TTL = 10 * 1000; // 10 seconds — HamQTH minimum polling interv
 let pskCache = { data: null, expires: 0 };
 const PSK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes — PSKReporter recommended minimum
 
+// --- PSKReporter outbound request governor ---
+// Prevents rate-limit blocks when many users share the same container IP.
+// - Global token bucket: max 10 requests per 60s to PSKReporter
+// - Request coalescing: duplicate in-flight callsign queries share one upstream call
+// - Stale-while-revalidate: return last known good data when upstream fails
+
+const PSK_RATE_LIMIT = 10;           // max upstream requests per window
+const PSK_RATE_WINDOW = 60 * 1000;   // 60s window
+let pskTokens = PSK_RATE_LIMIT;
+let pskTokenResetAt = Date.now() + PSK_RATE_WINDOW;
+
+// Refill tokens at window boundary
+function pskAcquireToken() {
+  const now = Date.now();
+  if (now >= pskTokenResetAt) {
+    pskTokens = PSK_RATE_LIMIT;
+    pskTokenResetAt = now + PSK_RATE_WINDOW;
+  }
+  if (pskTokens > 0) {
+    pskTokens--;
+    return true;
+  }
+  return false;
+}
+
+// In-flight request dedup — keyed by full URL
+const pskInflight = new Map(); // url → Promise<string>
+
+async function pskFetchDedup(url) {
+  if (pskInflight.has(url)) return pskInflight.get(url);
+  const promise = fetchText(url).finally(() => pskInflight.delete(url));
+  pskInflight.set(url, promise);
+  return promise;
+}
+
+// App contact string — PSKReporter requires this for identification
+const PSK_APP_CONTACT = 'appcontact=admin@hamtab.net';
+
 // Extract mode from DXC comment field
 function extractModeFromComment(comment) {
   if (!comment) return '';
@@ -449,6 +487,12 @@ app.get('/api/spots/psk', async (req, res) => {
       return res.json(pskCache.data);
     }
 
+    // Rate limit check — serve stale data if throttled
+    if (!pskAcquireToken()) {
+      if (pskCache.data) return res.json(pskCache.data); // stale-while-revalidate
+      return res.status(429).json({ error: 'PSKReporter rate limit — try again shortly' });
+    }
+
     // Build query params
     const params = new URLSearchParams({
       flowStartSeconds: '-3600',  // Last hour
@@ -457,8 +501,8 @@ app.get('/api/spots/psk', async (req, res) => {
       nolocator: '0',             // Include grid squares
     });
 
-    const url = `https://retrieve.pskreporter.info/query?${params}`;
-    const xml = await fetchText(url);
+    const url = `https://retrieve.pskreporter.info/query?${params}&${PSK_APP_CONTACT}`;
+    const xml = await pskFetchDedup(url);
 
     // Parse XML
     const parser = new XMLParser({
@@ -515,7 +559,9 @@ app.get('/api/spots/psk', async (req, res) => {
     res.json(validSpots);
   } catch (err) {
     console.error('Error fetching PSKReporter spots:', err.message);
-    res.status(502).json({ error: 'Failed to fetch PSKReporter spots' });
+    // Stale-while-revalidate — serve old data if available
+    if (pskCache.data) return res.json(pskCache.data);
+    res.status(502).json({ error: 'PSKReporter is unavailable — try again shortly' });
   }
 });
 
@@ -553,6 +599,12 @@ app.get('/api/spots/psk/heard', async (req, res) => {
       return res.json(cached.data);
     }
 
+    // Rate limit check — serve stale data if throttled
+    if (!pskAcquireToken()) {
+      if (cached?.data) return res.json(cached.data); // stale-while-revalidate
+      return res.status(429).json({ error: 'PSKReporter rate limit — try again shortly' });
+    }
+
     // Build query params for PSKReporter
     const params = new URLSearchParams({
       senderCallsign: callsign,
@@ -562,8 +614,8 @@ app.get('/api/spots/psk/heard', async (req, res) => {
       nolocator: '0',
     });
 
-    const url = `https://retrieve.pskreporter.info/query?${params}`;
-    const xml = await fetchText(url);
+    const url = `https://retrieve.pskreporter.info/query?${params}&${PSK_APP_CONTACT}`;
+    const xml = await pskFetchDedup(url);
 
     // Parse XML
     const parser = new XMLParser({
@@ -643,7 +695,10 @@ app.get('/api/spots/psk/heard', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error fetching PSKReporter heard spots:', err.message);
-    res.status(502).json({ error: 'Failed to fetch PSKReporter spots' });
+    // Stale-while-revalidate — serve old data if available
+    const stale = pskHeardCache[callsign];
+    if (stale?.data) return res.json(stale.data);
+    res.status(502).json({ error: 'PSKReporter is unavailable — try again shortly' });
   }
 });
 

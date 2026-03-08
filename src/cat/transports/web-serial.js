@@ -2,6 +2,11 @@
 // Adapted from sffoundry/gmrsprogramming SerialConnection (MIT)
 // Changes from GMRS: ASCII line-oriented reads, configurable serial params,
 // continuous polling instead of bulk read/write, no programming mode state
+//
+// Architecture: persistent reader loop fills an internal buffer.
+// readUntil / readUntilByte consume from the buffer without ever calling
+// reader.cancel(), which in Chrome WebSerial permanently closes the
+// ReadableStream and breaks all subsequent reads.
 
 // --- Connection States ---
 export const ConnectionState = {
@@ -35,6 +40,13 @@ export class WebSerialTransport {
       parity: config.parity || 'none',
       flowControl: config.flowControl || 'hardware',
     };
+
+    // --- Internal read buffer (persistent reader loop) ---
+    this._rawBuffer = new Uint8Array(0); // binary accumulator
+    this._reader = null;                 // active ReadableStreamDefaultReader
+    this._readLoopRunning = false;
+    this._readLoopPromise = null;
+    this._onData = null;                 // resolve() for waiters
   }
 
   // --- API check ---
@@ -50,6 +62,85 @@ export class WebSerialTransport {
   _setState(newState) {
     this.state = newState;
     if (this._onStateChange) this._onStateChange(newState);
+  }
+
+  // --- Start persistent reader loop ---
+  // Runs in the background, continuously reads from the serial port into
+  // _rawBuffer. Never calls reader.cancel() — the loop ends only when
+  // disconnect() cancels the reader.
+  _startReadLoop() {
+    if (this._readLoopRunning) return;
+    if (!this.port || !this.port.readable) return;
+
+    this._readLoopRunning = true;
+    this._reader = this.port.readable.getReader();
+
+    this._readLoopPromise = (async () => {
+      try {
+        while (this._readLoopRunning) {
+          const { value, done } = await this._reader.read();
+          if (done) break;
+          if (value && value.length > 0) {
+            // Append to buffer
+            const combined = new Uint8Array(this._rawBuffer.length + value.length);
+            combined.set(this._rawBuffer, 0);
+            combined.set(value, this._rawBuffer.length);
+            this._rawBuffer = combined;
+
+            // Wake any waiter
+            if (this._onData) {
+              const resolve = this._onData;
+              this._onData = null;
+              resolve();
+            }
+          }
+        }
+      } catch (err) {
+        // Stream closed or cancelled — expected during disconnect
+        if (err.name !== 'AbortError' && this._readLoopRunning) {
+          console.warn('[cat] Read loop error:', err.message);
+        }
+      } finally {
+        this._readLoopRunning = false;
+        try { this._reader.releaseLock(); } catch { /* ignore */ }
+        this._reader = null;
+      }
+    })();
+  }
+
+  // --- Stop reader loop ---
+  async _stopReadLoop() {
+    this._readLoopRunning = false;
+    if (this._reader) {
+      try { await this._reader.cancel(); } catch { /* ignore */ }
+    }
+    if (this._readLoopPromise) {
+      try { await this._readLoopPromise; } catch { /* ignore */ }
+    }
+    this._reader = null;
+    this._readLoopPromise = null;
+  }
+
+  // --- Wait for data with timeout ---
+  // Returns true if data arrived, false on timeout.
+  _waitForData(timeoutMs) {
+    return new Promise(resolve => {
+      // Check again — data may have arrived between caller's check and here
+      if (this._rawBuffer.length > 0) {
+        resolve(true);
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        this._onData = null;
+        resolve(false);
+      }, timeoutMs);
+
+      this._onData = () => {
+        clearTimeout(timer);
+        resolve(true);
+      };
+    });
   }
 
   // --- Connect ---
@@ -71,6 +162,9 @@ export class WebSerialTransport {
       // If port is already open (reused transport from smart-detect), skip open
       if (this.port.readable && this.port.writable) {
         console.debug('[cat] Port already open — reusing connection');
+        // Restart read loop if not already running (e.g. when rig-manager
+        // calls connect on the transport that smart-detect returned)
+        if (!this._readLoopRunning) this._startReadLoop();
         this._setState(ConnectionState.CONNECTED);
         return true;
       }
@@ -99,6 +193,9 @@ export class WebSerialTransport {
         await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
       }
 
+      // Start persistent reader loop
+      this._startReadLoop();
+
       this._setState(ConnectionState.CONNECTED);
       return true;
     } catch (err) {
@@ -113,8 +210,12 @@ export class WebSerialTransport {
   }
 
   // --- Disconnect ---
-  // Deasserts DTR/RTS before closing to prevent radio hangs.
+  // Stops read loop, deasserts DTR/RTS, closes port.
   async disconnect() {
+    // Stop read loop first (cancels the reader — only place cancel is called)
+    await this._stopReadLoop();
+    this._rawBuffer = new Uint8Array(0);
+
     try {
       if (this.port) {
         try {
@@ -124,10 +225,6 @@ export class WebSerialTransport {
         } catch { /* ignore signal errors */ }
 
         try {
-          // Cancel any active reader
-          if (this.port.readable && this.port.readable.locked) {
-            // Reader will be released by whoever holds the lock
-          }
           await this.port.close();
         } catch { /* ignore close errors */ }
 
@@ -166,94 +263,65 @@ export class WebSerialTransport {
   }
 
   // --- Read until terminator ---
-  // Reads ASCII data until the terminator character (default ";") is found.
-  // Returns the complete response string including terminator.
-  // Used for Yaesu/Kenwood/Elecraft ASCII protocols.
+  // Reads ASCII data from the internal buffer until the terminator character
+  // (default ";") is found. Returns the complete response string including
+  // terminator. Used for Yaesu/Kenwood/Elecraft ASCII protocols.
   async readUntil(terminator = ';', timeoutMs = 2000) {
-    if (!this.port || !this.port.readable) {
+    if (!this.port) {
       throw new Error('Serial port not open');
     }
 
-    let buffer = '';
-    const reader = this.port.readable.getReader();
-    const timer = setTimeout(() => reader.cancel(), timeoutMs);
+    const deadline = Date.now() + timeoutMs;
+    const termByte = terminator.charCodeAt(0);
 
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value) {
-          buffer += decoder.decode(value, { stream: true });
-          if (buffer.includes(terminator)) break;
-        }
+    while (Date.now() < deadline) {
+      // Check buffer for terminator byte
+      const idx = this._rawBuffer.indexOf(termByte);
+      if (idx >= 0) {
+        // Extract up to and including the terminator
+        const result = decoder.decode(this._rawBuffer.slice(0, idx + 1));
+        this._rawBuffer = this._rawBuffer.slice(idx + 1);
+        return result;
       }
-    } catch (err) {
-      if (err.name !== 'AbortError') throw err;
-    } finally {
-      clearTimeout(timer);
-      reader.releaseLock();
+
+      // Wait for more data (with remaining timeout)
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await this._waitForData(remaining);
     }
 
-    if (!buffer.includes(terminator)) {
-      throw new Error(`Read timeout: no terminator in response ("${buffer}")`);
-    }
-
-    return buffer;
+    // Timeout — dump whatever we have for debugging
+    const partial = decoder.decode(this._rawBuffer);
+    throw new Error(`Read timeout: no terminator in response ("${partial}")`);
   }
 
   // --- Read until sentinel byte ---
   // For binary protocols (Icom CI-V). Reads until a specific byte is found.
   // Returns the complete frame including the sentinel.
   async readUntilByte(sentinel, timeoutMs = 2000) {
-    if (!this.port || !this.port.readable) {
+    if (!this.port) {
       throw new Error('Serial port not open');
     }
 
-    const chunks = [];
-    let totalLen = 0;
-    let found = false;
+    const deadline = Date.now() + timeoutMs;
 
-    const reader = this.port.readable.getReader();
-    const timer = setTimeout(() => reader.cancel(), timeoutMs);
-
-    try {
-      while (!found) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value) {
-          chunks.push(value);
-          totalLen += value.length;
-          // Check if sentinel byte is in this chunk
-          for (let i = 0; i < value.length; i++) {
-            if (value[i] === sentinel) {
-              found = true;
-              break;
-            }
-          }
-        }
+    while (Date.now() < deadline) {
+      // Check buffer for sentinel byte
+      const idx = this._rawBuffer.indexOf(sentinel);
+      if (idx >= 0) {
+        // Extract up to and including the sentinel
+        const result = this._rawBuffer.slice(0, idx + 1);
+        this._rawBuffer = this._rawBuffer.slice(idx + 1);
+        return result;
       }
-    } catch (err) {
-      if (err.name !== 'AbortError') throw err;
-    } finally {
-      clearTimeout(timer);
-      reader.releaseLock();
+
+      // Wait for more data
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await this._waitForData(remaining);
     }
 
-    if (!found) {
-      throw new Error(`Read timeout: sentinel 0x${sentinel.toString(16)} not found`);
-    }
-
-    // Assemble into single Uint8Array
-    const result = new Uint8Array(totalLen);
-    let offset = 0;
-    for (const chunk of chunks) {
-      result.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    // Trim to just after the sentinel byte
-    const sentinelIdx = result.indexOf(sentinel);
-    return result.slice(0, sentinelIdx + 1);
+    throw new Error(`Read timeout: sentinel 0x${sentinel.toString(16)} not found`);
   }
 
   // --- Send binary command and read until sentinel ---
@@ -266,37 +334,25 @@ export class WebSerialTransport {
   // --- Read exact bytes ---
   // For binary protocols (Icom CI-V). Reads exactly N bytes.
   async readBytes(length, timeoutMs = 2000) {
-    if (!this.port || !this.port.readable) {
+    if (!this.port) {
       throw new Error('Serial port not open');
     }
 
-    const result = new Uint8Array(length);
-    let offset = 0;
+    const deadline = Date.now() + timeoutMs;
 
-    const reader = this.port.readable.getReader();
-    const timer = setTimeout(() => reader.cancel(), timeoutMs);
-
-    try {
-      while (offset < length) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        if (value) {
-          const remaining = length - offset;
-          const chunk = value.length > remaining ? value.slice(0, remaining) : value;
-          result.set(chunk, offset);
-          offset += chunk.length;
-        }
+    while (Date.now() < deadline) {
+      if (this._rawBuffer.length >= length) {
+        const result = this._rawBuffer.slice(0, length);
+        this._rawBuffer = this._rawBuffer.slice(length);
+        return result;
       }
-    } finally {
-      clearTimeout(timer);
-      reader.releaseLock();
+
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) break;
+      await this._waitForData(remaining);
     }
 
-    if (offset < length) {
-      throw new Error(`Read timeout: got ${offset}/${length} bytes`);
-    }
-
-    return result;
+    throw new Error(`Read timeout: got ${this._rawBuffer.length}/${length} bytes`);
   }
 
   // --- Send command and read response ---
@@ -307,22 +363,11 @@ export class WebSerialTransport {
   }
 
   // --- Flush ---
-  // Clear stale data from the serial buffer before starting.
+  // Clear stale data from the internal buffer.
   async flush() {
-    if (!this.port || !this.port.readable) return;
-
-    const reader = this.port.readable.getReader();
-    const timer = setTimeout(() => reader.cancel(), 200);
-
-    try {
-      while (true) {
-        const { done } = await reader.read();
-        if (done) break;
-      }
-    } catch { /* expected — timeout cancels the read */ }
-    finally {
-      clearTimeout(timer);
-      reader.releaseLock();
-    }
+    this._rawBuffer = new Uint8Array(0);
+    // Brief wait for any in-flight serial data to arrive, then clear again
+    await new Promise(r => setTimeout(r, 200));
+    this._rawBuffer = new Uint8Array(0);
   }
 }

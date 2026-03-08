@@ -194,10 +194,15 @@ export function createRigManager(transport, driver, store, options = {}) {
   async function connect(existingPort) {
     if (connected) return true;
 
+    console.warn('[cat] rig-manager.connect — opening transport');
     const opened = await transport.connect(existingPort);
-    if (!opened) return false; // user cancelled port picker
+    if (!opened) {
+      console.warn('[cat] rig-manager.connect — transport.connect returned false');
+      return false;
+    }
 
     // Flush stale data before init
+    console.warn('[cat] rig-manager.connect — flushing');
     await transport.flush();
 
     // Settle delay — USB serial needs time after open before the radio
@@ -207,7 +212,9 @@ export function createRigManager(transport, driver, store, options = {}) {
     connected = true;
     store.set({ connected: true });
 
+    console.warn('[cat] rig-manager.connect — initializing');
     await initialize();
+    console.warn('[cat] rig-manager.connect — starting polling + meters');
     startPolling();
     startMeters();
 

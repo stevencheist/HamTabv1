@@ -21,7 +21,7 @@ state.lunarFieldVisibility = loadLunarFieldVisibility();
 state.widgetVisibility = loadWidgetVisibility();
 state.spotColumnVisibility = loadSpotColumnVisibility();
 
-// Cross-tab leader election (Phase 0: scaffolding only — no fetch changes)
+// Cross-tab leader election — leader tab handles periodic fetches, followers skip
 initCrossTab();
 
 import { initMap, centerMapOnUser, updateUserMarker, updateSunMarker, updateMoonMarker, updateBeaconMarkers } from './map-init.js';
@@ -64,7 +64,7 @@ import { openModal, closeModal } from './a11y.js';
 import { pullConfig, isSyncEnabled } from './config-sync.js';
 import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
 import { initLogbook, renderLogbookOnMap } from './logbook.js';
-import { initCrossTab } from './cross-tab.js';
+import { initCrossTab, isLeaderTab } from './cross-tab.js';
 
 // Initialize map
 initMap();
@@ -79,8 +79,8 @@ setInterval(() => { if (document.hidden) return; updateGrayLine(); updateSunMark
 
 // Satellite tracking (multi-satellite via N2YO)
 initSatellites();
-setInterval(() => { if (document.hidden || !isWidgetVisible('widget-satellites')) return; fetchIssPosition(); }, 10000); // 10 s — ISS position refresh (free, no API key)
-setInterval(() => { if (document.hidden || !isWidgetVisible('widget-satellites')) return; fetchSatellitePositions(); }, 10000); // 10 s — other satellite position refresh (N2YO)
+setInterval(() => { if (document.hidden || !isWidgetVisible('widget-satellites') || !isLeaderTab()) return; fetchIssPosition(); }, 10000); // 10 s — ISS position refresh (free, no API key)
+setInterval(() => { if (document.hidden || !isWidgetVisible('widget-satellites') || !isLeaderTab()) return; fetchSatellitePositions(); }, 10000); // 10 s — other satellite position refresh (N2YO)
 
 // Clocks — purely visual, skip entirely when hidden
 updateClocks();
@@ -175,12 +175,12 @@ function initApp() {
   if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
 }
 
-// Live Spots refresh (5 min — PSKReporter rate limit)
-setInterval(() => { if (document.hidden || !isWidgetVisible('widget-live-spots')) return; fetchLiveSpots(); }, 5 * 60 * 1000);
+// Live Spots refresh (5 min — PSKReporter rate limit) — leader tab only
+setInterval(() => { if (document.hidden || !isWidgetVisible('widget-live-spots') || !isLeaderTab()) return; fetchLiveSpots(); }, 5 * 60 * 1000);
 
-// VOACAP matrix refresh — render every minute (for hour transitions), server fetch throttled to 5 min
+// VOACAP matrix refresh — render every minute (for hour transitions), fetch leader-only
 setInterval(() => { if (document.hidden) return; if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) renderVoacapMatrix(); }, 60 * 1000);
-setInterval(() => { if (document.hidden) return; if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) fetchVoacapMatrixThrottled(); }, 60 * 1000);
+setInterval(() => { if (document.hidden || !isLeaderTab()) return; if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) fetchVoacapMatrixThrottled(); }, 60 * 1000);
 
 // Beacon map markers — refresh every 10s (same as beacon rotation)
 setInterval(() => { if (document.hidden || !isWidgetVisible('widget-beacons')) return; updateBeaconMarkers(); }, 10000);

@@ -281,8 +281,18 @@ export function renderDrapOverlay() {
       // so the full grid covers -90 to 90 lat, -180 to 180 lon
       const bounds = [[-90, -180], [90, 180]];
 
-      if (drapImageLayer) state.map.removeLayer(drapImageLayer);
-      drapImageLayer = L.imageOverlay(canvas.toDataURL(), bounds, {
+      // Use toBlob + object URL instead of toDataURL — avoids large base64 string
+      // allocation (~30% smaller in memory) and lets the browser GC the blob
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      const url = URL.createObjectURL(blob);
+
+      if (drapImageLayer) {
+        // Revoke old object URL before replacing
+        const oldUrl = drapImageLayer._url;
+        state.map.removeLayer(drapImageLayer);
+        if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
+      }
+      drapImageLayer = L.imageOverlay(url, bounds, {
         opacity: 0.55,
         pane: 'propagation',
         interactive: false,

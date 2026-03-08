@@ -2151,12 +2151,17 @@
           this._mode = "USB";
           this._smeter = 0;
           this._serverName = "";
+          this._onAudioData = null;
+          this._audioInitDone = false;
         }
         static isSupported() {
           return typeof WebSocket !== "undefined";
         }
         onStateChange(callback) {
           this._onStateChange = callback;
+        }
+        onAudioData(callback) {
+          this._onAudioData = callback;
         }
         _setState(newState) {
           this.state = newState;
@@ -2189,9 +2194,6 @@
             this._ws.onopen = () => {
               clearTimeout(this._connectTimeout);
               this._send(`SET auth t=kiwi p=${this.password}`);
-              this._send("SET mod=usb low_cut=300 high_cut=3000 freq=14.074");
-              this._send("SET compression=0");
-              this._send("SET OVERRIDE inactivity_timeout=0");
               this._keepaliveTimer = setInterval(() => {
                 this._send("SET keepalive");
               }, 3e4);
@@ -2288,39 +2290,87 @@
         async flush() {
         }
         // --- Internal: handle incoming WebSocket message ---
+        // KiwiSDR sends ALL frames as binary ArrayBuffers with a 3-byte ASCII tag:
+        //   "SND" — audio + S-meter data
+        //   "MSG" — text key=value protocol messages (sent as binary, not WS text)
         _handleMessage(event) {
           if (event.data instanceof ArrayBuffer) {
+            const len = event.data.byteLength;
+            if (len < 3) return;
             const view = new DataView(event.data);
-            if (event.data.byteLength >= 7) {
+            const t0 = view.getUint8(0), t1 = view.getUint8(1), t2 = view.getUint8(2);
+            if (t0 === 83 && t1 === 78 && t2 === 68) {
+              if (len < 10) return;
               try {
-                const smeterRaw = view.getUint16(2, false);
-                const dbm = smeterRaw / 10 - 127;
+                const smeterRaw = view.getUint16(8, false);
+                const dbm = (smeterRaw - 1270) / 10;
                 this._smeter = this._dbToRaw(dbm);
               } catch {
               }
+              if (len > 10 && this._onAudioData) {
+                try {
+                  const flags = view.getUint8(3);
+                  const audioBytes = len - 10;
+                  const sampleCount = Math.floor(audioBytes / 2);
+                  const samples = new Int16Array(sampleCount);
+                  const littleEndian = (flags & 128) !== 0;
+                  for (let i = 0; i < sampleCount; i++) {
+                    samples[i] = view.getInt16(10 + i * 2, littleEndian);
+                  }
+                  this._onAudioData(samples);
+                } catch {
+                }
+              }
+              return;
+            }
+            if (t0 === 77 && t1 === 83 && t2 === 71) {
+              if (len <= 4) return;
+              const textBytes = new Uint8Array(event.data, 4);
+              const msg = new TextDecoder().decode(textBytes);
+              this._handleTextMsg(msg);
+              return;
             }
             return;
           }
           if (typeof event.data === "string") {
-            const msg = event.data;
-            if (msg.includes("server_de_id=")) {
-              const match = msg.match(/server_de_id="?([^"]+)"?/);
-              if (match) this._serverName = match[1].trim();
+            this._handleTextMsg(event.data);
+          }
+        }
+        // --- Process a text protocol message (from MSG binary frame or text WS frame) ---
+        _handleTextMsg(msg) {
+          if (msg.includes("audio_init=")) {
+            if (!this._audioInitDone) {
+              this._audioInitDone = true;
+              const rateMatch = msg.match(/audio_rate=(\d+)/);
+              const rate = rateMatch ? rateMatch[1] : "12000";
+              this._send(`SET AR OK in=${rate} out=${rate}`);
+              this._send("SET agc=1 hang=0 thresh=-100 slope=6 decay=1000 manGain=50");
+              this._send(`SET mod=usb low_cut=300 high_cut=3000 freq=${(this._frequency / 1e3).toFixed(3)}`);
+              this._send("SET gen=0 mix=-1");
+              this._send("SET lms_autonotch=0");
+              this._send("SET squelch=0 max=0");
+              this._send("SET de_emp=0");
+              this._send("SET compression=0");
+              this._send("SET OVERRIDE inactivity_timeout=0");
             }
-            if (msg.includes("freq=")) {
-              const match = msg.match(/freq=([\d.]+)/);
-              if (match) {
-                const khz = parseFloat(match[1]);
-                if (!isNaN(khz) && khz > 0) {
-                  this._frequency = Math.round(khz * 1e3);
-                }
+          }
+          if (msg.includes("server_de_id=")) {
+            const match = msg.match(/server_de_id="?([^"]+)"?/);
+            if (match) this._serverName = match[1].trim();
+          }
+          if (msg.includes("freq=")) {
+            const match = msg.match(/freq=([\d.]+)/);
+            if (match) {
+              const khz = parseFloat(match[1]);
+              if (!isNaN(khz) && khz > 0) {
+                this._frequency = Math.round(khz * 1e3);
               }
             }
-            if (msg.includes("mode=")) {
-              const match = msg.match(/mode=(\w+)/);
-              if (match && KIWI_MODE_MAP[match[1]]) {
-                this._mode = KIWI_MODE_MAP[match[1]];
-              }
+          }
+          if (msg.includes("mode=")) {
+            const match = msg.match(/mode=(\w+)/);
+            if (match && KIWI_MODE_MAP[match[1]]) {
+              this._mode = KIWI_MODE_MAP[match[1]];
             }
           }
         }
@@ -5028,6 +5078,61 @@
     }
   });
 
+  // src/cat/kiwisdr-audio.js
+  function createKiwiSdrAudioPlayer() {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const gainNode = ctx.createGain();
+    gainNode.gain.value = 1;
+    gainNode.connect(ctx.destination);
+    let nextStartTime = 0;
+    let muted = false;
+    return {
+      // Schedule PCM Int16 samples for playback
+      feedSamples(int16Array) {
+        if (!int16Array.length) return;
+        if (ctx.state === "suspended") ctx.resume();
+        const buf = ctx.createBuffer(1, int16Array.length, KIWI_SAMPLE_RATE);
+        const channel2 = buf.getChannelData(0);
+        for (let i = 0; i < int16Array.length; i++) {
+          channel2[i] = int16Array[i] / 32768;
+        }
+        const source = ctx.createBufferSource();
+        source.buffer = buf;
+        source.connect(gainNode);
+        const now = ctx.currentTime;
+        if (nextStartTime < now || nextStartTime > now + MAX_SCHEDULE_AHEAD) {
+          nextStartTime = now;
+        }
+        source.start(nextStartTime);
+        nextStartTime += buf.duration;
+      },
+      setMuted(val) {
+        muted = !!val;
+        gainNode.gain.value = muted ? 0 : 1;
+      },
+      isMuted() {
+        return muted;
+      },
+      destroy() {
+        try {
+          gainNode.disconnect();
+        } catch {
+        }
+        try {
+          ctx.close();
+        } catch {
+        }
+      }
+    };
+  }
+  var KIWI_SAMPLE_RATE, MAX_SCHEDULE_AHEAD;
+  var init_kiwisdr_audio = __esm({
+    "src/cat/kiwisdr-audio.js"() {
+      KIWI_SAMPLE_RATE = 12e3;
+      MAX_SCHEDULE_AHEAD = 2;
+    }
+  });
+
   // src/cat/connection-orchestrator.js
   function getRigStore() {
     if (!rigStore) {
@@ -5065,6 +5170,8 @@
         rxOnly: true,
         remoteName: sdrTransport.serverName
       });
+      sdrAudioPlayer = createKiwiSdrAudioPlayer();
+      sdrTransport.onAudioData((samples) => sdrAudioPlayer.feedSamples(samples));
       return true;
     }
     let resolvedProfileId = config.profileId;
@@ -5172,6 +5279,10 @@
       }
     }
     activeSafetyModules = [];
+    if (sdrAudioPlayer) {
+      sdrAudioPlayer.destroy();
+      sdrAudioPlayer = null;
+    }
     await rigManager.disconnect();
     rigManager = null;
     const store = getRigStore();
@@ -5183,6 +5294,9 @@
       return;
     }
     rigManager.sendCommand(command, params, priority);
+  }
+  function getSdrAudioPlayer() {
+    return sdrAudioPlayer;
   }
   function isRigConnected() {
     return rigManager ? rigManager.isConnected() : false;
@@ -5198,7 +5312,7 @@
       civAddress: p.protocol.civAddress || null
     }));
   }
-  var DRIVERS, rigManager, rigStore, activeSafetyModules;
+  var DRIVERS, rigManager, rigStore, activeSafetyModules, sdrAudioPlayer;
   var init_connection_orchestrator = __esm({
     "src/cat/connection-orchestrator.js"() {
       init_web_serial();
@@ -5217,6 +5331,7 @@
       init_tx_intent_system();
       init_band_transition_guard();
       init_tx_power_guard();
+      init_kiwisdr_audio();
       init_rig_profiles();
       DRIVERS = {
         yaesu_ascii: yaesuAscii,
@@ -5229,6 +5344,7 @@
       rigManager = null;
       rigStore = null;
       activeSafetyModules = [];
+      sdrAudioPlayer = null;
     }
   });
 
@@ -20312,6 +20428,18 @@ ${beacon.location}`);
         sdrBadge.remove();
       }
     }
+    const muteBtn = $("rigSdrMute");
+    if (muteBtn) {
+      if (state2.rxOnly && state2.connected) {
+        muteBtn.style.display = "";
+        const player = getSdrAudioPlayer();
+        const isMuted = player ? player.isMuted() : false;
+        muteBtn.textContent = isMuted ? "\u{1F507}" : "\u{1F50A}";
+        muteBtn.classList.toggle("muted", isMuted);
+      } else {
+        muteBtn.style.display = "none";
+      }
+    }
   }
   function renderBandOverlay(state2) {
     const container = $("rigBandOverlay");
@@ -20355,11 +20483,13 @@ ${beacon.location}`);
     cfgOpt.textContent = "Use Radio Settings";
     cfgOpt.dataset.profile = "configured";
     select.appendChild(cfgOpt);
-    const sdrOpt = document.createElement("option");
-    sdrOpt.value = "kiwisdr";
-    sdrOpt.textContent = "KiwiSDR (Online RX)";
-    sdrOpt.dataset.profile = "kiwisdr";
-    select.appendChild(sdrOpt);
+    if (location.protocol !== "https:") {
+      const sdrOpt = document.createElement("option");
+      sdrOpt.value = "kiwisdr";
+      sdrOpt.textContent = "KiwiSDR (Online RX)";
+      sdrOpt.dataset.profile = "kiwisdr";
+      select.appendChild(sdrOpt);
+    }
     const demoOpt = document.createElement("option");
     demoOpt.value = "demo";
     demoOpt.textContent = "Demo Mode";
@@ -20518,7 +20648,10 @@ ${beacon.location}`);
       statusEl.textContent = `Error: ${err2.message}`;
     }
     if (isRigConnected()) {
+      const isSdr = widgetSelection === "kiwisdr";
       if (isDemo) {
+        startScope({ longitude: state_default.myLon || 0, useAudio: false });
+      } else if (isSdr) {
         startScope({ longitude: state_default.myLon || 0, useAudio: false });
       } else if (state_default.radioAudioScopeEnabled) {
         startScope({
@@ -20561,6 +20694,16 @@ ${beacon.location}`);
       const sdrUrlInput = $("rigSdrUrl");
       if (sdrUrlInput && state_default.radioSdrUrl) {
         sdrUrlInput.value = state_default.radioSdrUrl;
+      }
+      const muteBtn = $("rigSdrMute");
+      if (muteBtn) {
+        muteBtn.addEventListener("click", () => {
+          const player = getSdrAudioPlayer();
+          if (!player) return;
+          player.setMuted(!player.isMuted());
+          muteBtn.textContent = player.isMuted() ? "\u{1F507}" : "\u{1F50A}";
+          muteBtn.classList.toggle("muted", player.isMuted());
+        });
       }
       const bandSelect = $("rigBandSelect");
       const modeSelect = $("rigModeSelect");
@@ -20976,8 +21119,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.62.0";
-    $("aboutVersion").textContent = "0.62.0";
+    $("splashVersion").textContent = "0.63.0";
+    $("aboutVersion").textContent = "0.63.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

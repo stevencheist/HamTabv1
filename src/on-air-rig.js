@@ -11,6 +11,7 @@ import {
   sendRigCommand,
   isRigConnected,
   getRigStore,
+  getSdrAudioPlayer,
 } from './cat/index.js';
 import { BAND_SEGMENTS, getBandSegments, getBandEdges, getPositionInBand } from './cat/profiles/band-overlay-engine.js';
 import { startScope, stopScope } from './scope/scope-renderer.js';
@@ -472,6 +473,20 @@ function render(state) {
       sdrBadge.remove();
     }
   }
+
+  // SDR mute button — show only when KiwiSDR is connected
+  const muteBtn = $('rigSdrMute');
+  if (muteBtn) {
+    if (state.rxOnly && state.connected) {
+      muteBtn.style.display = '';
+      const player = getSdrAudioPlayer();
+      const isMuted = player ? player.isMuted() : false;
+      muteBtn.textContent = isMuted ? '\u{1F507}' : '\u{1F50A}';
+      muteBtn.classList.toggle('muted', isMuted);
+    } else {
+      muteBtn.style.display = 'none';
+    }
+  }
 }
 
 // --- Band overlay: shows CW/DIGI/PHONE zones for current band ---
@@ -531,12 +546,14 @@ function populateProfiles() {
   cfgOpt.dataset.profile = 'configured';
   select.appendChild(cfgOpt);
 
-  // Option: KiwiSDR (online RX)
-  const sdrOpt = document.createElement('option');
-  sdrOpt.value = 'kiwisdr';
-  sdrOpt.textContent = 'KiwiSDR (Online RX)';
-  sdrOpt.dataset.profile = 'kiwisdr';
-  select.appendChild(sdrOpt);
+  // Option: KiwiSDR (online RX) — hidden on HTTPS (ws:// blocked by mixed content)
+  if (location.protocol !== 'https:') {
+    const sdrOpt = document.createElement('option');
+    sdrOpt.value = 'kiwisdr';
+    sdrOpt.textContent = 'KiwiSDR (Online RX)';
+    sdrOpt.dataset.profile = 'kiwisdr';
+    select.appendChild(sdrOpt);
+  }
 
   // Option: demo mode
   const demoOpt = document.createElement('option');
@@ -734,8 +751,12 @@ async function handleConnectClick() {
 
   // Start scope if connection succeeded
   if (isRigConnected()) {
+    const isSdr = widgetSelection === 'kiwisdr';
     if (isDemo) {
       // Demo mode — always start synthetic scope
+      startScope({ longitude: state.myLon || 0, useAudio: false });
+    } else if (isSdr) {
+      // SDR — synthetic scope (no microphone — SDR audio is via its own player)
       startScope({ longitude: state.myLon || 0, useAudio: false });
     } else if (state.radioAudioScopeEnabled) {
       // Real radio + audio enabled — start audio scope, hide on failure
@@ -794,6 +815,18 @@ export function initOnAirRig() {
     const sdrUrlInput = $('rigSdrUrl');
     if (sdrUrlInput && state.radioSdrUrl) {
       sdrUrlInput.value = state.radioSdrUrl;
+    }
+
+    // SDR mute button
+    const muteBtn = $('rigSdrMute');
+    if (muteBtn) {
+      muteBtn.addEventListener('click', () => {
+        const player = getSdrAudioPlayer();
+        if (!player) return;
+        player.setMuted(!player.isMuted());
+        muteBtn.textContent = player.isMuted() ? '\u{1F507}' : '\u{1F50A}';
+        muteBtn.classList.toggle('muted', player.isMuted());
+      });
     }
 
     // Band + Mode selectors

@@ -8,6 +8,7 @@ export {
   sendRigCommand,
   isRigConnected,
   getRigStore,
+  getSdrAudioPlayer,
   getAvailableProfiles,
 } from './connection-orchestrator.js';
 

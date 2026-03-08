@@ -2513,7 +2513,8 @@
             "meter_swr",
             "meter_power",
             "rf_power",
-            "vfo_swap"
+            "vfo_swap",
+            "power_off"
           ];
         },
         // --- Command encoding ---
@@ -2551,6 +2552,9 @@
             case "swapVfo":
               return "SV;";
             // Swap VFO A ↔ B
+            case "powerOff":
+              return "PS0;";
+            // Power off radio
             case "getInfo":
               return "IF;";
             case "getID":
@@ -2737,7 +2741,8 @@
             "meter_swr",
             "meter_power",
             "rf_power",
-            "vfo_swap"
+            "vfo_swap",
+            "power_off"
           ];
         },
         // --- Command encoding ---
@@ -2777,6 +2782,9 @@
             case "swapVfo":
               return "VV;";
             // Swap VFO A ↔ B (Kenwood VV command)
+            case "powerOff":
+              return "PS0;";
+            // Power off radio
             case "getInfo":
               return "IF;";
             case "getID":
@@ -2982,7 +2990,8 @@
             "meter_signal",
             "meter_swr",
             "rf_power",
-            "vfo_swap"
+            "vfo_swap",
+            "power_off"
           ];
         },
         // --- Command encoding ---
@@ -3030,6 +3039,9 @@
             }
             case "swapVfo":
               frame = buildFrame(civAddress, 7, 176, null);
+              break;
+            case "powerOff":
+              frame = buildFrame(civAddress, 24, 0, null);
               break;
             case "getID":
               frame = buildFrame(civAddress, 25, 0, null);
@@ -3200,7 +3212,8 @@
             "meter_signal",
             "meter_swr",
             "rf_power",
-            "vfo_swap"
+            "vfo_swap",
+            "power_off"
           ];
         },
         // --- Command encoding ---
@@ -3239,6 +3252,9 @@
             case "swapVfo":
               return "SWT11;";
             // Elecraft: switch VFO A ↔ B
+            case "powerOff":
+              return "PS0;";
+            // Power off radio
             case "getBandwidth":
               return "BW;";
             case "getID":
@@ -20458,6 +20474,11 @@ ${beacon.location}`);
         sdrBadge.remove();
       }
     }
+    const powerOffBtn = $("rigPowerOffBtn");
+    if (powerOffBtn) {
+      const hasPowerOff = state2.connected && !state2.demo && !state2.rxOnly && (state2.capabilities || []).includes("power_off");
+      powerOffBtn.style.display = hasPowerOff ? "" : "none";
+    }
     const muteBtn = $("rigSdrMute");
     if (muteBtn) {
       if (state2.rxOnly && state2.connected) {
@@ -20767,6 +20788,21 @@ ${beacon.location}`);
       if (vfoSwapBtn) {
         vfoSwapBtn.addEventListener("click", () => {
           if (isRigConnected()) sendRigCommand("swapVfo", null, 1);
+        });
+      }
+      const powerOffBtn = $("rigPowerOffBtn");
+      if (powerOffBtn) {
+        powerOffBtn.addEventListener("click", async () => {
+          if (!isRigConnected()) return;
+          if (!confirm("Power off the radio?")) return;
+          sendRigCommand("powerOff", null, 1);
+          setTimeout(async () => {
+            stopScope();
+            try {
+              await disconnectRig();
+            } catch (_) {
+            }
+          }, 500);
         });
       }
       listenersAttached = true;
@@ -21165,8 +21201,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.63.2";
-    $("aboutVersion").textContent = "0.63.2";
+    $("splashVersion").textContent = "0.63.3";
+    $("aboutVersion").textContent = "0.63.3";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

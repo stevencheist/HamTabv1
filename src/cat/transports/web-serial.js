@@ -69,11 +69,25 @@ export class WebSerialTransport {
   // _rawBuffer. Never calls reader.cancel() — the loop ends only when
   // disconnect() cancels the reader.
   _startReadLoop() {
-    if (this._readLoopRunning) return;
-    if (!this.port || !this.port.readable) return;
+    if (this._readLoopRunning) {
+      console.debug('[cat] Read loop already running — skipping start');
+      return;
+    }
+    if (!this.port || !this.port.readable) {
+      console.warn('[cat] Cannot start read loop — port or readable missing',
+        { port: !!this.port, readable: !!(this.port && this.port.readable) });
+      return;
+    }
 
     this._readLoopRunning = true;
-    this._reader = this.port.readable.getReader();
+    try {
+      this._reader = this.port.readable.getReader();
+    } catch (err) {
+      console.error('[cat] Failed to get reader:', err.message);
+      this._readLoopRunning = false;
+      return;
+    }
+    console.debug('[cat] Read loop started');
 
     this._readLoopPromise = (async () => {
       try {
@@ -101,6 +115,7 @@ export class WebSerialTransport {
           console.warn('[cat] Read loop error:', err.message);
         }
       } finally {
+        console.debug('[cat] Read loop ended');
         this._readLoopRunning = false;
         try { this._reader.releaseLock(); } catch { /* ignore */ }
         this._reader = null;
@@ -161,7 +176,8 @@ export class WebSerialTransport {
 
       // If port is already open (reused transport from smart-detect), skip open
       if (this.port.readable && this.port.writable) {
-        console.debug('[cat] Port already open — reusing connection');
+        console.warn('[cat] Port already open — reusing connection',
+          { readLoopRunning: this._readLoopRunning, hasReader: !!this._reader });
         // Restart read loop if not already running (e.g. when rig-manager
         // calls connect on the transport that smart-detect returned)
         if (!this._readLoopRunning) this._startReadLoop();
@@ -292,7 +308,7 @@ export class WebSerialTransport {
 
     // Timeout — dump whatever we have for debugging
     const partial = decoder.decode(this._rawBuffer);
-    throw new Error(`Read timeout: no terminator in response ("${partial}")`);
+    throw new Error(`Read timeout (readLoop=${this._readLoopRunning}): no terminator in response ("${partial}")`);
   }
 
   // --- Read until sentinel byte ---

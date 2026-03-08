@@ -1454,14 +1454,13 @@
           this._reader = null;
           this._readLoopPromise = null;
         }
-        // --- Wait for data with timeout ---
-        // Returns true if data arrived, false on timeout.
+        // --- Wait for NEW data with timeout ---
+        // Always waits for the read loop to deliver new bytes — never returns
+        // early based on existing buffer content (the caller already checked).
+        // This prevents busy-looping when the buffer has partial data without
+        // the expected terminator.
         _waitForData(timeoutMs) {
           return new Promise((resolve) => {
-            if (this._rawBuffer.length > 0) {
-              resolve(true);
-              return;
-            }
             const timer = setTimeout(() => {
               this._onData = null;
               resolve(false);

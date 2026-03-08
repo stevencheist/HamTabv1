@@ -185,6 +185,7 @@ export const elecraftAscii = {
   pollCommands() {
     return [
       'getFrequency',
+      'getFrequencyB',
       'getMode',
       'getPTT',
     ];

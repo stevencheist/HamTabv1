@@ -198,6 +198,7 @@ export const yaesuAscii = {
   pollCommands() {
     return [
       'getFrequency',
+      'getFrequencyB',
       'getMode',
       'getPTT',
     ];

@@ -152,6 +152,10 @@ export const yaesuAscii = {
       case 'setMonitorLevel': return `ML${String(params).padStart(3, '0')};`;
       case 'getMicGain':     return 'MG;';
       case 'setMicGain':     return `MG${String(params).padStart(3, '0')};`;
+      case 'getProcessor':   return 'PR0;';
+      case 'setProcessor':   return `PR0${params};`;  // 0=off, 1=on
+      case 'getProcessorLevel': return 'PL;';
+      case 'setProcessorLevel': return `PL${String(params).padStart(3, '0')};`;
       // EX (Menu) — read/write radio menu settings
       // params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set
       // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
@@ -161,7 +165,16 @@ export const yaesuAscii = {
       }
       case 'setMenu': {
         const { p1, p2, p3, value, digits } = params;
-        return `EX${pad(p1,2)}${pad(p2,2)}${pad(p3,2)}${String(value).padStart(digits || 1, '0')};`;
+        // Handle signed values: string "-06" passes through, number -6 encodes as "-06"
+        let valStr;
+        if (typeof value === 'string') {
+          valStr = value;
+        } else if (typeof value === 'number' && value < 0) {
+          valStr = '-' + String(Math.abs(value)).padStart((digits || 1) - 1, '0');
+        } else {
+          valStr = String(value).padStart(digits || 1, '0');
+        }
+        return `EX${pad(p1,2)}${pad(p2,2)}${pad(p3,2)}${valStr};`;
       }
       default:
         return null;
@@ -303,6 +316,16 @@ export const yaesuAscii = {
     // --- Mic Gain (MGnnn) ---
     if (resp.startsWith('MG')) {
       return { type: 'micGain', value: parseInt(resp.slice(2), 10) };
+    }
+
+    // --- Speech Processor (PR0n) ---
+    if (resp.startsWith('PR0')) {
+      return { type: 'processor', value: parseInt(resp.slice(3), 10) };
+    }
+
+    // --- Processor Level (PLnnn) ---
+    if (resp.startsWith('PL')) {
+      return { type: 'processorLevel', value: parseInt(resp.slice(2), 10) };
     }
 
     // --- Menu (EX P1P1 P2P2 P3P3 P4~P4) ---

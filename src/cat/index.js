@@ -21,4 +21,6 @@ export {
   deleteProfile,
   profileSummary,
   getProfile,
+  getPresets,
+  applyPreset,
 } from './profile-manager.js';

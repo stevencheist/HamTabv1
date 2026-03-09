@@ -7843,6 +7843,25 @@ body.grayscale {
   background: color-mix(in srgb, #e74c3c 25%, var(--bg));
   border-color: #e74c3c;
 }
+.rig-profile-preset-label {
+  font-size: 0.7rem;
+  color: var(--txt-dim);
+  white-space: nowrap;
+}
+.rig-profile-preset-btn {
+  background: color-mix(in srgb, #9b59b6 20%, var(--bg));
+  border: 1px solid color-mix(in srgb, #9b59b6 40%, transparent);
+  color: var(--txt);
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+.rig-profile-preset-btn:hover {
+  background: color-mix(in srgb, #9b59b6 35%, var(--bg));
+  border-color: #9b59b6;
+}
 .rig-profile-status {
   font-size: 0.7rem;
   color: var(--txt-dim);

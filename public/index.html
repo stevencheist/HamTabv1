@@ -1251,7 +1251,6 @@
               <div class="rig-digital-row rig-digital-actions">
                 <button id="rigDigitalApply" class="rig-digital-apply-btn">Apply</button>
                 <button id="rigDigitalRelease" class="rig-digital-release-btn" style="display:none">Release for WSJT-X</button>
-                <button id="rigDigitalRestore" class="rig-digital-restore-btn" style="display:none">Restore Previous Settings</button>
               </div>
               <div class="rig-digital-checklist">
                 <div class="rig-digital-check-title">Pre-Flight Checklist</div>
@@ -1260,6 +1259,30 @@
                 <label><input type="checkbox"> ALC barely moves on TX</label>
                 <label><input type="checkbox"> Correct COM ports in WSJT-X</label>
               </div>
+            </div>
+            <!-- Restore button outside controls div — visible after WSJT-X even when controls hidden -->
+            <button id="rigDigitalRestore" class="rig-digital-restore-btn" style="display:none">Restore Previous Settings</button>
+          </div>
+          <!-- Radio Profile Save/Restore -->
+          <div class="rig-profile-section" id="rigProfileSection" style="display:none">
+            <div class="rig-profile-header">
+              <span class="rig-profile-title">Radio Profiles</span>
+            </div>
+            <div class="rig-profile-controls">
+              <div class="rig-profile-row">
+                <select id="rigProfileList" class="rig-profile-list-select">
+                  <option value="">No saved profiles</option>
+                </select>
+                <button id="rigProfileLoad" class="rig-profile-action-btn" title="Restore selected profile">Load</button>
+                <button id="rigProfileDelete" class="rig-profile-action-btn rig-profile-delete-btn" title="Delete selected profile">&#x2716;</button>
+              </div>
+              <div class="rig-profile-row">
+                <input type="text" id="rigProfileName" class="rig-profile-name-input"
+                       placeholder="Profile name (e.g. SSB Contest)" maxlength="40"
+                       spellcheck="false" autocomplete="off">
+                <button id="rigProfileSave" class="rig-profile-action-btn rig-profile-save-btn">Save Current</button>
+              </div>
+              <div class="rig-profile-status" id="rigProfileStatus"></div>
             </div>
           </div>
           <!-- Power slider -->

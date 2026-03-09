@@ -1282,11 +1282,33 @@
             <button id="rigConnectBtn" class="rig-connect-btn">Connect</button>
             <button id="rigSdrMute" class="rig-sdr-mute-btn" style="display:none" title="Mute/Unmute SDR audio">&#x1F50A;</button>
             <button id="rigPowerOffBtn" class="rig-power-off-btn" style="display:none" title="Power off radio">&#x23FB;</button>
+            <button id="rigDiagBtn" class="rig-diag-btn" style="display:none" title="CAT Diagnostics">&#x1F50D;</button>
           </div>
           <div class="rig-status" id="rigStatus"></div>
         </div>
       </div>
       <div class="widget-resize"></div>
+    </div>
+  </div>
+
+  <!-- CAT Diagnostics Panel (modal overlay) -->
+  <div class="splash-overlay hidden" id="rigDiagSplash">
+    <div class="splash-box rig-diag-box" role="dialog" aria-modal="true" aria-label="CAT Diagnostics">
+      <h2>CAT Diagnostics</h2>
+      <div class="rig-diag-summary" id="rigDiagSummary"></div>
+      <div class="rig-diag-counters" id="rigDiagCounters"></div>
+      <div class="rig-diag-trace-header">
+        <span>Command Trace</span>
+        <label class="rig-diag-autoscroll-label">
+          <input type="checkbox" id="rigDiagAutoScroll" checked> Auto-scroll
+        </label>
+      </div>
+      <div class="rig-diag-trace" id="rigDiagTrace"></div>
+      <div class="rig-diag-actions">
+        <button id="rigDiagExport" class="rig-diag-export-btn">Export Debug Bundle</button>
+        <button id="rigDiagClear" class="rig-diag-clear-btn">Clear Trace</button>
+        <button id="rigDiagClose" class="rig-diag-close-btn">Close</button>
+      </div>
     </div>
   </div>
 

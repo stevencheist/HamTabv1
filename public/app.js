@@ -3744,10 +3744,96 @@
     }
   });
 
+  // src/cat/diagnostics/trace-bus.js
+  function createTraceBus(options = {}) {
+    const maxEvents = options.maxEvents || DEFAULT_MAX_EVENTS;
+    let events = [];
+    let seq = 0;
+    let listeners = [];
+    const counters = {
+      commandsSent: 0,
+      responsesOk: 0,
+      parseErrors: 0,
+      timeouts: 0,
+      ioErrors: 0,
+      queueDrops: 0
+    };
+    function record(category, action, detail = {}) {
+      seq++;
+      const entry = {
+        seq,
+        ts: Date.now(),
+        category,
+        action,
+        ...detail
+      };
+      events.push(entry);
+      if (events.length > maxEvents) {
+        events = events.slice(-maxEvents);
+      }
+      if (action === "sent") counters.commandsSent++;
+      if (action === "parsed") counters.responsesOk++;
+      if (action === "parse_error") counters.parseErrors++;
+      if (action === "timeout") counters.timeouts++;
+      if (action === "io_error") counters.ioErrors++;
+      if (action === "drop") counters.queueDrops++;
+      for (const fn of listeners) {
+        try {
+          fn(entry);
+        } catch (_) {
+        }
+      }
+    }
+    function subscribe(fn) {
+      listeners.push(fn);
+      return () => {
+        listeners = listeners.filter((l) => l !== fn);
+      };
+    }
+    function getEvents() {
+      return events.slice();
+    }
+    function getCounters() {
+      return { ...counters };
+    }
+    function clear() {
+      events = [];
+    }
+    function reset() {
+      events = [];
+      seq = 0;
+      Object.keys(counters).forEach((k) => {
+        counters[k] = 0;
+      });
+    }
+    return {
+      record,
+      subscribe,
+      getEvents,
+      getCounters,
+      clear,
+      reset
+    };
+  }
+  function getTraceBus() {
+    if (!_instance) {
+      _instance = createTraceBus();
+    }
+    return _instance;
+  }
+  var DEFAULT_MAX_EVENTS, _instance;
+  var init_trace_bus = __esm({
+    "src/cat/diagnostics/trace-bus.js"() {
+      DEFAULT_MAX_EVENTS = 500;
+      _instance = null;
+    }
+  });
+
   // src/cat/command-queue.js
   function createCommandQueue(sendFn, options = {}) {
     const minInterval = options.minInterval || 60;
     const maxQueueSize = options.maxQueueSize || 50;
+    const trace = getTraceBus();
     let queue = [];
     let processing = false;
     let lastSendTime = 0;
@@ -3757,6 +3843,7 @@
         if (existing >= 0) {
           queue[existing].params = params;
           queue[existing].priority = Math.max(queue[existing].priority, priority);
+          trace.record("queue", "coalesce", { command, params });
           return;
         }
       }
@@ -3764,13 +3851,19 @@
         const existing = queue.findIndex((item) => item.command === command);
         if (existing >= 0) {
           queue[existing].params = params;
+          trace.record("queue", "coalesce", { command, params });
           return;
         }
       }
       if (queue.length >= maxQueueSize) {
         queue.sort((a, b) => b.priority - a.priority);
+        const dropped = queue.slice(maxQueueSize - 1);
         queue = queue.slice(0, maxQueueSize - 1);
+        for (const d of dropped) {
+          trace.record("queue", "drop", { command: d.command, params: d.params });
+        }
       }
+      trace.record("queue", "enqueue", { command, params, priority, queueSize: queue.length + 1 });
       queue.push({ command, params, priority, time: Date.now() });
       queue.sort((a, b) => {
         if (b.priority !== a.priority) return b.priority - a.priority;
@@ -3810,11 +3903,13 @@
   }
   var init_command_queue = __esm({
     "src/cat/command-queue.js"() {
+      init_trace_bus();
     }
   });
 
   // src/cat/rig-manager.js
   function createRigManager(transport, driver, store, options = {}) {
+    const trace = getTraceBus();
     const pollingInterval = options.pollingInterval || 500;
     const meterInterval = options.meterInterval || 200;
     const commandInterval = options.commandInterval || 60;
@@ -3832,16 +3927,21 @@
       async (command, params) => {
         const encoded = driver.encode(command, params);
         if (!encoded) return;
+        const sendTs = Date.now();
+        trace.record("transport", "sent", { command, params, encoded });
         try {
           let response;
           if (isBinary && encoded.startsWith("CIV:")) {
             const bytes = hexToBytes(encoded.slice(4));
             const rawBytes = await transport.sendBinaryCommand(bytes, 253);
+            const elapsedMs = Date.now() - sendTs;
+            trace.record("transport", "received", { command, elapsedMs, bytes: rawBytes.length });
             const frames = splitCivFrames(rawBytes);
             for (const frame of frames) {
               const hexResp = "CIV:" + bytesToHex(frame);
               const event = driver.parse(hexResp);
               if (event) {
+                trace.record("parse", "parsed", { command, eventType: event.type, value: event.value });
                 store.applyEvent(event);
               }
             }
@@ -3853,13 +3953,18 @@
           } else {
             const isMeter = command === "getSignal" || command === "getSWR" || command === "getPower";
             response = await transport.sendCommand(encoded, isMeter ? 500 : 2e3);
+            const elapsedMs = Date.now() - sendTs;
+            trace.record("transport", "received", { command, elapsedMs, raw: response || "" });
           }
-          handleResponse(response);
+          handleResponse(response, command);
         } catch (err2) {
+          const elapsedMs = Date.now() - sendTs;
           if (err2.message && err2.message.includes("timeout")) {
             console.warn("[cat] Command timeout:", command);
+            trace.record("error", "timeout", { command, elapsedMs, message: err2.message });
           } else {
             console.error("[cat] Command error:", command, err2);
+            trace.record("error", "io_error", { command, elapsedMs, message: err2.message });
           }
         }
       },
@@ -3879,7 +3984,7 @@
       }
       return frames;
     }
-    function handleResponse(raw) {
+    function handleResponse(raw, command) {
       if (!raw) return;
       const terminator = driver.terminator || ";";
       const parts = raw.split(terminator).filter(Boolean);
@@ -3887,7 +3992,10 @@
         const event = driver.parse(part + terminator);
         if (event) {
           console.warn("[cat] PARSED \u2192", event.type, event.value);
+          trace.record("parse", "parsed", { command, eventType: event.type, value: event.value, raw: part + terminator });
           store.applyEvent(event);
+        } else if (part.trim()) {
+          trace.record("parse", "parse_error", { command, raw: part + terminator });
         }
       }
     }
@@ -4005,6 +4113,7 @@
   var init_rig_manager = __esm({
     "src/cat/rig-manager.js"() {
       init_command_queue();
+      init_trace_bus();
     }
   });
 
@@ -5336,8 +5445,17 @@
       return false;
     }
     const store = getRigStore();
+    const trace = getTraceBus();
+    trace.reset();
     const isDemo = config.demo || config.profileId === "demo";
     const isSdr = config.sdrType === "kiwisdr";
+    trace.record("state", "connect_start", {
+      profileId: config.profileId,
+      protocol: config.protocol || config.protocolFamily,
+      autoDetect: !!config.autoDetect,
+      demo: isDemo,
+      sdr: isSdr
+    });
     if (isSdr) {
       const sdrTransport = new KiwiSdrSocketTransport({
         host: config.sdrHost,
@@ -5375,7 +5493,13 @@
         resolvedProtocol = detected.protocol;
         resolvedSerialConfig = detected.serialConfig;
         detectedTransport = detected.transport || null;
+        trace.record("state", "auto_detect_ok", {
+          profileId: detected.profileId,
+          protocol: detected.protocol,
+          serialConfig: detected.serialConfig
+        });
       } else {
+        trace.record("state", "auto_detect_fail", {});
         return false;
       }
     }
@@ -5428,9 +5552,15 @@
     rigManager = createRigManager(transport, driver, store, { pollingInterval });
     const success = await rigManager.connect(config.existingPort || null);
     if (!success) {
+      trace.record("state", "connect_fail", { profileId: resolvedProfileId });
       rigManager = null;
       return false;
     }
+    trace.record("state", "connected", {
+      profileId: resolvedProfileId,
+      protocol: protocolFamily,
+      serialConfig: resolvedSerialConfig
+    });
     if (driver && typeof driver.capabilities === "function") {
       store.applyEvent({ type: "capabilities", value: driver.capabilities() });
     }
@@ -5466,6 +5596,7 @@
   }
   async function disconnectRig() {
     if (!rigManager) return;
+    getTraceBus().record("state", "disconnected", {});
     for (const mod of activeSafetyModules) {
       try {
         mod.stop();
@@ -5521,6 +5652,7 @@
       init_tci();
       init_rig_manager();
       init_rig_state_store();
+      init_trace_bus();
       init_smart_detect();
       init_tx_intent_system();
       init_band_transition_guard();
@@ -20268,6 +20400,194 @@ ${beacon.location}`);
     if (section) section.style.display = "none";
   }
 
+  // src/cat/diagnostics/diag-panel.js
+  init_trace_bus();
+
+  // src/cat/diagnostics/snapshot.js
+  init_trace_bus();
+  init_connection_orchestrator();
+  function captureSnapshot(extras = {}) {
+    const store = getRigStore();
+    const traceBus = getTraceBus();
+    const rigState = store.get();
+    const counters = traceBus.getCounters();
+    const traceEvents = traceBus.getEvents();
+    const connectionMeta = {
+      profileId: localStorage.getItem("hamtab_radio_profile") || null,
+      protocol: localStorage.getItem("hamtab_radio_protocol") || null,
+      baudRate: localStorage.getItem("hamtab_radio_baud") || null,
+      dataBits: localStorage.getItem("hamtab_radio_databits") || null,
+      stopBits: localStorage.getItem("hamtab_radio_stopbits") || null,
+      parity: localStorage.getItem("hamtab_radio_parity") || null,
+      flowControl: localStorage.getItem("hamtab_radio_flow") || null,
+      portMode: localStorage.getItem("hamtab_radio_portmode") || null,
+      civAddress: localStorage.getItem("hamtab_radio_civaddr") || null,
+      pollingInterval: localStorage.getItem("hamtab_radio_polling") || null
+    };
+    const safeState = { ...rigState };
+    delete safeState._subscribers;
+    const snapshot = {
+      version: 1,
+      generator: "hamtab-cat-diagnostics",
+      appVersion: typeof APP_VERSION !== "undefined" ? APP_VERSION : "unknown",
+      capturedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      capturedAtMs: Date.now(),
+      connection: connectionMeta,
+      rigState: safeState,
+      counters,
+      // Last N trace events (most recent last)
+      traceEvents,
+      traceEventCount: traceEvents.length,
+      // Caller can inject extra data (e.g., smart-detect probe results)
+      ...extras
+    };
+    return snapshot;
+  }
+  function downloadSnapshot(extras = {}) {
+    const snapshot = captureSnapshot(extras);
+    const json = JSON.stringify(snapshot, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const ts = (/* @__PURE__ */ new Date()).toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    a.download = `hamtab-cat-debug-${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // src/cat/diagnostics/diag-panel.js
+  init_connection_orchestrator();
+  init_dom();
+  init_utils();
+  var unsubTrace = null;
+  function initDiagPanel() {
+    const btn = $("rigDiagBtn");
+    if (btn) btn.addEventListener("click", openDiagPanel);
+    const closeBtn = $("rigDiagClose");
+    if (closeBtn) closeBtn.addEventListener("click", closeDiagPanel);
+    const exportBtn = $("rigDiagExport");
+    if (exportBtn) exportBtn.addEventListener("click", () => downloadSnapshot());
+    const clearBtn = $("rigDiagClear");
+    if (clearBtn) clearBtn.addEventListener("click", () => {
+      getTraceBus().clear();
+      const traceEl = $("rigDiagTrace");
+      if (traceEl) traceEl.innerHTML = "";
+    });
+    const splash = $("rigDiagSplash");
+    if (splash) {
+      splash.addEventListener("click", (e) => {
+        if (e.target === splash) closeDiagPanel();
+      });
+    }
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && splash && !splash.classList.contains("hidden")) {
+        closeDiagPanel();
+      }
+    });
+  }
+  function openDiagPanel() {
+    const splash = $("rigDiagSplash");
+    if (!splash) return;
+    openModal(splash);
+    updateSummary();
+    updateCounters();
+    renderExistingEvents();
+    if (unsubTrace) unsubTrace();
+    unsubTrace = getTraceBus().subscribe(appendTraceEntry);
+  }
+  function closeDiagPanel() {
+    const splash = $("rigDiagSplash");
+    if (splash) closeModal(splash);
+    if (unsubTrace) {
+      unsubTrace();
+      unsubTrace = null;
+    }
+  }
+  function updateSummary() {
+    const el2 = $("rigDiagSummary");
+    if (!el2) return;
+    const store = getRigStore();
+    const state2 = store.get();
+    const profile = localStorage.getItem("hamtab_radio_profile") || "unknown";
+    const protocol = localStorage.getItem("hamtab_radio_protocol") || "unknown";
+    const baud = localStorage.getItem("hamtab_radio_baud") || "?";
+    const connected = state2.connected ? "Connected" : "Disconnected";
+    const freq = state2.frequency ? `${(state2.frequency / 1e6).toFixed(6)} MHz` : "---";
+    const mode2 = state2.mode || "---";
+    el2.innerHTML = `
+    <div><strong>Status:</strong> ${esc(connected)} | <strong>Profile:</strong> ${esc(profile)} | <strong>Protocol:</strong> ${esc(protocol)} | <strong>Baud:</strong> ${esc(baud)}</div>
+    <div><strong>Frequency:</strong> ${esc(freq)} | <strong>Mode:</strong> ${esc(mode2)} | <strong>PTT:</strong> ${state2.ptt ? "TX" : "RX"}</div>
+  `;
+  }
+  function updateCounters() {
+    const el2 = $("rigDiagCounters");
+    if (!el2) return;
+    const c = getTraceBus().getCounters();
+    const items = [
+      { label: "Sent", val: c.commandsSent, cls: "" },
+      { label: "OK", val: c.responsesOk, cls: "ok" },
+      { label: "Parse Err", val: c.parseErrors, cls: c.parseErrors > 0 ? "error" : "" },
+      { label: "Timeouts", val: c.timeouts, cls: c.timeouts > 0 ? "warn" : "" },
+      { label: "IO Err", val: c.ioErrors, cls: c.ioErrors > 0 ? "error" : "" },
+      { label: "Dropped", val: c.queueDrops, cls: c.queueDrops > 0 ? "warn" : "" }
+    ];
+    el2.innerHTML = items.map((i) => `
+    <div class="rig-diag-counter">
+      <span class="rig-diag-counter-val ${i.cls}">${i.val}</span>
+      <span class="rig-diag-counter-label">${i.label}</span>
+    </div>
+  `).join("");
+  }
+  function renderExistingEvents() {
+    const traceEl = $("rigDiagTrace");
+    if (!traceEl) return;
+    traceEl.innerHTML = "";
+    const events = getTraceBus().getEvents();
+    const recent = events.slice(-200);
+    for (const ev of recent) {
+      appendTraceEntry(ev, false);
+    }
+    traceEl.scrollTop = traceEl.scrollHeight;
+  }
+  function appendTraceEntry(entry, autoScroll = true) {
+    const traceEl = $("rigDiagTrace");
+    if (!traceEl) return;
+    updateCounters();
+    const time = new Date(entry.ts).toLocaleTimeString("en-US", { hour12: false, fractionalSecondDigits: 1 });
+    const category = entry.category || "";
+    const action = entry.action || "";
+    let detail = "";
+    if (entry.command) detail += entry.command;
+    if (entry.encoded) detail += ` [${entry.encoded}]`;
+    if (entry.raw) detail += ` \u2192 ${entry.raw}`;
+    if (entry.eventType) detail += ` \u2192 ${entry.eventType}`;
+    if (entry.value !== void 0) {
+      const v = typeof entry.value === "object" ? JSON.stringify(entry.value) : entry.value;
+      detail += `=${v}`;
+    }
+    if (entry.elapsedMs !== void 0) detail += ` (${entry.elapsedMs}ms)`;
+    if (entry.message) detail += ` ${entry.message}`;
+    if (entry.queueSize !== void 0) detail += ` [q:${entry.queueSize}]`;
+    const div = document.createElement("div");
+    div.className = `rig-diag-trace-entry ${category}`;
+    div.textContent = `${time} [${category}/${action}] ${detail}`;
+    traceEl.appendChild(div);
+    while (traceEl.children.length > 500) {
+      traceEl.removeChild(traceEl.firstChild);
+    }
+    const autoScrollCb = $("rigDiagAutoScroll");
+    if (autoScroll && autoScrollCb && autoScrollCb.checked) {
+      traceEl.scrollTop = traceEl.scrollHeight;
+    }
+  }
+  function updateDiagButtonVisibility(connected) {
+    const btn = $("rigDiagBtn");
+    if (btn) btn.style.display = connected ? "" : "none";
+  }
+
   // src/on-air-rig.js
   var unsubscribe = null;
   var initialized2 = false;
@@ -20728,6 +21048,7 @@ ${beacon.location}`);
       const hasPowerOff = state2.connected && !state2.demo && !state2.rxOnly && (state2.capabilities || []).includes("power_off");
       dom.powerOffBtn.style.display = hasPowerOff ? "" : "none";
     }
+    updateDiagButtonVisibility(state2.connected);
     if (dom.muteBtn) {
       if (state2.rxOnly && state2.connected) {
         dom.muteBtn.style.display = "";
@@ -21309,6 +21630,7 @@ ${beacon.location}`);
     if (!connectBtn) return;
     cacheDomRefs();
     prev = {};
+    initDiagPanel();
     if (!listenersAttached) {
       populateProfiles();
       populateBandMode();
@@ -21810,8 +22132,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.67.0";
-    $("aboutVersion").textContent = "0.67.0";
+    $("splashVersion").textContent = "0.67.1";
+    $("aboutVersion").textContent = "0.67.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

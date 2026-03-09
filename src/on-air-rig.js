@@ -15,6 +15,7 @@ import {
 } from './cat/index.js';
 import { BAND_SEGMENTS, getBandSegments, getBandEdges, getPositionInBand } from './cat/profiles/band-overlay-engine.js';
 import { startScope, stopScope } from './scope/scope-renderer.js';
+import { initDiagPanel, updateDiagButtonVisibility } from './cat/diagnostics/diag-panel.js';
 
 let unsubscribe = null;
 let initialized = false;
@@ -565,6 +566,9 @@ function render(state) {
       && (state.capabilities || []).includes('power_off');
     dom.powerOffBtn.style.display = hasPowerOff ? '' : 'none';
   }
+
+  // Diagnostics button — show when connected (any mode including demo)
+  updateDiagButtonVisibility(state.connected);
 
   // SDR mute button — show only when KiwiSDR is connected
   if (dom.muteBtn) {
@@ -1307,6 +1311,9 @@ export function initOnAirRig() {
   // Cache DOM refs once — avoids repeated $() lookups in render()
   cacheDomRefs();
   prev = {}; // reset diff state
+
+  // Initialize diagnostics panel
+  initDiagPanel();
 
   // Attach DOM listeners once — they persist across show/hide cycles
   // (DOM elements stay in the page, just hidden via display:none)

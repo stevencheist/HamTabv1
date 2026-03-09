@@ -2620,7 +2620,8 @@
             "vfo_swap",
             "power_off",
             "menu_read",
-            "menu_set"
+            "menu_set",
+            "profile_save"
           ];
         },
         // --- Command encoding ---
@@ -2665,6 +2666,59 @@
               return "IF;";
             case "getID":
               return "ID;";
+            // --- Profile-readable settings ---
+            case "getAFGain":
+              return "AG0;";
+            case "setAFGain":
+              return `AG0${String(params).padStart(3, "0")};`;
+            case "getAGC":
+              return "GT0;";
+            case "setAGC":
+              return `GT0${params};`;
+            case "getNoiseBlanker":
+              return "NB00;";
+            case "setNoiseBlanker":
+              return `NB00${params};`;
+            case "getNoiseReduction":
+              return "NR00;";
+            case "setNoiseReduction":
+              return `NR00${params};`;
+            case "getAttenuator":
+              return "RA00;";
+            case "setAttenuator":
+              return `RA00${String(params).padStart(2, "0")};`;
+            case "getPreamp":
+              return "PA00;";
+            case "setPreamp":
+              return `PA00${params};`;
+            case "getIFShift":
+              return "IS0;";
+            case "setIFShift":
+              return `IS0${String(params).padStart(4, "0")};`;
+            case "getWidth":
+              return "SH00;";
+            case "setWidth":
+              return `SH00${String(params).padStart(2, "0")};`;
+            case "getNarrow":
+              return "NA00;";
+            case "setNarrow":
+              return `NA00${params};`;
+            case "getContour":
+              return "CO00;";
+            case "setContour":
+              return `CO00${String(params).padStart(4, "0")};`;
+            case "getVoxGain":
+              return "VG;";
+            case "setVoxGain":
+              return `VG${String(params).padStart(3, "0")};`;
+            case "getMonitorLevel":
+              return "ML;";
+            case "setMonitorLevel":
+              return `ML${String(params).padStart(3, "0")};`;
+            case "getMicGain":
+              return "MG;";
+            case "setMicGain":
+              return `MG${String(params).padStart(3, "0")};`;
             // EX (Menu) — read/write radio menu settings
             // params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set
             // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
@@ -2729,6 +2783,45 @@
                 raw: data
               }
             };
+          }
+          if (resp.startsWith("AG0")) {
+            return { type: "afGain", value: parseInt(resp.slice(3), 10) };
+          }
+          if (resp.startsWith("GT0")) {
+            return { type: "agc", value: parseInt(resp.slice(3), 10) };
+          }
+          if (resp.startsWith("NB00")) {
+            return { type: "noiseBlanker", value: parseInt(resp.slice(4), 10) };
+          }
+          if (resp.startsWith("NR00")) {
+            return { type: "noiseReduction", value: parseInt(resp.slice(4), 10) };
+          }
+          if (resp.startsWith("RA00")) {
+            return { type: "attenuator", value: parseInt(resp.slice(4), 10) };
+          }
+          if (resp.startsWith("PA00")) {
+            return { type: "preamp", value: parseInt(resp.slice(4), 10) };
+          }
+          if (resp.startsWith("IS0")) {
+            return { type: "ifShift", value: parseInt(resp.slice(3), 10) };
+          }
+          if (resp.startsWith("SH00")) {
+            return { type: "width", value: parseInt(resp.slice(4), 10) };
+          }
+          if (resp.startsWith("NA00")) {
+            return { type: "narrow", value: parseInt(resp.slice(4), 10) };
+          }
+          if (resp.startsWith("CO00")) {
+            return { type: "contour", value: parseInt(resp.slice(4), 10) };
+          }
+          if (resp.startsWith("VG")) {
+            return { type: "voxGain", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("ML")) {
+            return { type: "monitorLevel", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("MG")) {
+            return { type: "micGain", value: parseInt(resp.slice(2), 10) };
           }
           if (resp.startsWith("EX") && resp.length >= 8) {
             const p1 = parseInt(resp.slice(2, 4), 10);
@@ -4157,7 +4250,34 @@
       txLockReason: "",
       // Menu responses — keyed by address string (e.g. "010416" for P1=01 P2=04 P3=16)
       // Populated by EX command responses, used by digital setup to read/restore settings
-      menuResponses: {}
+      menuResponses: {},
+      // --- Radio settings (populated by profile read commands) ---
+      afGain: null,
+      // 0-255
+      agc: null,
+      // 0=off, 1=fast, 2=mid, 3=slow, 4=auto
+      noiseBlanker: null,
+      // 0=off, 1=on
+      noiseReduction: null,
+      // 0=off, 1=on
+      attenuator: null,
+      // 0=off, 6/12/18 dB
+      preamp: null,
+      // 0=IPO, 1=AMP1, 2=AMP2
+      ifShift: null,
+      // 0-9999 (center varies by radio)
+      width: null,
+      // filter width index
+      narrow: null,
+      // 0=off, 1=on
+      contour: null,
+      // contour setting
+      voxGain: null,
+      // 0-100
+      monitorLevel: null,
+      // 0-100
+      micGain: null
+      // 0-100
     };
     const subscribers = [];
     function subscribe(callback) {
@@ -4235,6 +4355,46 @@
             state2.band = detectBand2(event.value.frequency);
           }
           break;
+        // --- Radio settings (profile-readable) ---
+        case "afGain":
+          state2.afGain = event.value;
+          break;
+        case "agc":
+          state2.agc = event.value;
+          break;
+        case "noiseBlanker":
+          state2.noiseBlanker = event.value;
+          break;
+        case "noiseReduction":
+          state2.noiseReduction = event.value;
+          break;
+        case "attenuator":
+          state2.attenuator = event.value;
+          break;
+        case "preamp":
+          state2.preamp = event.value;
+          break;
+        case "ifShift":
+          state2.ifShift = event.value;
+          break;
+        case "width":
+          state2.width = event.value;
+          break;
+        case "narrow":
+          state2.narrow = event.value;
+          break;
+        case "contour":
+          state2.contour = event.value;
+          break;
+        case "voxGain":
+          state2.voxGain = event.value;
+          break;
+        case "monitorLevel":
+          state2.monitorLevel = event.value;
+          break;
+        case "micGain":
+          state2.micGain = event.value;
+          break;
         case "menu":
           if (event.value) {
             const key = `${String(event.value.p1).padStart(2, "0")}${String(event.value.p2).padStart(2, "0")}${String(event.value.p3).padStart(2, "0")}`;
@@ -4279,6 +4439,19 @@
       state2.txLocked = false;
       state2.txLockReason = "";
       state2.menuResponses = {};
+      state2.afGain = null;
+      state2.agc = null;
+      state2.noiseBlanker = null;
+      state2.noiseReduction = null;
+      state2.attenuator = null;
+      state2.preamp = null;
+      state2.ifShift = null;
+      state2.width = null;
+      state2.narrow = null;
+      state2.contour = null;
+      state2.voxGain = null;
+      state2.monitorLevel = null;
+      state2.micGain = null;
       notify();
     }
     function updateTuneConfidence() {
@@ -5671,11 +5844,155 @@
     }
   });
 
+  // src/cat/profile-manager.js
+  async function saveProfile(name) {
+    const store = getRigStore();
+    const caps = store.get().capabilities || [];
+    for (const s of PROFILE_SETTINGS) {
+      sendRigCommand(s.command, null, 1);
+    }
+    if (caps.includes("menu_read")) {
+      for (const m of PROFILE_MENU_ADDRESSES) {
+        sendRigCommand("getMenu", { p1: m.p1, p2: m.p2, p3: m.p3 }, 1);
+      }
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+    const state2 = store.get();
+    const settings = {};
+    for (const s of PROFILE_SETTINGS) {
+      const val = state2[s.stateField];
+      if (val !== null && val !== void 0) {
+        settings[s.stateField] = val;
+      }
+    }
+    const menuSettings = {};
+    for (const m of PROFILE_MENU_ADDRESSES) {
+      const key = `${String(m.p1).padStart(2, "0")}${String(m.p2).padStart(2, "0")}${String(m.p3).padStart(2, "0")}`;
+      if (state2.menuResponses[key]) {
+        menuSettings[key] = state2.menuResponses[key].numeric;
+      }
+    }
+    const profile = {
+      name,
+      savedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      radioId: state2.radioId || "unknown",
+      settings,
+      menuSettings
+    };
+    const profiles = loadAllProfiles();
+    profiles[name] = profile;
+    try {
+      localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    } catch (_) {
+      console.warn("[profile] Failed to save profile to localStorage");
+    }
+    return profile;
+  }
+  function restoreProfile(name) {
+    const profiles = loadAllProfiles();
+    const profile = profiles[name];
+    if (!profile) return false;
+    const store = getRigStore();
+    const caps = store.get().capabilities || [];
+    const settings = profile.settings || {};
+    for (const s of PROFILE_SETTINGS) {
+      const val = settings[s.stateField];
+      if (val !== null && val !== void 0) {
+        sendRigCommand(s.setCommand, val, 1);
+      }
+    }
+    if (caps.includes("menu_set") && profile.menuSettings) {
+      for (const m of PROFILE_MENU_ADDRESSES) {
+        const key = `${String(m.p1).padStart(2, "0")}${String(m.p2).padStart(2, "0")}${String(m.p3).padStart(2, "0")}`;
+        if (key in profile.menuSettings) {
+          sendRigCommand("setMenu", {
+            p1: m.p1,
+            p2: m.p2,
+            p3: m.p3,
+            value: profile.menuSettings[key],
+            digits: m.digits
+          }, 1);
+        }
+      }
+    }
+    return true;
+  }
+  function listProfiles() {
+    const profiles = loadAllProfiles();
+    return Object.keys(profiles).map((name) => ({
+      name,
+      savedAt: profiles[name].savedAt,
+      radioId: profiles[name].radioId
+    }));
+  }
+  function deleteProfile(name) {
+    const profiles = loadAllProfiles();
+    delete profiles[name];
+    try {
+      localStorage.setItem(PROFILES_KEY, JSON.stringify(profiles));
+    } catch (_) {
+    }
+  }
+  function getProfile(name) {
+    const profiles = loadAllProfiles();
+    return profiles[name] || null;
+  }
+  function loadAllProfiles() {
+    try {
+      const raw = localStorage.getItem(PROFILES_KEY);
+      return raw ? JSON.parse(raw) : {};
+    } catch (_) {
+      return {};
+    }
+  }
+  function profileSummary(profile) {
+    if (!profile || !profile.settings) return "Empty profile";
+    const s = profile.settings;
+    const parts = [];
+    if (s.frequency) parts.push(`${(s.frequency / 1e6).toFixed(3)} MHz`);
+    if (s.mode) parts.push(s.mode);
+    if (s.rfPower) parts.push(`${s.rfPower}W`);
+    return parts.join(" / ") || "No settings captured";
+  }
+  var PROFILES_KEY, PROFILE_SETTINGS, PROFILE_MENU_ADDRESSES;
+  var init_profile_manager = __esm({
+    "src/cat/profile-manager.js"() {
+      init_connection_orchestrator();
+      PROFILES_KEY = "hamtab_radio_profiles";
+      PROFILE_SETTINGS = [
+        { command: "getFrequency", stateField: "frequency", setCommand: "setFrequency" },
+        { command: "getFrequencyB", stateField: "frequencyB", setCommand: "setFrequencyB" },
+        { command: "getMode", stateField: "mode", setCommand: "setMode" },
+        { command: "getRFPower", stateField: "rfPower", setCommand: "setRFPower" },
+        { command: "getAFGain", stateField: "afGain", setCommand: "setAFGain" },
+        { command: "getAGC", stateField: "agc", setCommand: "setAGC" },
+        { command: "getNoiseBlanker", stateField: "noiseBlanker", setCommand: "setNoiseBlanker" },
+        { command: "getNoiseReduction", stateField: "noiseReduction", setCommand: "setNoiseReduction" },
+        { command: "getAttenuator", stateField: "attenuator", setCommand: "setAttenuator" },
+        { command: "getPreamp", stateField: "preamp", setCommand: "setPreamp" },
+        { command: "getIFShift", stateField: "ifShift", setCommand: "setIFShift" },
+        { command: "getWidth", stateField: "width", setCommand: "setWidth" },
+        { command: "getNarrow", stateField: "narrow", setCommand: "setNarrow" },
+        { command: "getContour", stateField: "contour", setCommand: "setContour" },
+        { command: "getVoxGain", stateField: "voxGain", setCommand: "setVoxGain" },
+        { command: "getMonitorLevel", stateField: "monitorLevel", setCommand: "setMonitorLevel" },
+        { command: "getMicGain", stateField: "micGain", setCommand: "setMicGain" }
+      ];
+      PROFILE_MENU_ADDRESSES = [
+        { p1: 1, p2: 4, p3: 15, digits: 1, label: "DATA MOD SOURCE" },
+        { p1: 1, p2: 4, p3: 16, digits: 1, label: "REAR SELECT" },
+        { p1: 3, p2: 4, p3: 5, digits: 1, label: "VOX SELECT" },
+        { p1: 3, p2: 4, p3: 6, digits: 3, label: "DATA VOX GAIN" }
+      ];
+    }
+  });
+
   // src/cat/index.js
   var init_cat = __esm({
     "src/cat/index.js"() {
       init_connection_orchestrator();
       init_smart_detect();
+      init_profile_manager();
     }
   });
 
@@ -21618,7 +21935,7 @@ ${beacon.location}`);
     }
     if (toggle) toggle.checked = state_default.digitalSetupEnabled;
     if (controls) {
-      controls.classList.toggle("rig-digital-disabled", !state_default.digitalSetupEnabled);
+      controls.style.display = state_default.digitalSetupEnabled ? "" : "none";
     }
     if (releaseBtn) {
       releaseBtn.style.display = state_default.digitalSetupEnabled && connected ? "" : "none";
@@ -21639,6 +21956,87 @@ ${beacon.location}`);
         statusBadge.textContent = "";
         statusBadge.className = "rig-digital-status";
       }
+    }
+  }
+  function refreshProfileDropdown() {
+    const select = $("rigProfileList");
+    if (!select) return;
+    const profiles = listProfiles();
+    select.innerHTML = "";
+    if (profiles.length === 0) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "No saved profiles";
+      select.appendChild(opt);
+    } else {
+      for (const p of profiles) {
+        const opt = document.createElement("option");
+        opt.value = p.name;
+        const detail = getProfile(p.name);
+        opt.textContent = `${p.name} \u2014 ${detail ? profileSummary(detail) : ""}`;
+        select.appendChild(opt);
+      }
+    }
+  }
+  function updateProfileUI() {
+    const section = $("rigProfileSection");
+    if (!section) return;
+    const connected = isRigConnected();
+    const store = getRigStore();
+    const s = store.get();
+    const caps = s.capabilities || [];
+    const canSave = connected && !s.demo && !s.rxOnly && caps.includes("profile_save");
+    section.style.display = canSave ? "" : "none";
+  }
+  async function handleProfileSave() {
+    const nameInput = $("rigProfileName");
+    const statusEl = $("rigProfileStatus");
+    if (!nameInput || !isRigConnected()) return;
+    const name = nameInput.value.trim();
+    if (!name) {
+      if (statusEl) statusEl.textContent = "Enter a profile name";
+      return;
+    }
+    if (statusEl) statusEl.textContent = "Reading radio settings...";
+    try {
+      const profile = await saveProfile(name);
+      if (statusEl) statusEl.textContent = `Saved: ${profileSummary(profile)}`;
+      nameInput.value = "";
+      refreshProfileDropdown();
+      setTimeout(() => {
+        if (statusEl) statusEl.textContent = "";
+      }, 3e3);
+    } catch (err2) {
+      if (statusEl) statusEl.textContent = `Error: ${err2.message}`;
+    }
+  }
+  function handleProfileLoad() {
+    const select = $("rigProfileList");
+    const statusEl = $("rigProfileStatus");
+    if (!select || !isRigConnected()) return;
+    const name = select.value;
+    if (!name) return;
+    const success = restoreProfile(name);
+    if (statusEl) {
+      statusEl.textContent = success ? `Restored: ${name}` : "Profile not found";
+      setTimeout(() => {
+        if (statusEl) statusEl.textContent = "";
+      }, 3e3);
+    }
+  }
+  function handleProfileDelete() {
+    const select = $("rigProfileList");
+    const statusEl = $("rigProfileStatus");
+    if (!select) return;
+    const name = select.value;
+    if (!name) return;
+    deleteProfile(name);
+    refreshProfileDropdown();
+    if (statusEl) {
+      statusEl.textContent = `Deleted: ${name}`;
+      setTimeout(() => {
+        if (statusEl) statusEl.textContent = "";
+      }, 3e3);
     }
   }
   function initOnAirRig() {
@@ -21751,12 +22149,21 @@ ${beacon.location}`);
           chip.classList.toggle("active", parseInt(chip.dataset.watts, 10) === state_default.digitalSetupPower);
         }
       }
+      const profileSaveBtn = $("rigProfileSave");
+      if (profileSaveBtn) profileSaveBtn.addEventListener("click", handleProfileSave);
+      const profileLoadBtn = $("rigProfileLoad");
+      if (profileLoadBtn) profileLoadBtn.addEventListener("click", handleProfileLoad);
+      const profileDeleteBtn = $("rigProfileDelete");
+      if (profileDeleteBtn) profileDeleteBtn.addEventListener("click", handleProfileDelete);
+      refreshProfileDropdown();
       listenersAttached = true;
     }
     const store = getRigStore();
     unsubscribe = store.subscribe(render);
     store.subscribe(updateDigitalUI);
     updateDigitalUI();
+    store.subscribe(updateProfileUI);
+    updateProfileUI();
     initialized2 = true;
   }
   async function destroyOnAirRig() {
@@ -22150,8 +22557,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.67.2";
-    $("aboutVersion").textContent = "0.67.2";
+    $("splashVersion").textContent = "0.68.0";
+    $("aboutVersion").textContent = "0.68.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

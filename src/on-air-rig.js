@@ -12,6 +12,12 @@ import {
   isRigConnected,
   getRigStore,
   getSdrAudioPlayer,
+  saveProfile,
+  restoreProfile,
+  listProfiles,
+  deleteProfile,
+  profileSummary,
+  getProfile,
 } from './cat/index.js';
 import { BAND_SEGMENTS, getBandSegments, getBandEdges, getPositionInBand } from './cat/profiles/band-overlay-engine.js';
 import { startScope, stopScope } from './scope/scope-renderer.js';
@@ -1303,9 +1309,9 @@ function updateDigitalUI() {
   // Toggle state
   if (toggle) toggle.checked = state.digitalSetupEnabled;
 
-  // Controls enabled only when toggle is on
+  // Hide controls until toggle is on — don't show options until user enables digital mode
   if (controls) {
-    controls.classList.toggle('rig-digital-disabled', !state.digitalSetupEnabled);
+    controls.style.display = state.digitalSetupEnabled ? '' : 'none';
   }
 
   // Release button visible only when enabled and connected
@@ -1332,6 +1338,105 @@ function updateDigitalUI() {
       statusBadge.textContent = '';
       statusBadge.className = 'rig-digital-status';
     }
+  }
+}
+
+// --- Radio Profile Save/Restore UI ---
+
+// Refresh the profile dropdown with saved profiles
+function refreshProfileDropdown() {
+  const select = $('rigProfileList');
+  if (!select) return;
+
+  const profiles = listProfiles();
+  select.innerHTML = '';
+
+  if (profiles.length === 0) {
+    const opt = document.createElement('option');
+    opt.value = '';
+    opt.textContent = 'No saved profiles';
+    select.appendChild(opt);
+  } else {
+    for (const p of profiles) {
+      const opt = document.createElement('option');
+      opt.value = p.name;
+      const detail = getProfile(p.name);
+      opt.textContent = `${p.name} — ${detail ? profileSummary(detail) : ''}`;
+      select.appendChild(opt);
+    }
+  }
+}
+
+// Update profile section visibility — show when connected to real radio with profile_save capability
+function updateProfileUI() {
+  const section = $('rigProfileSection');
+  if (!section) return;
+
+  const connected = isRigConnected();
+  const store = getRigStore();
+  const s = store.get();
+  const caps = s.capabilities || [];
+  const canSave = connected && !s.demo && !s.rxOnly && caps.includes('profile_save');
+
+  section.style.display = canSave ? '' : 'none';
+}
+
+// Handle Save button
+async function handleProfileSave() {
+  const nameInput = $('rigProfileName');
+  const statusEl = $('rigProfileStatus');
+  if (!nameInput || !isRigConnected()) return;
+
+  const name = nameInput.value.trim();
+  if (!name) {
+    if (statusEl) statusEl.textContent = 'Enter a profile name';
+    return;
+  }
+
+  if (statusEl) statusEl.textContent = 'Reading radio settings...';
+
+  try {
+    const profile = await saveProfile(name);
+    if (statusEl) statusEl.textContent = `Saved: ${profileSummary(profile)}`;
+    nameInput.value = '';
+    refreshProfileDropdown();
+    // Clear status after 3s
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+  } catch (err) {
+    if (statusEl) statusEl.textContent = `Error: ${err.message}`;
+  }
+}
+
+// Handle Load button
+function handleProfileLoad() {
+  const select = $('rigProfileList');
+  const statusEl = $('rigProfileStatus');
+  if (!select || !isRigConnected()) return;
+
+  const name = select.value;
+  if (!name) return;
+
+  const success = restoreProfile(name);
+  if (statusEl) {
+    statusEl.textContent = success ? `Restored: ${name}` : 'Profile not found';
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+  }
+}
+
+// Handle Delete button
+function handleProfileDelete() {
+  const select = $('rigProfileList');
+  const statusEl = $('rigProfileStatus');
+  if (!select) return;
+
+  const name = select.value;
+  if (!name) return;
+
+  deleteProfile(name);
+  refreshProfileDropdown();
+  if (statusEl) {
+    statusEl.textContent = `Deleted: ${name}`;
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
   }
 }
 
@@ -1469,6 +1574,19 @@ export function initOnAirRig() {
       }
     }
 
+    // --- Radio Profile Save/Restore listeners ---
+    const profileSaveBtn = $('rigProfileSave');
+    if (profileSaveBtn) profileSaveBtn.addEventListener('click', handleProfileSave);
+
+    const profileLoadBtn = $('rigProfileLoad');
+    if (profileLoadBtn) profileLoadBtn.addEventListener('click', handleProfileLoad);
+
+    const profileDeleteBtn = $('rigProfileDelete');
+    if (profileDeleteBtn) profileDeleteBtn.addEventListener('click', handleProfileDelete);
+
+    // Populate profile dropdown on init
+    refreshProfileDropdown();
+
     listenersAttached = true;
   }
 
@@ -1479,6 +1597,10 @@ export function initOnAirRig() {
   // Update digital UI on every rig state change (show/hide based on connection)
   store.subscribe(updateDigitalUI);
   updateDigitalUI(); // initial state
+
+  // Update profile UI visibility based on connection + capabilities
+  store.subscribe(updateProfileUI);
+  updateProfileUI(); // initial state
 
   initialized = true;
 }

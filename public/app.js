@@ -2724,6 +2724,15 @@
               return "MG;";
             case "setMicGain":
               return `MG${String(params).padStart(3, "0")};`;
+            case "getProcessor":
+              return "PR0;";
+            case "setProcessor":
+              return `PR0${params};`;
+            // 0=off, 1=on
+            case "getProcessorLevel":
+              return "PL;";
+            case "setProcessorLevel":
+              return `PL${String(params).padStart(3, "0")};`;
             // EX (Menu) — read/write radio menu settings
             // params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set
             // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
@@ -2733,7 +2742,15 @@
             }
             case "setMenu": {
               const { p1, p2, p3, value, digits } = params;
-              return `EX${pad(p1, 2)}${pad(p2, 2)}${pad(p3, 2)}${String(value).padStart(digits || 1, "0")};`;
+              let valStr;
+              if (typeof value === "string") {
+                valStr = value;
+              } else if (typeof value === "number" && value < 0) {
+                valStr = "-" + String(Math.abs(value)).padStart((digits || 1) - 1, "0");
+              } else {
+                valStr = String(value).padStart(digits || 1, "0");
+              }
+              return `EX${pad(p1, 2)}${pad(p2, 2)}${pad(p3, 2)}${valStr};`;
             }
             default:
               return null;
@@ -2827,6 +2844,12 @@
           }
           if (resp.startsWith("MG")) {
             return { type: "micGain", value: parseInt(resp.slice(2), 10) };
+          }
+          if (resp.startsWith("PR0")) {
+            return { type: "processor", value: parseInt(resp.slice(3), 10) };
+          }
+          if (resp.startsWith("PL")) {
+            return { type: "processorLevel", value: parseInt(resp.slice(2), 10) };
           }
           if (resp.startsWith("EX") && resp.length >= 8) {
             const p1 = parseInt(resp.slice(2, 4), 10);
@@ -4281,7 +4304,11 @@
       // 0-100
       monitorLevel: null,
       // 0-100
-      micGain: null
+      micGain: null,
+      // 0-100
+      processor: null,
+      // 0=off, 1=on
+      processorLevel: null
       // 0-100
     };
     const subscribers = [];
@@ -4400,6 +4427,12 @@
         case "micGain":
           state2.micGain = event.value;
           break;
+        case "processor":
+          state2.processor = event.value;
+          break;
+        case "processorLevel":
+          state2.processorLevel = event.value;
+          break;
         case "menu":
           if (event.value) {
             const key = `${String(event.value.p1).padStart(2, "0")}${String(event.value.p2).padStart(2, "0")}${String(event.value.p3).padStart(2, "0")}`;
@@ -4457,6 +4490,8 @@
       state2.voxGain = null;
       state2.monitorLevel = null;
       state2.micGain = null;
+      state2.processor = null;
+      state2.processorLevel = null;
       notify();
     }
     function updateTuneConfidence() {
@@ -5959,7 +5994,36 @@
     if (s.rfPower) parts.push(`${s.rfPower}W`);
     return parts.join(" / ") || "No settings captured";
   }
-  var PROFILES_KEY, PROFILE_SETTINGS, PROFILE_MENU_ADDRESSES;
+  function getPresets(callsign, radioModelId) {
+    if (!callsign || !PRESET_CALLSIGNS.includes(callsign.toUpperCase())) return [];
+    return PRESET_REGISTRY[radioModelId] || [];
+  }
+  function applyPreset(preset) {
+    if (!preset) return false;
+    const store = getRigStore();
+    const caps = store.get().capabilities || [];
+    if (preset.settings) {
+      for (const s of PROFILE_SETTINGS) {
+        const val = preset.settings[s.stateField];
+        if (val !== null && val !== void 0) {
+          sendRigCommand(s.setCommand, val, 1);
+        }
+      }
+    }
+    if (caps.includes("menu_set") && preset.menuCommands) {
+      for (const m of preset.menuCommands) {
+        sendRigCommand("setMenu", {
+          p1: m.p1,
+          p2: m.p2,
+          p3: m.p3,
+          value: m.value,
+          digits: m.digits
+        }, 1);
+      }
+    }
+    return true;
+  }
+  var PROFILES_KEY, PROFILE_SETTINGS, PROFILE_MENU_ADDRESSES, PRESET_CALLSIGNS, FTDX10_SSB_RAGCHEW, FTDX10_SSB_CONTEST, FT891_SSB_RAGCHEW, PRESET_REGISTRY;
   var init_profile_manager = __esm({
     "src/cat/profile-manager.js"() {
       init_connection_orchestrator();
@@ -5981,7 +6045,9 @@
         { command: "getContour", stateField: "contour", setCommand: "setContour" },
         { command: "getVoxGain", stateField: "voxGain", setCommand: "setVoxGain" },
         { command: "getMonitorLevel", stateField: "monitorLevel", setCommand: "setMonitorLevel" },
-        { command: "getMicGain", stateField: "micGain", setCommand: "setMicGain" }
+        { command: "getMicGain", stateField: "micGain", setCommand: "setMicGain" },
+        { command: "getProcessor", stateField: "processor", setCommand: "setProcessor" },
+        { command: "getProcessorLevel", stateField: "processorLevel", setCommand: "setProcessorLevel" }
       ];
       PROFILE_MENU_ADDRESSES = [
         { p1: 1, p2: 4, p3: 15, digits: 1, label: "DATA MOD SOURCE" },
@@ -5989,6 +6055,109 @@
         { p1: 3, p2: 4, p3: 5, digits: 1, label: "VOX SELECT" },
         { p1: 3, p2: 4, p3: 6, digits: 3, label: "DATA VOX GAIN" }
       ];
+      PRESET_CALLSIGNS = ["KG5DPV", "KJ5MMO"];
+      FTDX10_SSB_RAGCHEW = {
+        name: "SSB Ragchew (DX10)",
+        description: "Processor OFF, wide bandwidth, clarity EQ. Zero ALC goal.",
+        // Direct CAT commands
+        settings: {
+          micGain: 25,
+          // low — goal is zero ALC movement
+          processor: 0,
+          // OFF for ragchew
+          agc: 2,
+          // MID
+          noiseBlanker: 0,
+          // off
+          noiseReduction: 0
+          // off
+        },
+        // EX menu commands: { p1, p2, p3, value, digits }
+        menuCommands: [
+          // MODE SSB (P1=01, P2=01) — RX filter settings
+          { p1: 1, p2: 1, p3: 7, value: 3, digits: 2, label: "LCUT FREQ \u2192 200 Hz" },
+          // 03 = 200 Hz
+          { p1: 1, p2: 1, p3: 8, value: 1, digits: 1, label: "LCUT SLOPE \u2192 18 dB/oct" },
+          // 1 = 18 dB/oct
+          { p1: 1, p2: 1, p3: 9, value: 43, digits: 2, label: "HCUT FREQ \u2192 2800 Hz" },
+          // 43 = 2800 Hz (700 + 42*50)
+          { p1: 1, p2: 1, p3: 10, value: 1, digits: 1, label: "HCUT SLOPE \u2192 18 dB/oct" },
+          { p1: 1, p2: 1, p3: 12, value: 2, digits: 1, label: "TX BPF SEL \u2192 200-2800 Hz" },
+          // 2 = 200~2800
+          // TX AUDIO (P1=03, P2=03) — Parametric EQ (processor OFF EQ)
+          { p1: 3, p2: 3, p3: 1, value: 0, digits: 1, label: "AMC RELEASE \u2192 FAST" },
+          { p1: 3, p2: 3, p3: 2, value: 3, digits: 2, label: "EQ1 FREQ \u2192 300 Hz" },
+          // 03 = 300 Hz
+          { p1: 3, p2: 3, p3: 3, value: "-06", digits: 3, label: "EQ1 LEVEL \u2192 -6 dB" },
+          // cut low-end mud
+          { p1: 3, p2: 3, p3: 4, value: 1, digits: 2, label: "EQ1 BWTH \u2192 1" },
+          { p1: 3, p2: 3, p3: 5, value: 0, digits: 2, label: "EQ2 FREQ \u2192 OFF" },
+          // no mid EQ
+          { p1: 3, p2: 3, p3: 6, value: "+00", digits: 3, label: "EQ2 LEVEL \u2192 0 dB" },
+          { p1: 3, p2: 3, p3: 7, value: 1, digits: 2, label: "EQ2 BWTH \u2192 1" },
+          { p1: 3, p2: 3, p3: 8, value: 10, digits: 2, label: "EQ3 FREQ \u2192 2400 Hz" },
+          // 10 = 2400 Hz
+          { p1: 3, p2: 3, p3: 9, value: "+10", digits: 3, label: "EQ3 LEVEL \u2192 +10 dB" },
+          // presence/clarity boost
+          { p1: 3, p2: 3, p3: 10, value: 1, digits: 2, label: "EQ3 BWTH \u2192 1" }
+        ]
+      };
+      FTDX10_SSB_CONTEST = {
+        name: "SSB Contest (DX10)",
+        description: "Processor ON at 80, narrow TX BPF, aggressive EQ for pileup punch.",
+        settings: {
+          micGain: 40,
+          processor: 1,
+          // ON for contest
+          processorLevel: 80,
+          // strong compression
+          agc: 1,
+          // FAST — quick recovery between callers
+          noiseBlanker: 0,
+          noiseReduction: 0
+        },
+        menuCommands: [
+          // MODE SSB (P1=01, P2=01)
+          { p1: 1, p2: 1, p3: 12, value: 4, digits: 1, label: "TX BPF SEL \u2192 400-2600 Hz" },
+          // narrow for punch
+          // TX AUDIO (P1=03, P2=03) — Processor EQ (P PRMTRC, active when processor ON)
+          { p1: 3, p2: 3, p3: 1, value: 0, digits: 1, label: "AMC RELEASE \u2192 FAST" },
+          { p1: 3, p2: 3, p3: 11, value: 3, digits: 2, label: "P EQ1 FREQ \u2192 300 Hz" },
+          { p1: 3, p2: 3, p3: 12, value: "-13", digits: 3, label: "P EQ1 LEVEL \u2192 -13 dB" },
+          // aggressive bass cut
+          { p1: 3, p2: 3, p3: 13, value: 2, digits: 2, label: "P EQ1 BWTH \u2192 2" },
+          { p1: 3, p2: 3, p3: 14, value: 9, digits: 2, label: "P EQ2 FREQ \u2192 1500 Hz" },
+          // 09 = 1500 Hz
+          { p1: 3, p2: 3, p3: 15, value: "+06", digits: 3, label: "P EQ2 LEVEL \u2192 +6 dB" },
+          // midrange presence
+          { p1: 3, p2: 3, p3: 16, value: 1, digits: 2, label: "P EQ2 BWTH \u2192 1" },
+          { p1: 3, p2: 3, p3: 17, value: 11, digits: 2, label: "P EQ3 FREQ \u2192 2500 Hz" },
+          // 11 = 2500 Hz
+          { p1: 3, p2: 3, p3: 18, value: "+06", digits: 3, label: "P EQ3 LEVEL \u2192 +6 dB" },
+          // high-freq intelligibility
+          { p1: 3, p2: 3, p3: 19, value: 3, digits: 2, label: "P EQ3 BWTH \u2192 3" }
+        ]
+      };
+      FT891_SSB_RAGCHEW = {
+        name: "SSB Ragchew (891)",
+        description: "Basic SSB voice settings. Processor OFF, AGC MID.",
+        settings: {
+          micGain: 30,
+          processor: 0,
+          agc: 2,
+          // MID
+          noiseBlanker: 0,
+          noiseReduction: 0
+        },
+        menuCommands: []
+        // pending FT-891 CAT manual — EX addresses differ from DX10
+      };
+      PRESET_REGISTRY = {
+        "0761": [FTDX10_SSB_RAGCHEW, FTDX10_SSB_CONTEST],
+        // FT-DX10
+        "0650": [FT891_SSB_RAGCHEW]
+        // FT-891
+      };
     }
   });
 
@@ -21993,6 +22162,40 @@ ${beacon.location}`);
     const caps = s.capabilities || [];
     const canSave = connected && !s.demo && !s.rxOnly && caps.includes("profile_save");
     section.style.display = canSave ? "" : "none";
+    const presetRow = $("rigPresetRow");
+    if (presetRow && canSave) {
+      const presets = getPresets(state_default.myCallsign, s.radioId);
+      if (presets.length > 0) {
+        presetRow.style.display = "";
+        const presetKey = `${state_default.myCallsign}_${s.radioId}`;
+        if (presetRow.dataset.built !== presetKey) {
+          presetRow.innerHTML = '<span class="rig-profile-preset-label">Presets</span>';
+          for (let i = 0; i < presets.length; i++) {
+            const btn = document.createElement("button");
+            btn.className = "rig-profile-action-btn rig-profile-preset-btn";
+            btn.textContent = presets[i].name;
+            btn.title = presets[i].description || "";
+            btn.dataset.presetIndex = i;
+            btn.addEventListener("click", () => handlePresetApply(presets[i]));
+            presetRow.appendChild(btn);
+          }
+          presetRow.dataset.built = presetKey;
+        }
+      } else {
+        presetRow.style.display = "none";
+      }
+    }
+  }
+  function handlePresetApply(preset) {
+    if (!isRigConnected()) return;
+    const statusEl = $("rigProfileStatus");
+    const success = applyPreset(preset);
+    if (statusEl) {
+      statusEl.textContent = success ? `Applied: ${preset.name}` : "Failed to apply preset";
+      setTimeout(() => {
+        if (statusEl) statusEl.textContent = "";
+      }, 3e3);
+    }
   }
   async function handleProfileSave() {
     const nameInput = $("rigProfileName");
@@ -22563,8 +22766,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.68.0";
-    $("aboutVersion").textContent = "0.68.0";
+    $("splashVersion").textContent = "0.68.1";
+    $("aboutVersion").textContent = "0.68.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

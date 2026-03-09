@@ -11,6 +11,7 @@ const { XMLParser } = require('fast-xml-parser');
 const dns = require('dns');
 const https = require('https');
 const cors = require('cors');
+const mqtt = require('mqtt');
 const voacap = require('./voacap-bridge.js');
 const satellite = require('satellite.js');
 const swaggerUi = require('swagger-ui-express');
@@ -246,6 +247,231 @@ async function pskFetchDedup(url) {
 
 // App contact string — PSKReporter requires this for identification
 const PSK_APP_CONTACT = 'appcontact=admin@hamtab.net';
+
+// --- PSKReporter MQTT real-time feed ---
+// Connects to mqtt.pskreporter.info (community service by M0LTE) for real-time spots.
+// Bypasses HTTP retrieval API entirely — no Cloudflare IP blocking issues.
+// Falls back to HTTP retrieval if MQTT is unavailable.
+
+const MQTT_BROKER = 'mqtt://mqtt.pskreporter.info:1883';
+const MQTT_SPOT_TTL = 60 * 60 * 1000; // 1 hour — matches HTTP query window
+const MQTT_RECONNECT_MS = 30 * 1000;  // 30s reconnect delay
+const MQTT_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 min — purge expired spots
+
+// Per-callsign MQTT spot accumulators
+// { 'CALLSIGN': { spots: Map<key, spot>, subscribed: true, lastAccess: ts } }
+const mqttCallsigns = {};
+
+let mqttClient = null;
+let mqttConnected = false;
+
+// Subscribe to spots where callsign is the SENDER (others hearing you)
+function mqttSubscribeCallsign(callsign) {
+  const upper = callsign.toUpperCase();
+  if (mqttCallsigns[upper]?.subscribed) {
+    mqttCallsigns[upper].lastAccess = Date.now();
+    return;
+  }
+  mqttCallsigns[upper] = {
+    spots: new Map(),
+    subscribed: false,
+    lastAccess: Date.now(),
+  };
+  if (mqttClient && mqttConnected) {
+    const topic = `pskr/filter/v2/+/+/${upper}/#`;
+    mqttClient.subscribe(topic, { qos: 0 }, (err) => {
+      if (!err) {
+        mqttCallsigns[upper].subscribed = true;
+        console.log(`[MQTT] Subscribed: ${topic}`);
+      } else {
+        console.error(`[MQTT] Subscribe error for ${upper}:`, err.message);
+      }
+    });
+  }
+}
+
+// Unsubscribe callsigns not accessed in 30 minutes (cleanup stale subscriptions)
+function mqttCleanupSubscriptions() {
+  const staleThreshold = 30 * 60 * 1000;
+  const now = Date.now();
+  for (const [call, entry] of Object.entries(mqttCallsigns)) {
+    if (now - entry.lastAccess > staleThreshold) {
+      if (mqttClient && mqttConnected && entry.subscribed) {
+        mqttClient.unsubscribe(`pskr/filter/v2/+/+/${call}/#`);
+      }
+      delete mqttCallsigns[call];
+      console.log(`[MQTT] Unsubscribed stale callsign: ${call}`);
+    }
+  }
+}
+
+// Purge spots older than TTL from all accumulators
+function mqttPurgeExpiredSpots() {
+  const cutoff = Date.now() - MQTT_SPOT_TTL;
+  for (const entry of Object.values(mqttCallsigns)) {
+    for (const [key, spot] of entry.spots) {
+      if (spot._receivedAt < cutoff) entry.spots.delete(key);
+    }
+  }
+}
+
+// Convert MQTT JSON message to our internal spot format
+function mqttMessageToSpot(msg) {
+  const freqHz = msg.f || 0;
+  const freqMHz = (freqHz / 1000000).toFixed(3);
+  const spotTime = msg.t ? new Date(msg.t * 1000).toISOString() : new Date().toISOString();
+
+  const senderCoords = gridToLatLon(msg.sl || '');
+  const receiverCoords = gridToLatLon(msg.rl || '');
+
+  const snrVal = typeof msg.rp === 'number' ? msg.rp : parseInt(msg.rp, 10);
+  const snrStr = isNaN(snrVal) ? '' : `${snrVal > 0 ? '+' : ''}${snrVal}`;
+
+  let distanceKm = null;
+  if (senderCoords && receiverCoords) {
+    distanceKm = Math.round(haversineKm(
+      senderCoords.lat, senderCoords.lon,
+      receiverCoords.lat, receiverCoords.lon
+    ));
+  }
+
+  const band = msg.b || freqToBandStr(freqMHz);
+
+  return {
+    callsign: msg.sc || '',
+    frequency: freqMHz,
+    mode: msg.md || '',
+    receiver: msg.rc || '',
+    receiverLocator: msg.rl || '',
+    receiverLat: receiverCoords?.lat || null,
+    receiverLon: receiverCoords?.lon || null,
+    senderLocator: msg.sl || '',
+    senderLat: senderCoords?.lat || null,
+    senderLon: senderCoords?.lon || null,
+    latitude: senderCoords?.lat || null,
+    longitude: senderCoords?.lon || null,
+    snr: snrStr,
+    band,
+    spotTime,
+    distanceKm,
+    reporter: msg.rc || '',
+    reporterLocator: msg.rl || '',
+    reporterLat: receiverCoords?.lat || null,
+    reporterLon: receiverCoords?.lon || null,
+    name: `Heard by ${msg.rc || 'unknown'}`,
+    comments: snrStr ? `SNR: ${snrStr} dB` : '',
+    _receivedAt: Date.now(), // internal timestamp for TTL eviction
+  };
+}
+
+// Build "heard" response from accumulated MQTT spots (same shape as HTTP endpoint)
+function mqttBuildHeardResponse(callsign) {
+  const entry = mqttCallsigns[callsign];
+  if (!entry) return { spots: [], summary: {} };
+
+  const validSpots = [];
+  for (const spot of entry.spots.values()) {
+    if (spot.receiverLat !== null && spot.receiverLon !== null) {
+      validSpots.push(spot);
+    }
+  }
+
+  // Sort newest first
+  validSpots.sort((a, b) => new Date(b.spotTime) - new Date(a.spotTime));
+
+  const summary = {};
+  for (const spot of validSpots) {
+    if (!spot.band) continue;
+    if (!summary[spot.band]) {
+      summary[spot.band] = { count: 0, farthestKm: 0, farthestCall: '' };
+    }
+    summary[spot.band].count++;
+    if (spot.distanceKm !== null && spot.distanceKm > summary[spot.band].farthestKm) {
+      summary[spot.band].farthestKm = spot.distanceKm;
+      summary[spot.band].farthestCall = spot.receiver;
+    }
+  }
+
+  return { spots: validSpots, summary, source: 'mqtt' };
+}
+
+// Initialize MQTT connection
+function initMqttClient() {
+  console.log('[MQTT] Connecting to mqtt.pskreporter.info...');
+  mqttClient = mqtt.connect(MQTT_BROKER, {
+    reconnectPeriod: MQTT_RECONNECT_MS,
+    connectTimeout: 10 * 1000, // 10s connect timeout
+    clientId: `hamtab_${Date.now().toString(36)}`,
+    clean: true,
+  });
+
+  mqttClient.on('connect', () => {
+    mqttConnected = true;
+    console.log('[MQTT] Connected to mqtt.pskreporter.info');
+
+    // Re-subscribe all active callsigns on reconnect
+    for (const [call, entry] of Object.entries(mqttCallsigns)) {
+      const topic = `pskr/filter/v2/+/+/${call}/#`;
+      mqttClient.subscribe(topic, { qos: 0 }, (err) => {
+        if (!err) {
+          entry.subscribed = true;
+        }
+      });
+    }
+
+    // Note: global feed (pskr/filter/v2/#) is NOT subscribed — too much data.
+    // /api/spots/psk uses HTTP fallback. MQTT is for per-callsign Live Spots only.
+  });
+
+  mqttClient.on('message', (topic, payload) => {
+    try {
+      const msg = JSON.parse(payload.toString());
+      const spot = mqttMessageToSpot(msg);
+
+      // Dedupe key: sender-receiver-band-timestamp
+      const key = `${spot.callsign}-${spot.receiver}-${spot.band}-${spot.spotTime}`;
+
+      // Route to per-callsign accumulator if subscribed
+      const senderUpper = (spot.callsign || '').toUpperCase();
+      if (mqttCallsigns[senderUpper]) {
+        mqttCallsigns[senderUpper].spots.set(key, spot);
+        // Cap at 500 spots per callsign
+        if (mqttCallsigns[senderUpper].spots.size > 500) {
+          const oldest = mqttCallsigns[senderUpper].spots.keys().next().value;
+          mqttCallsigns[senderUpper].spots.delete(oldest);
+        }
+      }
+
+    } catch {
+      // Silently skip malformed messages
+    }
+  });
+
+  mqttClient.on('error', (err) => {
+    console.error('[MQTT] Error:', err.message);
+  });
+
+  mqttClient.on('close', () => {
+    mqttConnected = false;
+    // Mark all subscriptions as needing re-subscribe
+    for (const entry of Object.values(mqttCallsigns)) {
+      entry.subscribed = false;
+    }
+  });
+
+  mqttClient.on('offline', () => {
+    mqttConnected = false;
+  });
+
+  // Periodic cleanup
+  setInterval(() => {
+    mqttPurgeExpiredSpots();
+    mqttCleanupSubscriptions();
+  }, MQTT_CLEANUP_INTERVAL);
+}
+
+// Start MQTT on server boot
+initMqttClient();
 
 // Extract mode from DXC comment field
 function extractModeFromComment(comment) {
@@ -591,6 +817,17 @@ app.get('/api/spots/psk/heard', async (req, res) => {
     // Validate callsign format
     if (!callsign || !/^[A-Z0-9]{3,10}$/i.test(callsign)) {
       return res.status(400).json({ error: 'Provide a valid callsign' });
+    }
+
+    // Ensure MQTT subscription for this callsign (idempotent)
+    mqttSubscribeCallsign(callsign);
+
+    // Prefer MQTT data if connected and has spots for this callsign
+    if (mqttConnected && mqttCallsigns[callsign]?.spots.size > 0) {
+      const result = mqttBuildHeardResponse(callsign);
+      // Also update the HTTP cache so stale fallback has fresh data
+      pskHeardCache[callsign] = { data: result, expires: Date.now() + PSK_HEARD_CACHE_TTL };
+      return res.json(result);
     }
 
     // Check cache

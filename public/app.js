@@ -5884,6 +5884,34 @@
     }
   });
 
+  // src/feature-flags.js
+  function isFeatureVisible(featureName) {
+    const tier = FEATURE_FLAGS[featureName];
+    if (!tier) return true;
+    if (tier === "release") return true;
+    const callsign = (state_default.myCallsign || "").toUpperCase();
+    if (tier === "test") {
+      return DEV_CALLSIGNS.includes(callsign);
+    }
+    if (tier.startsWith("dev:")) {
+      const devCall = tier.slice(4).toUpperCase();
+      return callsign === devCall;
+    }
+    return false;
+  }
+  var DEV_CALLSIGNS, FEATURE_FLAGS;
+  var init_feature_flags = __esm({
+    "src/feature-flags.js"() {
+      init_state();
+      DEV_CALLSIGNS = ["KG5DPV", "KJ5MMO"];
+      FEATURE_FLAGS = {
+        preset_profiles: "test"
+        // callsign-gated SSB presets (v0.68.0)
+        // example_new_widget: 'dev:KG5DPV',  // only Francisco sees it
+      };
+    }
+  });
+
   // src/cat/profile-manager.js
   async function saveProfile(name) {
     const store = getRigStore();
@@ -5995,7 +6023,7 @@
     return parts.join(" / ") || "No settings captured";
   }
   function getPresets(callsign, radioModelId) {
-    if (!callsign || !PRESET_CALLSIGNS.includes(callsign.toUpperCase())) return [];
+    if (!isFeatureVisible("preset_profiles")) return [];
     return PRESET_REGISTRY[radioModelId] || [];
   }
   function applyPreset(preset) {
@@ -6023,10 +6051,11 @@
     }
     return true;
   }
-  var PROFILES_KEY, PROFILE_SETTINGS, PROFILE_MENU_ADDRESSES, PRESET_CALLSIGNS, FTDX10_SSB_RAGCHEW, FTDX10_SSB_POTA, FTDX10_SSB_CONTEST, FT891_SSB_RAGCHEW, PRESET_REGISTRY;
+  var PROFILES_KEY, PROFILE_SETTINGS, PROFILE_MENU_ADDRESSES, FTDX10_SSB_RAGCHEW, FTDX10_SSB_POTA, FTDX10_SSB_CONTEST, FT891_SSB_RAGCHEW, PRESET_REGISTRY;
   var init_profile_manager = __esm({
     "src/cat/profile-manager.js"() {
       init_connection_orchestrator();
+      init_feature_flags();
       PROFILES_KEY = "hamtab_radio_profiles";
       PROFILE_SETTINGS = [
         { command: "getFrequency", stateField: "frequency", setCommand: "setFrequency" },
@@ -6055,7 +6084,6 @@
         { p1: 3, p2: 4, p3: 5, digits: 1, label: "VOX SELECT" },
         { p1: 3, p2: 4, p3: 6, digits: 3, label: "DATA VOX GAIN" }
       ];
-      PRESET_CALLSIGNS = ["KG5DPV", "KJ5MMO"];
       FTDX10_SSB_RAGCHEW = {
         name: "SSB Ragchew (DX10)",
         description: "Casual QSOs: Processor OFF, wide 200-2800 Hz TX BPF, low mic gain (25), AGC MID. EQ cuts 300 Hz mud and boosts 2400 Hz for clarity. Natural, full-range voice.",
@@ -22806,8 +22834,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.68.2";
-    $("aboutVersion").textContent = "0.68.2";
+    $("splashVersion").textContent = "0.68.3";
+    $("aboutVersion").textContent = "0.68.3";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

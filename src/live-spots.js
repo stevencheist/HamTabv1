@@ -75,7 +75,7 @@ export async function fetchLiveSpots() {
   }
 
   try {
-    const url = `/api/spots/psk/heard?callsign=${encodeURIComponent(state.myCallsign)}&_t=${Date.now()}`;
+    const url = `/api/spots/psk/heard?callsign=${encodeURIComponent(state.myCallsign)}`;
     const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();

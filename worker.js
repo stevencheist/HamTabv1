@@ -154,6 +154,113 @@ function buildProxyRequest(request, url, env) {
   return new Request(request, { headers });
 }
 
+// --- PSKReporter edge-fetch handler ---
+// Fetches from PSKReporter via Worker edge IPs (avoids container IP blocking),
+// then sends raw XML to container's internal parse endpoint for JSON transformation.
+// Returns null if the edge-fetch fails (caller falls through to container).
+const PSK_APP_CONTACT = 'appcontact=admin@hamtab.net';
+
+async function handlePskEdgeFetch(request, url, env, ctx) {
+  try {
+    const isHeard = url.pathname === '/api/spots/psk/heard';
+
+    // Check edge cache first
+    const cache = caches.default;
+    const cacheKey = buildCacheKey(request);
+    const cached = await cache.match(cacheKey);
+    if (cached) {
+      const resp = new Response(cached.body, cached);
+      resp.headers.set('X-Cache', 'HIT');
+      resp.headers.set('X-PSK-Source', 'edge');
+      return resp;
+    }
+
+    // Build PSKReporter URL
+    let pskUrl;
+    if (isHeard) {
+      const callsign = url.searchParams.get('callsign') || '';
+      if (!callsign || !/^[A-Z0-9]{3,10}$/i.test(callsign)) {
+        return new Response(JSON.stringify({ error: 'Provide a valid callsign' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      const params = new URLSearchParams({
+        senderCallsign: callsign.toUpperCase(),
+        flowStartSeconds: '-3600',
+        rrlimit: '500',
+        rronly: '1',
+        nolocator: '0',
+      });
+      pskUrl = `https://retrieve.pskreporter.info/query?${params}&${PSK_APP_CONTACT}`;
+    } else {
+      const params = new URLSearchParams({
+        flowStartSeconds: '-3600',
+        rrlimit: '500',
+        rronly: '1',
+        nolocator: '0',
+      });
+      pskUrl = `https://retrieve.pskreporter.info/query?${params}&${PSK_APP_CONTACT}`;
+    }
+
+    // Fetch from PSKReporter via edge (rotating IPs)
+    const pskResp = await fetch(pskUrl, {
+      headers: { 'User-Agent': 'HamTab/1.0 (hamtab.net)' },
+      cf: { cacheTtl: 0 }, // don't let CF cache the upstream — we manage our own cache
+    });
+
+    if (!pskResp.ok) {
+      console.error(`[psk-edge] PSKReporter returned ${pskResp.status}`);
+      return null; // fall through to container
+    }
+
+    const xml = await pskResp.text();
+
+    // Send XML to container's internal parse endpoint
+    const container = getContainer(env.HAMTAB, 'hamtab');
+    const parseUrl = isHeard
+      ? `http://internal/api/internal/psk-heard-parse?callsign=${url.searchParams.get('callsign') || ''}`
+      : 'http://internal/api/internal/psk-parse';
+
+    const parseResp = await container.fetch(new Request(parseUrl, {
+      method: 'POST',
+      body: xml,
+      headers: { 'Content-Type': 'text/xml' },
+    }));
+
+    if (!parseResp.ok) {
+      console.error(`[psk-edge] Container parse returned ${parseResp.status}`);
+      return null; // fall through
+    }
+
+    // Build cacheable response
+    const jsonBody = await parseResp.text();
+    const edgeTtl = 300; // 5 minutes — matches PSKReporter rate limit
+    const resp = new Response(jsonBody, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': `public, s-maxage=${edgeTtl}`,
+        'X-Cache': 'MISS',
+        'X-PSK-Source': 'edge',
+      },
+    });
+
+    // Cache at edge (fire-and-forget)
+    const toCache = new Response(jsonBody, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Cache-Control': `public, s-maxage=${edgeTtl}`,
+      },
+    });
+    ctx.waitUntil(cache.put(cacheKey, toCache));
+
+    return resp;
+  } catch (err) {
+    console.error('[psk-edge] Error:', err.message);
+    return null; // fall through to container
+  }
+}
+
 export default {
   async fetch(request, env, ctx) {
     try {
@@ -199,6 +306,16 @@ export default {
         }
 
         return new Response('Method not allowed', { status: 405 });
+      }
+
+      // --- PSKReporter edge-fetch proxy ---
+      // Fetches from PSKReporter using Worker edge IPs (rotating) instead of the
+      // container's fixed IP which PSKReporter rate-limits/blocks. The raw XML is
+      // sent to the container's internal parse endpoints for JSON transformation.
+      if (url.pathname === '/api/spots/psk' || url.pathname === '/api/spots/psk/heard') {
+        const pskResult = await handlePskEdgeFetch(request, url, env, ctx);
+        if (pskResult) return pskResult;
+        // Fall through to container if edge-fetch fails
       }
 
       // --- Edge cache layer (Cloudflare Cache API) ---

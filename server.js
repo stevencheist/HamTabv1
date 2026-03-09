@@ -590,8 +590,8 @@ function haversineKm(lat1, lon1, lat2, lon2) {
 
 // Live Spots: Query PSKReporter for spots where YOUR signal was received
 app.get('/api/spots/psk/heard', async (req, res) => {
+  const callsign = (req.query.callsign || '').toUpperCase().trim();
   try {
-    const callsign = (req.query.callsign || '').toUpperCase().trim();
 
     // Validate callsign format
     if (!callsign || !/^[A-Z0-9]{3,10}$/i.test(callsign)) {

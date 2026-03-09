@@ -702,6 +702,125 @@ app.get('/api/spots/psk/heard', async (req, res) => {
   }
 });
 
+// --- Internal PSKReporter XML parse endpoints (hostedmode Worker edge-fetch) ---
+// The Worker fetches PSKReporter from edge IPs (avoids container IP blocking),
+// then POSTs the raw XML here for parsing. Not called in lanmode.
+
+// Shared parser: PSKReporter XML → spot array
+function parsePskSpots(xml) {
+  const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' });
+  const doc = parser.parse(xml);
+  const reports = doc.receptionReports?.receptionReport;
+  if (!reports) return [];
+  return Array.isArray(reports) ? reports : [reports];
+}
+
+// Shared transformer: raw report → API spot format (for /api/spots/psk)
+function transformPskSpot(r) {
+  const freqHz = parseInt(r.frequency, 10) || 0;
+  const freqMHz = (freqHz / 1000000).toFixed(3);
+  const flowStartSec = parseInt(r.flowStartSeconds, 10) || 0;
+  const spotTime = new Date(flowStartSec * 1000).toISOString();
+  const senderCoords = gridToLatLon(r.senderLocator || '');
+  const receiverCoords = gridToLatLon(r.receiverLocator || '');
+  const snrVal = parseInt(r.sNR, 10);
+  const snrStr = isNaN(snrVal) ? '' : `${snrVal > 0 ? '+' : ''}${snrVal}`;
+  return {
+    callsign: r.senderCallsign || '',
+    frequency: freqMHz,
+    mode: r.mode || '',
+    reporter: r.receiverCallsign || '',
+    reporterLocator: r.receiverLocator || '',
+    reporterLat: receiverCoords?.lat || null,
+    reporterLon: receiverCoords?.lon || null,
+    senderLocator: r.senderLocator || '',
+    latitude: senderCoords?.lat || null,
+    longitude: senderCoords?.lon || null,
+    snr: snrStr,
+    band: freqToBandStr(freqMHz),
+    spotTime,
+    name: `Heard by ${r.receiverCallsign || 'unknown'}`,
+    comments: snrStr ? `SNR: ${snrStr} dB` : '',
+  };
+}
+
+// Shared transformer: raw report → heard spot format (for /api/spots/psk/heard)
+function transformPskHeardSpot(r) {
+  const freqHz = parseInt(r.frequency, 10) || 0;
+  const freqMHz = (freqHz / 1000000).toFixed(3);
+  const flowStartSec = parseInt(r.flowStartSeconds, 10) || 0;
+  const spotTime = new Date(flowStartSec * 1000).toISOString();
+  const senderCoords = gridToLatLon(r.senderLocator || '');
+  const receiverCoords = gridToLatLon(r.receiverLocator || '');
+  const snrVal = parseInt(r.sNR, 10);
+  const snrStr = isNaN(snrVal) ? '' : `${snrVal > 0 ? '+' : ''}${snrVal}`;
+  let distanceKm = null;
+  if (senderCoords && receiverCoords) {
+    distanceKm = Math.round(haversineKm(
+      senderCoords.lat, senderCoords.lon,
+      receiverCoords.lat, receiverCoords.lon
+    ));
+  }
+  return {
+    callsign: r.senderCallsign || '',
+    frequency: freqMHz,
+    mode: r.mode || '',
+    receiver: r.receiverCallsign || '',
+    receiverLocator: r.receiverLocator || '',
+    receiverLat: receiverCoords?.lat || null,
+    receiverLon: receiverCoords?.lon || null,
+    senderLocator: r.senderLocator || '',
+    senderLat: senderCoords?.lat || null,
+    senderLon: senderCoords?.lon || null,
+    snr: snrStr,
+    band: freqToBandStr(freqMHz),
+    spotTime,
+    distanceKm,
+  };
+}
+
+// Internal: parse PSK spots XML (Worker edge-fetch → container parse)
+app.post('/api/internal/psk-parse', express.text({ type: '*/*', limit: '5mb' }), (req, res) => {
+  try {
+    const reports = parsePskSpots(req.body);
+    const spots = reports.map(transformPskSpot);
+    const validSpots = spots.filter(s => s.latitude !== null && s.longitude !== null);
+    pskCache = { data: validSpots, expires: Date.now() + PSK_CACHE_TTL };
+    res.json(validSpots);
+  } catch (err) {
+    console.error('[internal/psk-parse] Error:', err.message);
+    res.status(500).json({ error: 'XML parse failed' });
+  }
+});
+
+// Internal: parse PSK heard spots XML (Worker edge-fetch → container parse)
+app.post('/api/internal/psk-heard-parse', express.text({ type: '*/*', limit: '5mb' }), (req, res) => {
+  try {
+    const callsign = (req.query.callsign || '').toUpperCase().trim();
+    const reports = parsePskSpots(req.body);
+    const spots = reports.map(transformPskHeardSpot);
+    const validSpots = spots.filter(s => s.receiverLat !== null && s.receiverLon !== null);
+    const summary = {};
+    for (const spot of validSpots) {
+      if (!spot.band) continue;
+      if (!summary[spot.band]) {
+        summary[spot.band] = { count: 0, farthestKm: 0, farthestCall: '' };
+      }
+      summary[spot.band].count++;
+      if (spot.distanceKm !== null && spot.distanceKm > summary[spot.band].farthestKm) {
+        summary[spot.band].farthestKm = spot.distanceKm;
+        summary[spot.band].farthestCall = spot.receiver;
+      }
+    }
+    const result = { spots: validSpots, summary };
+    if (callsign) pskHeardCache[callsign] = { data: result, expires: Date.now() + PSK_HEARD_CACHE_TTL };
+    res.json(result);
+  } catch (err) {
+    console.error('[internal/psk-heard-parse] Error:', err.message);
+    res.status(500).json({ error: 'XML parse failed' });
+  }
+});
+
 // --- WSPR Spots (wspr.live ClickHouse) ---
 let wsprCache = { data: null, expires: 0 };
 const WSPR_CACHE_TTL = 5 * 60 * 1000; // 5 min — WSPR 2-min cycle; 20 req/min API limit

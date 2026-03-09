@@ -14948,7 +14948,7 @@ ${beacon.location}`);
       return;
     }
     try {
-      const url = `/api/spots/psk/heard?callsign=${encodeURIComponent(state_default.myCallsign)}&_t=${Date.now()}`;
+      const url = `/api/spots/psk/heard?callsign=${encodeURIComponent(state_default.myCallsign)}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
@@ -21806,8 +21806,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.66.6";
-    $("aboutVersion").textContent = "0.66.6";
+    $("splashVersion").textContent = "0.66.7";
+    $("aboutVersion").textContent = "0.66.7";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

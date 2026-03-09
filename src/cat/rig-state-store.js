@@ -38,6 +38,21 @@ export function createRigStateStore() {
     // Menu responses — keyed by address string (e.g. "010416" for P1=01 P2=04 P3=16)
     // Populated by EX command responses, used by digital setup to read/restore settings
     menuResponses: {},
+
+    // --- Radio settings (populated by profile read commands) ---
+    afGain: null,        // 0-255
+    agc: null,           // 0=off, 1=fast, 2=mid, 3=slow, 4=auto
+    noiseBlanker: null,  // 0=off, 1=on
+    noiseReduction: null, // 0=off, 1=on
+    attenuator: null,    // 0=off, 6/12/18 dB
+    preamp: null,        // 0=IPO, 1=AMP1, 2=AMP2
+    ifShift: null,       // 0-9999 (center varies by radio)
+    width: null,         // filter width index
+    narrow: null,        // 0=off, 1=on
+    contour: null,       // contour setting
+    voxGain: null,       // 0-100
+    monitorLevel: null,  // 0-100
+    micGain: null,       // 0-100
   };
 
   const subscribers = [];
@@ -121,6 +136,46 @@ export function createRigStateStore() {
           state.band = detectBand(event.value.frequency);
         }
         break;
+      // --- Radio settings (profile-readable) ---
+      case 'afGain':
+        state.afGain = event.value;
+        break;
+      case 'agc':
+        state.agc = event.value;
+        break;
+      case 'noiseBlanker':
+        state.noiseBlanker = event.value;
+        break;
+      case 'noiseReduction':
+        state.noiseReduction = event.value;
+        break;
+      case 'attenuator':
+        state.attenuator = event.value;
+        break;
+      case 'preamp':
+        state.preamp = event.value;
+        break;
+      case 'ifShift':
+        state.ifShift = event.value;
+        break;
+      case 'width':
+        state.width = event.value;
+        break;
+      case 'narrow':
+        state.narrow = event.value;
+        break;
+      case 'contour':
+        state.contour = event.value;
+        break;
+      case 'voxGain':
+        state.voxGain = event.value;
+        break;
+      case 'monitorLevel':
+        state.monitorLevel = event.value;
+        break;
+      case 'micGain':
+        state.micGain = event.value;
+        break;
       case 'menu':
         // Store latest menu response keyed by address (e.g. "010416")
         if (event.value) {
@@ -171,6 +226,19 @@ export function createRigStateStore() {
     state.txLocked = false;
     state.txLockReason = '';
     state.menuResponses = {};
+    state.afGain = null;
+    state.agc = null;
+    state.noiseBlanker = null;
+    state.noiseReduction = null;
+    state.attenuator = null;
+    state.preamp = null;
+    state.ifShift = null;
+    state.width = null;
+    state.narrow = null;
+    state.contour = null;
+    state.voxGain = null;
+    state.monitorLevel = null;
+    state.micGain = null;
     notify();
   }
 

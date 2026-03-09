@@ -7763,6 +7763,92 @@ body.grayscale {
   background: color-mix(in srgb, #e74c3c 15%, transparent);
 }
 
+/* ---- Radio Profile Save/Restore ---- */
+.rig-profile-section {
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  margin: 6px 0;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--bg) 80%, #2ecc71 5%);
+}
+.rig-profile-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rig-profile-title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--txt);
+}
+.rig-profile-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 5px;
+}
+.rig-profile-row {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.rig-profile-list-select {
+  flex: 1;
+  background: var(--bg);
+  color: var(--txt);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 0.75rem;
+}
+.rig-profile-name-input {
+  flex: 1;
+  background: var(--bg);
+  color: var(--txt);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 0.75rem;
+}
+.rig-profile-action-btn {
+  background: color-mix(in srgb, #2ecc71 20%, var(--bg));
+  border: 1px solid color-mix(in srgb, #2ecc71 40%, transparent);
+  color: #2ecc71;
+  font-size: 0.7rem;
+  padding: 3px 8px;
+  border-radius: 3px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.rig-profile-action-btn:hover {
+  background: color-mix(in srgb, #2ecc71 30%, var(--bg));
+  border-color: #2ecc71;
+}
+.rig-profile-save-btn {
+  color: #3498db;
+  border-color: color-mix(in srgb, #3498db 40%, transparent);
+  background: color-mix(in srgb, #3498db 20%, var(--bg));
+}
+.rig-profile-save-btn:hover {
+  background: color-mix(in srgb, #3498db 30%, var(--bg));
+  border-color: #3498db;
+}
+.rig-profile-delete-btn {
+  color: #e74c3c;
+  border-color: color-mix(in srgb, #e74c3c 40%, transparent);
+  background: color-mix(in srgb, #e74c3c 10%, var(--bg));
+  padding: 3px 6px;
+}
+.rig-profile-delete-btn:hover {
+  background: color-mix(in srgb, #e74c3c 25%, var(--bg));
+  border-color: #e74c3c;
+}
+.rig-profile-status {
+  font-size: 0.7rem;
+  color: var(--txt-dim);
+  min-height: 0.9rem;
+}
+
 /* ---- CAT Diagnostics Button ---- */
 .rig-diag-btn {
   background: transparent;

@@ -97,6 +97,7 @@ export const yaesuAscii = {
       'power_off',
       'menu_read',
       'menu_set',
+      'profile_save',
     ];
   },
 
@@ -124,6 +125,33 @@ export const yaesuAscii = {
       case 'powerOff':      return 'PS0;'; // Power off radio
       case 'getInfo':       return 'IF;';
       case 'getID':         return 'ID;';
+      // --- Profile-readable settings ---
+      case 'getAFGain':     return 'AG0;';
+      case 'setAFGain':     return `AG0${String(params).padStart(3, '0')};`;
+      case 'getAGC':        return 'GT0;';
+      case 'setAGC':        return `GT0${params};`;
+      case 'getNoiseBlanker': return 'NB00;';
+      case 'setNoiseBlanker': return `NB00${params};`;
+      case 'getNoiseReduction': return 'NR00;';
+      case 'setNoiseReduction': return `NR00${params};`;
+      case 'getAttenuator':  return 'RA00;';
+      case 'setAttenuator':  return `RA00${String(params).padStart(2, '0')};`;
+      case 'getPreamp':      return 'PA00;';
+      case 'setPreamp':      return `PA00${params};`;
+      case 'getIFShift':     return 'IS0;';
+      case 'setIFShift':     return `IS0${String(params).padStart(4, '0')};`;
+      case 'getWidth':       return 'SH00;';
+      case 'setWidth':       return `SH00${String(params).padStart(2, '0')};`;
+      case 'getNarrow':      return 'NA00;';
+      case 'setNarrow':      return `NA00${params};`;
+      case 'getContour':     return 'CO00;';
+      case 'setContour':     return `CO00${String(params).padStart(4, '0')};`;
+      case 'getVoxGain':     return 'VG;';
+      case 'setVoxGain':     return `VG${String(params).padStart(3, '0')};`;
+      case 'getMonitorLevel': return 'ML;';
+      case 'setMonitorLevel': return `ML${String(params).padStart(3, '0')};`;
+      case 'getMicGain':     return 'MG;';
+      case 'setMicGain':     return `MG${String(params).padStart(3, '0')};`;
       // EX (Menu) — read/write radio menu settings
       // params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set
       // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
@@ -209,6 +237,72 @@ export const yaesuAscii = {
           raw: data,
         },
       };
+    }
+
+    // --- AF Gain (AG0nnn) ---
+    if (resp.startsWith('AG0')) {
+      return { type: 'afGain', value: parseInt(resp.slice(3), 10) };
+    }
+
+    // --- AGC (GT0n) ---
+    if (resp.startsWith('GT0')) {
+      return { type: 'agc', value: parseInt(resp.slice(3), 10) };
+    }
+
+    // --- Noise Blanker (NB00n) ---
+    if (resp.startsWith('NB00')) {
+      return { type: 'noiseBlanker', value: parseInt(resp.slice(4), 10) };
+    }
+
+    // --- Noise Reduction (NR00n) ---
+    if (resp.startsWith('NR00')) {
+      return { type: 'noiseReduction', value: parseInt(resp.slice(4), 10) };
+    }
+
+    // --- RF Attenuator (RA00nn) ---
+    if (resp.startsWith('RA00')) {
+      return { type: 'attenuator', value: parseInt(resp.slice(4), 10) };
+    }
+
+    // --- Pre-amp (PA00n) ---
+    if (resp.startsWith('PA00')) {
+      return { type: 'preamp', value: parseInt(resp.slice(4), 10) };
+    }
+
+    // --- IF Shift (IS0nnnn) ---
+    if (resp.startsWith('IS0')) {
+      // Value is +/- offset from center, stored as 4 digits (center at ~1200)
+      return { type: 'ifShift', value: parseInt(resp.slice(3), 10) };
+    }
+
+    // --- Width (SH00nn) ---
+    if (resp.startsWith('SH00')) {
+      return { type: 'width', value: parseInt(resp.slice(4), 10) };
+    }
+
+    // --- Narrow (NA00n) ---
+    if (resp.startsWith('NA00')) {
+      return { type: 'narrow', value: parseInt(resp.slice(4), 10) };
+    }
+
+    // --- Contour (CO00nnnn) ---
+    if (resp.startsWith('CO00')) {
+      return { type: 'contour', value: parseInt(resp.slice(4), 10) };
+    }
+
+    // --- VOX Gain (VGnnn) ---
+    if (resp.startsWith('VG')) {
+      return { type: 'voxGain', value: parseInt(resp.slice(2), 10) };
+    }
+
+    // --- Monitor Level (MLnnn) ---
+    if (resp.startsWith('ML')) {
+      return { type: 'monitorLevel', value: parseInt(resp.slice(2), 10) };
+    }
+
+    // --- Mic Gain (MGnnn) ---
+    if (resp.startsWith('MG')) {
+      return { type: 'micGain', value: parseInt(resp.slice(2), 10) };
     }
 
     // --- Menu (EX P1P1 P2P2 P3P3 P4~P4) ---

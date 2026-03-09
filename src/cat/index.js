@@ -13,3 +13,12 @@ export {
 } from './connection-orchestrator.js';
 
 export { smartDetect } from './smart-detect.js';
+
+export {
+  saveProfile,
+  restoreProfile,
+  listProfiles,
+  deleteProfile,
+  profileSummary,
+  getProfile,
+} from './profile-manager.js';

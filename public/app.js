@@ -6023,7 +6023,7 @@
     }
     return true;
   }
-  var PROFILES_KEY, PROFILE_SETTINGS, PROFILE_MENU_ADDRESSES, PRESET_CALLSIGNS, FTDX10_SSB_RAGCHEW, FTDX10_SSB_CONTEST, FT891_SSB_RAGCHEW, PRESET_REGISTRY;
+  var PROFILES_KEY, PROFILE_SETTINGS, PROFILE_MENU_ADDRESSES, PRESET_CALLSIGNS, FTDX10_SSB_RAGCHEW, FTDX10_SSB_POTA, FTDX10_SSB_CONTEST, FT891_SSB_RAGCHEW, PRESET_REGISTRY;
   var init_profile_manager = __esm({
     "src/cat/profile-manager.js"() {
       init_connection_orchestrator();
@@ -6058,7 +6058,7 @@
       PRESET_CALLSIGNS = ["KG5DPV", "KJ5MMO"];
       FTDX10_SSB_RAGCHEW = {
         name: "SSB Ragchew (DX10)",
-        description: "Processor OFF, wide bandwidth, clarity EQ. Zero ALC goal.",
+        description: "Casual QSOs: Processor OFF, wide 200-2800 Hz TX BPF, low mic gain (25), AGC MID. EQ cuts 300 Hz mud and boosts 2400 Hz for clarity. Natural, full-range voice.",
         // Direct CAT commands
         settings: {
           micGain: 25,
@@ -6102,9 +6102,49 @@
           { p1: 3, p2: 3, p3: 10, value: 1, digits: 2, label: "EQ3 BWTH \u2192 1" }
         ]
       };
+      FTDX10_SSB_POTA = {
+        name: "SSB POTA (DX10)",
+        description: "POTA activations: Processor ON at 50, 300-2700 Hz TX BPF, mic gain 30, AGC MID. Moderate EQ: -6 dB bass cut, +6 dB high boost. Balanced punch and clarity for park pileups.",
+        settings: {
+          micGain: 30,
+          processor: 1,
+          // ON — need punch for calling CQ
+          processorLevel: 50,
+          // moderate — readable without over-compression
+          agc: 2,
+          // MID — good balance for activation pace
+          noiseBlanker: 0,
+          noiseReduction: 0
+        },
+        menuCommands: [
+          // MODE SSB (P1=01, P2=01)
+          { p1: 1, p2: 1, p3: 7, value: 5, digits: 2, label: "LCUT FREQ \u2192 300 Hz" },
+          // 05 = 300 Hz
+          { p1: 1, p2: 1, p3: 8, value: 1, digits: 1, label: "LCUT SLOPE \u2192 18 dB/oct" },
+          { p1: 1, p2: 1, p3: 9, value: 41, digits: 2, label: "HCUT FREQ \u2192 2700 Hz" },
+          // 41 = 2700 Hz
+          { p1: 1, p2: 1, p3: 10, value: 1, digits: 1, label: "HCUT SLOPE \u2192 18 dB/oct" },
+          { p1: 1, p2: 1, p3: 12, value: 3, digits: 1, label: "TX BPF SEL \u2192 300-2700 Hz" },
+          // 3 = 300~2700
+          // TX AUDIO (P1=03, P2=03) — Processor EQ (active when processor ON)
+          { p1: 3, p2: 3, p3: 1, value: 0, digits: 1, label: "AMC RELEASE \u2192 FAST" },
+          { p1: 3, p2: 3, p3: 11, value: 3, digits: 2, label: "P EQ1 FREQ \u2192 300 Hz" },
+          { p1: 3, p2: 3, p3: 12, value: "-06", digits: 3, label: "P EQ1 LEVEL \u2192 -6 dB" },
+          // moderate bass cut
+          { p1: 3, p2: 3, p3: 13, value: 2, digits: 2, label: "P EQ1 BWTH \u2192 2" },
+          { p1: 3, p2: 3, p3: 14, value: 9, digits: 2, label: "P EQ2 FREQ \u2192 1500 Hz" },
+          { p1: 3, p2: 3, p3: 15, value: "+03", digits: 3, label: "P EQ2 LEVEL \u2192 +3 dB" },
+          // gentle mid presence
+          { p1: 3, p2: 3, p3: 16, value: 1, digits: 2, label: "P EQ2 BWTH \u2192 1" },
+          { p1: 3, p2: 3, p3: 17, value: 10, digits: 2, label: "P EQ3 FREQ \u2192 2400 Hz" },
+          { p1: 3, p2: 3, p3: 18, value: "+06", digits: 3, label: "P EQ3 LEVEL \u2192 +6 dB" },
+          // clarity boost
+          { p1: 3, p2: 3, p3: 19, value: 2, digits: 2, label: "P EQ3 BWTH \u2192 2" }
+        ]
+      };
       FTDX10_SSB_CONTEST = {
         name: "SSB Contest (DX10)",
-        description: "Processor ON at 80, narrow TX BPF, aggressive EQ for pileup punch.",
+        description: "Contests/DX: Processor ON at 80, narrow 400-2600 Hz TX BPF, mic gain 40, AGC FAST. Aggressive EQ: -13 dB bass cut, +6 dB mid/high boost. Maximum pileup punch.",
         settings: {
           micGain: 40,
           processor: 1,
@@ -6140,7 +6180,7 @@
       };
       FT891_SSB_RAGCHEW = {
         name: "SSB Ragchew (891)",
-        description: "Basic SSB voice settings. Processor OFF, AGC MID.",
+        description: "Casual QSOs: Processor OFF, mic gain 30, AGC MID. Basic SSB voice settings. EX menu commands pending FT-891 CAT manual.",
         settings: {
           micGain: 30,
           processor: 0,
@@ -6153,7 +6193,7 @@
         // pending FT-891 CAT manual — EX addresses differ from DX10
       };
       PRESET_REGISTRY = {
-        "0761": [FTDX10_SSB_RAGCHEW, FTDX10_SSB_CONTEST],
+        "0761": [FTDX10_SSB_RAGCHEW, FTDX10_SSB_POTA, FTDX10_SSB_CONTEST],
         // FT-DX10
         "0650": [FT891_SSB_RAGCHEW]
         // FT-891
@@ -22766,8 +22806,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.68.1";
-    $("aboutVersion").textContent = "0.68.1";
+    $("splashVersion").textContent = "0.68.2";
+    $("aboutVersion").textContent = "0.68.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

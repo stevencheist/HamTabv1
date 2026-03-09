@@ -16,6 +16,7 @@ import { kiwisdrWs } from './drivers/kiwisdr-ws.js';
 import { tciDriver } from './drivers/tci.js';
 import { createRigManager } from './rig-manager.js';
 import { createRigStateStore } from './rig-state-store.js';
+import { getTraceBus } from './diagnostics/trace-bus.js';
 import { smartDetect } from './smart-detect.js';
 import { createTxIntentSystem } from './safety/tx-intent-system.js';
 import { createBandTransitionGuard } from './safety/band-transition-guard.js';
@@ -63,8 +64,18 @@ export async function connectRig(config = {}) {
   }
 
   const store = getRigStore();
+  const trace = getTraceBus();
+  trace.reset(); // fresh trace for each connection session
   const isDemo = config.demo || config.profileId === 'demo';
   const isSdr = config.sdrType === 'kiwisdr';
+
+  trace.record('state', 'connect_start', {
+    profileId: config.profileId,
+    protocol: config.protocol || config.protocolFamily,
+    autoDetect: !!config.autoDetect,
+    demo: isDemo,
+    sdr: isSdr,
+  });
 
   // --- KiwiSDR path: WebSocket transport, no serial, RX only ---
   if (isSdr) {
@@ -116,7 +127,13 @@ export async function connectRig(config = {}) {
       resolvedProtocol = detected.protocol;
       resolvedSerialConfig = detected.serialConfig;
       detectedTransport = detected.transport || null;
+      trace.record('state', 'auto_detect_ok', {
+        profileId: detected.profileId,
+        protocol: detected.protocol,
+        serialConfig: detected.serialConfig,
+      });
     } else {
+      trace.record('state', 'auto_detect_fail', {});
       // Detection failed — caller should handle
       return false;
     }
@@ -200,9 +217,16 @@ export async function connectRig(config = {}) {
 
   const success = await rigManager.connect(config.existingPort || null);
   if (!success) {
+    trace.record('state', 'connect_fail', { profileId: resolvedProfileId });
     rigManager = null;
     return false;
   }
+
+  trace.record('state', 'connected', {
+    profileId: resolvedProfileId,
+    protocol: protocolFamily,
+    serialConfig: resolvedSerialConfig,
+  });
 
   // Push driver capabilities into store
   if (driver && typeof driver.capabilities === 'function') {
@@ -249,6 +273,7 @@ export async function connectRig(config = {}) {
 // --- Disconnect from the current rig ---
 export async function disconnectRig() {
   if (!rigManager) return;
+  getTraceBus().record('state', 'disconnected', {});
 
   // Stop all safety modules
   for (const mod of activeSafetyModules) {

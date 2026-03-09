@@ -203,11 +203,15 @@ async function handlePskEdgeFetch(request, url, env, ctx) {
       pskUrl = `https://retrieve.pskreporter.info/query?${params}&${PSK_APP_CONTACT}`;
     }
 
-    // Fetch from PSKReporter via edge (rotating IPs)
+    // Fetch from PSKReporter via edge (rotating IPs) with 8s timeout
+    const pskAbort = new AbortController();
+    const pskTimer = setTimeout(() => pskAbort.abort(), 8000); // 8s — fail fast
     const pskResp = await fetch(pskUrl, {
       headers: { 'User-Agent': 'HamTab/1.0 (hamtab.net)' },
+      signal: pskAbort.signal,
       cf: { cacheTtl: 0 }, // don't let CF cache the upstream — we manage our own cache
     });
+    clearTimeout(pskTimer);
 
     if (!pskResp.ok) {
       console.error(`[psk-edge] PSKReporter returned ${pskResp.status}`);

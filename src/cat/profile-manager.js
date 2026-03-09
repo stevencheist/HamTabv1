@@ -198,7 +198,7 @@ const PRESET_CALLSIGNS = ['KG5DPV', 'KJ5MMO'];
 // Sources: WirelessGirl FTDX101D guide, VK4DX review, groups.io ftdx-10
 const FTDX10_SSB_RAGCHEW = {
   name: 'SSB Ragchew (DX10)',
-  description: 'Processor OFF, wide bandwidth, clarity EQ. Zero ALC goal.',
+  description: 'Casual QSOs: Processor OFF, wide 200-2800 Hz TX BPF, low mic gain (25), AGC MID. EQ cuts 300 Hz mud and boosts 2400 Hz for clarity. Natural, full-range voice.',
   // Direct CAT commands
   settings: {
     micGain: 25,          // low — goal is zero ALC movement
@@ -230,10 +230,47 @@ const FTDX10_SSB_RAGCHEW = {
   ],
 };
 
+// --- FT-DX10 SSB POTA (balanced — processor moderate, medium bandwidth) ---
+// POTA activators call CQ and work short pileups. Needs more punch than ragchew
+// but less aggressive than full contest. Processor at moderate level for
+// readability without over-compression.
+const FTDX10_SSB_POTA = {
+  name: 'SSB POTA (DX10)',
+  description: 'POTA activations: Processor ON at 50, 300-2700 Hz TX BPF, mic gain 30, AGC MID. Moderate EQ: -6 dB bass cut, +6 dB high boost. Balanced punch and clarity for park pileups.',
+  settings: {
+    micGain: 30,
+    processor: 1,         // ON — need punch for calling CQ
+    processorLevel: 50,   // moderate — readable without over-compression
+    agc: 2,               // MID — good balance for activation pace
+    noiseBlanker: 0,
+    noiseReduction: 0,
+  },
+  menuCommands: [
+    // MODE SSB (P1=01, P2=01)
+    { p1: 1, p2: 1, p3: 7,  value: 5,    digits: 2, label: 'LCUT FREQ → 300 Hz' },       // 05 = 300 Hz
+    { p1: 1, p2: 1, p3: 8,  value: 1,    digits: 1, label: 'LCUT SLOPE → 18 dB/oct' },
+    { p1: 1, p2: 1, p3: 9,  value: 41,   digits: 2, label: 'HCUT FREQ → 2700 Hz' },      // 41 = 2700 Hz
+    { p1: 1, p2: 1, p3: 10, value: 1,    digits: 1, label: 'HCUT SLOPE → 18 dB/oct' },
+    { p1: 1, p2: 1, p3: 12, value: 3,    digits: 1, label: 'TX BPF SEL → 300-2700 Hz' }, // 3 = 300~2700
+
+    // TX AUDIO (P1=03, P2=03) — Processor EQ (active when processor ON)
+    { p1: 3, p2: 3, p3: 1,  value: 0,    digits: 1, label: 'AMC RELEASE → FAST' },
+    { p1: 3, p2: 3, p3: 11, value: 3,    digits: 2, label: 'P EQ1 FREQ → 300 Hz' },
+    { p1: 3, p2: 3, p3: 12, value: '-06', digits: 3, label: 'P EQ1 LEVEL → -6 dB' },     // moderate bass cut
+    { p1: 3, p2: 3, p3: 13, value: 2,    digits: 2, label: 'P EQ1 BWTH → 2' },
+    { p1: 3, p2: 3, p3: 14, value: 9,    digits: 2, label: 'P EQ2 FREQ → 1500 Hz' },
+    { p1: 3, p2: 3, p3: 15, value: '+03', digits: 3, label: 'P EQ2 LEVEL → +3 dB' },     // gentle mid presence
+    { p1: 3, p2: 3, p3: 16, value: 1,    digits: 2, label: 'P EQ2 BWTH → 1' },
+    { p1: 3, p2: 3, p3: 17, value: 10,   digits: 2, label: 'P EQ3 FREQ → 2400 Hz' },
+    { p1: 3, p2: 3, p3: 18, value: '+06', digits: 3, label: 'P EQ3 LEVEL → +6 dB' },     // clarity boost
+    { p1: 3, p2: 3, p3: 19, value: 2,    digits: 2, label: 'P EQ3 BWTH → 2' },
+  ],
+};
+
 // --- FT-DX10 SSB Contest / DX (processor ON, narrow bandwidth) ---
 const FTDX10_SSB_CONTEST = {
   name: 'SSB Contest (DX10)',
-  description: 'Processor ON at 80, narrow TX BPF, aggressive EQ for pileup punch.',
+  description: 'Contests/DX: Processor ON at 80, narrow 400-2600 Hz TX BPF, mic gain 40, AGC FAST. Aggressive EQ: -13 dB bass cut, +6 dB mid/high boost. Maximum pileup punch.',
   settings: {
     micGain: 40,
     processor: 1,         // ON for contest
@@ -265,7 +302,7 @@ const FTDX10_SSB_CONTEST = {
 // EX menu addresses differ — pending FT-891 CAT manual from Codex.
 const FT891_SSB_RAGCHEW = {
   name: 'SSB Ragchew (891)',
-  description: 'Basic SSB voice settings. Processor OFF, AGC MID.',
+  description: 'Casual QSOs: Processor OFF, mic gain 30, AGC MID. Basic SSB voice settings. EX menu commands pending FT-891 CAT manual.',
   settings: {
     micGain: 30,
     processor: 0,
@@ -278,7 +315,7 @@ const FT891_SSB_RAGCHEW = {
 
 // --- Preset registry keyed by radio modelId ---
 const PRESET_REGISTRY = {
-  '0761': [FTDX10_SSB_RAGCHEW, FTDX10_SSB_CONTEST],   // FT-DX10
+  '0761': [FTDX10_SSB_RAGCHEW, FTDX10_SSB_POTA, FTDX10_SSB_CONTEST],   // FT-DX10
   '0650': [FT891_SSB_RAGCHEW],                           // FT-891
 };
 

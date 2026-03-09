@@ -119,6 +119,31 @@ main ──────────────────────── SH
 - Never commit `.env`, TLS certs, or wrangler secrets
 - Widgets must remain accessible at any window size — responsive reflow on resize
 
+## Feature Flags (Visibility Gates)
+
+**MANDATORY: All new user-facing features must be gated with a feature flag during development.**
+
+New features go through a three-tier visibility lifecycle controlled by `src/feature-flags.js`:
+
+| Tier | Value | Who sees it | When |
+|------|-------|-------------|------|
+| **Dev** | `'dev:KG5DPV'` | Only that developer | Building and debugging |
+| **Test** | `'test'` | Both dev callsigns (KG5DPV, KJ5MMO) | Ready for peer testing |
+| **Release** | `'release'` | Everyone | Shipped and stable |
+
+**How to use:**
+1. Add a flag to `FEATURE_FLAGS` in `src/feature-flags.js` with your callsign: `my_new_feature: 'dev:KG5DPV'`
+2. Guard the UI with `isFeatureVisible('my_new_feature')` — hide the entire feature if false
+3. Promote to `'test'` when ready for the other developer to try it
+4. Promote to `'release'` (or remove the flag entirely) when shipping to users
+5. Feature flags that have been `'release'` for 2+ versions can be removed (the `isFeatureVisible` check returns true for unknown flags)
+
+**Rules:**
+- Never use raw callsign checks (`if (callsign === 'KG5DPV')`) — always use `isFeatureVisible()`
+- The flag name should match the feature's purpose, not its implementation (e.g. `'preset_profiles'` not `'profile_manager_presets'`)
+- Add a comment with the version the flag was introduced (e.g. `// v0.68.0`)
+- Backend features (server.js endpoints) don't need flags — they have no UI to hide
+
 ## Commit & Branch Conventions
 
 ### Pre-Commit Branch Check

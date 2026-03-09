@@ -6,6 +6,7 @@
 // restore when you come back.
 
 import { getRigStore, sendRigCommand } from './connection-orchestrator.js';
+import { isFeatureVisible } from '../feature-flags.js';
 
 const PROFILES_KEY = 'hamtab_radio_profiles';
 
@@ -192,7 +193,7 @@ export function profileSummary(profile) {
 // Each preset is keyed by radio modelId from the CAT ID command.
 // =====================================================================
 
-const PRESET_CALLSIGNS = ['KG5DPV', 'KJ5MMO'];
+// Visibility gating moved to feature-flags.js ('preset_profiles' flag)
 
 // --- FT-DX10 SSB Ragchew (community-recommended baseline) ---
 // Sources: WirelessGirl FTDX101D guide, VK4DX review, groups.io ftdx-10
@@ -321,7 +322,7 @@ const PRESET_REGISTRY = {
 
 // --- Get available presets for current callsign + radio ---
 export function getPresets(callsign, radioModelId) {
-  if (!callsign || !PRESET_CALLSIGNS.includes(callsign.toUpperCase())) return [];
+  if (!isFeatureVisible('preset_profiles')) return [];
   return PRESET_REGISTRY[radioModelId] || [];
 }
 

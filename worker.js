@@ -85,7 +85,7 @@ const NOCACHE_PATHS = new Set([
 ]);
 
 // Query params that contain user-specific data — strip before building cache key
-const STRIP_PARAMS = new Set(['userId', 'apikey', 'token']);
+const STRIP_PARAMS = new Set(['userId', 'apikey', 'token', '_t']);
 
 // Geo params to round to 1 decimal place (~11km) for cache key normalization
 const GEO_PARAMS = new Set(['lat', 'lon', 'txLat', 'txLon', 'rxLat', 'rxLon']);

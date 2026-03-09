@@ -53,6 +53,8 @@ export function createRigStateStore() {
     voxGain: null,       // 0-100
     monitorLevel: null,  // 0-100
     micGain: null,       // 0-100
+    processor: null,     // 0=off, 1=on
+    processorLevel: null, // 0-100
   };
 
   const subscribers = [];
@@ -176,6 +178,12 @@ export function createRigStateStore() {
       case 'micGain':
         state.micGain = event.value;
         break;
+      case 'processor':
+        state.processor = event.value;
+        break;
+      case 'processorLevel':
+        state.processorLevel = event.value;
+        break;
       case 'menu':
         // Store latest menu response keyed by address (e.g. "010416")
         if (event.value) {
@@ -239,6 +247,8 @@ export function createRigStateStore() {
     state.voxGain = null;
     state.monitorLevel = null;
     state.micGain = null;
+    state.processor = null;
+    state.processorLevel = null;
     notify();
   }
 

@@ -18,6 +18,8 @@ import {
   deleteProfile,
   profileSummary,
   getProfile,
+  getPresets,
+  applyPreset,
 } from './cat/index.js';
 import { BAND_SEGMENTS, getBandSegments, getBandEdges, getPositionInBand } from './cat/profiles/band-overlay-engine.js';
 import { startScope, stopScope } from './scope/scope-renderer.js';
@@ -1379,6 +1381,44 @@ function updateProfileUI() {
   const canSave = connected && !s.demo && !s.rxOnly && caps.includes('profile_save');
 
   section.style.display = canSave ? '' : 'none';
+
+  // Populate preset buttons (callsign-gated, radio-specific)
+  const presetRow = $('rigPresetRow');
+  if (presetRow && canSave) {
+    const presets = getPresets(state.myCallsign, s.radioId);
+    if (presets.length > 0) {
+      presetRow.style.display = '';
+      // Only rebuild if radio changed
+      const presetKey = `${state.myCallsign}_${s.radioId}`;
+      if (presetRow.dataset.built !== presetKey) {
+        presetRow.innerHTML = '<span class="rig-profile-preset-label">Presets</span>';
+        for (let i = 0; i < presets.length; i++) {
+          const btn = document.createElement('button');
+          btn.className = 'rig-profile-action-btn rig-profile-preset-btn';
+          btn.textContent = presets[i].name;
+          btn.title = presets[i].description || '';
+          btn.dataset.presetIndex = i;
+          btn.addEventListener('click', () => handlePresetApply(presets[i]));
+          presetRow.appendChild(btn);
+        }
+        presetRow.dataset.built = presetKey;
+      }
+    } else {
+      presetRow.style.display = 'none';
+    }
+  }
+}
+
+// Handle preset apply
+function handlePresetApply(preset) {
+  if (!isRigConnected()) return;
+  const statusEl = $('rigProfileStatus');
+
+  const success = applyPreset(preset);
+  if (statusEl) {
+    statusEl.textContent = success ? `Applied: ${preset.name}` : 'Failed to apply preset';
+    setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
+  }
 }
 
 // Handle Save button

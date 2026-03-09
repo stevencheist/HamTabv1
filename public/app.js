@@ -20589,11 +20589,32 @@ ${beacon.location}`);
   }
 
   // src/on-air-rig.js
+  init_map_overlays();
+  init_voacap();
   var unsubscribe = null;
   var initialized2 = false;
   var listenersAttached = false;
   var dom = {};
   var prev = {};
+  function syncOverlaysToBand(band) {
+    if (state_default.propagationHeatmapBand !== band) {
+      state_default.propagationHeatmapBand = band;
+      localStorage.setItem("hamtab_prop_heatmap_band", band);
+      renderPropagationHeatmapOverlay();
+      const propSelect = $("mapOvPropHeatmapBand");
+      if (propSelect) propSelect.value = band;
+    }
+    if (state_default.wsprHeatmapBand !== band) {
+      state_default.wsprHeatmapBand = band;
+      localStorage.setItem("hamtab_wspr_heatmap_band", band);
+      renderWsprHeatmapOverlay();
+      const wsprSelect = $("mapOvWsprHeatmapBand");
+      if (wsprSelect) wsprSelect.value = band;
+    }
+    if (state_default.hfPropOverlayBand && state_default.hfPropOverlayBand !== band) {
+      toggleBandOverlay(band);
+    }
+  }
   var BAND_IDS = ["160m", "80m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m"];
   var USER_MODES = [
     { label: "LSB", cat: "LSB" },
@@ -20861,6 +20882,7 @@ ${beacon.location}`);
       for (const btn of dom.bandBtns) {
         btn.classList.toggle("active", btn.dataset.band === state2.band);
       }
+      if (state2.band) syncOverlaysToBand(state2.band);
       prev.band = state2.band;
     }
     const modeText = state2.mode || "---";
@@ -22132,8 +22154,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.67.1";
-    $("aboutVersion").textContent = "0.67.1";
+    $("splashVersion").textContent = "0.67.2";
+    $("aboutVersion").textContent = "0.67.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

@@ -16,6 +16,8 @@ import {
 import { BAND_SEGMENTS, getBandSegments, getBandEdges, getPositionInBand } from './cat/profiles/band-overlay-engine.js';
 import { startScope, stopScope } from './scope/scope-renderer.js';
 import { initDiagPanel, updateDiagButtonVisibility } from './cat/diagnostics/diag-panel.js';
+import { renderPropagationHeatmapOverlay, renderWsprHeatmapOverlay } from './map-overlays.js';
+import { toggleBandOverlay } from './voacap.js';
 
 let unsubscribe = null;
 let initialized = false;
@@ -28,6 +30,37 @@ const dom = {};
 // --- Last rendered values for diff-based updates ---
 // Only write to DOM when a value actually changed
 let prev = {};
+
+// --- Sync propagation overlays + VOACAP to rig band ---
+// Called when the rig changes band (frequency change crosses band boundary).
+// Updates: propagation heatmap, WSPR heatmap, VOACAP overlay, and config dropdowns.
+// Note: `state` at module scope is the app state from state.js. Inside render(),
+// the parameter shadows it with rig state — this function runs at module scope.
+function syncOverlaysToBand(band) {
+  // Update propagation heatmap band
+  if (state.propagationHeatmapBand !== band) {
+    state.propagationHeatmapBand = band;
+    localStorage.setItem('hamtab_prop_heatmap_band', band);
+    renderPropagationHeatmapOverlay();
+    // Sync the config dropdown if it exists
+    const propSelect = $('mapOvPropHeatmapBand');
+    if (propSelect) propSelect.value = band;
+  }
+
+  // Update WSPR heatmap band
+  if (state.wsprHeatmapBand !== band) {
+    state.wsprHeatmapBand = band;
+    localStorage.setItem('hamtab_wspr_heatmap_band', band);
+    renderWsprHeatmapOverlay();
+    const wsprSelect = $('mapOvWsprHeatmapBand');
+    if (wsprSelect) wsprSelect.value = band;
+  }
+
+  // Update VOACAP overlay if one is active
+  if (state.hfPropOverlayBand && state.hfPropOverlayBand !== band) {
+    toggleBandOverlay(band);
+  }
+}
 
 // --- Band/Mode selector data ---
 
@@ -355,6 +388,8 @@ function render(state) {
     for (const btn of dom.bandBtns) {
       btn.classList.toggle('active', btn.dataset.band === state.band);
     }
+    // Sync propagation overlays and VOACAP to the rig's current band
+    if (state.band) syncOverlaysToBand(state.band);
     prev.band = state.band;
   }
 

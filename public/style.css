@@ -7793,6 +7793,128 @@ body.grayscale {
   background: color-mix(in srgb, #e74c3c 15%, transparent);
 }
 
+/* ---- CAT Diagnostics Button ---- */
+.rig-diag-btn {
+  background: transparent;
+  border: 1px solid color-mix(in srgb, #3498db 40%, transparent);
+  color: #3498db;
+  font-size: 0.75rem;
+  line-height: 1;
+  padding: 3px 6px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.rig-diag-btn:hover {
+  border-color: #3498db;
+  background: color-mix(in srgb, #3498db 15%, transparent);
+}
+
+/* ---- CAT Diagnostics Panel ---- */
+.rig-diag-box {
+  max-width: 700px;
+  width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.rig-diag-summary {
+  font-size: 0.75rem;
+  color: var(--txt-dim);
+  padding: 4px 0 8px;
+  border-bottom: 1px solid var(--border);
+}
+.rig-diag-counters {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+  font-size: 0.7rem;
+}
+.rig-diag-counter {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 55px;
+}
+.rig-diag-counter-val {
+  font-size: 1.1rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+.rig-diag-counter-label {
+  color: var(--txt-dim);
+  font-size: 0.6rem;
+  text-transform: uppercase;
+}
+.rig-diag-counter-val.error { color: #e74c3c; }
+.rig-diag-counter-val.warn { color: #f39c12; }
+.rig-diag-counter-val.ok { color: #2ecc71; }
+
+.rig-diag-trace-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.rig-diag-autoscroll-label {
+  font-weight: 400;
+  font-size: 0.65rem;
+  color: var(--txt-dim);
+}
+.rig-diag-trace {
+  flex: 1;
+  min-height: 150px;
+  max-height: 400px;
+  overflow-y: auto;
+  background: var(--bg-card-alt, #1a1a2e);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  line-height: 1.5;
+}
+.rig-diag-trace-entry {
+  white-space: pre-wrap;
+  word-break: break-all;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 30%, transparent);
+  padding: 1px 0;
+}
+.rig-diag-trace-entry.error { color: #e74c3c; }
+.rig-diag-trace-entry.queue { color: #7f8fa6; }
+.rig-diag-trace-entry.transport { color: #3498db; }
+.rig-diag-trace-entry.parse { color: #2ecc71; }
+
+.rig-diag-actions {
+  display: flex;
+  gap: 8px;
+  padding-top: 10px;
+  justify-content: flex-end;
+}
+.rig-diag-export-btn {
+  background: #2ecc71;
+  color: #000;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-weight: 600;
+}
+.rig-diag-export-btn:hover { opacity: 0.85; }
+.rig-diag-clear-btn,
+.rig-diag-close-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--txt);
+  padding: 6px 14px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
+
 /* Demo badge */
 .rig-demo-badge {
   font-size: 0.52rem;

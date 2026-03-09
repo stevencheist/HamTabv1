@@ -4,9 +4,12 @@
 // - Priority system (higher priority = sent first)
 // - Frequency coalescing (rapid setFrequency calls collapse to latest)
 
+import { getTraceBus } from './diagnostics/trace-bus.js';
+
 export function createCommandQueue(sendFn, options = {}) {
   const minInterval = options.minInterval || 60; // ms between commands
   const maxQueueSize = options.maxQueueSize || 50;
+  const trace = getTraceBus();
 
   let queue = [];
   let processing = false;
@@ -23,6 +26,7 @@ export function createCommandQueue(sendFn, options = {}) {
       if (existing >= 0) {
         queue[existing].params = params;
         queue[existing].priority = Math.max(queue[existing].priority, priority);
+        trace.record('queue', 'coalesce', { command, params });
         return;
       }
     }
@@ -32,6 +36,7 @@ export function createCommandQueue(sendFn, options = {}) {
       const existing = queue.findIndex(item => item.command === command);
       if (existing >= 0) {
         queue[existing].params = params;
+        trace.record('queue', 'coalesce', { command, params });
         return;
       }
     }
@@ -39,9 +44,14 @@ export function createCommandQueue(sendFn, options = {}) {
     if (queue.length >= maxQueueSize) {
       // Drop lowest priority items
       queue.sort((a, b) => b.priority - a.priority);
+      const dropped = queue.slice(maxQueueSize - 1);
       queue = queue.slice(0, maxQueueSize - 1);
+      for (const d of dropped) {
+        trace.record('queue', 'drop', { command: d.command, params: d.params });
+      }
     }
 
+    trace.record('queue', 'enqueue', { command, params, priority, queueSize: queue.length + 1 });
     queue.push({ command, params, priority, time: Date.now() });
 
     // Sort by priority (highest first), then by time (oldest first)

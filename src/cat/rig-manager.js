@@ -4,8 +4,10 @@
 // UI never talks to this — it subscribes to RigStateStore.
 
 import { createCommandQueue } from './command-queue.js';
+import { getTraceBus } from './diagnostics/trace-bus.js';
 
 export function createRigManager(transport, driver, store, options = {}) {
+  const trace = getTraceBus();
   const pollingInterval = options.pollingInterval || 500; // ms between poll cycles
   const meterInterval = options.meterInterval || 200;     // ms between meter reads
   const commandInterval = options.commandInterval || 60;  // ms between serial commands
@@ -33,12 +35,17 @@ export function createRigManager(transport, driver, store, options = {}) {
       const encoded = driver.encode(command, params);
       if (!encoded) return;
 
+      const sendTs = Date.now();
+      trace.record('transport', 'sent', { command, params, encoded });
+
       try {
         let response;
         if (isBinary && encoded.startsWith('CIV:')) {
           // Binary protocol: decode hex → raw bytes → sendBinaryCommand → hex encode response
           const bytes = hexToBytes(encoded.slice(4));
           const rawBytes = await transport.sendBinaryCommand(bytes, 0xFD);
+          const elapsedMs = Date.now() - sendTs;
+          trace.record('transport', 'received', { command, elapsedMs, bytes: rawBytes.length });
           // Skip the echo frame (radio echoes our command) — find the response frame
           // CI-V echo: FE FE <from> <to> ..., response: FE FE <to> <from> ...
           const frames = splitCivFrames(rawBytes);
@@ -47,6 +54,7 @@ export function createRigManager(transport, driver, store, options = {}) {
             const hexResp = 'CIV:' + bytesToHex(frame);
             const event = driver.parse(hexResp);
             if (event) {
+              trace.record('parse', 'parsed', { command, eventType: event.type, value: event.value });
               store.applyEvent(event);
             }
           }
@@ -62,14 +70,19 @@ export function createRigManager(transport, driver, store, options = {}) {
           // Meter reads get a shorter timeout — don't stall queue on missed responses
           const isMeter = command === 'getSignal' || command === 'getSWR' || command === 'getPower';
           response = await transport.sendCommand(encoded, isMeter ? 500 : 2000);
+          const elapsedMs = Date.now() - sendTs;
+          trace.record('transport', 'received', { command, elapsedMs, raw: response || '' });
         }
-        handleResponse(response);
+        handleResponse(response, command);
       } catch (err) {
+        const elapsedMs = Date.now() - sendTs;
         // Timeout or read error — log but don't crash the polling loop
         if (err.message && err.message.includes('timeout')) {
           console.warn('[cat] Command timeout:', command);
+          trace.record('error', 'timeout', { command, elapsedMs, message: err.message });
         } else {
           console.error('[cat] Command error:', command, err);
+          trace.record('error', 'io_error', { command, elapsedMs, message: err.message });
         }
       }
     },
@@ -94,7 +107,7 @@ export function createRigManager(transport, driver, store, options = {}) {
   }
 
   // --- Parse a raw ASCII response and apply to store ---
-  function handleResponse(raw) {
+  function handleResponse(raw, command) {
     if (!raw) return;
 
     // Response may contain multiple concatenated responses (e.g., "FA000014074000;MD0C;")
@@ -105,7 +118,10 @@ export function createRigManager(transport, driver, store, options = {}) {
       const event = driver.parse(part + terminator);
       if (event) {
         console.warn('[cat] PARSED →', event.type, event.value);
+        trace.record('parse', 'parsed', { command, eventType: event.type, value: event.value, raw: part + terminator });
         store.applyEvent(event);
+      } else if (part.trim()) {
+        trace.record('parse', 'parse_error', { command, raw: part + terminator });
       }
     }
   }

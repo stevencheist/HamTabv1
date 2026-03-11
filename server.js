@@ -156,6 +156,55 @@ app.get('/api/spots', async (req, res) => {
   }
 });
 
+// --- POTA Spot Submission Proxy ---
+// Posts a spot to api.pota.app on behalf of the user
+app.post('/api/pota/spot', express.json(), async (req, res) => {
+  try {
+    const { activator, spotter, frequency, reference, mode, comments } = req.body;
+
+    // Validate required fields
+    if (!activator || !/^[A-Z0-9]{3,10}$/i.test(activator)) {
+      return res.status(400).json({ error: 'Invalid activator callsign' });
+    }
+    if (!spotter || !/^[A-Z0-9]{3,10}$/i.test(spotter)) {
+      return res.status(400).json({ error: 'Invalid spotter callsign' });
+    }
+    if (!reference || !/^[A-Z0-9]+-\d{4,}$/i.test(reference)) {
+      return res.status(400).json({ error: 'Invalid park reference' });
+    }
+    if (!frequency || isNaN(parseFloat(frequency))) {
+      return res.status(400).json({ error: 'Invalid frequency' });
+    }
+
+    const spotData = {
+      activator: activator.toUpperCase(),
+      spotter: spotter.toUpperCase(),
+      frequency: String(frequency),
+      reference: reference.toUpperCase(),
+      mode: (mode || '').toUpperCase(),
+      comments: (comments || '').slice(0, 60),
+      source: 'HamTab',
+    };
+
+    const resp = await secureFetch('https://api.pota.app/spot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(spotData),
+    });
+
+    if (resp.ok) {
+      res.json({ success: true });
+    } else {
+      const text = await resp.text().catch(() => '');
+      console.error('[POTA spot] Upstream error:', resp.status, text);
+      res.status(resp.status).json({ error: `POTA API returned ${resp.status}` });
+    }
+  } catch (err) {
+    console.error('[POTA spot] Error:', err.message);
+    res.status(502).json({ error: 'Failed to submit spot' });
+  }
+});
+
 // --- DX Cluster callsign coordinate cache ---
 
 const dxcCallCache = {};  // { 'W1AW': { lat, lon, expires }, ... }

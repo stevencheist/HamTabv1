@@ -63,6 +63,7 @@ import { openModal, closeModal } from './a11y.js';
 import { pullConfig, isSyncEnabled } from './config-sync.js';
 import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
 import { initLogbook, renderLogbookOnMap } from './logbook.js';
+import { initPotaHunter, renderWorkedFilterToggle } from './pota-hunter.js';
 import { initCrossTab, isLeaderTab } from './cross-tab.js';
 
 // Initialize map
@@ -121,6 +122,7 @@ initMobileMenu();
 initTabs();
 safeInit('on-air-rig', initOnAirRig);
 safeInit('logbook', initLogbook);
+safeInit('pota-hunter', initPotaHunter);
 
 // --- New widget notification popup ---
 // Listeners registered once to prevent accumulation on repeated calls

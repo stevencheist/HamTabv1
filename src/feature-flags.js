@@ -22,7 +22,7 @@ const DEV_CALLSIGNS = ['KG5DPV', 'KJ5MMO'];
 // Add new features here. Change the tier as the feature matures.
 const FEATURE_FLAGS = {
   preset_profiles: 'test',   // callsign-gated SSB presets (v0.68.0)
-  // example_new_widget: 'dev:KG5DPV',  // only Francisco sees it
+  pota_hunter: 'dev:KG5DPV', // POTA hunting helper — confirm QSO + spot reporter (v0.68.7)
 };
 
 // --- Check if a feature is visible to the current user ---

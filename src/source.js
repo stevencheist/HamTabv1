@@ -3,6 +3,7 @@ import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
 import { esc } from './utils.js';
 import { applyFilter, updateBandFilterButtons, updateModeFilterButtons, updateCountryFilter, updateStateFilter, updateGridFilter, updateContinentFilter, updatePrivFilterVisibility, loadFiltersForSource, updateAllFilterUI, updatePresetDropdown, updateDistanceAgeVisibility, renderWatchListEditor } from './filters.js';
+import { renderWorkedFilterToggle } from './pota-hunter.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 
@@ -53,6 +54,7 @@ export function switchSource(source) {
 
   updateTableColumns();
   updateFilterVisibility();
+  renderWorkedFilterToggle();
 
   // Load persisted filters for this source (instead of clearing)
   loadFiltersForSource(source);

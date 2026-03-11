@@ -1472,6 +1472,65 @@ header {
   border-color: var(--green);
 }
 
+/* ---- Worked filter toggle (POTA Hunter) ---- */
+
+.worked-filter { display: flex; align-items: center; gap: 2px; }
+.worked-filter-btn {
+  font-size: 0.7rem;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  background: var(--bg-widget);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+}
+.worked-filter-btn.active {
+  background: var(--green);
+  color: #000;
+  border-color: var(--green);
+}
+.worked-clear-btn {
+  font-size: 0.7rem;
+  padding: 2px 5px;
+  border: 1px solid var(--border);
+  background: var(--bg-widget);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+  line-height: 1;
+}
+.worked-clear-btn:hover { color: var(--red); border-color: var(--red); }
+
+/* ---- POTA Hunter action buttons (DX Detail) ---- */
+
+.pota-hunter-actions {
+  display: flex; gap: 6px; margin: 6px 0; padding-top: 6px;
+  border-top: 1px solid var(--border);
+}
+.pota-hunter-btn { font-size: 0.75rem; }
+.pota-hunter-confirm { background: var(--green); color: #000; border-color: var(--green); }
+.pota-hunter-confirm:hover { filter: brightness(1.1); }
+.pota-hunter-worked { opacity: 0.6; background: var(--surface); color: var(--text-dim); border-color: var(--border); }
+.pota-hunter-spot { background: var(--accent); color: #000; border-color: var(--accent); }
+.pota-hunter-spot:hover { filter: brightness(1.1); }
+
+/* ---- POTA Spot Reporter popup ---- */
+
+.pota-spot-box { max-width: 340px; }
+.pota-spot-fields { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
+.pota-spot-row { font-size: 0.85rem; }
+.pota-spot-label { color: var(--text-dim); margin-right: 4px; }
+.pota-spot-comment-label { font-size: 0.8rem; color: var(--text-dim); margin-top: 4px; }
+#potaSpotComment {
+  width: 100%; padding: 6px 8px; font-size: 0.85rem;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 3px;
+}
+.pota-spot-actions { display: flex; gap: 8px; margin-top: 8px; }
+.pota-spot-cancel-btn { background: var(--surface); color: var(--text-dim); }
+.pota-spot-status { font-size: 0.8rem; margin-top: 4px; min-height: 1.2em; }
+.pota-spot-ok { color: var(--green); }
+.pota-spot-err { color: var(--red); }
+
 /* ---- Privilege filter checkbox ---- */
 
 .priv-filter-label {

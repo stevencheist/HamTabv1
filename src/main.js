@@ -63,6 +63,7 @@ import { openModal, closeModal } from './a11y.js';
 import { pullConfig, isSyncEnabled } from './config-sync.js';
 import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
 import { initLogbook, renderLogbookOnMap } from './logbook.js';
+import { initPotaHunter, renderWorkedFilterToggle } from './pota-hunter.js';
 import { initCrossTab, isLeaderTab } from './cross-tab.js';
 
 // Initialize map
@@ -119,8 +120,9 @@ initAnalogClock();
 initClockConfigListeners();
 initMobileMenu();
 initTabs();
-safeInit('on-air-rig', initOnAirRig); // RADIO_HIDDEN — temporarily re-enabled for scope testing
+safeInit('on-air-rig', initOnAirRig);
 safeInit('logbook', initLogbook);
+safeInit('pota-hunter', initPotaHunter);
 
 // --- New widget notification popup ---
 // Listeners registered once to prevent accumulation on repeated calls
@@ -178,8 +180,18 @@ function initApp() {
   if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
 }
 
-// Live Spots refresh (5 min — PSKReporter rate limit) — leader tab only
-setInterval(() => { if (document.hidden || !isWidgetVisible('widget-live-spots') || !isLeaderTab()) return; fetchLiveSpots(); }, 5 * 60 * 1000);
+// Live Spots refresh (5 min + jitter — PSKReporter rate limit) — leader tab only
+// Jitter prevents synchronized bursts when multiple instances share the same server
+const PSK_REFRESH_BASE = 5 * 60 * 1000;   // 5 min base
+const PSK_REFRESH_JITTER = 30 * 1000;     // ±30s jitter
+function scheduleLiveSpotsRefresh() {
+  const delay = PSK_REFRESH_BASE + Math.floor(Math.random() * PSK_REFRESH_JITTER * 2) - PSK_REFRESH_JITTER;
+  setTimeout(() => {
+    if (!document.hidden && isWidgetVisible('widget-live-spots') && isLeaderTab()) fetchLiveSpots();
+    scheduleLiveSpotsRefresh();
+  }, delay);
+}
+scheduleLiveSpotsRefresh();
 
 // VOACAP matrix refresh — render every minute (for hour transitions), fetch leader-only
 setInterval(() => { if (document.hidden) return; if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) renderVoacapMatrix(); }, 60 * 1000);

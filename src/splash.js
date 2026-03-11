@@ -322,6 +322,10 @@ export function showSplash() {
 
   $('splashCallsign').value = state.myCallsign;
 
+  // Populate spotter location
+  const spotterLocEl = $('splashSpotterLocation');
+  if (spotterLocEl) spotterLocEl.value = state.spotterLocation;
+
   if (state.myLat !== null && state.myLon !== null) {
     $('splashLat').value = state.myLat.toFixed(2);
     $('splashLon').value = state.myLon.toFixed(2);
@@ -1167,6 +1171,10 @@ function dismissSplash() {
   state.temperatureUnit = $('tempUnitC').checked ? 'C' : 'F';
   localStorage.setItem('hamtab_distance_unit', state.distanceUnit);
   localStorage.setItem('hamtab_temperature_unit', state.temperatureUnit);
+
+  // Save spotter location (POTA spot comments)
+  state.spotterLocation = ($('splashSpotterLocation')?.value || '').trim();
+  localStorage.setItem('hamtab_spotter_location', state.spotterLocation);
 
   // Save radio config
   saveRadioConfig();

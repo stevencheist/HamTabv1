@@ -304,6 +304,19 @@
         // Progressive scaling
         reflowActive: false,
         // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
+        // POTA Hunter — worked callsign tracking + spotter location
+        spotterLocation: localStorage.getItem("hamtab_spotter_location") || "",
+        // free text for spot comments (e.g. "Dallas, TX")
+        hideWorked: localStorage.getItem("hamtab_hide_worked") === "true",
+        // filter toggle
+        workedList: (() => {
+          try {
+            const s = JSON.parse(localStorage.getItem("hamtab_worked_list"));
+            if (Array.isArray(s)) return s.filter((e) => e && e.callsign && e.timestamp);
+          } catch (e) {
+          }
+          return [];
+        })(),
         // Debug mode — enables verbose console logging (cross-tab, fetch diagnostics)
         // Toggle at runtime via console: window.__hamtab_debug()
         debug: false,
@@ -5905,9 +5918,10 @@
       init_state();
       DEV_CALLSIGNS = ["KG5DPV", "KJ5MMO"];
       FEATURE_FLAGS = {
-        preset_profiles: "test"
+        preset_profiles: "test",
         // callsign-gated SSB presets (v0.68.0)
-        // example_new_widget: 'dev:KG5DPV',  // only Francisco sees it
+        pota_hunter: "dev:KG5DPV"
+        // POTA hunting helper — confirm QSO + spot reporter (v0.68.7)
       };
     }
   });
@@ -6363,6 +6377,300 @@
     }
   });
 
+  // src/a11y.js
+  function trapFocus(container) {
+    function handler(e) {
+      if (e.key !== "Tab") return;
+      const focusable = container.querySelectorAll(FOCUSABLE);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    container.addEventListener("keydown", handler);
+    return () => container.removeEventListener("keydown", handler);
+  }
+  function openModal(overlayEl, options) {
+    if (!overlayEl) return;
+    const previousFocus = document.activeElement;
+    overlayEl.classList.remove("hidden");
+    const inner = overlayEl.querySelector('[role="dialog"],[role="alertdialog"]') || overlayEl.firstElementChild;
+    const cleanup = state_default.a11yFocusTrap && inner ? trapFocus(inner) : null;
+    modalStack.push({ overlay: overlayEl, cleanup, previousFocus });
+    const focusTarget = options && options.focusEl || inner && inner.querySelector(FOCUSABLE);
+    if (focusTarget) {
+      requestAnimationFrame(() => focusTarget.focus());
+    }
+  }
+  function closeModal(overlayEl) {
+    if (!overlayEl) return;
+    overlayEl.classList.add("hidden");
+    const idx = modalStack.findIndex((m) => m.overlay === overlayEl);
+    if (idx !== -1) {
+      const entry = modalStack.splice(idx, 1)[0];
+      if (entry.cleanup) entry.cleanup();
+      if (entry.previousFocus && typeof entry.previousFocus.focus === "function") {
+        entry.previousFocus.focus();
+      }
+    }
+  }
+  var FOCUSABLE, modalStack;
+  var init_a11y = __esm({
+    "src/a11y.js"() {
+      init_state();
+      FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+      modalStack = [];
+    }
+  });
+
+  // src/pota-hunter.js
+  function cleanExpiredWorked() {
+    const now = Date.now();
+    state_default.workedList = state_default.workedList.filter((e) => now - e.timestamp < WORKED_TTL);
+    saveWorkedList();
+  }
+  function saveWorkedList() {
+    localStorage.setItem("hamtab_worked_list", JSON.stringify(state_default.workedList));
+  }
+  function isWorked(callsign) {
+    if (!callsign) return false;
+    const upper = callsign.toUpperCase();
+    const now = Date.now();
+    return state_default.workedList.some((e) => e.callsign === upper && now - e.timestamp < WORKED_TTL);
+  }
+  function addWorked(callsign) {
+    if (!callsign) return;
+    const upper = callsign.toUpperCase();
+    if (isWorked(upper)) return;
+    state_default.workedList.push({ callsign: upper, timestamp: Date.now() });
+    saveWorkedList();
+  }
+  function clearWorkedList() {
+    state_default.workedList = [];
+    saveWorkedList();
+  }
+  function getWorkedCount() {
+    cleanExpiredWorked();
+    return state_default.workedList.length;
+  }
+  function renderHunterButtons(spot, container) {
+    if (!isFeatureVisible("pota_hunter")) return;
+    if (state_default.currentSource !== "pota") return;
+    if (!spot || !spot.callsign) return;
+    const displayCall = spot.callsign || spot.activator || "";
+    const worked = isWorked(displayCall);
+    const wrap = document.createElement("div");
+    wrap.className = "pota-hunter-actions";
+    const confirmBtn = document.createElement("button");
+    confirmBtn.className = "btn btn-sm pota-hunter-btn pota-hunter-confirm";
+    if (worked) {
+      confirmBtn.textContent = "\u2713 Worked";
+      confirmBtn.disabled = true;
+      confirmBtn.classList.add("pota-hunter-worked");
+    } else {
+      confirmBtn.textContent = "Confirm QSO";
+      confirmBtn.addEventListener("click", () => {
+        addWorked(displayCall);
+        confirmBtn.textContent = "\u2713 Worked";
+        confirmBtn.disabled = true;
+        confirmBtn.classList.add("pota-hunter-worked");
+        if (state_default.hideWorked) {
+          applyFilter();
+          renderSpots();
+          renderMarkers();
+        }
+        updateWorkedBadge();
+      });
+    }
+    wrap.appendChild(confirmBtn);
+    const spotBtn = document.createElement("button");
+    spotBtn.className = "btn btn-sm pota-hunter-btn pota-hunter-spot";
+    spotBtn.textContent = "Spot";
+    spotBtn.addEventListener("click", () => openSpotReporter(spot));
+    wrap.appendChild(spotBtn);
+    container.appendChild(wrap);
+  }
+  function renderWorkedFilterToggle() {
+    if (!isFeatureVisible("pota_hunter")) return;
+    const wrap = $("workedFilterWrap");
+    if (!wrap) return;
+    wrap.classList.toggle("hidden", state_default.currentSource !== "pota");
+    if (state_default.currentSource !== "pota") return;
+    const btn = $("workedFilterBtn");
+    if (!btn) return;
+    const count = getWorkedCount();
+    btn.classList.toggle("active", state_default.hideWorked);
+    btn.textContent = count > 0 ? `Worked (${count})` : "Worked";
+    btn.title = state_default.hideWorked ? "Showing worked stations \u2014 click to show all" : "Click to hide worked stations";
+  }
+  function updateWorkedBadge() {
+    renderWorkedFilterToggle();
+  }
+  function initWorkedFilterListeners() {
+    if (!isFeatureVisible("pota_hunter")) return;
+    const btn = $("workedFilterBtn");
+    if (!btn) return;
+    btn.addEventListener("click", () => {
+      state_default.hideWorked = !state_default.hideWorked;
+      localStorage.setItem("hamtab_hide_worked", state_default.hideWorked);
+      renderWorkedFilterToggle();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+    const clearBtn = $("clearWorkedBtn");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        clearWorkedList();
+        renderWorkedFilterToggle();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+    }
+  }
+  function getDefaultRst() {
+    try {
+      const smeterEl = document.querySelector(".rig-smeter-value");
+      if (smeterEl && smeterEl.textContent) {
+        const raw = smeterEl.textContent.trim();
+        const match = raw.match(/S(\d)/);
+        if (match) {
+          const s = parseInt(match[1], 10);
+          return `5${s}`;
+        }
+      }
+    } catch (e) {
+    }
+    return "59";
+  }
+  function openSpotReporter(spot) {
+    const popup = $("potaSpotPopup");
+    if (!popup) return;
+    const displayCall = spot.callsign || spot.activator || "";
+    const freq = spot.frequency || "";
+    const mode2 = spot.mode || "";
+    const ref = spot.reference || "";
+    const callEl = $("potaSpotCall");
+    const freqEl = $("potaSpotFreq");
+    const modeEl = $("potaSpotMode");
+    const refEl = $("potaSpotRef");
+    const commentEl = $("potaSpotComment");
+    if (callEl) callEl.textContent = displayCall;
+    if (freqEl) freqEl.textContent = `${freq} MHz`;
+    if (modeEl) modeEl.textContent = mode2;
+    if (refEl) refEl.textContent = ref;
+    const rst = getDefaultRst();
+    const loc = state_default.spotterLocation || "";
+    const comment = loc ? `${rst} from ${loc}` : rst;
+    if (commentEl) commentEl.value = comment;
+    openModal(popup, { focusEl: commentEl || $("potaSpotSubmit") });
+  }
+  function submitSpot() {
+    const popup = $("potaSpotPopup");
+    const callEl = $("potaSpotCall");
+    const freqEl = $("potaSpotFreq");
+    const modeEl = $("potaSpotMode");
+    const refEl = $("potaSpotRef");
+    const commentEl = $("potaSpotComment");
+    const statusEl = $("potaSpotStatus");
+    const submitBtn = $("potaSpotSubmit");
+    if (!callEl || !freqEl || !refEl) return;
+    const activator = callEl.textContent.trim();
+    const freqText = freqEl.textContent.replace(/[^\d.]/g, "").trim();
+    const freqKhz = (parseFloat(freqText) * 1e3).toFixed(0);
+    const mode2 = modeEl ? modeEl.textContent.trim() : "";
+    const reference = refEl.textContent.trim();
+    const comments = commentEl ? commentEl.value.trim() : "";
+    if (!activator || !reference) {
+      if (statusEl) statusEl.textContent = "Missing activator or reference";
+      return;
+    }
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+    }
+    if (statusEl) statusEl.textContent = "";
+    const body = {
+      activator,
+      spotter: state_default.myCallsign || "",
+      frequency: freqKhz,
+      reference,
+      mode: mode2,
+      comments
+    };
+    fetch("/api/pota/spot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then((resp) => {
+      if (resp.ok) {
+        if (statusEl) statusEl.textContent = "Spot submitted!";
+        if (statusEl) statusEl.className = "pota-spot-status pota-spot-ok";
+        setTimeout(() => closeModal(popup), 1500);
+      } else {
+        return resp.json().then((data) => {
+          throw new Error(data.error || `HTTP ${resp.status}`);
+        }).catch(() => {
+          throw new Error(`HTTP ${resp.status}`);
+        });
+      }
+    }).catch((err2) => {
+      if (statusEl) {
+        statusEl.textContent = `Failed: ${err2.message}`;
+        statusEl.className = "pota-spot-status pota-spot-err";
+      }
+    }).finally(() => {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Submit Spot";
+      }
+    });
+  }
+  function initPotaHunter() {
+    if (!isFeatureVisible("pota_hunter")) return;
+    initWorkedFilterListeners();
+    const popup = $("potaSpotPopup");
+    if (!popup) return;
+    $("potaSpotSubmit")?.addEventListener("click", submitSpot);
+    $("potaSpotCancel")?.addEventListener("click", () => closeModal(popup));
+    popup.addEventListener("click", (e) => {
+      if (e.target === popup) closeModal(popup);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !popup.classList.contains("hidden")) {
+        if (!state_default.a11yEscapeClose) return;
+        closeModal(popup);
+      }
+    });
+    cleanExpiredWorked();
+    renderWorkedFilterToggle();
+  }
+  var WORKED_TTL;
+  var init_pota_hunter = __esm({
+    "src/pota-hunter.js"() {
+      init_state();
+      init_dom();
+      init_utils();
+      init_feature_flags();
+      init_filters();
+      init_spots();
+      init_markers();
+      init_a11y();
+      WORKED_TTL = 24 * 60 * 60 * 1e3;
+    }
+  });
+
   // src/spot-detail.js
   function weatherCacheKey(lat, lon) {
     return `${lat.toFixed(1)},${lon.toFixed(1)}`;
@@ -6493,12 +6801,15 @@
     ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ""}
     ${spot.comments ? `<div class="spot-detail-row spot-detail-comments">${esc(spot.comments)}</div>` : ""}
     <div class="spot-detail-tune" id="spotDetailTune"></div>
+    <div class="spot-detail-hunter" id="spotDetailHunter"></div>
     <div class="spot-detail-wx" id="spotDetailWx"></div>
   `;
     renderTuneButton(spot);
     if (isRigConnected() && spot.frequency) {
       tuneToSpot(spot);
     }
+    const hunterContainer = document.getElementById("spotDetailHunter");
+    if (hunterContainer) renderHunterButtons(spot, hunterContainer);
     if (clockInterval) clearInterval(clockInterval);
     if (!isNaN(lon)) {
       clockInterval = setInterval(() => renderLocalTime(lon), 1e3);
@@ -6609,6 +6920,7 @@
       init_cat();
       init_band_auto_profile();
       init_band_plan_validator();
+      init_pota_hunter();
       currentSpot = null;
       clockInterval = null;
       spotDetailWeatherCache = {};
@@ -9602,6 +9914,10 @@
       if (allowed.includes("grid") && state_default.activeGrid && (s.grid4 || "") !== state_default.activeGrid) return false;
       if (allowed.includes("continent") && state_default.activeContinent && (s.continent || "") !== state_default.activeContinent) return false;
       if (allowed.includes("privilege") && state_default.privilegeFilterEnabled && !filterByPrivileges(s)) return false;
+      if (state_default.hideWorked && state_default.currentSource === "pota") {
+        const call = s.callsign || s.activator || "";
+        if (call && isWorked(call)) return false;
+      }
       if (wlRules.length > 0) {
         if (onlyRules.length > 0 && !onlyRules.some((r) => matchWatchRule(r, s))) return false;
         if (notRules.some((r) => matchWatchRule(r, s))) return false;
@@ -10190,6 +10506,7 @@
       init_markers();
       init_geo();
       init_band_conditions();
+      init_pota_hunter();
     }
   });
 
@@ -10923,7 +11240,6 @@
         { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
         { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" },
         { id: "widget-on-air-rig", name: "On-Air Rig", short: "Rig" },
-        // RADIO_HIDDEN — temporarily unhidden for scope testing
         { id: "widget-logbook", name: "Logbook", short: "Log" }
       ];
       SAT_FREQUENCIES = {
@@ -13844,6 +14160,7 @@ ${beacon.location}`);
   init_constants();
   init_utils();
   init_filters();
+  init_pota_hunter();
   init_spots();
   init_markers();
   function updateTableColumns() {
@@ -13883,6 +14200,7 @@ ${beacon.location}`);
     });
     updateTableColumns();
     updateFilterVisibility();
+    renderWorkedFilterToggle();
     loadFiltersForSource(source);
     const countryFilter = $("countryFilter");
     if (countryFilter) countryFilter.value = state_default.activeCountry || "";
@@ -14048,65 +14366,14 @@ ${beacon.location}`);
 
   // src/splash.js
   init_spots();
-
-  // src/a11y.js
-  init_state();
-  var FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
-  function trapFocus(container) {
-    function handler(e) {
-      if (e.key !== "Tab") return;
-      const focusable = container.querySelectorAll(FOCUSABLE);
-      if (focusable.length === 0) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (e.shiftKey) {
-        if (document.activeElement === first) {
-          e.preventDefault();
-          last.focus();
-        }
-      } else {
-        if (document.activeElement === last) {
-          e.preventDefault();
-          first.focus();
-        }
-      }
-    }
-    container.addEventListener("keydown", handler);
-    return () => container.removeEventListener("keydown", handler);
-  }
-  var modalStack = [];
-  function openModal(overlayEl, options) {
-    if (!overlayEl) return;
-    const previousFocus = document.activeElement;
-    overlayEl.classList.remove("hidden");
-    const inner = overlayEl.querySelector('[role="dialog"],[role="alertdialog"]') || overlayEl.firstElementChild;
-    const cleanup = state_default.a11yFocusTrap && inner ? trapFocus(inner) : null;
-    modalStack.push({ overlay: overlayEl, cleanup, previousFocus });
-    const focusTarget = options && options.focusEl || inner && inner.querySelector(FOCUSABLE);
-    if (focusTarget) {
-      requestAnimationFrame(() => focusTarget.focus());
-    }
-  }
-  function closeModal(overlayEl) {
-    if (!overlayEl) return;
-    overlayEl.classList.add("hidden");
-    const idx = modalStack.findIndex((m) => m.overlay === overlayEl);
-    if (idx !== -1) {
-      const entry = modalStack.splice(idx, 1)[0];
-      if (entry.cleanup) entry.cleanup();
-      if (entry.previousFocus && typeof entry.previousFocus.focus === "function") {
-        entry.previousFocus.focus();
-      }
-    }
-  }
-
-  // src/splash.js
+  init_a11y();
   init_markers();
 
   // src/weather.js
   init_state();
   init_dom();
   init_utils();
+  init_a11y();
   var wxBgClasses = ["wx-clear-day", "wx-clear-night", "wx-partly-cloudy-day", "wx-partly-cloudy-night", "wx-cloudy", "wx-rain", "wx-thunderstorm", "wx-snow", "wx-fog"];
   function useWU() {
     return state_default.wxStation && state_default.wxApiKey;
@@ -14995,8 +15262,9 @@ ${beacon.location}`);
     const def = SOURCE_DEFS[source];
     if (!def) return;
     try {
-      const bustUrl = def.endpoint + (def.endpoint.includes("?") ? "&" : "?") + "_t=" + Date.now();
-      const resp = await fetch(bustUrl);
+      const cacheable = source === "psk" || source === "wspr";
+      const url = cacheable ? def.endpoint : def.endpoint + (def.endpoint.includes("?") ? "&" : "?") + "_t=" + Date.now();
+      const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       let data = await resp.json();
       if (source === "pota") {
@@ -15096,6 +15364,7 @@ ${beacon.location}`);
   init_dom();
   init_constants();
   init_utils();
+  init_a11y();
   var EARTH_RADIUS_KM = 6371;
   var SPEED_OF_LIGHT_KM_S = 299792.458;
   var DEFAULT_SAT_ALT_KM = 400;
@@ -15593,6 +15862,7 @@ ${beacon.location}`);
   init_geo();
   init_utils();
   init_constants();
+  init_a11y();
   function initLiveSpotsListeners() {
     const cfgBtn = $("liveSpotsCfgBtn");
     if (cfgBtn) {
@@ -15648,6 +15918,7 @@ ${beacon.location}`);
       state_default.liveSpots.summary = data.summary || {};
       state_default.liveSpots.lastFetch = Date.now();
       state_default.liveSpots.error = false;
+      state_default.liveSpots.stale = data._meta?.stale || false;
       renderLiveSpots();
     } catch (err2) {
       if (state_default.debug) console.error("Failed to fetch Live Spots:", err2);
@@ -15678,6 +15949,9 @@ ${beacon.location}`);
         status.classList.add("visible");
       } else if (!state_default.liveSpots.lastFetch) {
         status.textContent = "Loading...";
+        status.classList.add("visible");
+      } else if (state_default.liveSpots.stale) {
+        status.textContent = "Showing cached data \u2014 PSKReporter slow";
         status.classList.add("visible");
       } else {
         status.textContent = "";
@@ -21017,6 +21291,7 @@ ${beacon.location}`);
   // src/cat/diagnostics/diag-panel.js
   init_connection_orchestrator();
   init_dom();
+  init_a11y();
   init_utils();
   var unsubTrace = null;
   function initDiagPanel() {
@@ -22711,6 +22986,8 @@ ${beacon.location}`);
     });
     splash.querySelectorAll(".config-panel").forEach((p) => p.classList.toggle("active", p.dataset.panel === "station"));
     $("splashCallsign").value = state_default.myCallsign;
+    const spotterLocEl = $("splashSpotterLocation");
+    if (spotterLocEl) spotterLocEl.value = state_default.spotterLocation;
     if (state_default.myLat !== null && state_default.myLon !== null) {
       $("splashLat").value = state_default.myLat.toFixed(2);
       $("splashLon").value = state_default.myLon.toFixed(2);
@@ -22834,8 +23111,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.68.3";
-    $("aboutVersion").textContent = "0.68.3";
+    $("splashVersion").textContent = "0.68.7";
+    $("aboutVersion").textContent = "0.68.7";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -23340,6 +23617,8 @@ ${beacon.location}`);
     state_default.temperatureUnit = $("tempUnitC").checked ? "C" : "F";
     localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
     localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
+    state_default.spotterLocation = ($("splashSpotterLocation")?.value || "").trim();
+    localStorage.setItem("hamtab_spotter_location", state_default.spotterLocation);
     saveRadioConfig();
     state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
     state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
@@ -24154,6 +24433,7 @@ ${beacon.location}`);
   init_state();
   init_dom();
   init_constants();
+  init_a11y();
   init_solar();
   init_lunar();
   init_map_overlays();
@@ -24876,6 +25156,7 @@ ${beacon.location}`);
   init_constants();
   init_utils();
   init_state();
+  init_a11y();
   function renderHelp(widgetId) {
     let helpKey = widgetId;
     if (widgetId === "widget-rst" && state_default.currentReferenceTab && state_default.currentReferenceTab !== "rst") {
@@ -25043,6 +25324,7 @@ ${beacon.location}`);
   // src/feedback.js
   init_state();
   init_dom();
+  init_a11y();
   var formOpenTime = 0;
   var EMAIL_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsMluvnUJ2MW0r2KQIqZF
@@ -25207,6 +25489,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   init_state();
   init_dom();
   init_utils();
+  init_a11y();
   var active = false;
   function fmtDate(date, options) {
     return date.toLocaleDateString(void 0, Object.assign({
@@ -26142,6 +26425,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   // src/clock-config.js
   init_state();
   init_dom();
+  init_a11y();
   function initClockConfigListeners() {
     const btn = $("clockCfgBtn");
     if (!btn) return;
@@ -26387,6 +26671,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   }
 
   // src/menu.js
+  init_a11y();
   var isOpen = false;
   var releaseTrap = null;
   function openMenu2() {
@@ -26466,6 +26751,8 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
 
   // src/main.js
   init_tabs();
+  init_a11y();
+  init_pota_hunter();
   init_cross_tab();
   migrate();
   migrateV2();
@@ -26543,6 +26830,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initTabs();
   safeInit("on-air-rig", initOnAirRig);
   safeInit("logbook", initLogbook);
+  safeInit("pota-hunter", initPotaHunter);
   var newWidgetPopupListenersAttached = false;
   function showNewWidgetPopup(widgetNames) {
     const popup = $("newWidgetPopup");
@@ -26592,10 +26880,16 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     const newWidgets = getPendingNewWidgets();
     if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
   }
-  setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-live-spots") || !isLeaderTab()) return;
-    fetchLiveSpots();
-  }, 5 * 60 * 1e3);
+  var PSK_REFRESH_BASE = 5 * 60 * 1e3;
+  var PSK_REFRESH_JITTER = 30 * 1e3;
+  function scheduleLiveSpotsRefresh() {
+    const delay = PSK_REFRESH_BASE + Math.floor(Math.random() * PSK_REFRESH_JITTER * 2) - PSK_REFRESH_JITTER;
+    setTimeout(() => {
+      if (!document.hidden && isWidgetVisible("widget-live-spots") && isLeaderTab()) fetchLiveSpots();
+      scheduleLiveSpotsRefresh();
+    }, delay);
+  }
+  scheduleLiveSpotsRefresh();
   setInterval(() => {
     if (document.hidden) return;
     if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) renderVoacapMatrix();

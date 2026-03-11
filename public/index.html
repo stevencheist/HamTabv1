@@ -175,6 +175,10 @@
           <div class="splash-loc-status" id="splashLocStatus"></div>
 
           <div class="splash-divider"></div>
+          <label for="splashSpotterLocation">Spotter Location <span class="splash-hint">(for POTA spot comments, e.g. "Dallas, TX")</span></label>
+          <input type="text" id="splashSpotterLocation" placeholder="e.g. Dallas, TX" autocomplete="off" spellcheck="false" style="text-transform:none;" />
+
+          <div class="splash-divider"></div>
           <div class="splash-time-format">
             <span class="splash-loc-title">Time Format</span>
             <div class="splash-time-options">
@@ -781,6 +785,10 @@
             </div>
             <div class="prop-filter" id="propFilterWrap">
               <button id="propFilterBtn" class="prop-filter-btn" title="Filter by propagation prediction (Fair or better)">Prop</button>
+            </div>
+            <div class="worked-filter hidden" id="workedFilterWrap">
+              <button id="workedFilterBtn" class="worked-filter-btn" title="Hide stations you've already worked (24h)">Worked</button>
+              <button id="clearWorkedBtn" class="worked-clear-btn" title="Clear worked list">×</button>
             </div>
           </div>
           <!-- Row 3: Existing dropdowns -->
@@ -1517,8 +1525,28 @@
       <h3>New Widgets Available</h3>
       <p>The following widgets have been added since your last visit:</p>
       <ul id="newWidgetList"></ul>
-      <p>Enable them anytime in <strong>Settings &rarr; Widgets</strong>.</p>
+      <p>Enable them anytime in <strong>Config &rarr; Widgets</strong>.</p>
       <button id="newWidgetDismiss">Got it</button>
+    </div>
+  </div>
+
+  <!-- POTA Spot Reporter popup -->
+  <div class="splash-overlay hidden" id="potaSpotPopup">
+    <div class="splash-box pota-spot-box" role="dialog" aria-modal="true" aria-label="Submit POTA spot">
+      <h3>Spot Activator</h3>
+      <div class="pota-spot-fields">
+        <div class="pota-spot-row"><span class="pota-spot-label">Activator:</span> <span id="potaSpotCall"></span></div>
+        <div class="pota-spot-row"><span class="pota-spot-label">Freq:</span> <span id="potaSpotFreq"></span></div>
+        <div class="pota-spot-row"><span class="pota-spot-label">Mode:</span> <span id="potaSpotMode"></span></div>
+        <div class="pota-spot-row"><span class="pota-spot-label">Park:</span> <span id="potaSpotRef"></span></div>
+        <label for="potaSpotComment" class="pota-spot-comment-label">Comment</label>
+        <input type="text" id="potaSpotComment" placeholder="e.g. 59 from Dallas, TX" autocomplete="off" spellcheck="false" maxlength="60" />
+      </div>
+      <div class="pota-spot-status" id="potaSpotStatus"></div>
+      <div class="pota-spot-actions">
+        <button id="potaSpotSubmit" class="btn btn-sm">Submit Spot</button>
+        <button id="potaSpotCancel" class="btn btn-sm pota-spot-cancel-btn">Cancel</button>
+      </div>
     </div>
   </div>
 

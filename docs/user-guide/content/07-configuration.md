@@ -176,7 +176,16 @@ Per-source column visibility for POTA, SOTA, DXC, PSK tables.
 - **Distance** — Show distance to farthest receiver
 
 ### Satellite Selection
-Add or remove satellites from tracking.
+Add or remove satellites from tracking. Shows current TLE age for each satellite.
+
+### Map Overlay Settings
+Click the gear icon on the map to toggle overlays: Lat/Lon Grid, Grid Squares, Timezone Lines, MUF Map, D-RAP Absorption, Propagation Heatmap (with band selector), WSPR Heatmap (with band and scope selectors), DX Paths, DXpedition Markers, Tropics & Arctic Lines, Weather Radar, Cloud Cover, Map Legend, and Logbook QSOs. See the HamMap Widget section in Widgets Reference for details on each overlay.
+
+### Analog Clock Settings
+Click the gear icon to choose a clock face style (Classic, Minimal, Roman, Pilot, Railroad, Digital) and enable sub-dial complications (Sunrise/Sunset, Solar SFI, Stopwatch, UTC 24h). See the Analog Clock Widget section in Widgets Reference for details.
+
+### CAT Diagnostics
+Click the wrench icon in the On-Air Rig title bar to open live CAT command tracing, connection counters, and a debug bundle export. See the On-Air Rig Widget section in Widgets Reference for details.
 
 ### Logbook Widget Settings
 - **Import button** (⤒) — Import an ADIF file from your logging software
@@ -184,6 +193,33 @@ Add or remove satellites from tracking.
 - **Band filter** — Filter the table to a specific band
 - **Mode filter** — Filter the table to a specific mode
 - **Map overlay** — Enable "Logbook QSOs" in the map gear icon to show contacts on the map
+
+---
+
+## Popups and Overlays
+
+HamTab uses several popup dialogs and overlays beyond the widget config panels described above.
+
+### Weather Alerts
+
+When NOAA NWS active weather alerts exist for your location (US only), a colored badge appears in the header bar next to the weather display. The badge color reflects the highest severity:
+- **Red** — Extreme or Severe alert
+- **Yellow** — Moderate alert
+- **Green** — Minor alert
+
+Click the badge to open a popup showing all active alerts with their headline, description, and a link to the full NWS alert page. Weather alerts are checked automatically every 15 minutes.
+
+### Big Clock Overlay
+
+Click the **time display** in the header bar to open a full-screen overlay showing both Local and UTC time in large text with dates. Click anywhere to close. Useful for quick time checks during contests or when operating across the room.
+
+### Widget Help
+
+Click the **?** button in any widget's title bar to open a help popup with a description of what the widget does, how to use it, and tips. Every widget has its own help text. Click **Close** or press Escape to dismiss.
+
+### New Widget Notice
+
+When HamTab is updated with new widgets, returning users see a popup listing the newly added widgets. This appears once per update. Click **Got it** to dismiss. The listed widgets are disabled by default — enable them in Config > Widgets.
 
 ---
 

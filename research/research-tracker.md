@@ -143,7 +143,7 @@ Track research lifecycle: from Codex completion → Claude consumption → imple
 ## CODEX-033 — Docs/Help/Popup Parity Audit
 - **Research completed:** 2026-03-08
 - **Consumed:** 2026-03-10
-- **Overall status:** in-progress
+- **Overall status:** done
 
 | Phase | Description | Status | Implemented In | Notes |
 |-------|-------------|--------|---------------|-------|
@@ -153,7 +153,7 @@ Track research lifecycle: from Codex completion → Claude consumption → imple
 | M1 | Normalize Settings vs Config terminology | done | v0.68.4 (9e15caa) | Fixed in new-widget popup |
 | M2 | Update README header-controls section | done | v0.68.4 (9e15caa) | Removed stale entries, added current ones |
 | M3 | Fix positional inaccuracies in config chapter | done | v0.68.4 (9e15caa) | "top-left" → "header bar" |
-| L1 | Complete popup/modal documentation | new | | 14 popups, partial coverage |
+| L1 | Complete popup/modal documentation | done | v0.68.6 | All 14 popups documented in user guide |
 | L2 | Fix widget visibility list drift | done | v0.68.4 (9e15caa) | Updated to all 20 widgets |
 
 ---

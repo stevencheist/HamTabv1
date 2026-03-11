@@ -824,16 +824,14 @@ Color coded by reliability: **Excellent/Good** (green), **Fair** (yellow), **Poo
 
 | Control | Description |
 |---------|-------------|
-| **Last updated** | Timestamp of the most recent data refresh |
-| **Countdown** | Seconds until next auto-refresh |
-| **Auto-refresh** | Checkbox to enable/disable automatic 60-second refresh |
+| **Layouts** | Dropdown to save, load, and manage widget layout profiles |
 | **Refresh** | Manual refresh of all data |
-| **Reset Layout** | Restore default widget positions and sizes |
 | **Fullscreen** | Toggle browser fullscreen mode |
 | **Feedback** | Open the feedback form to report issues or suggest features |
+| **Coffee** | Support HamTab development (Buy Me a Coffee link) |
 | **Discord** | Join the HamTab Discord community (opens invite link) |
+| **Config** | Open the configuration panel (widgets, appearance, data sources, radio) |
 | **Update indicator** | (Lanmode) Shows whether an update is available. Green dot = update ready (click to apply). Restart button appears when server files changed. |
-| **Mode badge** | Shows current deployment mode (Lanmode or Hostedmode) and version |
 
 ---
 

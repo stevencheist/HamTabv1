@@ -234,6 +234,17 @@ const state = {
   // Progressive scaling
   reflowActive: false, // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
 
+  // POTA Hunter — worked callsign tracking + spotter location
+  spotterLocation: localStorage.getItem('hamtab_spotter_location') || '', // free text for spot comments (e.g. "Dallas, TX")
+  hideWorked: localStorage.getItem('hamtab_hide_worked') === 'true', // filter toggle
+  workedList: (() => {
+    try {
+      const s = JSON.parse(localStorage.getItem('hamtab_worked_list'));
+      if (Array.isArray(s)) return s.filter(e => e && e.callsign && e.timestamp);
+    } catch (e) {}
+    return [];
+  })(),
+
   // Debug mode — enables verbose console logging (cross-tab, fetch diagnostics)
   // Toggle at runtime via console: window.__hamtab_debug()
   debug: false,

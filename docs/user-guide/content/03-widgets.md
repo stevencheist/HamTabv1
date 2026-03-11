@@ -169,13 +169,22 @@ Interactive map showing spots, your location, satellites, and propagation overla
 | Yellow | Selected spot |
 
 ### Overlays
-Click the gear icon to toggle map overlays:
+Click the gear icon on the map to open the overlay config panel. Toggle any combination:
 
 - **Lat/Lon Grid** — Geographic coordinate grid
-- **Maidenhead Grid** — Ham radio grid squares
-- **Timezone** — World timezone boundaries
-- **MUF Map** — Real-time Maximum Usable Frequency image overlay from prop.kc2g.com, showing a color-filled worldwide MUF map that auto-refreshes every 15 minutes
-- **Gray Line** — Day/night terminator
+- **Grid Squares (Maidenhead)** — Ham radio grid squares with labels
+- **Timezone Lines** — World timezone boundaries
+- **MUF Map** — Real-time Maximum Usable Frequency image overlay from prop.kc2g.com, auto-refreshes every 15 minutes
+- **D-RAP Absorption** — NOAA SWPC D-Region Absorption Prediction map showing HF radio blackout areas
+- **Propagation Heatmap** — VOACAP-based reliability heatmap for a selected band, painted across the map
+- **WSPR Heatmap** — Measured propagation heatmap from wspr.live data, with band and scope (QTH/Country/World) selectors
+- **DX Paths** — Band-colored geodesic lines to all visible spots (not just the selected one)
+- **DXpedition Markers** — Pins for active and upcoming DXpeditions on the map
+- **Tropics & Arctic Lines** — Tropic of Cancer, Tropic of Capricorn, Arctic and Antarctic circles
+- **Weather Radar** — Animated weather radar overlay (US coverage)
+- **Cloud Cover** — Worldwide cloud cover imagery from OpenWeatherMap
+- **Map Legend** — Color key for marker types
+- **Logbook QSOs** — Plot imported logbook contacts on the map with band-colored markers and paths
 
 ### Geodesic Paths
 When you select a spot, a curved line shows the great-circle path from your QTH to the spot's location. This is the shortest path a radio signal would travel.
@@ -775,3 +784,80 @@ On LAN mode (HTTP), you can connect to a KiwiSDR online receiver for receive-onl
 ### Demo Mode
 
 Select "Demo Mode" from the dropdown to explore the widget without a radio. Demo mode simulates rig data with propagation-based band changes — the simulated radio moves between bands based on real-time propagation conditions at your location.
+
+### CAT Diagnostics
+
+Click the **wrench icon** in the On-Air Rig title bar to open the CAT Diagnostics panel. This is a troubleshooting tool for serial communication issues.
+
+The panel shows:
+- **Summary** — Connection state, radio model, protocol, baud rate, and port name
+- **Counters** — Running totals of commands sent, responses received, errors, timeouts, and retries
+- **Command Trace** — Live scrolling log of every CAT command sent and response received, with timestamps. Auto-scroll keeps the latest entries visible (toggle with the checkbox)
+
+Actions:
+- **Export Debug Bundle** — Downloads a JSON file containing the full trace log, counters, and connection details. Attach this to bug reports for radio connectivity issues
+- **Clear Trace** — Empties the command trace log
+- **Close** — Closes the diagnostics panel
+
+<div class="tip">If your radio connects but behaves erratically (wrong frequency, missing meters), open CAT Diagnostics and watch the command trace. Look for timeout errors or garbled responses — these usually indicate a baud rate mismatch or wrong COM port.</div>
+
+---
+
+## Stopwatch / Timer Widget
+
+A dual-mode timing widget for amateur radio operations.
+
+### Stopwatch Mode
+
+Click the **Stopwatch** tab for a count-up timer:
+- **Start** — Begin counting
+- **Stop** — Pause the timer
+- **Reset** — Return to 00:00.0
+- **Lap** — Record a split time (laps appear in a list below)
+
+### Countdown Mode
+
+Click the **Countdown** tab for a count-down timer with preset buttons:
+
+| Preset | Use Case |
+|--------|----------|
+| **10m ID** | FCC 10-minute station identification reminder |
+| **15m** | Quarter-hour timer |
+| **30m** | Half-hour timer |
+| **60m** | One-hour timer |
+
+Click a preset to set the duration, then click Start. When the timer reaches zero, it stops automatically.
+
+<div class="tip">The 10-minute ID timer is useful during contests and digital mode sessions where you need to identify your station every 10 minutes per FCC regulations.</div>
+
+---
+
+## Analog Clock Widget
+
+A customizable analog clock face with optional sub-dial complications. The clock shows your local time by default.
+
+### Clock Faces
+
+Click the gear icon to choose from six face styles:
+
+| Face | Description |
+|------|-------------|
+| **Classic** | Traditional numbered dial with hour, minute, and second hands |
+| **Minimal** | Clean face with simple index marks instead of numbers |
+| **Roman** | Roman numeral hour markers |
+| **Pilot** | Aviation-inspired with bold luminous-style markers |
+| **Railroad** | Precision railroad chronometer style |
+| **Digital** | Hybrid face with a digital time readout |
+
+### Complications
+
+Complications are small sub-dials that display additional information on the clock face. Toggle them in the gear menu:
+
+| Complication | Position | Shows |
+|--------------|----------|-------|
+| **Sunrise / Sunset** | Top | Countdown to next sunrise or sunset at your QTH |
+| **Solar (SFI)** | Right | Solar Flux Index gauge — quick propagation health check |
+| **Stopwatch** | Bottom | Mirrors the Stopwatch widget elapsed time |
+| **UTC 24h** | Left | 24-hour UTC sub-dial |
+
+<div class="tip">Enable the Sunrise/Sunset complication to know at a glance when gray-line propagation opportunities are approaching.</div>

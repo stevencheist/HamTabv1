@@ -6,6 +6,7 @@ import { bearingTo, bearingToCardinal, distanceMi, localTimeAtLon } from './geo.
 import { sendRigCommand, isRigConnected } from './cat/index.js';
 import { resolveRigMode, spotFreqToHz } from './cat/profiles/band-auto-profile.js';
 import { validateFrequency } from './cat/safety/band-plan-validator.js';
+import { renderHunterButtons } from './pota-hunter.js';
 
 // --- DX Detail Widget ---
 
@@ -164,6 +165,7 @@ export async function updateSpotDetail(spot) {
     ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ''}
     ${spot.comments ? `<div class="spot-detail-row spot-detail-comments">${esc(spot.comments)}</div>` : ''}
     <div class="spot-detail-tune" id="spotDetailTune"></div>
+    <div class="spot-detail-hunter" id="spotDetailHunter"></div>
     <div class="spot-detail-wx" id="spotDetailWx"></div>
   `;
 
@@ -172,6 +174,10 @@ export async function updateSpotDetail(spot) {
   if (isRigConnected() && spot.frequency) {
     tuneToSpot(spot);
   }
+
+  // Render POTA hunter buttons (Confirm QSO + Spot)
+  const hunterContainer = document.getElementById('spotDetailHunter');
+  if (hunterContainer) renderHunterButtons(spot, hunterContainer);
 
   // Start ticking local time
   if (clockInterval) clearInterval(clockInterval);

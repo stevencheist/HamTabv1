@@ -6,6 +6,7 @@ import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 import { distanceMi } from './geo.js';
 import { calculateBandReliability, calculateMUF, dayFraction, HF_BANDS } from './band-conditions.js';
+import { isWorked } from './pota-hunter.js';
 
 export function freqToBand(freqStr) {
   let freq = parseFloat(freqStr);
@@ -313,6 +314,12 @@ export function applyFilter() {
     if (allowed.includes('grid') && state.activeGrid && (s.grid4 || '') !== state.activeGrid) return false;
     if (allowed.includes('continent') && state.activeContinent && (s.continent || '') !== state.activeContinent) return false;
     if (allowed.includes('privilege') && state.privilegeFilterEnabled && !filterByPrivileges(s)) return false;
+
+    // POTA Hunter: hide worked callsigns (24h expiry)
+    if (state.hideWorked && state.currentSource === 'pota') {
+      const call = s.callsign || s.activator || '';
+      if (call && isWorked(call)) return false;
+    }
 
     // Watch list — applied after all standard filters
     if (wlRules.length > 0) {

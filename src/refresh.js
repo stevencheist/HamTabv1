@@ -17,8 +17,10 @@ export async function fetchSourceData(source) {
   const def = SOURCE_DEFS[source];
   if (!def) return;
   try {
-    const bustUrl = def.endpoint + (def.endpoint.includes('?') ? '&' : '?') + '_t=' + Date.now();
-    const resp = await fetch(bustUrl);
+    // PSK and WSPR use server-side caching with appropriate TTLs — skip _t to allow edge cache hits
+    const cacheable = source === 'psk' || source === 'wspr';
+    const url = cacheable ? def.endpoint : def.endpoint + (def.endpoint.includes('?') ? '&' : '?') + '_t=' + Date.now();
+    const resp = await fetch(url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     let data = await resp.json();
     if (source === 'pota') {

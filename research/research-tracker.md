@@ -109,7 +109,7 @@ Track research lifecycle: from Codex completion → Claude consumption → imple
 | Phase | Description | Status | Implemented In | Notes |
 |-------|-------------|--------|---------------|-------|
 | 0 | Bug fixes: callsign scope, remove _t cache-buster, Worker key normalization | done | v0.66.7 (ea8009d, 9a8a204) | All 3 fixes shipped Mar 8 |
-| 1 | Rate stability: split budgets, circuit-breaker, jitter | new | | |
+| 1 | Rate stability: split budgets, circuit-breaker, jitter | done | v0.68.5 (1013d8e) | Split token buckets, CB with 60s cooldown, ±30s jitter, _t removal for PSK/WSPR |
 | 2 | Adaptive retrieval: query sizing + TX-triggered refresh | new | | Needs CAT/PTT telemetry |
 
 ---
@@ -150,22 +150,22 @@ Track research lifecycle: from Codex completion → Claude consumption → imple
 | H1 | Fix hosted-mode sync wording | done | | Docs updated — minor README drift remains |
 | H2 | Fix export/import terminology contradictions | done | | Terminology consistent across docs |
 | H3 | Add missing On-Air Rig docs | done | | User guide sections added |
-| M1 | Normalize Settings vs Config terminology | new | | |
-| M2 | Update README header-controls section | new | | |
-| M3 | Fix positional inaccuracies in config chapter | new | | |
+| M1 | Normalize Settings vs Config terminology | done | v0.68.4 (9e15caa) | Fixed in new-widget popup |
+| M2 | Update README header-controls section | done | v0.68.4 (9e15caa) | Removed stale entries, added current ones |
+| M3 | Fix positional inaccuracies in config chapter | done | v0.68.4 (9e15caa) | "top-left" → "header bar" |
 | L1 | Complete popup/modal documentation | new | | 14 popups, partial coverage |
-| L2 | Fix widget visibility list drift | new | | |
+| L2 | Fix widget visibility list drift | done | v0.68.4 (9e15caa) | Updated to all 20 widgets |
 
 ---
 
 ## CODEX-036 — Code Comment Quality Audit
 - **Research completed:** 2026-03-09
 - **Consumed:** 2026-03-10
-- **Overall status:** in-progress
+- **Overall status:** done
 
 | Phase | Description | Status | Implemented In | Notes |
 |-------|-------------|--------|---------------|-------|
 | 1 | Fix CW default-frequency comment | done | | Comment now accurate |
 | 2 | Clarify WebSerial reader.cancel() comments | done | | Comments work together correctly |
-| 3 | Remove "temporarily re-enabled" scope testing comments | new | | main.js:122 + constants.js:23 — need to decide: On-Air Rig production or experimental? |
+| 3 | Remove "temporarily re-enabled" scope testing comments | done | v0.68.4 (9e15caa) | On-Air Rig is production (shipped v0.60.0) — comments removed |
 | 4 | Remove orphaned update.js comment | done | | Historical note, not actually orphaned |

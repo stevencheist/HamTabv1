@@ -151,19 +151,38 @@ export async function updateSpotDetail(spot) {
     ${continent ? `<div class="spot-detail-row"><span class="spot-detail-label">Continent:</span> ${esc(continent)}</div>` : ''}
   ` : '';
 
+  // Build compact freq/mode/band line
+  const freqParts = [esc(freq) + ' MHz'];
+  if (mode) freqParts.push(esc(mode));
+  if (band) freqParts.push(esc(band));
+  const freqLine = freqParts.join(' · ');
+
+  // Build compact bearing/distance line
+  let navHtml = '';
+  if (state.myLat !== null && state.myLon !== null && !isNaN(lat) && !isNaN(lon)) {
+    const deg = bearingTo(state.myLat, state.myLon, lat, lon);
+    const longPath = (Math.round(deg) + 180) % 360;
+    const mi = distanceMi(state.myLat, state.myLon, lat, lon);
+    const dist = state.distanceUnit === 'km' ? Math.round(mi * 1.60934) : Math.round(mi);
+    navHtml = `<div class="spot-detail-grid">
+      <div class="spot-detail-cell"><span class="spot-detail-label">SP:</span> ${Math.round(deg)}° ${bearingToCardinal(deg)}</div>
+      <div class="spot-detail-cell"><span class="spot-detail-label">LP:</span> ${longPath}° ${bearingToCardinal(longPath)}</div>
+      <div class="spot-detail-cell"><span class="spot-detail-label">Dist:</span> ${dist.toLocaleString()} ${state.distanceUnit}</div>
+      ${!isNaN(lon) ? `<div class="spot-detail-cell"><span class="spot-detail-label">DX:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ''}
+    </div>`;
+  } else if (!isNaN(lon)) {
+    navHtml = `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>`;
+  }
+
   body.innerHTML = `
     <div class="spot-detail-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${esc(displayCall)}</a></div>
     <div class="spot-detail-name" id="spotDetailName"></div>
-    <div class="spot-detail-row"><span class="spot-detail-label">Freq:</span> ${esc(freq)} MHz</div>
-    <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode)}</div>
-    ${band ? `<div class="spot-detail-row"><span class="spot-detail-label">Band:</span> ${esc(band)}</div>` : ''}
-    ${refHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Ref:</span> ${refHtml}</div>` : ''}
-    ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state.currentSource === 'dxc' ? 'Country:' : 'Name:'}</span> ${esc(spot.name)}</div>` : ''}
-    ${spot.locationDesc ? `<div class="spot-detail-row"><span class="spot-detail-label">Location:</span> ${esc(spot.locationDesc)}</div>` : ''}
+    <div class="spot-detail-freq">${freqLine}</div>
+    ${refHtml ? `<div class="spot-detail-row">${refHtml} ${spot.name ? `<span class="spot-detail-dim">— ${esc(spot.name)}</span>` : ''}</div>` : (spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state.currentSource === 'dxc' ? 'Country:' : 'Name:'}</span> ${esc(spot.name)}</div>` : '')}
+    ${spot.locationDesc ? `<div class="spot-detail-row"><span class="spot-detail-label">Loc:</span> ${esc(spot.locationDesc)}</div>` : ''}
     ${dxcRows}
-    ${bearingHtml}
-    ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ''}
-    ${spot.comments ? `<div class="spot-detail-row spot-detail-comments">${esc(spot.comments)}</div>` : ''}
+    ${navHtml}
+    ${spot.comments ? `<div class="spot-detail-comments">${esc(spot.comments)}</div>` : ''}
     <div class="spot-detail-tune" id="spotDetailTune"></div>
     <div class="spot-detail-hunter" id="spotDetailHunter"></div>
     <div class="spot-detail-wx" id="spotDetailWx"></div>

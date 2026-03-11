@@ -1504,15 +1504,17 @@ header {
 /* ---- POTA Hunter action buttons (DX Detail) ---- */
 
 .pota-hunter-actions {
-  display: flex; gap: 6px; margin: 6px 0; padding-top: 6px;
-  border-top: 1px solid var(--border);
+  display: flex; gap: 6px; margin: 4px 0 2px;
 }
-.pota-hunter-btn { font-size: 0.75rem; }
+.pota-hunter-btn {
+  flex: 1; font-size: 0.82rem; font-weight: 600;
+  padding: 6px 10px; border-radius: 4px; cursor: pointer;
+}
 .pota-hunter-confirm { background: var(--green); color: #000; border-color: var(--green); }
-.pota-hunter-confirm:hover { filter: brightness(1.1); }
-.pota-hunter-worked { opacity: 0.6; background: var(--surface); color: var(--text-dim); border-color: var(--border); }
-.pota-hunter-spot { background: var(--accent); color: #000; border-color: var(--accent); }
-.pota-hunter-spot:hover { filter: brightness(1.1); }
+.pota-hunter-confirm:hover { filter: brightness(1.15); }
+.pota-hunter-worked { opacity: 0.6; background: var(--surface); color: var(--text-dim); border-color: var(--border); cursor: default; }
+.pota-hunter-spot { background: var(--accent); color: #fff; border-color: var(--accent); }
+.pota-hunter-spot:hover { filter: brightness(1.15); }
 
 /* ---- POTA Spot Reporter popup ---- */
 
@@ -3328,13 +3330,13 @@ body.grayscale .prop-heatmap-legend-bar {
 .spot-detail-name {
   color: var(--text-dim);
   font-size: 0.8rem;
-  margin-bottom: 6px;
+  margin-bottom: 2px;
   min-height: 1em;
 }
 
 .spot-detail-row {
   font-size: 0.82rem;
-  padding: 1px 0;
+  padding: 0;
 }
 
 .spot-detail-label {
@@ -3351,14 +3353,38 @@ body.grayscale .prop-heatmap-legend-bar {
   text-decoration: underline;
 }
 
+.spot-detail-freq {
+  font-size: 0.85rem;
+  color: var(--text);
+  font-weight: 600;
+  padding: 1px 0;
+}
+
+.spot-detail-dim {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+
+.spot-detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px 12px;
+  font-size: 0.8rem;
+  padding: 3px 0;
+}
+
+.spot-detail-cell {
+  white-space: nowrap;
+}
+
 .spot-detail-comments {
   color: var(--text-dim);
   font-size: 0.78rem;
-  margin-top: 4px;
+  margin-top: 2px;
 }
 
 .spot-detail-wx {
-  margin-top: 6px;
+  margin-top: 4px;
   padding: 4px 6px;
   border-radius: 4px;
   font-size: 0.8rem;
@@ -7231,7 +7257,7 @@ body.grayscale {
 }
 
 /* ---- Spot Detail: Tune Rig Button ---- */
-.spot-detail-tune { margin: 6px 0; }
+.spot-detail-tune { margin: 3px 0 0; }
 .spot-detail-tune-btn {
   width: 100%;
   padding: 5px 10px;

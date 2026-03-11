@@ -189,6 +189,20 @@ New features go through a three-tier visibility lifecycle controlled by `src/fea
    - ✅ Mode-specific storage/endpoints on branches
    - Example: Config profiles (UI on main, localStorage on lanmode, KV on hostedmode)
 
+### Shared File Protection
+
+**NEVER edit shared files directly on deployment branches.** Shared files are any files that exist on `main` and are not listed in the "Lanmode only" or "Hostedmode only" tables above. This includes but is not limited to:
+
+- `src/*.js` (all client modules)
+- `server.js`, `server-config.js`, `server-startup.js`
+- `public/index.html`, `public/style.css`
+- `package.json` (except adding mode-specific dependencies like `@cloudflare/containers`)
+- `esbuild.mjs`
+
+**If a shared file needs a fix (even a defensive hardening like try/catch wrappers), make the change on `main` and merge down.** Editing shared files on deployment branches creates silent divergence that causes merge conflicts later — sometimes weeks after the edit, when a different developer touches the same file on main.
+
+**The only files safe to edit on deployment branches** are the ones listed in the "Lanmode only" and "Hostedmode only" tables, plus branch-specific configs (`wrangler.jsonc`, `Dockerfile` overrides, CI/CD workflows).
+
 ### Branch Sync Protocol
 
 **CRITICAL: Deployment branches are remote-primary.** The remote is the source of truth for `lanmode` and `hostedmode`. Local copies are transient and may be stale. Always pull before merging.
@@ -207,13 +221,15 @@ New features go through a three-tier visibility lifecycle controlled by `src/fea
   # 4. Sync lanmode (pull remote, merge main, push)
   git checkout lanmode
   git pull origin lanmode
+  # 4a. Pre-merge divergence check (see below)
   git merge main -m "Merge main into lanmode"
-  # 4a. Post-merge validation (see below)
+  # 4b. Post-merge validation (see below)
   git push origin lanmode
 
   # 5. Sync hostedmode (pull remote, merge main, push)
   git checkout hostedmode
   git pull origin hostedmode
+  # 5a. Pre-merge divergence check (see below)
   git merge main -m "Merge main into hostedmode"
 
   # 5a. Verify @cloudflare/containers survived the merge
@@ -236,6 +252,19 @@ New features go through a three-tier visibility lifecycle controlled by `src/fea
 - **Docker image (main branch):** The `docker-publish.yml` workflow builds and pushes a Docker image to Docker Hub when a GitHub Release is published. It does NOT trigger on every push. The Dockerfile uses a multi-stage build: stage 1 runs `npm ci` + `npm run build` + `npm prune --omit=dev`, stage 2 copies only runtime files via explicit COPY directives. When adding new server-side `.js` files, add them to the COPY list in the Dockerfile.
 
 - **Merge conflict resolution** — See BRANCH_STRATEGY.md for full conflict resolution protocol.
+
+- **Pre-merge divergence check (MANDATORY before every merge to deployment branches):**
+  Before running `git merge main`, check if the deployment branch has modified shared files that main also modified. This catches silent divergence before it becomes a merge conflict.
+  ```bash
+  # List shared files modified on the deployment branch (not on main)
+  git diff main...HEAD --name-only | grep -E '^(src/|server|public/(index\.html|style\.css)|esbuild)' | grep -v 'src/update\.js\|src/settings-sync\.js'
+  ```
+  If any files appear:
+  1. **STOP** — do not merge yet
+  2. Determine if the deployment branch edit was legitimate (mode-specific hardening) or a mistake (shared code edited on wrong branch)
+  3. If it was a mistake: cherry-pick or rewrite the change on `main` first, then merge. This eliminates the divergence.
+  4. If it was intentional mode-specific logic in a shared file: document why in a comment and expect merge conflicts going forward. Consider refactoring to isolate the mode-specific code into a separate file.
+  5. If the divergence has already shipped and can't be easily unwound: resolve the merge conflict manually, then backport any shared improvements to `main` to prevent future conflicts.
 
 - **Post-merge validation (MANDATORY after every merge to deployment branches):**
   After merging main into lanmode or hostedmode, run these checks BEFORE pushing:

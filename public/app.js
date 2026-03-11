@@ -6782,19 +6782,34 @@
     ${spotterHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Spotter:</span> ${spotterHtml}</div>` : ""}
     ${continent ? `<div class="spot-detail-row"><span class="spot-detail-label">Continent:</span> ${esc(continent)}</div>` : ""}
   ` : "";
+    const freqParts = [esc(freq) + " MHz"];
+    if (mode2) freqParts.push(esc(mode2));
+    if (band) freqParts.push(esc(band));
+    const freqLine = freqParts.join(" \xB7 ");
+    let navHtml = "";
+    if (state_default.myLat !== null && state_default.myLon !== null && !isNaN(lat) && !isNaN(lon)) {
+      const deg = bearingTo(state_default.myLat, state_default.myLon, lat, lon);
+      const longPath = (Math.round(deg) + 180) % 360;
+      const mi = distanceMi(state_default.myLat, state_default.myLon, lat, lon);
+      const dist = state_default.distanceUnit === "km" ? Math.round(mi * 1.60934) : Math.round(mi);
+      navHtml = `<div class="spot-detail-grid">
+      <div class="spot-detail-cell"><span class="spot-detail-label">SP:</span> ${Math.round(deg)}\xB0 ${bearingToCardinal(deg)}</div>
+      <div class="spot-detail-cell"><span class="spot-detail-label">LP:</span> ${longPath}\xB0 ${bearingToCardinal(longPath)}</div>
+      <div class="spot-detail-cell"><span class="spot-detail-label">Dist:</span> ${dist.toLocaleString()} ${state_default.distanceUnit}</div>
+      ${!isNaN(lon) ? `<div class="spot-detail-cell"><span class="spot-detail-label">DX:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ""}
+    </div>`;
+    } else if (!isNaN(lon)) {
+      navHtml = `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>`;
+    }
     body.innerHTML = `
     <div class="spot-detail-call"><a href="${qrzUrl}" target="_blank" rel="noopener">${esc(displayCall)}</a></div>
     <div class="spot-detail-name" id="spotDetailName"></div>
-    <div class="spot-detail-row"><span class="spot-detail-label">Freq:</span> ${esc(freq)} MHz</div>
-    <div class="spot-detail-row"><span class="spot-detail-label">Mode:</span> ${esc(mode2)}</div>
-    ${band ? `<div class="spot-detail-row"><span class="spot-detail-label">Band:</span> ${esc(band)}</div>` : ""}
-    ${refHtml ? `<div class="spot-detail-row"><span class="spot-detail-label">Ref:</span> ${refHtml}</div>` : ""}
-    ${spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state_default.currentSource === "dxc" ? "Country:" : "Name:"}</span> ${esc(spot.name)}</div>` : ""}
-    ${spot.locationDesc ? `<div class="spot-detail-row"><span class="spot-detail-label">Location:</span> ${esc(spot.locationDesc)}</div>` : ""}
+    <div class="spot-detail-freq">${freqLine}</div>
+    ${refHtml ? `<div class="spot-detail-row">${refHtml} ${spot.name ? `<span class="spot-detail-dim">\u2014 ${esc(spot.name)}</span>` : ""}</div>` : spot.name ? `<div class="spot-detail-row"><span class="spot-detail-label">${state_default.currentSource === "dxc" ? "Country:" : "Name:"}</span> ${esc(spot.name)}</div>` : ""}
+    ${spot.locationDesc ? `<div class="spot-detail-row"><span class="spot-detail-label">Loc:</span> ${esc(spot.locationDesc)}</div>` : ""}
     ${dxcRows}
-    ${bearingHtml}
-    ${!isNaN(lon) ? `<div class="spot-detail-row"><span class="spot-detail-label">DX Time:</span> <span id="spotDetailTime">${esc(localTime)}</span></div>` : ""}
-    ${spot.comments ? `<div class="spot-detail-row spot-detail-comments">${esc(spot.comments)}</div>` : ""}
+    ${navHtml}
+    ${spot.comments ? `<div class="spot-detail-comments">${esc(spot.comments)}</div>` : ""}
     <div class="spot-detail-tune" id="spotDetailTune"></div>
     <div class="spot-detail-hunter" id="spotDetailHunter"></div>
     <div class="spot-detail-wx" id="spotDetailWx"></div>
@@ -23105,8 +23120,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.68.7";
-    $("aboutVersion").textContent = "0.68.7";
+    $("splashVersion").textContent = "0.68.8";
+    $("aboutVersion").textContent = "0.68.8";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

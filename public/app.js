@@ -14992,8 +14992,9 @@ ${beacon.location}`);
     const def = SOURCE_DEFS[source];
     if (!def) return;
     try {
-      const bustUrl = def.endpoint + (def.endpoint.includes("?") ? "&" : "?") + "_t=" + Date.now();
-      const resp = await fetch(bustUrl);
+      const cacheable = source === "psk" || source === "wspr";
+      const url = cacheable ? def.endpoint : def.endpoint + (def.endpoint.includes("?") ? "&" : "?") + "_t=" + Date.now();
+      const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       let data = await resp.json();
       if (source === "pota") {
@@ -15645,6 +15646,7 @@ ${beacon.location}`);
       state_default.liveSpots.summary = data.summary || {};
       state_default.liveSpots.lastFetch = Date.now();
       state_default.liveSpots.error = false;
+      state_default.liveSpots.stale = data._meta?.stale || false;
       renderLiveSpots();
     } catch (err2) {
       if (state_default.debug) console.error("Failed to fetch Live Spots:", err2);
@@ -15675,6 +15677,9 @@ ${beacon.location}`);
         status.classList.add("visible");
       } else if (!state_default.liveSpots.lastFetch) {
         status.textContent = "Loading...";
+        status.classList.add("visible");
+      } else if (state_default.liveSpots.stale) {
+        status.textContent = "Showing cached data \u2014 PSKReporter slow";
         status.classList.add("visible");
       } else {
         status.textContent = "";
@@ -22831,8 +22836,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.68.4";
-    $("aboutVersion").textContent = "0.68.4";
+    $("splashVersion").textContent = "0.68.5";
+    $("aboutVersion").textContent = "0.68.5";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -26532,10 +26537,16 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     const newWidgets = getPendingNewWidgets();
     if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
   }
-  setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-live-spots") || !isLeaderTab()) return;
-    fetchLiveSpots();
-  }, 5 * 60 * 1e3);
+  var PSK_REFRESH_BASE = 5 * 60 * 1e3;
+  var PSK_REFRESH_JITTER = 30 * 1e3;
+  function scheduleLiveSpotsRefresh() {
+    const delay = PSK_REFRESH_BASE + Math.floor(Math.random() * PSK_REFRESH_JITTER * 2) - PSK_REFRESH_JITTER;
+    setTimeout(() => {
+      if (!document.hidden && isWidgetVisible("widget-live-spots") && isLeaderTab()) fetchLiveSpots();
+      scheduleLiveSpotsRefresh();
+    }, delay);
+  }
+  scheduleLiveSpotsRefresh();
   setInterval(() => {
     if (document.hidden) return;
     if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) renderVoacapMatrix();

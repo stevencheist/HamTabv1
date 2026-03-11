@@ -212,27 +212,78 @@ const PSK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes — PSKReporter recommended mi
 
 // --- PSKReporter outbound request governor ---
 // Prevents rate-limit blocks when many users share the same container IP.
-// - Global token bucket: max 10 requests per 60s to PSKReporter
+// - Split token buckets: separate limits for global feed vs per-callsign heard queries
+// - Circuit breaker: stops upstream calls after consecutive failures, auto-recovers
 // - Request coalescing: duplicate in-flight callsign queries share one upstream call
 // - Stale-while-revalidate: return last known good data when upstream fails
 
-const PSK_RATE_LIMIT = 10;           // max upstream requests per window
-const PSK_RATE_WINDOW = 60 * 1000;   // 60s window
-let pskTokens = PSK_RATE_LIMIT;
-let pskTokenResetAt = Date.now() + PSK_RATE_WINDOW;
+// --- Per-endpoint token buckets ---
+// Split budget so heard queries (many callsigns) don't starve the global feed
+function createTokenBucket(limit, windowMs) {
+  return { limit, windowMs, tokens: limit, resetAt: Date.now() + windowMs };
+}
 
-// Refill tokens at window boundary
-function pskAcquireToken() {
+const pskGlobalBucket  = createTokenBucket(4, 60 * 1000);  // /api/spots/psk — 4 req/60s
+const pskHeardBucket   = createTokenBucket(6, 60 * 1000);  // /api/spots/psk/heard — 6 req/60s
+
+function pskAcquireToken(bucket) {
   const now = Date.now();
-  if (now >= pskTokenResetAt) {
-    pskTokens = PSK_RATE_LIMIT;
-    pskTokenResetAt = now + PSK_RATE_WINDOW;
+  if (now >= bucket.resetAt) {
+    bucket.tokens = bucket.limit;
+    bucket.resetAt = now + bucket.windowMs;
   }
-  if (pskTokens > 0) {
-    pskTokens--;
+  if (bucket.tokens > 0) {
+    bucket.tokens--;
     return true;
   }
   return false;
+}
+
+// --- Circuit breaker ---
+// Opens after consecutive upstream failures, serves stale data during cooldown
+const PSK_CB_THRESHOLD = 3;          // consecutive failures before opening
+const PSK_CB_COOLDOWN  = 60 * 1000;  // 60s — half-open attempt interval
+const pskCircuitBreaker = {
+  failures: 0,
+  state: 'closed',       // closed | open | half-open
+  openedAt: 0,
+};
+
+function pskCbAllowRequest() {
+  if (pskCircuitBreaker.state === 'closed') return true;
+  if (pskCircuitBreaker.state === 'open') {
+    // Check if cooldown elapsed → transition to half-open
+    if (Date.now() - pskCircuitBreaker.openedAt >= PSK_CB_COOLDOWN) {
+      pskCircuitBreaker.state = 'half-open';
+      return true; // allow one probe request
+    }
+    return false;
+  }
+  // half-open — allow (one probe already in flight)
+  return true;
+}
+
+function pskCbRecordSuccess() {
+  pskCircuitBreaker.failures = 0;
+  pskCircuitBreaker.state = 'closed';
+}
+
+function pskCbRecordFailure() {
+  pskCircuitBreaker.failures++;
+  if (pskCircuitBreaker.failures >= PSK_CB_THRESHOLD) {
+    pskCircuitBreaker.state = 'open';
+    pskCircuitBreaker.openedAt = Date.now();
+    console.warn(`[PSK] Circuit breaker OPEN after ${pskCircuitBreaker.failures} consecutive failures — serving stale data for ${PSK_CB_COOLDOWN / 1000}s`);
+  }
+}
+
+// Build response metadata for stale/breaker status
+function pskMeta(cache) {
+  if (!cache?.data) return undefined;
+  const ageMs = Date.now() - (cache.expires - PSK_CACHE_TTL);
+  const stale = Date.now() >= cache.expires;
+  if (!stale && pskCircuitBreaker.state === 'closed') return undefined;
+  return { stale, ageSeconds: Math.round(ageMs / 1000), circuitBreaker: pskCircuitBreaker.state };
 }
 
 // In-flight request dedup — keyed by full URL
@@ -713,8 +764,15 @@ app.get('/api/spots/psk', async (req, res) => {
       return res.json(pskCache.data);
     }
 
+    // Circuit breaker check — serve stale if breaker is open
+    // Global PSK returns a plain array (consumed by source tab), so no _meta wrapper
+    if (!pskCbAllowRequest()) {
+      if (pskCache.data) return res.json(pskCache.data);
+      return res.status(503).json({ error: 'PSKReporter circuit breaker open — try again shortly' });
+    }
+
     // Rate limit check — serve stale data if throttled
-    if (!pskAcquireToken()) {
+    if (!pskAcquireToken(pskGlobalBucket)) {
       if (pskCache.data) return res.json(pskCache.data); // stale-while-revalidate
       return res.status(429).json({ error: 'PSKReporter rate limit — try again shortly' });
     }
@@ -729,6 +787,8 @@ app.get('/api/spots/psk', async (req, res) => {
 
     const url = `https://retrieve.pskreporter.info/query?${params}&${PSK_APP_CONTACT}`;
     const xml = await pskFetchDedup(url);
+
+    pskCbRecordSuccess(); // upstream responded
 
     // Parse XML
     const parser = new XMLParser({
@@ -785,6 +845,7 @@ app.get('/api/spots/psk', async (req, res) => {
     res.json(validSpots);
   } catch (err) {
     console.error('Error fetching PSKReporter spots:', err.message);
+    pskCbRecordFailure(); // track consecutive failures
     // Stale-while-revalidate — serve old data if available
     if (pskCache.data) return res.json(pskCache.data);
     res.status(502).json({ error: 'PSKReporter is unavailable — try again shortly' });
@@ -836,8 +897,15 @@ app.get('/api/spots/psk/heard', async (req, res) => {
       return res.json(cached.data);
     }
 
+    // Circuit breaker check — serve stale if breaker is open
+    if (!pskCbAllowRequest()) {
+      const meta = pskMeta(cached);
+      if (cached?.data) return res.json({ ...cached.data, _meta: meta });
+      return res.status(503).json({ error: 'PSKReporter circuit breaker open — try again shortly' });
+    }
+
     // Rate limit check — serve stale data if throttled
-    if (!pskAcquireToken()) {
+    if (!pskAcquireToken(pskHeardBucket)) {
       if (cached?.data) return res.json(cached.data); // stale-while-revalidate
       return res.status(429).json({ error: 'PSKReporter rate limit — try again shortly' });
     }
@@ -853,6 +921,8 @@ app.get('/api/spots/psk/heard', async (req, res) => {
 
     const url = `https://retrieve.pskreporter.info/query?${params}&${PSK_APP_CONTACT}`;
     const xml = await pskFetchDedup(url);
+
+    pskCbRecordSuccess(); // upstream responded
 
     // Parse XML
     const parser = new XMLParser({
@@ -932,6 +1002,7 @@ app.get('/api/spots/psk/heard', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error fetching PSKReporter heard spots:', err.message);
+    pskCbRecordFailure(); // track consecutive failures
     // Stale-while-revalidate — serve old data if available
     const stale = pskHeardCache[callsign];
     if (stale?.data) return res.json(stale.data);

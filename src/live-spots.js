@@ -84,6 +84,7 @@ export async function fetchLiveSpots() {
     state.liveSpots.summary = data.summary || {};
     state.liveSpots.lastFetch = Date.now();
     state.liveSpots.error = false;
+    state.liveSpots.stale = data._meta?.stale || false;
 
     renderLiveSpots();
   } catch (err) {
@@ -123,6 +124,9 @@ export function renderLiveSpots() {
       status.classList.add('visible');
     } else if (!state.liveSpots.lastFetch) {
       status.textContent = 'Loading...';
+      status.classList.add('visible');
+    } else if (state.liveSpots.stale) {
+      status.textContent = 'Showing cached data — PSKReporter slow';
       status.classList.add('visible');
     } else {
       status.textContent = '';

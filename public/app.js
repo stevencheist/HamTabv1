@@ -10921,7 +10921,6 @@
         { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
         { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" },
         { id: "widget-on-air-rig", name: "On-Air Rig", short: "Rig" },
-        // RADIO_HIDDEN — temporarily unhidden for scope testing
         { id: "widget-logbook", name: "Logbook", short: "Log" }
       ];
       SAT_FREQUENCIES = {
@@ -22832,8 +22831,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.68.3";
-    $("aboutVersion").textContent = "0.68.3";
+    $("splashVersion").textContent = "0.68.4";
+    $("aboutVersion").textContent = "0.68.4";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

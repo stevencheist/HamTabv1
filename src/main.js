@@ -119,7 +119,7 @@ initAnalogClock();
 initClockConfigListeners();
 initMobileMenu();
 initTabs();
-safeInit('on-air-rig', initOnAirRig); // RADIO_HIDDEN — temporarily re-enabled for scope testing
+safeInit('on-air-rig', initOnAirRig);
 safeInit('logbook', initLogbook);
 
 // --- New widget notification popup ---

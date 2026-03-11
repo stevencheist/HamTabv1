@@ -80,7 +80,7 @@ HamTab includes multiple visual themes to match your operating style and persona
 
 ### Changing Themes
 
-1. Click **Config** in the top-left corner
+1. Click **Config** in the header bar
 2. Go to the **Appearance** tab
 3. Click a theme swatch to preview it — the theme applies instantly
 4. Click **OK** to save
@@ -124,18 +124,21 @@ Check or uncheck widgets to show or hide them:
 - [ ] On the Air
 - [ ] HamMap
 - [ ] Solar
-- [ ] Space Weather History
+- [ ] Space Wx
 - [ ] Band Conditions
-- [ ] HF Propagation
+- [ ] VOACAP DE→DX
 - [ ] Live Spots
 - [ ] Lunar / EME
 - [ ] Satellites
+- [ ] Reference
+- [ ] DX Detail
 - [ ] Contests
 - [ ] DXpeditions
 - [ ] NCDXF Beacons
 - [ ] DE/DX Info
-- [ ] Reference
-- [ ] DX Detail
+- [ ] Stopwatch / Timer
+- [ ] Analog Clock
+- [ ] On-Air Rig
 - [ ] Logbook
 
 Hidden widgets can be re-enabled anytime.

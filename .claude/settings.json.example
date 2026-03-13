@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"MANDATORY SESSION START: Run the session-start checklist before responding. (1) Read session-state.md from auto memory, (2) Check coordination locks and messages from your coordination repo, (3) Verify repo currency with git fetch --dry-run. Summarize previous session and ask if continuing or starting fresh. Do NOT skip any step.\"",
+            "once": true
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/check-hostedmode-health.sh\""
+          }
+        ]
+      }
+    ]
+  }
+}

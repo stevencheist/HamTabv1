@@ -463,6 +463,7 @@ export const WIDGET_HELP = {
       { heading: 'Distance & Bearing', content: 'Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config.' },
       { heading: 'Frequency & Mode', content: 'The frequency and mode the station is operating on, so you know exactly where to tune your radio.' },
       { heading: 'Weather', content: 'Shows current weather conditions at the station\'s location. US stations use NWS data; stations worldwide use OpenWeatherMap (configure your OWM API key in Config > Services).' },
+      { heading: 'POTA Hunter', content: 'When viewing a POTA spot, two action buttons appear: "Confirm QSO" marks the callsign as worked (24-hour TTL), and "Spot" lets you report the activation. A works counter tracks your confirmed parks for the session.' },
     ],
   },
   'widget-contests': {
@@ -540,6 +541,7 @@ export const WIDGET_HELP = {
       { heading: 'Band Cards', content: 'Each card represents a band where you\'re being heard. It shows either how many stations are receiving you or the distance to your farthest receiver. Click a card to show those stations on the map.' },
       { heading: 'Display Mode', content: 'Click the gear icon to switch between "count" (number of stations hearing you) and "distance" (farthest reach per band). Distance mode also shows the callsign of your farthest contact.' },
       { heading: 'Map Lines', content: 'When you click a band card, lines are drawn on the map from your location to each receiving station, giving you a visual picture of your signal coverage.' },
+      { heading: 'Real-Time Feed', content: 'Live Spots uses MQTT for real-time reception reports from PSKReporter. Reports appear within seconds of being received. If MQTT is unavailable, the widget falls back to HTTP polling automatically.' },
     ],
     links: [
       { label: 'PSKReporter', url: 'https://pskreporter.info/' },
@@ -573,6 +575,10 @@ export const WIDGET_HELP = {
       { heading: 'Power Off', content: 'The ⏻ button appears when connected to a real radio. Click it to remotely power off the radio via CAT command. A confirmation dialog prevents accidental presses. HamTab disconnects automatically after powering off.' },
       { heading: 'Audio Scope (AF FFT)', content: 'When enabled in Config, the scope captures USB audio from your radio and displays a real-time audio-frequency spectrum and waterfall. This shows what\'s in the radio\'s audio passband (0–4 kHz) — it is NOT an RF panadapter. You\'ll see voice, CW tones, FT8 signals, and noise within whatever bandwidth your radio is demodulating. Requires browser microphone permission and a USB audio connection to the radio.' },
       { heading: 'Demo Mode', content: 'If no radio is connected, you can enable Demo Mode in Config to see simulated rig data. This is useful for exploring the widget layout and testing the UI without a radio.' },
+      { heading: 'Digital Setup Assistant', content: 'One-click FT8/FT4 configuration for Yaesu radios. Click "Enable Digital Setup" to snapshot your current settings (frequency, mode, power, menu items), apply digital-optimized presets, and tune to the FT8 frequency. Click "Restore" when done to return all settings to their pre-digital state. The snapshot persists across USB disconnections.' },
+      { heading: 'Radio Profiles', content: 'Save named configurations of your radio\'s current settings and restore them later. Each profile captures frequency, mode, power, filters, AGC, and menu settings. Use profiles to switch between SSB ragchew, FT8, CW contesting, and other setups without manual tweaking. Profiles are stored per radio model.' },
+      { heading: 'Preset Profiles', content: 'Expert-tuned radio configurations for common operating scenarios. Presets are available for specific radio models (e.g., FT-DX10 SSB Ragchew). Click a preset button to apply it instantly, then fine-tune and save as your own profile.' },
+      { heading: 'Band Sync', content: 'When you tune to a different band, the propagation heatmap, WSPR heatmap, and VOACAP overlay automatically update to show data for your new band. This happens in real time as you QSY.' },
     ],
   },
   'widget-logbook': {

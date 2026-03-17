@@ -187,6 +187,14 @@ Click the gear icon to choose a clock face style (Classic, Minimal, Roman, Pilot
 ### CAT Diagnostics
 Click the wrench icon in the On-Air Rig title bar to open live CAT command tracing, connection counters, and a debug bundle export. See the On-Air Rig Widget section in Widgets Reference for details.
 
+### Radio Profiles & Presets
+- **Save Profile** — Capture your radio's current settings as a named profile
+- **Restore Profile** — Apply a saved profile to return the radio to that configuration
+- **Preset Profiles** — Apply expert-tuned configurations for your radio model (e.g., SSB Ragchew, SSB POTA)
+- **Digital Setup** — One-click FT8/FT4 configuration with automatic restore (Yaesu only)
+
+Profiles and digital snapshots are stored in localStorage per radio model.
+
 ### Logbook Widget Settings
 - **Import button** (⤒) — Import an ADIF file from your logging software
 - **Clear button** (✕) — Remove all imported QSOs from IndexedDB
@@ -341,6 +349,9 @@ HamTab stores all data in browser localStorage with the `hamtab_` prefix:
 | `hamtab_tracked_sats` | Tracked satellite IDs |
 | `hamtab_theme` | Active theme ID (default, lcars, hamclock, etc.) |
 | `hamtab_band_colors` | Custom band color overrides |
+| `hamtab_radio_profiles` | Saved radio profiles (per model) |
+| `hamtab_worked_list` | POTA Hunter worked callsigns (24h TTL) |
+| `hamtab_digital_snapshot` | Digital Setup Assistant restore snapshot |
 
 ### Clearing All Data
 To completely reset HamTab:

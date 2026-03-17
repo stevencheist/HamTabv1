@@ -1153,149 +1153,176 @@ function saveRadioConfig() {
 }
 
 function dismissSplash() {
-  const val = $('splashCallsign').value.trim().toUpperCase();
+  // Get callsign — required to proceed
+  const callsignEl = $('splashCallsign');
+  const val = callsignEl ? callsignEl.value.trim().toUpperCase() : '';
   if (!val) return;
-  state.myCallsign = val;
-  localStorage.setItem('hamtab_callsign', state.myCallsign);
 
-  if (state.manualLoc && state.myLat !== null && state.myLon !== null) {
-    localStorage.setItem('hamtab_lat', String(state.myLat));
-    localStorage.setItem('hamtab_lon', String(state.myLon));
-  }
+  // Hide modal FIRST — before anything that could fail.
+  // This prevents the splash from staying stuck on screen if localStorage
+  // or a DOM query throws (e.g. locked-down browsers, CSP issues).
+  const splashEl = $('splash');
+  const gridDropdown = $('splashGridDropdown');
+  if (gridDropdown) gridDropdown.classList.remove('open');
+  if (splashEl) splashEl.classList.add('hidden');
 
-  state.use24h = $('timeFmt24').checked;
-  localStorage.setItem('hamtab_time24', String(state.use24h));
-
-  // Save unit preferences
-  state.distanceUnit = $('distUnitKm').checked ? 'km' : 'mi';
-  state.temperatureUnit = $('tempUnitC').checked ? 'C' : 'F';
-  localStorage.setItem('hamtab_distance_unit', state.distanceUnit);
-  localStorage.setItem('hamtab_temperature_unit', state.temperatureUnit);
-
-  // Save spotter location (POTA spot comments)
-  state.spotterLocation = ($('splashSpotterLocation')?.value || '').trim();
-  localStorage.setItem('hamtab_spotter_location', state.spotterLocation);
-
-  // Save radio config
-  saveRadioConfig();
-
-  state.wxStation = ($('splashWxStation').value || '').trim().toUpperCase();
-  state.wxApiKey = ($('splashWxApiKey').value || '').trim();
-  state.owmApiKey = ($('splashOwmApiKey').value || '').trim();
-  state.n2yoApiKey = ($('splashN2yoApiKey').value || '').trim();
-  state.hamqthUser = ($('splashHamqthUser').value || '').trim();
-  const hamqthPassInput = ($('splashHamqthPass').value || '').trim();
-  localStorage.setItem('hamtab_wx_station', state.wxStation);
-  localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
-  localStorage.setItem('hamtab_owm_apikey', state.owmApiKey);
-  localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
-  localStorage.setItem('hamtab_hamqth_user', state.hamqthUser);
-  // hamqth password: server-side only, never in localStorage
-
-  // Persist API keys to server .env so all clients share them
-  const envUpdates = {};
-  if (state.wxApiKey) envUpdates.WU_API_KEY = state.wxApiKey;
-  if (state.owmApiKey) envUpdates.OWM_API_KEY = state.owmApiKey;
-  if (state.n2yoApiKey) envUpdates.N2YO_API_KEY = state.n2yoApiKey;
-  if (state.hamqthUser) envUpdates.HAMQTH_USER = state.hamqthUser;
-  if (hamqthPassInput) envUpdates.HAMQTH_PASS = hamqthPassInput;
-  if (Object.keys(envUpdates).length > 0) {
-    fetch('/api/config/env', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(envUpdates),
-    }).catch(() => {});
-  }
-
-  fetchWeather();
-
-  // Capture old visibility before applying changes (for refresh-on-show hook)
+  // Capture old widget visibility before applying changes (for refresh-on-show hook)
   const oldVis = { ...state.widgetVisibility };
 
-  const widgetList = document.getElementById('splashWidgetList');
-  widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-    state.widgetVisibility[cb.dataset.widgetId] = cb.checked;
-  });
-  saveWidgetVisibility();
+  // Save all settings — wrapped so modal stays hidden even if storage fails
+  try {
+    state.myCallsign = val;
+    localStorage.setItem('hamtab_callsign', state.myCallsign);
 
-  // --- Grid mode changes ---
-  if (currentThemeSupportsGrid()) {
-    const newMode = $('layoutModeGrid').checked ? 'grid' : 'float';
-    const permSelect = document.getElementById('gridPermSelect');
-    const newPerm = permSelect ? permSelect.value : state.gridPermutation;
-    const oldPerm = state.gridPermutation;
-
-    if (newMode === 'grid') {
-      state.gridPermutation = newPerm;
-      state.gridAssignments = { ...stagedAssignments };
-      saveGridAssignments();
-      if (state.gridMode !== 'grid' || newPerm !== oldPerm) {
-        activateGridMode(newPerm);
-      } else {
-        applyGridAssignments(); // refresh layout with new assignments
-      }
-    } else if (newMode === 'float' && state.gridMode === 'grid') {
-      deactivateGridMode();
+    if (state.manualLoc && state.myLat !== null && state.myLon !== null) {
+      localStorage.setItem('hamtab_lat', String(state.myLat));
+      localStorage.setItem('hamtab_lon', String(state.myLon));
     }
+
+    const timeFmt24 = $('timeFmt24');
+    state.use24h = timeFmt24 ? timeFmt24.checked : state.use24h;
+    localStorage.setItem('hamtab_time24', String(state.use24h));
+
+    // Save unit preferences
+    const distUnitKm = $('distUnitKm');
+    const tempUnitC = $('tempUnitC');
+    state.distanceUnit = distUnitKm && distUnitKm.checked ? 'km' : 'mi';
+    state.temperatureUnit = tempUnitC && tempUnitC.checked ? 'C' : 'F';
+    localStorage.setItem('hamtab_distance_unit', state.distanceUnit);
+    localStorage.setItem('hamtab_temperature_unit', state.temperatureUnit);
+
+    // Save spotter location (POTA spot comments)
+    state.spotterLocation = ($('splashSpotterLocation')?.value || '').trim();
+    localStorage.setItem('hamtab_spotter_location', state.spotterLocation);
+
+    // Save radio config
+    saveRadioConfig();
+
+    const wxStationEl = $('splashWxStation');
+    const wxApiKeyEl = $('splashWxApiKey');
+    const owmApiKeyEl = $('splashOwmApiKey');
+    const n2yoApiKeyEl = $('splashN2yoApiKey');
+    const hamqthUserEl = $('splashHamqthUser');
+    state.wxStation = wxStationEl ? wxStationEl.value.trim().toUpperCase() : state.wxStation;
+    state.wxApiKey = wxApiKeyEl ? wxApiKeyEl.value.trim() : state.wxApiKey;
+    state.owmApiKey = owmApiKeyEl ? owmApiKeyEl.value.trim() : state.owmApiKey;
+    state.n2yoApiKey = n2yoApiKeyEl ? n2yoApiKeyEl.value.trim() : state.n2yoApiKey;
+    state.hamqthUser = hamqthUserEl ? hamqthUserEl.value.trim() : state.hamqthUser;
+    const hamqthPassEl = $('splashHamqthPass');
+    const hamqthPassInput = hamqthPassEl ? hamqthPassEl.value.trim() : '';
+    localStorage.setItem('hamtab_wx_station', state.wxStation);
+    localStorage.setItem('hamtab_wx_apikey', state.wxApiKey);
+    localStorage.setItem('hamtab_owm_apikey', state.owmApiKey);
+    localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
+    localStorage.setItem('hamtab_hamqth_user', state.hamqthUser);
+    // hamqth password: server-side only, never in localStorage
+
+    // Persist API keys to server .env so all clients share them
+    const envUpdates = {};
+    if (state.wxApiKey) envUpdates.WU_API_KEY = state.wxApiKey;
+    if (state.owmApiKey) envUpdates.OWM_API_KEY = state.owmApiKey;
+    if (state.n2yoApiKey) envUpdates.N2YO_API_KEY = state.n2yoApiKey;
+    if (state.hamqthUser) envUpdates.HAMQTH_USER = state.hamqthUser;
+    if (hamqthPassInput) envUpdates.HAMQTH_PASS = hamqthPassInput;
+    if (Object.keys(envUpdates).length > 0) {
+      fetch('/api/config/env', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(envUpdates),
+      }).catch(() => {});
+    }
+
+    fetchWeather();
+
+    const widgetList = document.getElementById('splashWidgetList');
+    if (widgetList) {
+      widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+        state.widgetVisibility[cb.dataset.widgetId] = cb.checked;
+      });
+    }
+    saveWidgetVisibility();
+
+    // --- Grid mode changes ---
+    if (currentThemeSupportsGrid()) {
+      const layoutModeGrid = $('layoutModeGrid');
+      const newMode = layoutModeGrid && layoutModeGrid.checked ? 'grid' : 'float';
+      const permSelect = document.getElementById('gridPermSelect');
+      const newPerm = permSelect ? permSelect.value : state.gridPermutation;
+      const oldPerm = state.gridPermutation;
+
+      if (newMode === 'grid') {
+        state.gridPermutation = newPerm;
+        state.gridAssignments = { ...stagedAssignments };
+        saveGridAssignments();
+        if (state.gridMode !== 'grid' || newPerm !== oldPerm) {
+          activateGridMode(newPerm);
+        } else {
+          applyGridAssignments(); // refresh layout with new assignments
+        }
+      } else if (newMode === 'float' && state.gridMode === 'grid') {
+        deactivateGridMode();
+      }
+    }
+
+    applyWidgetVisibility();
+
+    // --- Refresh data for widgets that just became visible ---
+    const justShown = (id) => oldVis[id] === false && state.widgetVisibility[id] !== false;
+    const justHidden = (id) => oldVis[id] !== false && state.widgetVisibility[id] === false;
+
+    if (justShown('widget-satellites'))   fetchSatellitePositions();
+    if (justShown('widget-voacap'))       fetchVoacapMatrixThrottled();
+    if (justShown('widget-live-spots'))   fetchLiveSpots();
+    if (justShown('widget-dedx'))         renderDedxInfo();
+    if (justShown('widget-solar'))        fetchSolar();
+    if (justShown('widget-lunar'))        fetchLunar();
+    if (justShown('widget-spacewx'))      fetchSpaceWxData();
+    if (justShown('widget-dxpeditions'))  fetchDxpeditions();
+    if (justShown('widget-contests'))     fetchContests();
+
+    // Beacon timer start/stop — avoid 1 Hz timer running for a hidden widget
+    if (justShown('widget-beacons'))  { startBeaconTimer(); updateBeaconMarkers(); }
+    if (justHidden('widget-beacons')) { stopBeaconTimer(); }
+
+    // DE/DX Info timer start/stop — avoid 1 Hz timer running for a hidden widget
+    if (justShown('widget-dedx'))  { startDedxTimer(); }
+    if (justHidden('widget-dedx')) { stopDedxTimer(); }
+
+    // On-Air Rig — init/destroy: stops all CAT polling, safety, propagation when hidden
+    if (justShown('widget-on-air-rig'))  { initOnAirRig(); }
+    if (justHidden('widget-on-air-rig')) { destroyOnAirRig(); }
+
+    // Update interval — lanmode only (element absent in hostedmode)
+    const intervalSelect = $('splashUpdateInterval');
+    if (intervalSelect) {
+      const intervalVal = intervalSelect.value;
+      localStorage.setItem('hamtab_update_interval', intervalVal);
+      fetch('/api/update/interval', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
+      }).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('Error saving settings:', e);
   }
 
-  applyWidgetVisibility();
+  // Post-dismiss updates — separate try/catch so UI refresh doesn't block on settings errors
+  try {
+    updateOperatorDisplay();
+    centerMapOnUser();
+    updateUserMarker();
+    updateClocks();
+    renderSpots();
+    if (_initApp) _initApp();
+    fetchLicenseClass(state.myCallsign);
 
-  // --- Refresh data for widgets that just became visible ---
-  const justShown = (id) => oldVis[id] === false && state.widgetVisibility[id] !== false;
-  const justHidden = (id) => oldVis[id] !== false && state.widgetVisibility[id] === false;
-
-  if (justShown('widget-satellites'))   fetchSatellitePositions();
-  if (justShown('widget-voacap'))       fetchVoacapMatrixThrottled();
-  if (justShown('widget-live-spots'))   fetchLiveSpots();
-  if (justShown('widget-dedx'))         renderDedxInfo();
-  if (justShown('widget-solar'))        fetchSolar();
-  if (justShown('widget-lunar'))        fetchLunar();
-  if (justShown('widget-spacewx'))      fetchSpaceWxData();
-  if (justShown('widget-dxpeditions'))  fetchDxpeditions();
-  if (justShown('widget-contests'))     fetchContests();
-
-  // Beacon timer start/stop — avoid 1 Hz timer running for a hidden widget
-  if (justShown('widget-beacons'))  { startBeaconTimer(); updateBeaconMarkers(); }
-  if (justHidden('widget-beacons')) { stopBeaconTimer(); }
-
-  // DE/DX Info timer start/stop — avoid 1 Hz timer running for a hidden widget
-  if (justShown('widget-dedx'))  { startDedxTimer(); }
-  if (justHidden('widget-dedx')) { stopDedxTimer(); }
-
-  // On-Air Rig — init/destroy: stops all CAT polling, safety, propagation when hidden
-  if (justShown('widget-on-air-rig'))  {
-    try { initOnAirRig(); } catch (err) { console.error('[init] on-air-rig failed:', err); }
-  }
-  if (justHidden('widget-on-air-rig')) {
-    try { destroyOnAirRig(); } catch (err) { console.error('[destroy] on-air-rig failed:', err); }
-  }
-
-  // Update interval — lanmode only (element absent in hostedmode)
-  const intervalSelect = $('splashUpdateInterval');
-  if (intervalSelect) {
-    const intervalVal = intervalSelect.value;
-    localStorage.setItem('hamtab_update_interval', intervalVal);
-    fetch('/api/update/interval', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
-    }).catch(() => {});
-  }
-
-  $('splashGridDropdown').classList.remove('open');
-  closeModal($('splash'));
-  updateOperatorDisplay();
-  centerMapOnUser();
-  updateUserMarker();
-  updateClocks();
-  renderSpots();
-  if (_initApp) _initApp();
-  fetchLicenseClass(state.myCallsign);
-
-  // Push config to LAN sync server (async, non-blocking)
-  if (isSyncEnabled() && state.myCallsign) {
-    pushConfig(state.myCallsign).catch(() => {});
+    // Push config to LAN sync server (async, non-blocking)
+    if (isSyncEnabled() && state.myCallsign) {
+      pushConfig(state.myCallsign).catch(() => {});
+    }
+  } catch (e) {
+    console.warn('Error updating display after dismiss:', e);
   }
 }
 

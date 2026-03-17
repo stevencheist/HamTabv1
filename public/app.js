@@ -11708,7 +11708,8 @@
             { heading: "Station Info", content: "Displays the operator's name, location, license class, and grid square (looked up from their callsign). US callsigns are looked up via the FCC database; non-US callsigns use HamQTH.com (configure credentials in Config > Services). For POTA/SOTA/WWFF spots, the park or summit location (e.g. US-TX, VE-ON) is also shown." },
             { heading: "Distance & Bearing", content: "Shows how far away the station is and which direction to point your antenna (bearing). Requires your location to be set in Config." },
             { heading: "Frequency & Mode", content: "The frequency and mode the station is operating on, so you know exactly where to tune your radio." },
-            { heading: "Weather", content: "Shows current weather conditions at the station's location. US stations use NWS data; stations worldwide use OpenWeatherMap (configure your OWM API key in Config > Services)." }
+            { heading: "Weather", content: "Shows current weather conditions at the station's location. US stations use NWS data; stations worldwide use OpenWeatherMap (configure your OWM API key in Config > Services)." },
+            { heading: "POTA Hunter", content: 'When viewing a POTA spot, two action buttons appear: "Confirm QSO" marks the callsign as worked (24-hour TTL), and "Spot" lets you report the activation. A works counter tracks your confirmed parks for the session.' }
           ]
         },
         "widget-contests": {
@@ -11785,7 +11786,8 @@
             { heading: "Getting Started", content: "Enter your callsign in Config, then transmit on a digital mode (FT8, FT4, JS8Call, etc.). Within a few minutes, you should see band cards appear showing who is hearing you." },
             { heading: "Band Cards", content: "Each card represents a band where you're being heard. It shows either how many stations are receiving you or the distance to your farthest receiver. Click a card to show those stations on the map." },
             { heading: "Display Mode", content: 'Click the gear icon to switch between "count" (number of stations hearing you) and "distance" (farthest reach per band). Distance mode also shows the callsign of your farthest contact.' },
-            { heading: "Map Lines", content: "When you click a band card, lines are drawn on the map from your location to each receiving station, giving you a visual picture of your signal coverage." }
+            { heading: "Map Lines", content: "When you click a band card, lines are drawn on the map from your location to each receiving station, giving you a visual picture of your signal coverage." },
+            { heading: "Real-Time Feed", content: "Live Spots uses MQTT for real-time reception reports from PSKReporter. Reports appear within seconds of being received. If MQTT is unavailable, the widget falls back to HTTP polling automatically." }
           ],
           links: [
             { label: "PSKReporter", url: "https://pskreporter.info/" }
@@ -11823,7 +11825,11 @@
             { heading: "SWR & Power", content: "SWR is displayed only during TX to avoid erratic readings during receive. SWR below 1.5 is good (green), 1.5\u20133.0 is caution (amber), above 3.0 is danger (red). TX power shows actual output wattage during transmit. A power slider lets you adjust the radio's TX power level." },
             { heading: "Power Off", content: "The \u23FB button appears when connected to a real radio. Click it to remotely power off the radio via CAT command. A confirmation dialog prevents accidental presses. HamTab disconnects automatically after powering off." },
             { heading: "Audio Scope (AF FFT)", content: "When enabled in Config, the scope captures USB audio from your radio and displays a real-time audio-frequency spectrum and waterfall. This shows what's in the radio's audio passband (0\u20134 kHz) \u2014 it is NOT an RF panadapter. You'll see voice, CW tones, FT8 signals, and noise within whatever bandwidth your radio is demodulating. Requires browser microphone permission and a USB audio connection to the radio." },
-            { heading: "Demo Mode", content: "If no radio is connected, you can enable Demo Mode in Config to see simulated rig data. This is useful for exploring the widget layout and testing the UI without a radio." }
+            { heading: "Demo Mode", content: "If no radio is connected, you can enable Demo Mode in Config to see simulated rig data. This is useful for exploring the widget layout and testing the UI without a radio." },
+            { heading: "Digital Setup Assistant", content: 'One-click FT8/FT4 configuration for Yaesu radios. Click "Enable Digital Setup" to snapshot your current settings (frequency, mode, power, menu items), apply digital-optimized presets, and tune to the FT8 frequency. Click "Restore" when done to return all settings to their pre-digital state. The snapshot persists across USB disconnections.' },
+            { heading: "Radio Profiles", content: "Save named configurations of your radio's current settings and restore them later. Each profile captures frequency, mode, power, filters, AGC, and menu settings. Use profiles to switch between SSB ragchew, FT8, CW contesting, and other setups without manual tweaking. Profiles are stored per radio model." },
+            { heading: "Preset Profiles", content: "Expert-tuned radio configurations for common operating scenarios. Presets are available for specific radio models (e.g., FT-DX10 SSB Ragchew). Click a preset button to apply it instantly, then fine-tune and save as your own profile." },
+            { heading: "Band Sync", content: "When you tune to a different band, the propagation heatmap, WSPR heatmap, and VOACAP overlay automatically update to show data for your new band. This happens in real time as you QSY." }
           ]
         },
         "widget-logbook": {
@@ -12760,7 +12766,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     if (zoom <= 7) return 1;
     return 0.5;
   }
-  function renderHeatmapCanvas(band) {
+  async function renderHeatmapCanvas(band) {
     if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
     if (!state_default.lastSolarData || !state_default.lastSolarData.indices) return;
     const L2 = window.L;
@@ -12815,9 +12821,10 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       }
     }
     ctx.putImageData(imageData, 0, 0);
-    const dataUrl = canvas.toDataURL();
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    const url = URL.createObjectURL(blob);
     const imageBounds = [[south, west], [north, east]];
-    state_default.heatmapLayer = L2.imageOverlay(dataUrl, imageBounds, {
+    state_default.heatmapLayer = L2.imageOverlay(url, imageBounds, {
       opacity: 0.7,
       pane: "propagation"
     });
@@ -12825,7 +12832,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   }
   function clearHeatmap() {
     if (state_default.heatmapLayer && state_default.map) {
+      const oldUrl = state_default.heatmapLayer._url;
       state_default.map.removeLayer(state_default.heatmapLayer);
+      if (oldUrl && oldUrl.startsWith("blob:")) URL.revokeObjectURL(oldUrl);
       state_default.heatmapLayer = null;
     }
   }
@@ -12929,7 +12938,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     if (west <= east) return lon >= west && lon <= east;
     return lon >= west || lon <= east;
   }
-  function renderWsprHeatmapCanvas(band) {
+  async function renderWsprHeatmapCanvas(band) {
     if (!state_default.map || state_default.myLat == null || state_default.myLon == null) return;
     const wspr = state_default.sourceData.wspr;
     if (!wspr || wspr.length === 0) return;
@@ -13007,9 +13016,10 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       data[idx + 3] = px.a;
     }
     ctx.putImageData(imageData, 0, 0);
-    const dataUrl = canvas.toDataURL();
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/png"));
+    const url = URL.createObjectURL(blob);
     const imageBounds = [[south, west], [north, east]];
-    state_default.wsprHeatmapLayer = L2.imageOverlay(dataUrl, imageBounds, {
+    state_default.wsprHeatmapLayer = L2.imageOverlay(url, imageBounds, {
       opacity: 0.7,
       pane: "propagation"
       // z-index 300, below mapOverlays (350)
@@ -13018,7 +13028,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   }
   function clearWsprHeatmap() {
     if (state_default.wsprHeatmapLayer && state_default.map) {
+      const oldUrl = state_default.wsprHeatmapLayer._url;
       state_default.map.removeLayer(state_default.wsprHeatmapLayer);
+      if (oldUrl && oldUrl.startsWith("blob:")) URL.revokeObjectURL(oldUrl);
       state_default.wsprHeatmapLayer = null;
     }
   }
@@ -23126,8 +23138,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.68.8";
-    $("aboutVersion").textContent = "0.68.8";
+    $("splashVersion").textContent = "0.68.10";
+    $("aboutVersion").textContent = "0.68.10";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -23618,135 +23630,150 @@ ${beacon.location}`);
     localStorage.setItem("hamtab_radio_audio_sample_rate", String(state_default.radioAudioSampleRate));
   }
   function dismissSplash() {
-    const val = $("splashCallsign").value.trim().toUpperCase();
+    const callsignEl = $("splashCallsign");
+    const val = callsignEl ? callsignEl.value.trim().toUpperCase() : "";
     if (!val) return;
-    state_default.myCallsign = val;
-    localStorage.setItem("hamtab_callsign", state_default.myCallsign);
-    if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
-      localStorage.setItem("hamtab_lat", String(state_default.myLat));
-      localStorage.setItem("hamtab_lon", String(state_default.myLon));
-    }
-    state_default.use24h = $("timeFmt24").checked;
-    localStorage.setItem("hamtab_time24", String(state_default.use24h));
-    state_default.distanceUnit = $("distUnitKm").checked ? "km" : "mi";
-    state_default.temperatureUnit = $("tempUnitC").checked ? "C" : "F";
-    localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
-    localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
-    state_default.spotterLocation = ($("splashSpotterLocation")?.value || "").trim();
-    localStorage.setItem("hamtab_spotter_location", state_default.spotterLocation);
-    saveRadioConfig();
-    state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
-    state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
-    state_default.owmApiKey = ($("splashOwmApiKey").value || "").trim();
-    state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
-    state_default.hamqthUser = ($("splashHamqthUser").value || "").trim();
-    const hamqthPassInput = ($("splashHamqthPass").value || "").trim();
-    localStorage.setItem("hamtab_wx_station", state_default.wxStation);
-    localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
-    localStorage.setItem("hamtab_owm_apikey", state_default.owmApiKey);
-    localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
-    localStorage.setItem("hamtab_hamqth_user", state_default.hamqthUser);
-    const envUpdates = {};
-    if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
-    if (state_default.owmApiKey) envUpdates.OWM_API_KEY = state_default.owmApiKey;
-    if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
-    if (state_default.hamqthUser) envUpdates.HAMQTH_USER = state_default.hamqthUser;
-    if (hamqthPassInput) envUpdates.HAMQTH_PASS = hamqthPassInput;
-    if (Object.keys(envUpdates).length > 0) {
-      fetch("/api/config/env", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(envUpdates)
-      }).catch(() => {
-      });
-    }
-    fetchWeather();
+    const splashEl = $("splash");
+    const gridDropdown = $("splashGridDropdown");
+    if (gridDropdown) gridDropdown.classList.remove("open");
+    if (splashEl) splashEl.classList.add("hidden");
     const oldVis = { ...state_default.widgetVisibility };
-    const widgetList = document.getElementById("splashWidgetList");
-    widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
-    });
-    saveWidgetVisibility();
-    if (currentThemeSupportsGrid()) {
-      const newMode = $("layoutModeGrid").checked ? "grid" : "float";
-      const permSelect = document.getElementById("gridPermSelect");
-      const newPerm = permSelect ? permSelect.value : state_default.gridPermutation;
-      const oldPerm = state_default.gridPermutation;
-      if (newMode === "grid") {
-        state_default.gridPermutation = newPerm;
-        state_default.gridAssignments = { ...stagedAssignments };
-        saveGridAssignments();
-        if (state_default.gridMode !== "grid" || newPerm !== oldPerm) {
-          activateGridMode(newPerm);
-        } else {
-          applyGridAssignments();
+    try {
+      state_default.myCallsign = val;
+      localStorage.setItem("hamtab_callsign", state_default.myCallsign);
+      if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
+        localStorage.setItem("hamtab_lat", String(state_default.myLat));
+        localStorage.setItem("hamtab_lon", String(state_default.myLon));
+      }
+      const timeFmt24 = $("timeFmt24");
+      state_default.use24h = timeFmt24 ? timeFmt24.checked : state_default.use24h;
+      localStorage.setItem("hamtab_time24", String(state_default.use24h));
+      const distUnitKm = $("distUnitKm");
+      const tempUnitC = $("tempUnitC");
+      state_default.distanceUnit = distUnitKm && distUnitKm.checked ? "km" : "mi";
+      state_default.temperatureUnit = tempUnitC && tempUnitC.checked ? "C" : "F";
+      localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
+      localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
+      state_default.spotterLocation = ($("splashSpotterLocation")?.value || "").trim();
+      localStorage.setItem("hamtab_spotter_location", state_default.spotterLocation);
+      saveRadioConfig();
+      const wxStationEl = $("splashWxStation");
+      const wxApiKeyEl = $("splashWxApiKey");
+      const owmApiKeyEl = $("splashOwmApiKey");
+      const n2yoApiKeyEl = $("splashN2yoApiKey");
+      const hamqthUserEl = $("splashHamqthUser");
+      state_default.wxStation = wxStationEl ? wxStationEl.value.trim().toUpperCase() : state_default.wxStation;
+      state_default.wxApiKey = wxApiKeyEl ? wxApiKeyEl.value.trim() : state_default.wxApiKey;
+      state_default.owmApiKey = owmApiKeyEl ? owmApiKeyEl.value.trim() : state_default.owmApiKey;
+      state_default.n2yoApiKey = n2yoApiKeyEl ? n2yoApiKeyEl.value.trim() : state_default.n2yoApiKey;
+      state_default.hamqthUser = hamqthUserEl ? hamqthUserEl.value.trim() : state_default.hamqthUser;
+      const hamqthPassEl = $("splashHamqthPass");
+      const hamqthPassInput = hamqthPassEl ? hamqthPassEl.value.trim() : "";
+      localStorage.setItem("hamtab_wx_station", state_default.wxStation);
+      localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
+      localStorage.setItem("hamtab_owm_apikey", state_default.owmApiKey);
+      localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
+      localStorage.setItem("hamtab_hamqth_user", state_default.hamqthUser);
+      const envUpdates = {};
+      if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
+      if (state_default.owmApiKey) envUpdates.OWM_API_KEY = state_default.owmApiKey;
+      if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
+      if (state_default.hamqthUser) envUpdates.HAMQTH_USER = state_default.hamqthUser;
+      if (hamqthPassInput) envUpdates.HAMQTH_PASS = hamqthPassInput;
+      if (Object.keys(envUpdates).length > 0) {
+        fetch("/api/config/env", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(envUpdates)
+        }).catch(() => {
+        });
+      }
+      fetchWeather();
+      const widgetList = document.getElementById("splashWidgetList");
+      if (widgetList) {
+        widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+          state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
+        });
+      }
+      saveWidgetVisibility();
+      if (currentThemeSupportsGrid()) {
+        const layoutModeGrid = $("layoutModeGrid");
+        const newMode = layoutModeGrid && layoutModeGrid.checked ? "grid" : "float";
+        const permSelect = document.getElementById("gridPermSelect");
+        const newPerm = permSelect ? permSelect.value : state_default.gridPermutation;
+        const oldPerm = state_default.gridPermutation;
+        if (newMode === "grid") {
+          state_default.gridPermutation = newPerm;
+          state_default.gridAssignments = { ...stagedAssignments };
+          saveGridAssignments();
+          if (state_default.gridMode !== "grid" || newPerm !== oldPerm) {
+            activateGridMode(newPerm);
+          } else {
+            applyGridAssignments();
+          }
+        } else if (newMode === "float" && state_default.gridMode === "grid") {
+          deactivateGridMode();
         }
-      } else if (newMode === "float" && state_default.gridMode === "grid") {
-        deactivateGridMode();
       }
-    }
-    applyWidgetVisibility();
-    const justShown = (id) => oldVis[id] === false && state_default.widgetVisibility[id] !== false;
-    const justHidden = (id) => oldVis[id] !== false && state_default.widgetVisibility[id] === false;
-    if (justShown("widget-satellites")) fetchSatellitePositions();
-    if (justShown("widget-voacap")) fetchVoacapMatrixThrottled();
-    if (justShown("widget-live-spots")) fetchLiveSpots();
-    if (justShown("widget-dedx")) renderDedxInfo();
-    if (justShown("widget-solar")) fetchSolar();
-    if (justShown("widget-lunar")) fetchLunar();
-    if (justShown("widget-spacewx")) fetchSpaceWxData();
-    if (justShown("widget-dxpeditions")) fetchDxpeditions();
-    if (justShown("widget-contests")) fetchContests();
-    if (justShown("widget-beacons")) {
-      startBeaconTimer();
-      updateBeaconMarkers();
-    }
-    if (justHidden("widget-beacons")) {
-      stopBeaconTimer();
-    }
-    if (justShown("widget-dedx")) {
-      startDedxTimer();
-    }
-    if (justHidden("widget-dedx")) {
-      stopDedxTimer();
-    }
-    if (justShown("widget-on-air-rig")) {
-      try {
+      applyWidgetVisibility();
+      const justShown = (id) => oldVis[id] === false && state_default.widgetVisibility[id] !== false;
+      const justHidden = (id) => oldVis[id] !== false && state_default.widgetVisibility[id] === false;
+      if (justShown("widget-satellites")) fetchSatellitePositions();
+      if (justShown("widget-voacap")) fetchVoacapMatrixThrottled();
+      if (justShown("widget-live-spots")) fetchLiveSpots();
+      if (justShown("widget-dedx")) renderDedxInfo();
+      if (justShown("widget-solar")) fetchSolar();
+      if (justShown("widget-lunar")) fetchLunar();
+      if (justShown("widget-spacewx")) fetchSpaceWxData();
+      if (justShown("widget-dxpeditions")) fetchDxpeditions();
+      if (justShown("widget-contests")) fetchContests();
+      if (justShown("widget-beacons")) {
+        startBeaconTimer();
+        updateBeaconMarkers();
+      }
+      if (justHidden("widget-beacons")) {
+        stopBeaconTimer();
+      }
+      if (justShown("widget-dedx")) {
+        startDedxTimer();
+      }
+      if (justHidden("widget-dedx")) {
+        stopDedxTimer();
+      }
+      if (justShown("widget-on-air-rig")) {
         initOnAirRig();
-      } catch (err2) {
-        console.error("[init] on-air-rig failed:", err2);
       }
-    }
-    if (justHidden("widget-on-air-rig")) {
-      try {
+      if (justHidden("widget-on-air-rig")) {
         destroyOnAirRig();
-      } catch (err2) {
-        console.error("[destroy] on-air-rig failed:", err2);
       }
+      const intervalSelect = $("splashUpdateInterval");
+      if (intervalSelect) {
+        const intervalVal = intervalSelect.value;
+        localStorage.setItem("hamtab_update_interval", intervalVal);
+        fetch("/api/update/interval", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
+        }).catch(() => {
+        });
+      }
+    } catch (e) {
+      console.warn("Error saving settings:", e);
     }
-    const intervalSelect = $("splashUpdateInterval");
-    if (intervalSelect) {
-      const intervalVal = intervalSelect.value;
-      localStorage.setItem("hamtab_update_interval", intervalVal);
-      fetch("/api/update/interval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
-      }).catch(() => {
-      });
-    }
-    $("splashGridDropdown").classList.remove("open");
-    closeModal($("splash"));
-    updateOperatorDisplay2();
-    centerMapOnUser();
-    updateUserMarker();
-    updateClocks();
-    renderSpots();
-    if (_initApp) _initApp();
-    fetchLicenseClass(state_default.myCallsign);
-    if (isSyncEnabled() && state_default.myCallsign) {
-      pushConfig(state_default.myCallsign).catch(() => {
-      });
+    try {
+      updateOperatorDisplay2();
+      centerMapOnUser();
+      updateUserMarker();
+      updateClocks();
+      renderSpots();
+      if (_initApp) _initApp();
+      fetchLicenseClass(state_default.myCallsign);
+      if (isSyncEnabled() && state_default.myCallsign) {
+        pushConfig(state_default.myCallsign).catch(() => {
+        });
+      }
+    } catch (e) {
+      console.warn("Error updating display after dismiss:", e);
     }
   }
   function initSplashListeners() {

@@ -4,7 +4,8 @@ certs/
 tools/
 logs/
 .claude/
-!.claude/settings.json
+!.claude/settings.json.example
+!.claude/hooks/
 feedback-private-key.pem
 FEEDBACK_DECRYPTION_GUIDE.md
 nul
@@ -14,3 +15,4 @@ __pycache__/
 *.pyc
 ESPHamClock/
 data/
+research/

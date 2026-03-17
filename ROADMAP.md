@@ -43,14 +43,14 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - Real-time SSN + K-index correction for VOACAP predictions
 - Effective SSN from live foF2 ionosonde measurements
 - WSPR/PSK observation vs. VOACAP prediction comparison
-- PSKReporter MQTT real-time feed (lower latency than polling)
+- ~~PSKReporter MQTT real-time feed~~ *(done — v0.67.0)*
 - RSS feed widget with configurable sources
 - DX news ticker
 - BOTA (Beaches on the Air) spot source
 - Band Opportunity Score widget — composite score (0-100) per band combining VOACAP reliability, PSK/WSPR heard density, and space weather penalties, with "Top 3 bands now" display
 - Centralized fetch scheduler — jitter, exponential backoff, freshness metadata, per-endpoint concurrency caps, visibility-priority budget, and randomized phase offsets to eliminate burst polling
 - SSE feed channel for lanmode low-latency push updates (`spots:update`, `status:update`, `alerts:update`) with HTTP polling fallback for hostedmode
-- Audit cache-busting query params (`_t=Date.now()`) — remove where server cache headers are sufficient, keep explicit bypass for hard-refresh/debug only
+- ~~Audit cache-busting query params~~ *(done — v0.66.7, removed `_t` params)*
 
 ### Map & Visualization
 - Azimuthal map projection (DE-centered) with bearing rings
@@ -61,7 +61,7 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - CQ/ITU zone overlays
 
 ### Hardware Integration
-- Click-to-tune from spot table
+- ~~Click-to-tune from spot table~~ *(done — v0.66.1)*
 - Panadapter / spectrum scope for connected rigs (IC-7300, FT-DX10)
 - hamlib/flrig rig control (lanmode)
 

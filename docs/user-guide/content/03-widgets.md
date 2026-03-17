@@ -408,6 +408,12 @@ Click the gear icon to switch between:
 - **Count** — Number of stations receiving you
 - **Distance** — Distance to farthest receiver
 
+### Real-Time Updates
+
+Live Spots uses an MQTT real-time feed from PSKReporter for instant updates. When a station reports receiving your signal, the report appears within seconds rather than waiting for the next HTTP polling cycle.
+
+If the MQTT connection is unavailable, HamTab automatically falls back to HTTP polling. No configuration is needed — the system chooses the best available method.
+
 ---
 
 ## Lunar / EME Widget
@@ -523,6 +529,15 @@ Detailed information about the currently selected spot.
 
 ### Selecting a Spot
 Click any spot row in On the Air, or click a map marker, to populate this widget.
+
+### POTA Hunter
+
+When viewing a POTA spot, the DX Detail widget shows two action buttons:
+
+- **Confirm QSO** — Click after you've worked the park activator. Marks the callsign as "worked" for 24 hours, preventing duplicate contacts. The button changes to a green checkmark. If "hide worked" filtering is active, the spot is automatically removed from the list.
+- **Spot** — Opens a form to report the park activation, helping other hunters find the activator.
+
+A works counter shows how many parks you've confirmed during the current session.
 
 ---
 
@@ -800,6 +815,59 @@ Actions:
 - **Close** — Closes the diagnostics panel
 
 <div class="tip">If your radio connects but behaves erratically (wrong frequency, missing meters), open CAT Diagnostics and watch the command trace. Look for timeout errors or garbled responses — these usually indicate a baud rate mismatch or wrong COM port.</div>
+
+### Digital Setup Assistant
+
+The Digital Setup Assistant automatically configures your Yaesu radio for FT8/FT4 digital mode operation with a single click.
+
+**How it works:**
+1. Click **Enable Digital Setup** in the On-Air Rig widget
+2. HamTab snapshots your current radio state (frequency, mode, power, and menu settings)
+3. Digital-optimized settings are applied via CAT commands: DATA modulation source, rear audio select, VOX select, and VOX gain
+4. The radio tunes to the correct FT8/FT4 frequency for your current band
+5. When you're done, click **Restore** to return all settings to their pre-digital state
+
+The snapshot persists across USB disconnections — if your cable comes loose during a WSJT-X session, you can reconnect and still restore your original settings.
+
+<div class="tip">Digital Setup is currently supported on Yaesu FT-DX series radios (FT-DX10, FTDX101D, FT-891). Other radio brands use different menu systems that don't support remote EX menu commands.</div>
+
+### Radio Profiles
+
+Save named configurations of your radio's current settings and restore them later. Each profile captures frequency, mode, power, filters, AGC, preamp, noise reduction, and EX menu settings — everything needed to switch between operating modes without manually tweaking each setting.
+
+**Saving a profile:**
+1. Set up your radio exactly how you want it
+2. Click the **Save Profile** button in the On-Air Rig widget
+3. Enter a descriptive name (e.g., "40m SSB Ragchew", "20m FT8", "CW Contest")
+4. The profile is saved to your browser's localStorage, tagged to your radio model
+
+**Restoring a profile:**
+1. Select a saved profile from the dropdown
+2. Click **Restore** — all settings are sent to the radio via CAT commands
+3. The radio updates immediately to the saved configuration
+
+Profiles are radio-specific — a profile saved while connected to an FT-DX10 won't appear when connected to an IC-7300.
+
+### Preset Profiles
+
+Preset profiles are expert-tuned radio configurations created by experienced operators and radio reviewers. They provide recommended starting points for common operating scenarios.
+
+Available presets vary by radio model. Examples include:
+- **SSB Ragchew** — Processor OFF, wide TX bandwidth (200–2800 Hz), moderate mic gain, AGC MID. Optimized for natural-sounding voice on casual contacts
+- **SSB POTA** — Similar to ragchew with adjustments for park activation operating patterns
+
+Click a preset button to apply it instantly. You can then fine-tune from there and save the result as your own radio profile.
+
+<div class="tip">Preset profiles are being expanded over time. If you have recommended settings for your radio that other operators would benefit from, submit them via the feedback form or Discord.</div>
+
+### Band Sync
+
+When your rig is connected and you tune to a different band, HamTab automatically updates the map overlays to match:
+- **Propagation Heatmap** — Switches to show propagation for your new band
+- **WSPR Heatmap** — Updates to show WSPR reports on your current band
+- **VOACAP Overlay** — Recalculates predictions for the band you're now on
+
+This happens automatically — no configuration needed. As you QSY across bands, the map always shows propagation relevant to where you're operating.
 
 ---
 

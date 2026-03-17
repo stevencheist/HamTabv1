@@ -187,6 +187,9 @@ export function renderLiveSpots() {
       card.classList.toggle('active');
     });
   });
+
+  // Update Band Opportunity Score with fresh activity data
+  import('./band-score.js').then(m => m.renderBandScoreWidget()).catch(() => {});
 }
 
 // --- Map Integration ---

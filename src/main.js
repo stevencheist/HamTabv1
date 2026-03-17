@@ -31,7 +31,7 @@ import { initFilterListeners } from './filters.js';
 import { initTooltipListeners } from './tooltip.js';
 import { initSplashListeners, showSplash, updateOperatorDisplay, fetchLocation, setInitApp } from './splash.js';
 import { initConfigListeners } from './config.js';
-import { initRefreshListeners, refreshAll, startAutoRefresh } from './refresh.js';
+import { initRefreshListeners, refreshAll, startAutoRefresh, connectDxcSse, connectRbnSse } from './refresh.js';
 import { initUpdateDisplay } from './update.js';
 import { pullSettings } from './settings-sync.js';
 import { initFullscreenListeners } from './fullscreen.js';
@@ -65,6 +65,8 @@ import { pullConfig, isSyncEnabled } from './config-sync.js';
 import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
 import { initLogbook, renderLogbookOnMap } from './logbook.js';
 import { initPotaHunter, renderWorkedFilterToggle } from './pota-hunter.js';
+import { initBandScore } from './band-score.js';
+import { isFeatureVisible } from './feature-flags.js';
 import { initCrossTab, isLeaderTab } from './cross-tab.js';
 
 // Initialize map
@@ -126,6 +128,7 @@ initTabs();
 safeInit('on-air-rig', initOnAirRig);
 safeInit('logbook', initLogbook);
 safeInit('pota-hunter', initPotaHunter);
+safeInit('band-score', initBandScore);
 
 // --- New widget notification popup ---
 // Listeners registered once to prevent accumulation on repeated calls
@@ -176,6 +179,10 @@ function initApp() {
   if (isWidgetVisible('widget-contests')) fetchContests();
   if (isWidgetVisible('widget-dedx')) startDedxTimer();
   if (isWidgetVisible('widget-beacons')) updateBeaconMarkers();
+
+  // Connect DXC/RBN live TCP SSE streams when feature-flagged
+  if (isFeatureVisible('dxc_live_tcp')) connectDxcSse();
+  if (isFeatureVisible('rbn_source')) connectRbnSse();
 
   // Notify returning users about newly added widgets
   const newWidgets = getPendingNewWidgets();

@@ -95,6 +95,39 @@ DX Cluster is a worldwide network where amateur radio operators post "spots" of 
 - Spot quality varies — some spots may be inaccurate or outdated
 - High-demand DX may generate many duplicate spots
 
+### Live TCP Mode
+
+When running in self-hosted (lanmode) mode, DX Cluster data can stream in real time via a direct TCP telnet connection to a cluster node (default: dxc.ai8w.net). This replaces the 60-second HTTP polling cycle with instant spot delivery — new spots appear within seconds of being posted to the network.
+
+The TCP connection is established automatically and managed by the server. If the connection drops, it reconnects after 30 seconds. When no browser tabs are open, the connection idles and disconnects after 5 minutes to conserve resources.
+
+On the hosted version (hamtab.net), DX Cluster uses HTTP polling as a fallback.
+
+---
+
+## Reverse Beacon Network (RBN)
+
+### What is RBN?
+The Reverse Beacon Network is a worldwide network of automated CW and digital mode receivers (called "skimmers") that continuously monitor the amateur bands. When a station transmits a CQ call on CW or a digital mode, nearby skimmers decode it and post a spot automatically — no human spotter needed.
+
+### Data Provided
+- **DX callsign** — The station calling CQ
+- **Frequency** — Operating frequency
+- **Mode** — Usually CW or RTTY
+- **Skimmer** — Callsign of the automated receiver that decoded the signal
+- **dB** — Signal strength in decibels (higher = stronger)
+- **WPM** — Morse code speed in words per minute (CW only)
+- **Spot time** — When the signal was decoded
+
+### Filtering Options
+- Band, Mode, Age
+
+### Notes
+- RBN spots are machine-generated and highly reliable — no human error
+- Signal strength (dB) and speed (WPM) data is unique to RBN and not available from traditional DX Cluster spots
+- RBN uses the same live TCP streaming as DX Cluster in self-hosted mode
+- Particularly useful for CW operators to see real-time band activity
+
 ---
 
 ## PSKReporter
@@ -273,7 +306,8 @@ Updated every second (client-side timer). No network requests needed.
 |-------------|-----------------|
 | POTA spots | 60 seconds |
 | SOTA spots | 60 seconds |
-| DX Cluster | 60 seconds |
+| DX Cluster | Real-time (TCP) or 60 seconds (HTTP fallback) |
+| Reverse Beacon Network | Real-time (TCP) or 60 seconds (HTTP fallback) |
 | WWFF spots | 60 seconds |
 | PSKReporter | 60 seconds |
 | WSPR | 60 seconds (5-min server cache) |

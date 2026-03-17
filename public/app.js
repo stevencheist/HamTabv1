@@ -45,10 +45,10 @@
         propagationFilterEnabled: false,
         // session-only — filter spots by predicted band reliability (≥30%)
         // Filter presets per source
-        filterPresets: { pota: {}, sota: {}, dxc: {}, wspr: {} },
+        filterPresets: { pota: {}, sota: {}, dxc: {}, wspr: {}, rbn: {} },
         // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
         watchLists: (() => {
-          const def = { pota: [], sota: [], dxc: [], wwff: [], psk: [], wspr: [] };
+          const def = { pota: [], sota: [], dxc: [], wwff: [], psk: [], wspr: [], rbn: [] };
           try {
             const s = JSON.parse(localStorage.getItem("hamtab_watchlists"));
             if (s && typeof s === "object" && !Array.isArray(s)) {
@@ -107,8 +107,8 @@
         })(),
         // Source
         currentSource: localStorage.getItem("hamtab_spot_source") || "pota",
-        sourceData: { pota: [], sota: [], dxc: [], wwff: [], wspr: [] },
-        sourceFiltered: { pota: [], sota: [], dxc: [], wwff: [], wspr: [] },
+        sourceData: { pota: [], sota: [], dxc: [], wwff: [], wspr: [], rbn: [] },
+        sourceFiltered: { pota: [], sota: [], dxc: [], wwff: [], wspr: [], rbn: [] },
         // Widget visibility
         widgetVisibility: null,
         // loaded in widgets.js
@@ -312,6 +312,8 @@
           }
           return [];
         })(),
+        // Band Opportunity Score cache
+        bandScores: null,
         // Debug mode — enables verbose console logging (cross-tab, fetch diagnostics)
         // Toggle at runtime via console: window.__hamtab_debug()
         debug: false,
@@ -476,7 +478,7 @@
       try {
         const savedPresets = JSON.parse(localStorage.getItem("hamtab_filter_presets"));
         if (savedPresets && typeof savedPresets === "object" && !Array.isArray(savedPresets)) {
-          const validSources = ["pota", "sota", "dxc", "wwff", "psk", "wspr"];
+          const validSources = ["pota", "sota", "dxc", "wwff", "psk", "wspr", "rbn"];
           for (const k of validSources) {
             if (savedPresets[k] && typeof savedPresets[k] === "object") state.filterPresets[k] = savedPresets[k];
           }
@@ -1350,6 +1352,141 @@
         ["Armenia", 38.84, 43.45, 41.3, 46.63],
         ["Azerbaijan", 38.39, 44.79, 41.91, 50.37]
       ];
+    }
+  });
+
+  // src/feature-flags.js
+  function isFeatureVisible(featureName) {
+    const tier = FEATURE_FLAGS[featureName];
+    if (!tier) return true;
+    if (tier === "release") return true;
+    const callsign = (state_default.myCallsign || "").toUpperCase();
+    if (tier === "test") {
+      return DEV_CALLSIGNS.includes(callsign);
+    }
+    if (tier.startsWith("dev:")) {
+      const devCall = tier.slice(4).toUpperCase();
+      return callsign === devCall;
+    }
+    return false;
+  }
+  var DEV_CALLSIGNS, FEATURE_FLAGS;
+  var init_feature_flags = __esm({
+    "src/feature-flags.js"() {
+      init_state();
+      DEV_CALLSIGNS = ["KG5DPV", "KJ5MMO"];
+      FEATURE_FLAGS = {
+        preset_profiles: "test",
+        // callsign-gated SSB presets (v0.68.0)
+        pota_hunter: "dev:KG5DPV",
+        // POTA hunting helper — confirm QSO + spot reporter (v0.68.7)
+        band_score: "dev:KG5DPV",
+        // Band Opportunity Score widget (v0.69.0)
+        rbn_source: "dev:KG5DPV",
+        // Reverse Beacon Network source tab (v0.70.0)
+        dxc_live_tcp: "dev:KG5DPV"
+        // DX Cluster live TCP/SSE feed (v0.70.0)
+      };
+    }
+  });
+
+  // src/band-score.js
+  var band_score_exports = {};
+  __export(band_score_exports, {
+    calculateBandScores: () => calculateBandScores,
+    initBandScore: () => initBandScore,
+    renderBandScoreWidget: () => renderBandScoreWidget
+  });
+  function calculateBandScores() {
+    const solar = state_default.lastSolarData;
+    const indices = solar?.indices;
+    const sfi = parseFloat(indices?.sfi) || 70;
+    const kIndex = parseInt(indices?.kindex) || 2;
+    const aIndex = parseInt(indices?.aindex) || 5;
+    const utcHour = (/* @__PURE__ */ new Date()).getUTCHours() + (/* @__PURE__ */ new Date()).getUTCMinutes() / 60;
+    const df = dayFraction(state_default.myLat, state_default.myLon, utcHour);
+    const muf = calculateMUF(sfi, df);
+    const isDay = df >= 0.5;
+    const sfiBonus = Math.min(25, Math.max(0, (sfi - 100) * 0.5));
+    let kPenalty = 0;
+    if (kIndex >= 6) kPenalty = 50;
+    else if (kIndex === 5) kPenalty = 35;
+    else if (kIndex === 4) kPenalty = 20;
+    else if (kIndex === 3) kPenalty = 10;
+    const spacewxRaw = 50 + sfiBonus - kPenalty;
+    const spacewx = Math.max(0, Math.min(100, spacewxRaw));
+    const activityByBand = {};
+    const pskSummary = state_default.liveSpots?.summary || {};
+    const wsprSpots = state_default.sourceData?.wspr || [];
+    for (const [band, info] of Object.entries(pskSummary)) {
+      activityByBand[band] = (activityByBand[band] || 0) + (info.count || 0);
+    }
+    for (const spot of wsprSpots) {
+      const band = spot.band || spot.Band;
+      if (band) {
+        activityByBand[band] = (activityByBand[band] || 0) + 1;
+      }
+    }
+    const scores = HF_BANDS.map((band) => {
+      const propagation = calculateBandReliability(band.freqMHz, muf, kIndex, aIndex, isDay);
+      const actCount = activityByBand[band.name] || 0;
+      const activity = Math.min(100, actCount / 50 * 100);
+      const score = Math.round(
+        propagation * 0.5 + activity * 0.3 + spacewx * 0.2
+      );
+      return {
+        name: band.name,
+        label: band.label,
+        score: Math.max(0, Math.min(100, score)),
+        propagation: Math.round(propagation),
+        activity: Math.round(activity),
+        spacewx: Math.round(spacewx)
+      };
+    });
+    scores.sort((a, b) => b.score - a.score);
+    return scores;
+  }
+  function renderBandScoreWidget() {
+    if (!isFeatureVisible("band_score")) return;
+    const container = $("bandScoreContent");
+    if (!container) return;
+    const scores = calculateBandScores();
+    state_default.bandScores = scores;
+    if (!scores.length || !state_default.lastSolarData) {
+      container.innerHTML = '<div class="band-score-empty">Waiting for data...</div>';
+      return;
+    }
+    const topN = 3;
+    let html = '<div class="band-score-header">Top Bands Now</div>';
+    html += '<div class="band-score-bars">';
+    for (let i = 0; i < scores.length; i++) {
+      const s = scores[i];
+      const isTop = i < topN;
+      const color = getBandColor(s.name);
+      const barColor = getReliabilityColor(s.score);
+      const topClass = isTop ? " band-score-top" : "";
+      html += `<div class="band-score-row${topClass}" title="${s.label}: Prop ${s.propagation}% | Activity ${s.activity}% | SpWx ${s.spacewx}%">`;
+      html += `<span class="band-score-label" style="color:${color}">${s.label}</span>`;
+      if (isTop) html += `<span class="band-score-badge">#${i + 1}</span>`;
+      html += `<div class="band-score-track">`;
+      html += `<div class="band-score-fill" style="width:${s.score}%;background:${barColor}"></div>`;
+      html += `</div>`;
+      html += `<span class="band-score-pct">${s.score}</span>`;
+      html += `</div>`;
+    }
+    html += "</div>";
+    container.innerHTML = html;
+  }
+  function initBandScore() {
+    renderBandScoreWidget();
+  }
+  var init_band_score = __esm({
+    "src/band-score.js"() {
+      init_state();
+      init_dom();
+      init_band_conditions();
+      init_feature_flags();
+      init_constants();
     }
   });
 
@@ -5889,35 +6026,6 @@
       rigStore = null;
       activeSafetyModules = [];
       sdrAudioPlayer = null;
-    }
-  });
-
-  // src/feature-flags.js
-  function isFeatureVisible(featureName) {
-    const tier = FEATURE_FLAGS[featureName];
-    if (!tier) return true;
-    if (tier === "release") return true;
-    const callsign = (state_default.myCallsign || "").toUpperCase();
-    if (tier === "test") {
-      return DEV_CALLSIGNS.includes(callsign);
-    }
-    if (tier.startsWith("dev:")) {
-      const devCall = tier.slice(4).toUpperCase();
-      return callsign === devCall;
-    }
-    return false;
-  }
-  var DEV_CALLSIGNS, FEATURE_FLAGS;
-  var init_feature_flags = __esm({
-    "src/feature-flags.js"() {
-      init_state();
-      DEV_CALLSIGNS = ["KG5DPV", "KJ5MMO"];
-      FEATURE_FLAGS = {
-        preset_profiles: "test",
-        // callsign-gated SSB presets (v0.68.0)
-        pota_hunter: "dev:KG5DPV"
-        // POTA hunting helper — confirm QSO + spot reporter (v0.68.7)
-      };
     }
   });
 
@@ -10767,6 +10875,8 @@
       checkAutoStormOverlay(data);
       const { renderPropagationHeatmapOverlay: renderPropagationHeatmapOverlay2 } = await Promise.resolve().then(() => (init_map_overlays(), map_overlays_exports));
       renderPropagationHeatmapOverlay2();
+      const { renderBandScoreWidget: renderBandScoreWidget2 } = await Promise.resolve().then(() => (init_band_score(), band_score_exports));
+      renderBandScoreWidget2();
     } catch (err2) {
       console.error("Failed to fetch solar:", err2);
     }
@@ -11250,7 +11360,8 @@
         { id: "widget-stopwatch", name: "Stopwatch / Timer", short: "Tmr" },
         { id: "widget-analog-clock", name: "Analog Clock", short: "Clk" },
         { id: "widget-on-air-rig", name: "On-Air Rig", short: "Rig" },
-        { id: "widget-logbook", name: "Logbook", short: "Log" }
+        { id: "widget-logbook", name: "Logbook", short: "Log" },
+        { id: "widget-band-score", name: "Band Score", short: "BScr" }
       ];
       SAT_FREQUENCIES = {
         25544: {
@@ -11445,6 +11556,24 @@
           hasMap: true,
           spotId: (s) => `${s.callsign}-${s.rxSign}-${s.frequency}-${s.spotTime}`,
           sortKey: "spotTime"
+        },
+        rbn: {
+          label: "RBN",
+          endpoint: "/api/spots/rbn",
+          columns: [
+            { key: "callsign", label: "DX Station", class: "callsign", sortable: true },
+            { key: "frequency", label: "Freq", class: "freq", sortable: true },
+            { key: "mode", label: "Mode", class: "mode", sortable: true },
+            { key: "skimmer", label: "Skimmer", class: "" },
+            { key: "db", label: "dB", class: "", sortable: true },
+            { key: "wpm", label: "WPM", class: "", sortable: true },
+            { key: "spotTime", label: "Time", class: "", sortable: true },
+            { key: "age", label: "Age", class: "", sortable: true }
+          ],
+          filters: ["band", "mode", "age"],
+          hasMap: false,
+          spotId: (s) => `${s.callsign}-${s.skimmer}-${s.frequency}-${s.spotTime}`,
+          sortKey: "spotTime"
         }
       };
       SOLAR_FIELD_DEFS = [
@@ -11612,6 +11741,15 @@
           links: [
             { label: "NOAA Space Weather", url: "https://www.swpc.noaa.gov/" },
             { label: "HamQSL Solar Data", url: "https://www.hamqsl.com/solar.html" }
+          ]
+        },
+        "widget-band-score": {
+          title: "Band Score",
+          description: 'A quick-glance answer to "what band should I be on right now?" Combines propagation predictions, live activity from PSKReporter and WSPR, and space weather into a single score per band.',
+          sections: [
+            { heading: "How It Works", content: "Each band gets a score from 0 to 100 based on three factors: Propagation reliability (50% weight) from the same ionospheric model used in Band Conditions, Activity density (30%) from PSKReporter heard counts and WSPR beacon reports, and Space weather (20%) based on Solar Flux and K-index. The top 3 bands are highlighted with badges." },
+            { heading: "Reading the Chart", content: "Bands are sorted by score \u2014 the best band is on top. The bar chart shows the combined score with color coding from red (poor) through yellow to green (excellent). Hover over any row to see the individual component breakdowns." },
+            { heading: "Tips", content: "The score updates automatically when solar data or live spots refresh. If you're not sure where to tune, start with the #1 band. Activity density rewards bands where other operators are currently active \u2014 if lots of people are on 20m, it scores higher even if propagation is slightly better on 17m." }
           ]
         },
         "widget-lunar": {
@@ -14185,6 +14323,7 @@ ${beacon.location}`);
   init_pota_hunter();
   init_spots();
   init_markers();
+  init_feature_flags();
   function updateTableColumns() {
     const cols = SOURCE_DEFS[state_default.currentSource].columns.filter((c) => state_default.spotColumnVisibility[c.key] !== false);
     $("spotsHead").innerHTML = "<tr>" + cols.map((c) => `<th>${esc(c.label)}</th>`).join("") + "</tr>";
@@ -14244,6 +14383,9 @@ ${beacon.location}`);
   }
   function initSourceListeners() {
     $("sourceTabs").querySelectorAll(".source-tab").forEach((btn) => {
+      if (btn.dataset.source === "rbn" && !isFeatureVisible("rbn_source")) {
+        btn.style.display = "none";
+      }
       btn.addEventListener("mousedown", (e) => e.stopPropagation());
       btn.addEventListener("click", () => switchSource(btn.dataset.source));
     });
@@ -15280,9 +15422,75 @@ ${beacon.location}`);
   // src/refresh.js
   init_widgets();
   init_cross_tab();
+  init_feature_flags();
+  var dxcSse = null;
+  var rbnSse = null;
+  function handleSseEvents(source, eventSource, sourceName) {
+    eventSource.addEventListener("init", (e) => {
+      try {
+        const spots = JSON.parse(e.data);
+        if (Array.isArray(spots)) {
+          state_default.sourceData[sourceName] = spots;
+          if (state_default.currentSource === sourceName) {
+            applyFilter();
+            renderSpots();
+            renderMarkers();
+            updateBandFilterButtons();
+            updateModeFilterButtons();
+          }
+        }
+      } catch (err2) {
+        if (state_default.debug) console.error(`[SSE:${sourceName}] init parse error:`, err2);
+      }
+    });
+    eventSource.addEventListener("message", (e) => {
+      try {
+        const spot = JSON.parse(e.data);
+        state_default.sourceData[sourceName].push(spot);
+        if (state_default.sourceData[sourceName].length > 500) {
+          state_default.sourceData[sourceName].shift();
+        }
+        if (state_default.currentSource === sourceName) {
+          applyFilter();
+          renderSpots();
+          renderMarkers();
+        }
+      } catch (err2) {
+        if (state_default.debug) console.error(`[SSE:${sourceName}] message parse error:`, err2);
+      }
+    });
+    eventSource.addEventListener("status", (e) => {
+      if (state_default.debug) console.log(`[SSE:${sourceName}] status:`, e.data);
+    });
+    eventSource.onerror = () => {
+      if (state_default.debug) console.warn(`[SSE:${sourceName}] connection error`);
+    };
+  }
+  function connectDxcSse() {
+    if (dxcSse) return;
+    if (!isFeatureVisible("dxc_live_tcp")) return;
+    const callsign = encodeURIComponent(state_default.myCallsign || "");
+    dxcSse = new EventSource(`/api/spots/dxc/stream?callsign=${callsign}`);
+    handleSseEvents(dxcSse, dxcSse, "dxc");
+  }
+  function connectRbnSse() {
+    if (rbnSse) return;
+    if (!isFeatureVisible("rbn_source")) return;
+    const callsign = encodeURIComponent(state_default.myCallsign || "");
+    rbnSse = new EventSource(`/api/spots/rbn/stream?callsign=${callsign}`);
+    handleSseEvents(rbnSse, rbnSse, "rbn");
+  }
+  function isDxcSseActive() {
+    return dxcSse !== null;
+  }
+  function isRbnSseActive() {
+    return rbnSse !== null;
+  }
   async function fetchSourceData(source) {
     const def = SOURCE_DEFS[source];
     if (!def) return;
+    if (source === "dxc" && isDxcSseActive()) return;
+    if (source === "rbn" && isRbnSseActive()) return;
     try {
       const cacheable = source === "psk" || source === "wspr";
       const url = cacheable ? def.endpoint : def.endpoint + (def.endpoint.includes("?") ? "&" : "?") + "_t=" + Date.now();
@@ -15325,6 +15533,7 @@ ${beacon.location}`);
     fetchSourceData("wwff");
     fetchSourceData("psk");
     fetchSourceData("wspr");
+    if (isFeatureVisible("rbn_source")) fetchSourceData("rbn");
     if (isWidgetVisible("widget-solar") || isWidgetVisible("widget-propagation") || isWidgetVisible("widget-voacap")) fetchSolar();
     if (isWidgetVisible("widget-lunar")) fetchLunar();
     fetchPropagation();
@@ -16022,6 +16231,8 @@ ${beacon.location}`);
         toggleBandOnMap(band);
         card.classList.toggle("active");
       });
+    });
+    Promise.resolve().then(() => (init_band_score(), band_score_exports)).then((m) => m.renderBandScoreWidget()).catch(() => {
     });
   }
   function toggleBandOnMap(band) {
@@ -23133,8 +23344,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.68.10";
-    $("aboutVersion").textContent = "0.68.10";
+    $("splashVersion").textContent = "0.70.0";
+    $("aboutVersion").textContent = "0.70.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -25035,7 +25246,7 @@ ${beacon.location}`);
   init_dom();
   function initUpdateDisplay() {
     const el2 = $("platformLabel");
-    if (el2) el2.textContent = "v0.68.10";
+    if (el2) el2.textContent = "v0.70.0";
   }
 
   // src/settings-sync.js
@@ -26726,6 +26937,8 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   init_tabs();
   init_a11y();
   init_pota_hunter();
+  init_band_score();
+  init_feature_flags();
   init_cross_tab();
   migrate();
   migrateV2();
@@ -26804,6 +27017,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   safeInit("on-air-rig", initOnAirRig);
   safeInit("logbook", initLogbook);
   safeInit("pota-hunter", initPotaHunter);
+  safeInit("band-score", initBandScore);
   var newWidgetPopupListenersAttached = false;
   function showNewWidgetPopup(widgetNames) {
     const popup = $("newWidgetPopup");
@@ -26849,6 +27063,8 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (isWidgetVisible("widget-contests")) fetchContests();
     if (isWidgetVisible("widget-dedx")) startDedxTimer();
     if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
+    if (isFeatureVisible("dxc_live_tcp")) connectDxcSse();
+    if (isFeatureVisible("rbn_source")) connectRbnSse();
     const newWidgets = getPendingNewWidgets();
     if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
   }

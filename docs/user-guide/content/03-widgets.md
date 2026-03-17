@@ -114,7 +114,7 @@ Save commonly-used filter combinations:
 
 ## On the Air Widget
 
-Displays live spots in a tabular format with source tabs for POTA, SOTA, DXC, WWFF, PSK, and WSPR.
+Displays live spots in a tabular format with source tabs for POTA, SOTA, DXC, WWFF, PSK, WSPR, and RBN.
 
 ### Source Tabs
 Click tabs to switch between data sources:
@@ -127,6 +127,7 @@ Click tabs to switch between data sources:
 | WWFF | World Wide Flora & Fauna | Flora & fauna reserve activations |
 | PSK | PSKReporter | Digital mode reports |
 | WSPR | wspr.live | Weak signal beacon reports |
+| RBN | Reverse Beacon Network | Automated CW/digital skimmer spots |
 
 ### Table Columns
 Each source has different columns. Common columns include:
@@ -316,6 +317,36 @@ Each phenomenon shows a condition label color-coded from red (closed) through ye
 ### Data Source
 
 All data comes from HamQSL and updates with the solar data refresh cycle. HF predictions are calculated from Solar Flux (SFI), K-index, and A-index using an ionospheric model. The 6m prediction additionally incorporates live E-Skip conditions from HamQSL.
+
+---
+
+## Band Score Widget
+
+A quick-glance answer to "what band should I be on right now?" Combines propagation predictions, live activity data, and space weather into a single 0–100 score per band, with the top three bands highlighted.
+
+### How the Score Works
+
+Each HF band (160m through 6m) gets a composite score from three components:
+
+| Component | Weight | Source |
+|-----------|--------|--------|
+| **Propagation reliability** | 50% | Same ionospheric model as Band Conditions (SFI, K-index, A-index, MUF) |
+| **Activity density** | 30% | PSKReporter heard count + WSPR beacon spots for that band |
+| **Space weather** | 20% | SFI bonus (above 100) minus K-index penalty, baseline 50 |
+
+### Reading the Chart
+
+- Bands are sorted by score — the best band is always at the top
+- The horizontal bar shows the combined score with color coding from red (poor) through yellow to green (excellent)
+- The top 3 bands are highlighted with gold **#1**, **#2**, **#3** badges
+- Hover over any row to see the individual component breakdowns (Propagation, Activity, Space Weather)
+
+### Tips
+
+- If you're unsure where to tune, start with the **#1** band
+- Activity density rewards bands where other operators are currently active — if lots of people are on 20m, it scores higher even if propagation is slightly better on 17m
+- The score updates automatically whenever solar data or live spots refresh
+- When no solar data is available, scores show as "Waiting for data..."
 
 ---
 

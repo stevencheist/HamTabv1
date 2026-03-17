@@ -23136,8 +23136,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.68.9";
-    $("aboutVersion").textContent = "0.68.9";
+    $("splashVersion").textContent = "0.68.10";
+    $("aboutVersion").textContent = "0.68.10";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -23628,135 +23628,150 @@ ${beacon.location}`);
     localStorage.setItem("hamtab_radio_audio_sample_rate", String(state_default.radioAudioSampleRate));
   }
   function dismissSplash() {
-    const val = $("splashCallsign").value.trim().toUpperCase();
+    const callsignEl = $("splashCallsign");
+    const val = callsignEl ? callsignEl.value.trim().toUpperCase() : "";
     if (!val) return;
-    state_default.myCallsign = val;
-    localStorage.setItem("hamtab_callsign", state_default.myCallsign);
-    if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
-      localStorage.setItem("hamtab_lat", String(state_default.myLat));
-      localStorage.setItem("hamtab_lon", String(state_default.myLon));
-    }
-    state_default.use24h = $("timeFmt24").checked;
-    localStorage.setItem("hamtab_time24", String(state_default.use24h));
-    state_default.distanceUnit = $("distUnitKm").checked ? "km" : "mi";
-    state_default.temperatureUnit = $("tempUnitC").checked ? "C" : "F";
-    localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
-    localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
-    state_default.spotterLocation = ($("splashSpotterLocation")?.value || "").trim();
-    localStorage.setItem("hamtab_spotter_location", state_default.spotterLocation);
-    saveRadioConfig();
-    state_default.wxStation = ($("splashWxStation").value || "").trim().toUpperCase();
-    state_default.wxApiKey = ($("splashWxApiKey").value || "").trim();
-    state_default.owmApiKey = ($("splashOwmApiKey").value || "").trim();
-    state_default.n2yoApiKey = ($("splashN2yoApiKey").value || "").trim();
-    state_default.hamqthUser = ($("splashHamqthUser").value || "").trim();
-    const hamqthPassInput = ($("splashHamqthPass").value || "").trim();
-    localStorage.setItem("hamtab_wx_station", state_default.wxStation);
-    localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
-    localStorage.setItem("hamtab_owm_apikey", state_default.owmApiKey);
-    localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
-    localStorage.setItem("hamtab_hamqth_user", state_default.hamqthUser);
-    const envUpdates = {};
-    if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
-    if (state_default.owmApiKey) envUpdates.OWM_API_KEY = state_default.owmApiKey;
-    if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
-    if (state_default.hamqthUser) envUpdates.HAMQTH_USER = state_default.hamqthUser;
-    if (hamqthPassInput) envUpdates.HAMQTH_PASS = hamqthPassInput;
-    if (Object.keys(envUpdates).length > 0) {
-      fetch("/api/config/env", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(envUpdates)
-      }).catch(() => {
-      });
-    }
-    fetchWeather();
+    const splashEl = $("splash");
+    const gridDropdown = $("splashGridDropdown");
+    if (gridDropdown) gridDropdown.classList.remove("open");
+    if (splashEl) splashEl.classList.add("hidden");
     const oldVis = { ...state_default.widgetVisibility };
-    const widgetList = document.getElementById("splashWidgetList");
-    widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
-      state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
-    });
-    saveWidgetVisibility();
-    if (currentThemeSupportsGrid()) {
-      const newMode = $("layoutModeGrid").checked ? "grid" : "float";
-      const permSelect = document.getElementById("gridPermSelect");
-      const newPerm = permSelect ? permSelect.value : state_default.gridPermutation;
-      const oldPerm = state_default.gridPermutation;
-      if (newMode === "grid") {
-        state_default.gridPermutation = newPerm;
-        state_default.gridAssignments = { ...stagedAssignments };
-        saveGridAssignments();
-        if (state_default.gridMode !== "grid" || newPerm !== oldPerm) {
-          activateGridMode(newPerm);
-        } else {
-          applyGridAssignments();
+    try {
+      state_default.myCallsign = val;
+      localStorage.setItem("hamtab_callsign", state_default.myCallsign);
+      if (state_default.manualLoc && state_default.myLat !== null && state_default.myLon !== null) {
+        localStorage.setItem("hamtab_lat", String(state_default.myLat));
+        localStorage.setItem("hamtab_lon", String(state_default.myLon));
+      }
+      const timeFmt24 = $("timeFmt24");
+      state_default.use24h = timeFmt24 ? timeFmt24.checked : state_default.use24h;
+      localStorage.setItem("hamtab_time24", String(state_default.use24h));
+      const distUnitKm = $("distUnitKm");
+      const tempUnitC = $("tempUnitC");
+      state_default.distanceUnit = distUnitKm && distUnitKm.checked ? "km" : "mi";
+      state_default.temperatureUnit = tempUnitC && tempUnitC.checked ? "C" : "F";
+      localStorage.setItem("hamtab_distance_unit", state_default.distanceUnit);
+      localStorage.setItem("hamtab_temperature_unit", state_default.temperatureUnit);
+      state_default.spotterLocation = ($("splashSpotterLocation")?.value || "").trim();
+      localStorage.setItem("hamtab_spotter_location", state_default.spotterLocation);
+      saveRadioConfig();
+      const wxStationEl = $("splashWxStation");
+      const wxApiKeyEl = $("splashWxApiKey");
+      const owmApiKeyEl = $("splashOwmApiKey");
+      const n2yoApiKeyEl = $("splashN2yoApiKey");
+      const hamqthUserEl = $("splashHamqthUser");
+      state_default.wxStation = wxStationEl ? wxStationEl.value.trim().toUpperCase() : state_default.wxStation;
+      state_default.wxApiKey = wxApiKeyEl ? wxApiKeyEl.value.trim() : state_default.wxApiKey;
+      state_default.owmApiKey = owmApiKeyEl ? owmApiKeyEl.value.trim() : state_default.owmApiKey;
+      state_default.n2yoApiKey = n2yoApiKeyEl ? n2yoApiKeyEl.value.trim() : state_default.n2yoApiKey;
+      state_default.hamqthUser = hamqthUserEl ? hamqthUserEl.value.trim() : state_default.hamqthUser;
+      const hamqthPassEl = $("splashHamqthPass");
+      const hamqthPassInput = hamqthPassEl ? hamqthPassEl.value.trim() : "";
+      localStorage.setItem("hamtab_wx_station", state_default.wxStation);
+      localStorage.setItem("hamtab_wx_apikey", state_default.wxApiKey);
+      localStorage.setItem("hamtab_owm_apikey", state_default.owmApiKey);
+      localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
+      localStorage.setItem("hamtab_hamqth_user", state_default.hamqthUser);
+      const envUpdates = {};
+      if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
+      if (state_default.owmApiKey) envUpdates.OWM_API_KEY = state_default.owmApiKey;
+      if (state_default.n2yoApiKey) envUpdates.N2YO_API_KEY = state_default.n2yoApiKey;
+      if (state_default.hamqthUser) envUpdates.HAMQTH_USER = state_default.hamqthUser;
+      if (hamqthPassInput) envUpdates.HAMQTH_PASS = hamqthPassInput;
+      if (Object.keys(envUpdates).length > 0) {
+        fetch("/api/config/env", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(envUpdates)
+        }).catch(() => {
+        });
+      }
+      fetchWeather();
+      const widgetList = document.getElementById("splashWidgetList");
+      if (widgetList) {
+        widgetList.querySelectorAll('input[type="checkbox"]').forEach((cb) => {
+          state_default.widgetVisibility[cb.dataset.widgetId] = cb.checked;
+        });
+      }
+      saveWidgetVisibility();
+      if (currentThemeSupportsGrid()) {
+        const layoutModeGrid = $("layoutModeGrid");
+        const newMode = layoutModeGrid && layoutModeGrid.checked ? "grid" : "float";
+        const permSelect = document.getElementById("gridPermSelect");
+        const newPerm = permSelect ? permSelect.value : state_default.gridPermutation;
+        const oldPerm = state_default.gridPermutation;
+        if (newMode === "grid") {
+          state_default.gridPermutation = newPerm;
+          state_default.gridAssignments = { ...stagedAssignments };
+          saveGridAssignments();
+          if (state_default.gridMode !== "grid" || newPerm !== oldPerm) {
+            activateGridMode(newPerm);
+          } else {
+            applyGridAssignments();
+          }
+        } else if (newMode === "float" && state_default.gridMode === "grid") {
+          deactivateGridMode();
         }
-      } else if (newMode === "float" && state_default.gridMode === "grid") {
-        deactivateGridMode();
       }
-    }
-    applyWidgetVisibility();
-    const justShown = (id) => oldVis[id] === false && state_default.widgetVisibility[id] !== false;
-    const justHidden = (id) => oldVis[id] !== false && state_default.widgetVisibility[id] === false;
-    if (justShown("widget-satellites")) fetchSatellitePositions();
-    if (justShown("widget-voacap")) fetchVoacapMatrixThrottled();
-    if (justShown("widget-live-spots")) fetchLiveSpots();
-    if (justShown("widget-dedx")) renderDedxInfo();
-    if (justShown("widget-solar")) fetchSolar();
-    if (justShown("widget-lunar")) fetchLunar();
-    if (justShown("widget-spacewx")) fetchSpaceWxData();
-    if (justShown("widget-dxpeditions")) fetchDxpeditions();
-    if (justShown("widget-contests")) fetchContests();
-    if (justShown("widget-beacons")) {
-      startBeaconTimer();
-      updateBeaconMarkers();
-    }
-    if (justHidden("widget-beacons")) {
-      stopBeaconTimer();
-    }
-    if (justShown("widget-dedx")) {
-      startDedxTimer();
-    }
-    if (justHidden("widget-dedx")) {
-      stopDedxTimer();
-    }
-    if (justShown("widget-on-air-rig")) {
-      try {
+      applyWidgetVisibility();
+      const justShown = (id) => oldVis[id] === false && state_default.widgetVisibility[id] !== false;
+      const justHidden = (id) => oldVis[id] !== false && state_default.widgetVisibility[id] === false;
+      if (justShown("widget-satellites")) fetchSatellitePositions();
+      if (justShown("widget-voacap")) fetchVoacapMatrixThrottled();
+      if (justShown("widget-live-spots")) fetchLiveSpots();
+      if (justShown("widget-dedx")) renderDedxInfo();
+      if (justShown("widget-solar")) fetchSolar();
+      if (justShown("widget-lunar")) fetchLunar();
+      if (justShown("widget-spacewx")) fetchSpaceWxData();
+      if (justShown("widget-dxpeditions")) fetchDxpeditions();
+      if (justShown("widget-contests")) fetchContests();
+      if (justShown("widget-beacons")) {
+        startBeaconTimer();
+        updateBeaconMarkers();
+      }
+      if (justHidden("widget-beacons")) {
+        stopBeaconTimer();
+      }
+      if (justShown("widget-dedx")) {
+        startDedxTimer();
+      }
+      if (justHidden("widget-dedx")) {
+        stopDedxTimer();
+      }
+      if (justShown("widget-on-air-rig")) {
         initOnAirRig();
-      } catch (err2) {
-        console.error("[init] on-air-rig failed:", err2);
       }
-    }
-    if (justHidden("widget-on-air-rig")) {
-      try {
+      if (justHidden("widget-on-air-rig")) {
         destroyOnAirRig();
-      } catch (err2) {
-        console.error("[destroy] on-air-rig failed:", err2);
       }
+      const intervalSelect = $("splashUpdateInterval");
+      if (intervalSelect) {
+        const intervalVal = intervalSelect.value;
+        localStorage.setItem("hamtab_update_interval", intervalVal);
+        fetch("/api/update/interval", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
+        }).catch(() => {
+        });
+      }
+    } catch (e) {
+      console.warn("Error saving settings:", e);
     }
-    const intervalSelect = $("splashUpdateInterval");
-    if (intervalSelect) {
-      const intervalVal = intervalSelect.value;
-      localStorage.setItem("hamtab_update_interval", intervalVal);
-      fetch("/api/update/interval", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ seconds: parseInt(intervalVal, 10) })
-      }).catch(() => {
-      });
-    }
-    $("splashGridDropdown").classList.remove("open");
-    closeModal($("splash"));
-    updateOperatorDisplay2();
-    centerMapOnUser();
-    updateUserMarker();
-    updateClocks();
-    renderSpots();
-    if (_initApp) _initApp();
-    fetchLicenseClass(state_default.myCallsign);
-    if (isSyncEnabled() && state_default.myCallsign) {
-      pushConfig(state_default.myCallsign).catch(() => {
-      });
+    try {
+      updateOperatorDisplay2();
+      centerMapOnUser();
+      updateUserMarker();
+      updateClocks();
+      renderSpots();
+      if (_initApp) _initApp();
+      fetchLicenseClass(state_default.myCallsign);
+      if (isSyncEnabled() && state_default.myCallsign) {
+        pushConfig(state_default.myCallsign).catch(() => {
+        });
+      }
+    } catch (e) {
+      console.warn("Error updating display after dismiss:", e);
     }
   }
   function initSplashListeners() {

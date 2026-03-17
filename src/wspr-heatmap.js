@@ -76,7 +76,7 @@ function isInBounds(lat, lon, bounds) {
 }
 
 // --- Main render function ---
-export function renderWsprHeatmapCanvas(band) {
+export async function renderWsprHeatmapCanvas(band) {
   if (!state.map || state.myLat == null || state.myLon == null) return;
 
   const wspr = state.sourceData.wspr;
@@ -189,11 +189,13 @@ export function renderWsprHeatmapCanvas(band) {
 
   ctx.putImageData(imageData, 0, 0);
 
-  // Convert to data URL and create L.imageOverlay
-  const dataUrl = canvas.toDataURL();
+  // Use toBlob + object URL instead of toDataURL — avoids large base64 string
+  // allocation and lets the browser GC the blob (CODEX-016 item #2)
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  const url = URL.createObjectURL(blob);
   const imageBounds = [[south, west], [north, east]];
 
-  state.wsprHeatmapLayer = L.imageOverlay(dataUrl, imageBounds, {
+  state.wsprHeatmapLayer = L.imageOverlay(url, imageBounds, {
     opacity: 0.7,
     pane: 'propagation', // z-index 300, below mapOverlays (350)
   });
@@ -203,7 +205,9 @@ export function renderWsprHeatmapCanvas(band) {
 // --- Clear heatmap overlay ---
 export function clearWsprHeatmap() {
   if (state.wsprHeatmapLayer && state.map) {
+    const oldUrl = state.wsprHeatmapLayer._url;
     state.map.removeLayer(state.wsprHeatmapLayer);
+    if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
     state.wsprHeatmapLayer = null;
   }
 }

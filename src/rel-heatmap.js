@@ -172,7 +172,7 @@ function cellSizeForZoom(zoom) {
 }
 
 // --- Main render function ---
-export function renderHeatmapCanvas(band) {
+export async function renderHeatmapCanvas(band) {
   if (!state.map || state.myLat == null || state.myLon == null) return;
   if (!state.lastSolarData || !state.lastSolarData.indices) return;
 
@@ -241,11 +241,13 @@ export function renderHeatmapCanvas(band) {
 
   ctx.putImageData(imageData, 0, 0);
 
-  // Convert to data URL and create L.imageOverlay
-  const dataUrl = canvas.toDataURL();
+  // Use toBlob + object URL instead of toDataURL — avoids large base64 string
+  // allocation and lets the browser GC the blob (CODEX-016 item #2)
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+  const url = URL.createObjectURL(blob);
   const imageBounds = [[south, west], [north, east]];
 
-  state.heatmapLayer = L.imageOverlay(dataUrl, imageBounds, {
+  state.heatmapLayer = L.imageOverlay(url, imageBounds, {
     opacity: 0.7,
     pane: 'propagation',
   });
@@ -255,7 +257,9 @@ export function renderHeatmapCanvas(band) {
 // --- Clear heatmap overlay ---
 export function clearHeatmap() {
   if (state.heatmapLayer && state.map) {
+    const oldUrl = state.heatmapLayer._url;
     state.map.removeLayer(state.heatmapLayer);
+    if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
     state.heatmapLayer = null;
   }
 }

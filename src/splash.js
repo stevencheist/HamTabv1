@@ -3,7 +3,7 @@ import { $ } from './dom.js';
 import { WIDGET_DEFS } from './constants.js';
 import { esc } from './utils.js';
 import { latLonToGrid, gridToLatLon } from './geo.js';
-import { centerMapOnUser, updateUserMarker, updateBeaconMarkers } from './map-init.js';
+import { centerMapOnUser, updateUserMarker } from './map-init.js';
 import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
 import { openModal, closeModal } from './a11y.js';
@@ -17,6 +17,7 @@ import { activateGridMode, deactivateGridMode, saveGridAssignments, applyGridAss
 import { startAutoRefresh, stopAutoRefresh } from './refresh.js';
 import { fetchSatellitePositions } from './satellites.js';
 import { startBeaconTimer, stopBeaconTimer } from './beacons.js';
+import { updateBeaconMarkers } from './map-init.js';
 import { fetchVoacapMatrixThrottled, renderVoacapMatrix, toggleBandOverlay } from './voacap.js';
 import { fetchLiveSpots } from './live-spots.js';
 import { renderDedxInfo } from './dedx-info.js';
@@ -1152,18 +1153,23 @@ function saveRadioConfig() {
 }
 
 function dismissSplash() {
-  // Get callsign - required to proceed
+  // Get callsign — required to proceed
   const callsignEl = $('splashCallsign');
   const val = callsignEl ? callsignEl.value.trim().toUpperCase() : '';
   if (!val) return;
 
-  // Hide modal FIRST - before anything that could fail
+  // Hide modal FIRST — before anything that could fail.
+  // This prevents the splash from staying stuck on screen if localStorage
+  // or a DOM query throws (e.g. locked-down browsers, CSP issues).
   const splashEl = $('splash');
   const gridDropdown = $('splashGridDropdown');
   if (gridDropdown) gridDropdown.classList.remove('open');
   if (splashEl) splashEl.classList.add('hidden');
 
-  // Everything else in try-catch so modal stays hidden even if storage fails
+  // Capture old widget visibility before applying changes (for refresh-on-show hook)
+  const oldVis = { ...state.widgetVisibility };
+
+  // Save all settings — wrapped so modal stays hidden even if storage fails
   try {
     state.myCallsign = val;
     localStorage.setItem('hamtab_callsign', state.myCallsign);
@@ -1184,6 +1190,10 @@ function dismissSplash() {
     state.temperatureUnit = tempUnitC && tempUnitC.checked ? 'C' : 'F';
     localStorage.setItem('hamtab_distance_unit', state.distanceUnit);
     localStorage.setItem('hamtab_temperature_unit', state.temperatureUnit);
+
+    // Save spotter location (POTA spot comments)
+    state.spotterLocation = ($('splashSpotterLocation')?.value || '').trim();
+    localStorage.setItem('hamtab_spotter_location', state.spotterLocation);
 
     // Save radio config
     saveRadioConfig();
@@ -1224,9 +1234,6 @@ function dismissSplash() {
 
     fetchWeather();
 
-    // Capture old visibility before applying changes (for refresh-on-show hook)
-    const oldVis = { ...state.widgetVisibility };
-
     const widgetList = document.getElementById('splashWidgetList');
     if (widgetList) {
       widgetList.querySelectorAll('input[type="checkbox"]').forEach(cb => {
@@ -1234,6 +1241,29 @@ function dismissSplash() {
       });
     }
     saveWidgetVisibility();
+
+    // --- Grid mode changes ---
+    if (currentThemeSupportsGrid()) {
+      const layoutModeGrid = $('layoutModeGrid');
+      const newMode = layoutModeGrid && layoutModeGrid.checked ? 'grid' : 'float';
+      const permSelect = document.getElementById('gridPermSelect');
+      const newPerm = permSelect ? permSelect.value : state.gridPermutation;
+      const oldPerm = state.gridPermutation;
+
+      if (newMode === 'grid') {
+        state.gridPermutation = newPerm;
+        state.gridAssignments = { ...stagedAssignments };
+        saveGridAssignments();
+        if (state.gridMode !== 'grid' || newPerm !== oldPerm) {
+          activateGridMode(newPerm);
+        } else {
+          applyGridAssignments(); // refresh layout with new assignments
+        }
+      } else if (newMode === 'float' && state.gridMode === 'grid') {
+        deactivateGridMode();
+      }
+    }
+
     applyWidgetVisibility();
 
     // --- Refresh data for widgets that just became visible ---
@@ -1262,7 +1292,7 @@ function dismissSplash() {
     if (justShown('widget-on-air-rig'))  { initOnAirRig(); }
     if (justHidden('widget-on-air-rig')) { destroyOnAirRig(); }
 
-    // Update interval setting (lanmode only - element may not exist on hostedmode)
+    // Update interval — lanmode only (element absent in hostedmode)
     const intervalSelect = $('splashUpdateInterval');
     if (intervalSelect) {
       const intervalVal = intervalSelect.value;
@@ -1277,11 +1307,7 @@ function dismissSplash() {
     console.warn('Error saving settings:', e);
   }
 
-  // Save spotter location (POTA spot comments)
-  state.spotterLocation = ($('splashSpotterLocation')?.value || '').trim();
-  localStorage.setItem('hamtab_spotter_location', state.spotterLocation);
-
-  // Post-dismiss updates - also wrapped so UI doesn't break
+  // Post-dismiss updates — separate try/catch so UI refresh doesn't block on settings errors
   try {
     updateOperatorDisplay();
     centerMapOnUser();
@@ -1290,88 +1316,13 @@ function dismissSplash() {
     renderSpots();
     if (_initApp) _initApp();
     fetchLicenseClass(state.myCallsign);
+
+    // Push config to LAN sync server (async, non-blocking)
+    if (isSyncEnabled() && state.myCallsign) {
+      pushConfig(state.myCallsign).catch(() => {});
+    }
   } catch (e) {
     console.warn('Error updating display after dismiss:', e);
-  }
-
-  // --- Grid mode changes ---
-  if (currentThemeSupportsGrid()) {
-    const newMode = $('layoutModeGrid') && $('layoutModeGrid').checked ? 'grid' : 'float';
-    const permSelect = document.getElementById('gridPermSelect');
-    const newPerm = permSelect ? permSelect.value : state.gridPermutation;
-    const oldPerm = state.gridPermutation;
-
-    if (newMode === 'grid') {
-      state.gridPermutation = newPerm;
-      state.gridAssignments = { ...stagedAssignments };
-      saveGridAssignments();
-      if (state.gridMode !== 'grid' || newPerm !== oldPerm) {
-        activateGridMode(newPerm);
-      } else {
-        applyGridAssignments(); // refresh layout with new assignments
-      }
-    } else if (newMode === 'float' && state.gridMode === 'grid') {
-      deactivateGridMode();
-    }
-  }
-
-  applyWidgetVisibility();
-
-  // --- Refresh data for widgets that just became visible ---
-  const justShown = (id) => oldVis[id] === false && state.widgetVisibility[id] !== false;
-  const justHidden = (id) => oldVis[id] !== false && state.widgetVisibility[id] === false;
-
-  if (justShown('widget-satellites'))   fetchSatellitePositions();
-  if (justShown('widget-voacap'))       fetchVoacapMatrixThrottled();
-  if (justShown('widget-live-spots'))   fetchLiveSpots();
-  if (justShown('widget-dedx'))         renderDedxInfo();
-  if (justShown('widget-solar'))        fetchSolar();
-  if (justShown('widget-lunar'))        fetchLunar();
-  if (justShown('widget-spacewx'))      fetchSpaceWxData();
-  if (justShown('widget-dxpeditions'))  fetchDxpeditions();
-  if (justShown('widget-contests'))     fetchContests();
-
-  // Beacon timer start/stop — avoid 1 Hz timer running for a hidden widget
-  if (justShown('widget-beacons'))  { startBeaconTimer(); updateBeaconMarkers(); }
-  if (justHidden('widget-beacons')) { stopBeaconTimer(); }
-
-  // DE/DX Info timer start/stop — avoid 1 Hz timer running for a hidden widget
-  if (justShown('widget-dedx'))  { startDedxTimer(); }
-  if (justHidden('widget-dedx')) { stopDedxTimer(); }
-
-  // On-Air Rig — init/destroy: stops all CAT polling, safety, propagation when hidden
-  if (justShown('widget-on-air-rig'))  {
-    try { initOnAirRig(); } catch (err) { console.error('[init] on-air-rig failed:', err); }
-  }
-  if (justHidden('widget-on-air-rig')) {
-    try { destroyOnAirRig(); } catch (err) { console.error('[destroy] on-air-rig failed:', err); }
-  }
-
-  // Update interval — lanmode only (element absent in hostedmode)
-  const intervalSelect = $('splashUpdateInterval');
-  if (intervalSelect) {
-    const intervalVal = intervalSelect.value;
-    localStorage.setItem('hamtab_update_interval', intervalVal);
-    fetch('/api/update/interval', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ seconds: parseInt(intervalVal, 10) }),
-    }).catch(() => {});
-  }
-
-  $('splashGridDropdown').classList.remove('open');
-  closeModal($('splash'));
-  updateOperatorDisplay();
-  centerMapOnUser();
-  updateUserMarker();
-  updateClocks();
-  renderSpots();
-  if (_initApp) _initApp();
-  fetchLicenseClass(state.myCallsign);
-
-  // Push config to LAN sync server (async, non-blocking)
-  if (isSyncEnabled() && state.myCallsign) {
-    pushConfig(state.myCallsign).catch(() => {});
   }
 }
 

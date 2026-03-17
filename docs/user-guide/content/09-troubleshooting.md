@@ -278,6 +278,55 @@ pip install git+https://github.com/skyelaird/dvoacap-python.git
 
 ---
 
+## Live Spots / PSKReporter Issues
+
+### Live Spots Are Slow or Delayed
+**This is usually normal.** HamTab rate-limits PSKReporter requests to avoid overloading their servers.
+
+**What's happening:**
+- HamTab uses MQTT for real-time updates when available, falling back to HTTP polling
+- HTTP polling is rate-limited to 4 requests per minute for spot queries
+- A circuit breaker activates after 5 consecutive failures, serving cached data for 30 seconds before retrying
+
+**Status messages you may see:**
+- **"Showing cached data — PSKReporter slow"** — The server is responding slowly; you're seeing slightly older data
+- **"PSKReporter unavailable — retrying"** — PSKReporter is temporarily down; the circuit breaker is active
+- No action needed — the system recovers automatically
+
+### No Live Spots Appearing
+**Check:**
+1. Your callsign is set correctly in Config
+2. You're actively transmitting on a digital mode (FT8, FT4, JS8)
+3. PSKReporter.info is online (visit the website to verify)
+4. Wait 2–3 minutes after your first transmission for reports to appear
+
+---
+
+## Rig Control / CAT Issues
+
+### Radio Connects But Reads Time Out
+**Possible causes:**
+- Wrong COM port selected (audio port instead of CAT port)
+- Baud rate mismatch between HamTab and the radio's menu settings
+- Another application holding the serial port (WSJT-X, N1MM, etc.)
+
+**Solutions:**
+1. Check your radio's CAT settings menu — note the baud rate
+2. Close other software that may be using the serial port
+3. Open **CAT Diagnostics** (wrench icon) and watch the command trace for timeout errors
+4. Export a **debug bundle** and include it when reporting issues
+
+### Digital Setup Assistant Not Available
+**The Digital Setup Assistant currently supports Yaesu FT-DX series radios only** (FT-DX10, FTDX101D, FT-891). Other brands use different menu systems that don't support remote EX menu commands via CAT.
+
+### Radio Profile Won't Restore
+**Check:**
+- You're connected to the same radio model the profile was saved on
+- The radio is in a state that accepts CAT commands (not in menu mode)
+- Open CAT Diagnostics to see if specific commands are failing
+
+---
+
 ## Getting Help
 
 ### Check GitHub Issues

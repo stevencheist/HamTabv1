@@ -5,6 +5,8 @@ tools/
 logs/
 .claude/
 !.claude/settings.json
+!.claude/settings.json.example
+!.claude/hooks/
 .wrangler/
 feedback-private-key.pem
 FEEDBACK_DECRYPTION_GUIDE.md
@@ -15,3 +17,4 @@ __pycache__/
 *.pyc
 ESPHamClock/
 data/
+research/

@@ -8,8 +8,8 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 
 ### Spots & Activations
 - **On the Air** — Real-time POTA, SOTA, DX Cluster, WWFF, PSKReporter, and WSPR spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
-- **Live Spots** — See where your signal is being received via PSKReporter — band cards show spot count or farthest distance per band with visual map lines
-- **DX Detail** — Detailed view of a selected spot with callsign info, frequency, distance/bearing, and QRZ link
+- **Live Spots** — See where your signal is being received via PSKReporter with real-time MQTT updates — band cards show spot count or farthest distance per band with visual map lines
+- **DX Detail** — Detailed view of a selected spot with callsign info, frequency, distance/bearing, QRZ link, and POTA Hunter tools (confirm QSO, spot activations)
 
 ### Map & Overlays
 - **Interactive Map** — Leaflet map with clustered markers for POTA, SOTA, DX Cluster, WWFF, PSKReporter, and WSPR spots, dark tiles, and clickable popups with QRZ callsign links
@@ -40,6 +40,10 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **Band Quick-Tune** — Compact pill buttons for all HF bands (160m–6m). Click any band to tune to the appropriate frequency for your current mode — SSB lands in the phone zone, CW in the CW zone, DATA on the FT8 frequency
 - **Audio Scope** — Real-time audio-frequency spectrum and waterfall from your radio's USB audio, showing decoded audio content (voice, CW tones, FT8 signals) in the 0–4 kHz passband
 - **Demo Mode** — Simulated rig data with propagation-based band changes for exploring the widget without a radio
+- **Digital Setup Assistant** — One-click FT8/FT4 configuration for Yaesu radios. Snapshots your current SSB settings, applies digital menu presets (DATA MOD, VOX, rear audio), and restores everything when you're done
+- **Radio Profiles** — Save and restore named radio configurations (frequency, mode, power, filters, AGC, EX menu settings) for quick switching between SSB, FT8, CW, and contest setups
+- **CAT Diagnostics** — Real-time command trace, error counters, and debug bundle export for troubleshooting serial communication issues
+- **Band Sync** — Propagation heatmap, WSPR heatmap, and VOACAP overlays automatically update to your rig's current band as you tune
 
 ### Logging
 - **Logbook** — Import ADIF logs from any logging software via drag-and-drop or file picker. Sortable, filterable table with band/mode dropdowns, QSO count and DXCC stats, and band-colored markers on the map with geodesic paths. Client-side only — your log stays in your browser via IndexedDB

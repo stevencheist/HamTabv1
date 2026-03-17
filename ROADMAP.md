@@ -28,11 +28,10 @@ A high-level overview of where HamTab is headed. For feature requests or feedbac
 - On-Air Rig: live CAT control via WebSerial (Yaesu NewCAT, Kenwood, Elecraft, Icom CI-V) and TCI network protocol with auto-detection, VFO A/B display, VFO swap, S-meter, SWR (TX only), RF power control, band quick-tune, band plan overlay, audio scope (AF FFT), remote power off, KiwiSDR online RX, and demo mode
 - WWFF (World Wide Flora & Fauna) spot source
 - WSPR propagation data via wspr.live API
+- Band Opportunity Score widget (composite 0-100 per band from propagation, activity, space weather)
+- DX Cluster Live TCP + RBN (real-time telnet feed with SSE streaming, ring buffer, idle disconnect)
 
 ## Next Up
-
-### DX Cluster Live TCP + RBN
-Replace HTTP polling with a direct telnet connection to DX cluster nodes for real-time spot flow. Same architecture extends to Reverse Beacon Network (automated CW/digital skimmer spots). Lanmode first, hostedmode with HTTP fallback.
 
 ### WSJT-X and Logger UDP Integration (Lanmode)
 Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging software via UDP. Scrolling decode widget with CQ highlighting. Lanmode only — requires same-network access to logging software.
@@ -47,9 +46,9 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - RSS feed widget with configurable sources
 - DX news ticker
 - BOTA (Beaches on the Air) spot source
-- Band Opportunity Score widget — composite score (0-100) per band combining VOACAP reliability, PSK/WSPR heard density, and space weather penalties, with "Top 3 bands now" display
+- ~~Band Opportunity Score widget~~ *(done — v0.69.0)*
 - Centralized fetch scheduler — jitter, exponential backoff, freshness metadata, per-endpoint concurrency caps, visibility-priority budget, and randomized phase offsets to eliminate burst polling
-- SSE feed channel for lanmode low-latency push updates (`spots:update`, `status:update`, `alerts:update`) with HTTP polling fallback for hostedmode
+- ~~SSE feed channel for lanmode low-latency push updates~~ *(done — v0.70.0, DXC/RBN SSE)*
 - ~~Audit cache-busting query params~~ *(done — v0.66.7, removed `_t` params)*
 
 ### Map & Visualization

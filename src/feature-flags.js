@@ -23,6 +23,9 @@ const DEV_CALLSIGNS = ['KG5DPV', 'KJ5MMO'];
 const FEATURE_FLAGS = {
   preset_profiles: 'test',   // callsign-gated SSB presets (v0.68.0)
   pota_hunter: 'dev:KG5DPV', // POTA hunting helper — confirm QSO + spot reporter (v0.68.7)
+  band_score: 'dev:KG5DPV',  // Band Opportunity Score widget (v0.69.0)
+  rbn_source: 'dev:KG5DPV',  // Reverse Beacon Network source tab (v0.70.0)
+  dxc_live_tcp: 'dev:KG5DPV', // DX Cluster live TCP/SSE feed (v0.70.0)
 };
 
 // --- Check if a feature is visible to the current user ---

@@ -22,6 +22,7 @@ export const WIDGET_DEFS = [
   { id: 'widget-analog-clock', name: 'Analog Clock',     short: 'Clk' },
   { id: 'widget-on-air-rig',  name: 'On-Air Rig',       short: 'Rig' },
   { id: 'widget-logbook',     name: 'Logbook',           short: 'Log' },
+  { id: 'widget-band-score',  name: 'Band Score',        short: 'BScr' },
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)
@@ -223,6 +224,24 @@ export const SOURCE_DEFS = {
     spotId: (s) => `${s.callsign}-${s.rxSign}-${s.frequency}-${s.spotTime}`,
     sortKey: 'spotTime',
   },
+  rbn: {
+    label: 'RBN',
+    endpoint: '/api/spots/rbn',
+    columns: [
+      { key: 'callsign',  label: 'DX Station', class: 'callsign', sortable: true },
+      { key: 'frequency', label: 'Freq',       class: 'freq', sortable: true },
+      { key: 'mode',      label: 'Mode',       class: 'mode', sortable: true },
+      { key: 'skimmer',   label: 'Skimmer',    class: '' },
+      { key: 'db',        label: 'dB',         class: '', sortable: true },
+      { key: 'wpm',       label: 'WPM',        class: '', sortable: true },
+      { key: 'spotTime',  label: 'Time',       class: '', sortable: true },
+      { key: 'age',       label: 'Age',        class: '', sortable: true },
+    ],
+    filters: ['band', 'mode', 'age'],
+    hasMap: false,
+    spotId: (s) => `${s.callsign}-${s.skimmer}-${s.frequency}-${s.spotTime}`,
+    sortKey: 'spotTime',
+  },
 };
 
 export const SOLAR_FIELD_DEFS = [
@@ -371,6 +390,15 @@ export const WIDGET_HELP = {
     links: [
       { label: 'NOAA Space Weather', url: 'https://www.swpc.noaa.gov/' },
       { label: 'HamQSL Solar Data', url: 'https://www.hamqsl.com/solar.html' },
+    ],
+  },
+  'widget-band-score': {
+    title: 'Band Score',
+    description: 'A quick-glance answer to "what band should I be on right now?" Combines propagation predictions, live activity from PSKReporter and WSPR, and space weather into a single score per band.',
+    sections: [
+      { heading: 'How It Works', content: 'Each band gets a score from 0 to 100 based on three factors: Propagation reliability (50% weight) from the same ionospheric model used in Band Conditions, Activity density (30%) from PSKReporter heard counts and WSPR beacon reports, and Space weather (20%) based on Solar Flux and K-index. The top 3 bands are highlighted with badges.' },
+      { heading: 'Reading the Chart', content: 'Bands are sorted by score — the best band is on top. The bar chart shows the combined score with color coding from red (poor) through yellow to green (excellent). Hover over any row to see the individual component breakdowns.' },
+      { heading: 'Tips', content: 'The score updates automatically when solar data or live spots refresh. If you\'re not sure where to tune, start with the #1 band. Activity density rewards bands where other operators are currently active — if lots of people are on 20m, it scores higher even if propagation is slightly better on 17m.' },
     ],
   },
   'widget-lunar': {

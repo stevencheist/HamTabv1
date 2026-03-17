@@ -1,13 +1,13 @@
 # HamTab
 
-A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstitute.com/ham/HamClock/) alternative. Displays live POTA, SOTA, DX Cluster, WWFF, PSKReporter, and WSPR spots on an interactive map with VOACAP propagation predictions, HF band conditions, space weather, satellite tracking, contests, DXpeditions, NCDXF beacons, weather, and lunar/EME data — all in a customizable, themeable widget layout.
+A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstitute.com/ham/HamClock/) alternative. Displays live POTA, SOTA, DX Cluster, WWFF, PSKReporter, WSPR, and Reverse Beacon Network spots on an interactive map with VOACAP propagation predictions, HF band conditions, band opportunity scores, space weather, satellite tracking, contests, DXpeditions, NCDXF beacons, weather, and lunar/EME data — all in a customizable, themeable widget layout.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green) ![Express](https://img.shields.io/badge/Express-4.x-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ## Features
 
 ### Spots & Activations
-- **On the Air** — Real-time POTA, SOTA, DX Cluster, WWFF, PSKReporter, and WSPR spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
+- **On the Air** — Real-time POTA, SOTA, DX Cluster, WWFF, PSKReporter, WSPR, and Reverse Beacon Network (RBN) spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
 - **Live Spots** — See where your signal is being received via PSKReporter with real-time MQTT updates — band cards show spot count or farthest distance per band with visual map lines
 - **DX Detail** — Detailed view of a selected spot with callsign info, frequency, distance/bearing, QRZ link, and POTA Hunter tools (confirm QSO, spot activations)
 
@@ -27,6 +27,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 ### Propagation & Space Weather
 - **Solar Indices** — Solar flux, sunspot number, A/K indices, X-ray flux, and signal noise level with 18 configurable fields
 - **HF Band Conditions** — Day/night conditions for 160m through 6m with reliability percentages, color-coded from green (open) to red (closed). 6m includes sporadic E detection from live HamQSL data
+- **Band Score** — "What band should I be on right now?" Composite 0–100 score per band combining propagation reliability (50%), PSK/WSPR activity density (30%), and space weather (20%), with top 3 bands highlighted
 - **VOACAP DE→DX** — 24-hour propagation prediction grid with adjustable power (5W/100W/1kW), mode (CW/SSB/FT8), and path (short/long). Uses the Voice of America Coverage Analysis Program engine with automatic simplified fallback
 - **Space Weather History** — Historical graphs for Kp index, X-ray flux, SFI, solar wind speed, and Bz over the past week (90 days for SFI)
 

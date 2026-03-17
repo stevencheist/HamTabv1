@@ -288,6 +288,9 @@ export async function fetchSolar() {
     // Re-render propagation heatmap overlay now that solar indices are available
     const { renderPropagationHeatmapOverlay } = await import('./map-overlays.js');
     renderPropagationHeatmapOverlay();
+    // Update Band Opportunity Score with fresh solar data
+    const { renderBandScoreWidget } = await import('./band-score.js');
+    renderBandScoreWidget();
   } catch (err) {
     console.error('Failed to fetch solar:', err);
   }

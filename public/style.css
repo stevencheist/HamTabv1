@@ -3692,6 +3692,88 @@ body.grayscale .prop-heatmap-legend-bar {
   font-family: monospace;
 }
 
+/* ---- Band Opportunity Score Widget ---- */
+
+.band-score-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 12px;
+  font-size: 0.8rem;
+}
+
+.band-score-header {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text);
+  margin-bottom: 6px;
+  text-align: center;
+}
+
+.band-score-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.band-score-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  transition: background 0.15s;
+}
+
+.band-score-row:hover {
+  background: var(--surface2);
+}
+
+.band-score-top {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.band-score-label {
+  width: 32px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.band-score-badge {
+  font-size: 0.55rem;
+  font-weight: 700;
+  color: #ffd54f;
+  width: 16px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.band-score-track {
+  flex: 1;
+  height: 10px;
+  background: var(--surface2);
+  border-radius: 5px;
+  overflow: hidden;
+}
+
+.band-score-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+.band-score-pct {
+  width: 22px;
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-align: right;
+  flex-shrink: 0;
+}
+
 /* Live Spots map markers */
 .live-spots-rx-marker {
   background: transparent !important;

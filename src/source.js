@@ -6,6 +6,7 @@ import { applyFilter, updateBandFilterButtons, updateModeFilterButtons, updateCo
 import { renderWorkedFilterToggle } from './pota-hunter.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
+import { isFeatureVisible } from './feature-flags.js';
 
 export function updateTableColumns() {
   const cols = SOURCE_DEFS[state.currentSource].columns
@@ -82,6 +83,10 @@ export function switchSource(source) {
 
 export function initSourceListeners() {
   $('sourceTabs').querySelectorAll('.source-tab').forEach(btn => {
+    // Hide feature-flagged tabs
+    if (btn.dataset.source === 'rbn' && !isFeatureVisible('rbn_source')) {
+      btn.style.display = 'none';
+    }
     btn.addEventListener('mousedown', (e) => e.stopPropagation());
     btn.addEventListener('click', () => switchSource(btn.dataset.source));
   });

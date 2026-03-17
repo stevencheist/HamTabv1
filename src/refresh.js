@@ -12,10 +12,87 @@ import { fetchDxpeditions } from './dxpeditions.js';
 import { fetchContests } from './contests.js';
 import { isWidgetVisible } from './widgets.js';
 import { isLeaderTab } from './cross-tab.js';
+import { isFeatureVisible } from './feature-flags.js';
+
+// --- DXC/RBN SSE Live Connections ---
+
+let dxcSse = null; // EventSource instance for DXC live TCP
+let rbnSse = null; // EventSource instance for RBN live TCP
+
+function handleSseEvents(source, eventSource, sourceName) {
+  eventSource.addEventListener('init', (e) => {
+    try {
+      const spots = JSON.parse(e.data);
+      if (Array.isArray(spots)) {
+        state.sourceData[sourceName] = spots;
+        if (state.currentSource === sourceName) {
+          applyFilter(); renderSpots(); renderMarkers();
+          updateBandFilterButtons(); updateModeFilterButtons();
+        }
+      }
+    } catch (err) {
+      if (state.debug) console.error(`[SSE:${sourceName}] init parse error:`, err);
+    }
+  });
+
+  eventSource.addEventListener('message', (e) => {
+    try {
+      const spot = JSON.parse(e.data);
+      state.sourceData[sourceName].push(spot);
+      // Trim to 500 spots max (ring buffer parity)
+      if (state.sourceData[sourceName].length > 500) {
+        state.sourceData[sourceName].shift();
+      }
+      if (state.currentSource === sourceName) {
+        applyFilter(); renderSpots(); renderMarkers();
+      }
+    } catch (err) {
+      if (state.debug) console.error(`[SSE:${sourceName}] message parse error:`, err);
+    }
+  });
+
+  eventSource.addEventListener('status', (e) => {
+    if (state.debug) console.log(`[SSE:${sourceName}] status:`, e.data);
+  });
+
+  eventSource.onerror = () => {
+    if (state.debug) console.warn(`[SSE:${sourceName}] connection error`);
+  };
+}
+
+export function connectDxcSse() {
+  if (dxcSse) return; // already connected
+  if (!isFeatureVisible('dxc_live_tcp')) return;
+  const callsign = encodeURIComponent(state.myCallsign || '');
+  dxcSse = new EventSource(`/api/spots/dxc/stream?callsign=${callsign}`);
+  handleSseEvents(dxcSse, dxcSse, 'dxc');
+}
+
+export function disconnectDxcSse() {
+  if (dxcSse) { dxcSse.close(); dxcSse = null; }
+}
+
+export function connectRbnSse() {
+  if (rbnSse) return;
+  if (!isFeatureVisible('rbn_source')) return;
+  const callsign = encodeURIComponent(state.myCallsign || '');
+  rbnSse = new EventSource(`/api/spots/rbn/stream?callsign=${callsign}`);
+  handleSseEvents(rbnSse, rbnSse, 'rbn');
+}
+
+export function disconnectRbnSse() {
+  if (rbnSse) { rbnSse.close(); rbnSse = null; }
+}
+
+export function isDxcSseActive() { return dxcSse !== null; }
+export function isRbnSseActive() { return rbnSse !== null; }
 
 export async function fetchSourceData(source) {
   const def = SOURCE_DEFS[source];
   if (!def) return;
+  // Skip HTTP polling when SSE stream is active for this source
+  if (source === 'dxc' && isDxcSseActive()) return;
+  if (source === 'rbn' && isRbnSseActive()) return;
   try {
     // PSK and WSPR use server-side caching with appropriate TTLs — skip _t to allow edge cache hits
     const cacheable = source === 'psk' || source === 'wspr';
@@ -63,6 +140,7 @@ export function refreshAll() {
   fetchSourceData('wwff');
   fetchSourceData('psk');
   fetchSourceData('wspr');
+  if (isFeatureVisible('rbn_source')) fetchSourceData('rbn');
   if (isWidgetVisible('widget-solar') || isWidgetVisible('widget-propagation') || isWidgetVisible('widget-voacap')) fetchSolar();
   if (isWidgetVisible('widget-lunar')) fetchLunar();
   fetchPropagation(); // map overlay, always useful

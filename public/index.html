@@ -832,6 +832,7 @@
           <button class="source-tab" data-source="wwff" role="tab" aria-selected="false">WWFF</button>
           <button class="source-tab" data-source="psk" role="tab" aria-selected="false">PSK</button>
           <button class="source-tab" data-source="wspr" role="tab" aria-selected="false">WSPR</button>
+          <button class="source-tab" data-source="rbn" role="tab" aria-selected="false">RBN</button>
         </div>
         <div class="table-wrap">
           <table id="spotsTable">
@@ -942,6 +943,18 @@
         </div>
         <div class="band-conditions-grid" id="bandConditionsGrid"></div>
         <div class="vhf-conditions" id="vhfConditions" style="display:none"></div>
+      </div>
+      <div class="widget-resize"></div>
+    </div>
+
+    <!-- Band Opportunity Score -->
+    <div class="widget" id="widget-band-score">
+      <div class="widget-header">
+        Band Score
+        <button class="widget-help-btn" data-widget="widget-band-score" title="Help" aria-label="Help for Band Score">?</button>
+      </div>
+      <div class="widget-body">
+        <div id="bandScoreContent"></div>
       </div>
       <div class="widget-resize"></div>
     </div>

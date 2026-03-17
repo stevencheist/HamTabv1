@@ -12,6 +12,7 @@ const dns = require('dns');
 const https = require('https');
 const cors = require('cors');
 const mqtt = require('mqtt');
+const net = require('net');
 const voacap = require('./voacap-bridge.js');
 const satellite = require('satellite.js');
 const swaggerUi = require('swagger-ui-express');
@@ -572,6 +573,284 @@ function initMqttClient() {
 
 // Start MQTT on server boot
 initMqttClient();
+
+// --- DX Cluster TCP Telnet + RBN Live Feeds ---
+// Lazy TCP connections to DX Cluster and Reverse Beacon Network.
+// Connected when first SSE client subscribes, disconnected after idle timeout.
+// Uses node:net (no new dependencies). Skipped in hostedmode (no long-lived TCP).
+
+const DXC_TCP_HOST = process.env.DXC_TCP_HOST || 'dxc.ai8w.net';
+const DXC_TCP_PORT = parseInt(process.env.DXC_TCP_PORT, 10) || 7300;
+const RBN_TCP_HOST = 'telnet.reversebeacon.net';
+const RBN_TCP_PORT = 7000;
+const DXC_TCP_RING_SIZE = 500;  // max spots in ring buffer per source
+const DXC_TCP_SPOT_TTL = 60 * 60 * 1000; // 1 hour
+const DXC_TCP_RECONNECT_MS = 30 * 1000;  // 30s backoff
+const DXC_TCP_IDLE_MS = 5 * 60 * 1000;   // 5 min idle disconnect
+const DXC_TCP_HEARTBEAT_MS = 30 * 1000;  // 30s SSE heartbeat
+
+// Shared state for each TCP source
+function createTcpSource() {
+  return {
+    socket: null,
+    connected: false,
+    ring: [],           // ring buffer of parsed spots
+    sseClients: new Set(),
+    reconnectTimer: null,
+    idleTimer: null,
+    lineBuffer: '',     // partial-line accumulator
+    loginSent: false,
+  };
+}
+
+const dxcTcp = createTcpSource();
+const rbnTcp = createTcpSource();
+
+// --- DXC Spot Parser ---
+// Format: "DX de <spotter>:     <freq_khz>  <dx_call>       <comment>           <time>Z"
+// Example: "DX de W3LPL:     14025.0  JA1ABC       CW 10 dB 25 WPM             1423Z"
+const DXC_SPOT_RE = /^DX\s+de\s+(\S+):\s+([\d.]+)\s+(\S+)\s+(.*?)\s+(\d{4})Z\s*$/;
+
+function parseDxcSpot(line) {
+  const m = line.match(DXC_SPOT_RE);
+  if (!m) return null;
+  const [, spotter, freqKhz, dxCall, comment, timeZ] = m;
+  const freqMHz = (parseFloat(freqKhz) / 1000).toFixed(3);
+  const now = new Date();
+  const hh = timeZ.substring(0, 2);
+  const mm = timeZ.substring(2, 4);
+  const spotTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
+    parseInt(hh, 10), parseInt(mm, 10))).toISOString();
+
+  return {
+    callsign: dxCall.trim(),
+    frequency: freqMHz,
+    mode: extractModeFromComment(comment),
+    spotter: spotter.replace(/:$/, ''),
+    band: freqToBandStr(parseFloat(freqMHz)),
+    spotTime,
+    comments: comment.trim(),
+    source: 'dxc-tcp',
+    latitude: null,
+    longitude: null,
+  };
+}
+
+// --- RBN Spot Parser ---
+// Same DX-spot format but often includes dB, WPM, and type in comment
+// Example: "DX de KM3T-2-#:  14040.1  UA3AKO      CW    18 dB  25 WPM  CQ      1423Z"
+const RBN_DB_RE = /(\d+)\s*dB/i;
+const RBN_WPM_RE = /(\d+)\s*WPM/i;
+const RBN_TYPE_RE = /\b(CQ|BEACON|NCDXF|DX)\b/i;
+
+function parseRbnSpot(line) {
+  const base = parseDxcSpot(line);
+  if (!base) return null;
+  base.source = 'rbn';
+
+  // Extract RBN-specific fields from comment
+  const dbMatch = base.comments.match(RBN_DB_RE);
+  const wpmMatch = base.comments.match(RBN_WPM_RE);
+  const typeMatch = base.comments.match(RBN_TYPE_RE);
+
+  base.db = dbMatch ? parseInt(dbMatch[1], 10) : null;
+  base.wpm = wpmMatch ? parseInt(wpmMatch[1], 10) : null;
+  base.spotType = typeMatch ? typeMatch[1].toUpperCase() : '';
+  base.skimmer = base.spotter; // RBN spotters are CW Skimmer stations
+
+  return base;
+}
+
+// --- Ring Buffer Management ---
+
+function ringPush(source, spot) {
+  spot._ts = Date.now();
+  source.ring.push(spot);
+  // Enforce size limit
+  if (source.ring.length > DXC_TCP_RING_SIZE) {
+    source.ring.shift();
+  }
+  // Purge expired spots
+  const cutoff = Date.now() - DXC_TCP_SPOT_TTL;
+  while (source.ring.length > 0 && source.ring[0]._ts < cutoff) {
+    source.ring.shift();
+  }
+}
+
+// --- TCP Connection Manager ---
+
+function connectTcpSource(source, host, port, callsign, parseFn) {
+  if (process.env.HOSTED_MODE === '1') return; // no TCP in hostedmode
+  if (source.socket) return; // already connected or connecting
+  if (source.reconnectTimer) { clearTimeout(source.reconnectTimer); source.reconnectTimer = null; }
+
+  const loginCall = callsign || process.env.DXC_CALLSIGN || process.env.HAMTAB_CALLSIGN || 'HAMTAB';
+  console.log(`[TCP] Connecting to ${host}:${port} as ${loginCall}`);
+
+  const sock = net.createConnection({ host, port, timeout: 15000 });
+  source.socket = sock;
+  source.loginSent = false;
+  source.lineBuffer = '';
+
+  sock.setEncoding('utf8');
+
+  sock.on('connect', () => {
+    source.connected = true;
+    console.log(`[TCP] Connected to ${host}:${port}`);
+    broadcastSseStatus(source, { connected: true, host });
+  });
+
+  sock.on('data', (chunk) => {
+    source.lineBuffer += chunk;
+    const lines = source.lineBuffer.split('\n');
+    source.lineBuffer = lines.pop(); // keep incomplete last line
+
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/\r/g, '').trim();
+      if (!line) continue;
+
+      // Login prompt detection — send callsign once
+      if (!source.loginSent && (line.includes('login:') || line.includes('call:') || line.includes('Please enter your call'))) {
+        sock.write(loginCall + '\r\n');
+        source.loginSent = true;
+        continue;
+      }
+
+      // Parse spot
+      const spot = parseFn(line);
+      if (spot) {
+        ringPush(source, spot);
+        broadcastSseSpot(source, spot);
+      }
+    }
+  });
+
+  sock.on('timeout', () => {
+    console.warn(`[TCP] Connection to ${host}:${port} timed out`);
+    sock.destroy();
+  });
+
+  sock.on('error', (err) => {
+    console.error(`[TCP] Error on ${host}:${port}:`, err.message);
+  });
+
+  sock.on('close', () => {
+    source.connected = false;
+    source.socket = null;
+    source.loginSent = false;
+    source.lineBuffer = '';
+    console.log(`[TCP] Disconnected from ${host}:${port}`);
+    broadcastSseStatus(source, { connected: false, host });
+
+    // Reconnect if there are still SSE clients
+    if (source.sseClients.size > 0) {
+      source.reconnectTimer = setTimeout(() => {
+        connectTcpSource(source, host, port, callsign, parseFn);
+      }, DXC_TCP_RECONNECT_MS);
+    }
+  });
+
+  // Reset idle timer
+  resetIdleTimer(source, host, port);
+}
+
+function disconnectTcpSource(source) {
+  if (source.reconnectTimer) { clearTimeout(source.reconnectTimer); source.reconnectTimer = null; }
+  if (source.idleTimer) { clearTimeout(source.idleTimer); source.idleTimer = null; }
+  if (source.socket) {
+    source.socket.destroy();
+    source.socket = null;
+  }
+  source.connected = false;
+  source.loginSent = false;
+  source.lineBuffer = '';
+}
+
+function resetIdleTimer(source, host, port) {
+  if (source.idleTimer) clearTimeout(source.idleTimer);
+  source.idleTimer = setTimeout(() => {
+    if (source.sseClients.size === 0) {
+      console.log(`[TCP] Idle timeout — disconnecting from ${host}:${port}`);
+      disconnectTcpSource(source);
+    }
+  }, DXC_TCP_IDLE_MS);
+}
+
+// --- SSE Broadcasting ---
+
+function broadcastSseSpot(source, spot) {
+  const data = JSON.stringify(spot);
+  for (const res of source.sseClients) {
+    res.write(`data: ${data}\n\n`);
+  }
+}
+
+function broadcastSseStatus(source, status) {
+  const data = JSON.stringify(status);
+  for (const res of source.sseClients) {
+    res.write(`event: status\ndata: ${data}\n\n`);
+  }
+}
+
+function addSseClient(source, res, host, port, callsign, parseFn) {
+  // SSE headers
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no', // nginx proxy compat
+  });
+
+  // Send current ring buffer as init event
+  const initData = JSON.stringify(source.ring.map(s => { const { _ts, ...rest } = s; return rest; }));
+  res.write(`event: init\ndata: ${initData}\n\n`);
+
+  // Send current connection status
+  res.write(`event: status\ndata: ${JSON.stringify({ connected: source.connected, host })}\n\n`);
+
+  source.sseClients.add(res);
+
+  // Heartbeat to keep connection alive
+  const heartbeat = setInterval(() => {
+    res.write(`event: heartbeat\ndata: \n\n`);
+  }, DXC_TCP_HEARTBEAT_MS);
+
+  // Start TCP connection if not already connected
+  if (!source.socket) {
+    connectTcpSource(source, host, port, callsign, parseFn);
+  }
+
+  // Cleanup on client disconnect
+  res.on('close', () => {
+    source.sseClients.delete(res);
+    clearInterval(heartbeat);
+    // Start idle timer if no clients remain
+    if (source.sseClients.size === 0) {
+      resetIdleTimer(source, host, port);
+    }
+  });
+}
+
+// --- SSE Endpoints ---
+
+if (process.env.HOSTED_MODE !== '1') {
+  // DXC live TCP stream
+  app.get('/api/spots/dxc/stream', (req, res) => {
+    const callsign = (req.query.callsign || '').replace(/[^A-Z0-9/]/gi, '').substring(0, 10);
+    addSseClient(dxcTcp, res, DXC_TCP_HOST, DXC_TCP_PORT, callsign, parseDxcSpot);
+  });
+
+  // RBN live TCP stream
+  app.get('/api/spots/rbn/stream', (req, res) => {
+    const callsign = (req.query.callsign || '').replace(/[^A-Z0-9/]/gi, '').substring(0, 10);
+    addSseClient(rbnTcp, res, RBN_TCP_HOST, RBN_TCP_PORT, callsign, parseRbnSpot);
+  });
+
+  // RBN HTTP snapshot (polling fallback)
+  app.get('/api/spots/rbn', (req, res) => {
+    res.json(rbnTcp.ring.map(s => { const { _ts, ...rest } = s; return rest; }));
+  });
+}
 
 // Extract mode from DXC comment field
 function extractModeFromComment(comment) {

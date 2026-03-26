@@ -42,6 +42,16 @@
         // F or C
         activeMaxAge: null,
         // minutes (null = no filter)
+        activeMinFreqMHz: null,
+        // MHz (null = no filter)
+        activeMaxFreqMHz: null,
+        // MHz (null = no filter)
+        activeSubBandBand: null,
+        // band key for sub-band filtering (null = disabled)
+        activeSubBandModes: /* @__PURE__ */ new Set(),
+        // sub-band mode IDs ('cw', 'data', 'phone')
+        activeBandPlanRegion: "itu2",
+        // ITU region for sub-band definitions
         propagationFilterEnabled: false,
         // session-only — filter spots by predicted band reliability (≥30%)
         // Filter presets per source
@@ -9766,8 +9776,10 @@
     fetchLicenseClass: () => fetchLicenseClass,
     filterByAge: () => filterByAge,
     filterByDistance: () => filterByDistance,
+    filterByFrequencyRange: () => filterByFrequencyRange,
     filterByPrivileges: () => filterByPrivileges,
     filterByPropagation: () => filterByPropagation,
+    filterBySubBandMode: () => filterBySubBandMode,
     freqToBand: () => freqToBand,
     getAvailableBands: () => getAvailableBands,
     getAvailableContinents: () => getAvailableContinents,
@@ -9781,6 +9793,7 @@
     loadFiltersForSource: () => loadFiltersForSource,
     loadPreset: () => loadPreset,
     normalizeMode: () => normalizeMode,
+    renderSubBandChips: () => renderSubBandChips,
     renderWatchListEditor: () => renderWatchListEditor,
     saveCurrentFilters: () => saveCurrentFilters,
     savePreset: () => savePreset,
@@ -9844,6 +9857,24 @@
       }
     }
     return false;
+  }
+  function filterByFrequencyRange(spot) {
+    if (state_default.activeMinFreqMHz === null && state_default.activeMaxFreqMHz === null) return true;
+    const freqMHz = parseFrequencyMHz(spot.frequency);
+    if (freqMHz === null) return false;
+    if (state_default.activeMinFreqMHz !== null && freqMHz < state_default.activeMinFreqMHz) return false;
+    if (state_default.activeMaxFreqMHz !== null && freqMHz > state_default.activeMaxFreqMHz) return false;
+    return true;
+  }
+  function filterBySubBandMode(spot) {
+    if (!state_default.activeSubBandBand || state_default.activeSubBandModes.size === 0) return true;
+    const freqMHz = parseFrequencyMHz(spot.frequency);
+    if (freqMHz === null) return false;
+    const spotBand = freqToBand(spot.frequency);
+    if (spotBand !== state_default.activeSubBandBand) return false;
+    const subBand = getNarrowestSubBand(state_default.activeBandPlanRegion, spotBand, freqMHz);
+    if (!subBand) return false;
+    return state_default.activeSubBandModes.has(subBand.id);
   }
   function filterByDistance(spot) {
     if (state_default.activeMaxDistance === null) return true;
@@ -10024,6 +10055,8 @@
         const spotBand = freqToBand(s.frequency);
         if (!spotBand || !state_default.activeBands.has(spotBand)) return false;
       }
+      if (!filterByFrequencyRange(s)) return false;
+      if (!filterBySubBandMode(s)) return false;
       if (allowed.includes("mode") && state_default.activeModes.size > 0) {
         if (!state_default.activeModes.has((s.mode || "").toUpperCase())) return false;
       }
@@ -10072,6 +10105,7 @@
       renderSpots();
       renderMarkers();
       updateBandFilterButtons();
+      renderSubBandChips();
     });
     bandFilters.appendChild(allBtn);
     bands.forEach((band) => {
@@ -10089,6 +10123,7 @@
         renderSpots();
         renderMarkers();
         updateBandFilterButtons();
+        renderSubBandChips();
       });
       bandFilters.appendChild(btn);
     });
@@ -10363,6 +10398,27 @@
         renderMarkers();
       });
     }
+    const minFreqInput = $("minFreqFilter");
+    const maxFreqInput = $("maxFreqFilter");
+    function onFreqRangeChange() {
+      const minVal = minFreqInput ? minFreqInput.value.trim() : "";
+      const maxVal = maxFreqInput ? maxFreqInput.value.trim() : "";
+      state_default.activeMinFreqMHz = minVal === "" ? null : parseFloat(minVal);
+      state_default.activeMaxFreqMHz = maxVal === "" ? null : parseFloat(maxVal);
+      if (isNaN(state_default.activeMinFreqMHz)) state_default.activeMinFreqMHz = null;
+      if (isNaN(state_default.activeMaxFreqMHz)) state_default.activeMaxFreqMHz = null;
+      const freqWrap = $("freqFilterWrap");
+      if (freqWrap) {
+        const invalid = state_default.activeMinFreqMHz !== null && state_default.activeMaxFreqMHz !== null && state_default.activeMinFreqMHz > state_default.activeMaxFreqMHz;
+        freqWrap.classList.toggle("freq-invalid", invalid);
+      }
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    }
+    if (minFreqInput) minFreqInput.addEventListener("input", onFreqRangeChange);
+    if (maxFreqInput) maxFreqInput.addEventListener("input", onFreqRangeChange);
     const propBtn = $("propFilterBtn");
     if (propBtn) {
       propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
@@ -10416,6 +10472,49 @@
       });
     }
   }
+  function renderSubBandChips() {
+    const wrap = document.getElementById("subBandFilterWrap");
+    if (!wrap) return;
+    const meta = document.getElementById("subBandMeta");
+    const container = document.getElementById("subBandFilters");
+    if (!container) return;
+    const singleBand = state_default.activeBands.size === 1 ? [...state_default.activeBands][0] : null;
+    const defs = singleBand ? getSubBandDefinitions(state_default.activeBandPlanRegion, singleBand) : null;
+    if (!defs) {
+      wrap.classList.add("subband-disabled");
+      if (meta) meta.textContent = "Select one band to filter by sub-band";
+      container.innerHTML = "";
+      if (state_default.activeSubBandBand) {
+        state_default.activeSubBandBand = null;
+        state_default.activeSubBandModes.clear();
+      }
+      return;
+    }
+    wrap.classList.remove("subband-disabled");
+    if (meta) meta.textContent = "";
+    state_default.activeSubBandBand = singleBand;
+    container.innerHTML = "";
+    defs.forEach((d) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "subband-chip" + (state_default.activeSubBandModes.has(d.id) ? " active" : "");
+      btn.textContent = d.label;
+      btn.title = `${d.minMHz.toFixed(3)}\u2013${d.maxMHz.toFixed(3)} MHz`;
+      btn.addEventListener("click", () => {
+        if (state_default.activeSubBandModes.has(d.id)) {
+          state_default.activeSubBandModes.delete(d.id);
+        } else {
+          state_default.activeSubBandModes.add(d.id);
+        }
+        btn.classList.toggle("active", state_default.activeSubBandModes.has(d.id));
+        saveCurrentFilters();
+        applyFilter();
+        renderSpots();
+        renderMarkers();
+      });
+      container.appendChild(btn);
+    });
+  }
   function spotId(spot) {
     return SOURCE_DEFS[state_default.currentSource].spotId(spot);
   }
@@ -10433,6 +10532,11 @@
       continent: state_default.activeContinent,
       privilegeFilter: state_default.privilegeFilterEnabled,
       propagationFilter: state_default.propagationFilterEnabled,
+      minFreqMHz: state_default.activeMinFreqMHz,
+      maxFreqMHz: state_default.activeMaxFreqMHz,
+      subBandBand: state_default.activeSubBandBand,
+      subBandModes: [...state_default.activeSubBandModes],
+      bandPlanRegion: state_default.activeBandPlanRegion,
       sortColumn: state_default.spotSortColumn,
       sortDirection: state_default.spotSortDirection
     };
@@ -10453,6 +10557,11 @@
         state_default.activeContinent = saved.continent ?? null;
         state_default.privilegeFilterEnabled = saved.privilegeFilter ?? false;
         state_default.propagationFilterEnabled = saved.propagationFilter ?? false;
+        state_default.activeMinFreqMHz = saved.minFreqMHz ?? null;
+        state_default.activeMaxFreqMHz = saved.maxFreqMHz ?? null;
+        state_default.activeSubBandBand = saved.subBandBand ?? null;
+        state_default.activeSubBandModes = new Set(saved.subBandModes || []);
+        state_default.activeBandPlanRegion = saved.bandPlanRegion ?? "itu2";
         state_default.spotSortColumn = saved.sortColumn ?? null;
         state_default.spotSortDirection = saved.sortDirection ?? "desc";
         return;
@@ -10463,6 +10572,11 @@
     state_default.activeModes = /* @__PURE__ */ new Set();
     state_default.activeMaxDistance = null;
     state_default.activeMaxAge = null;
+    state_default.activeMinFreqMHz = null;
+    state_default.activeMaxFreqMHz = null;
+    state_default.activeSubBandBand = null;
+    state_default.activeSubBandModes = /* @__PURE__ */ new Set();
+    state_default.activeBandPlanRegion = "itu2";
     state_default.activeCountry = null;
     state_default.activeState = null;
     state_default.activeGrid = null;
@@ -10473,7 +10587,7 @@
     state_default.spotSortDirection = "desc";
   }
   function hasActiveFilters() {
-    return state_default.activeBands.size > 0 || state_default.activeModes.size > 0 || state_default.activeMaxDistance !== null || state_default.activeMaxAge !== null || state_default.activeCountry !== null || state_default.activeState !== null || state_default.activeGrid !== null || state_default.activeContinent !== null || state_default.privilegeFilterEnabled || state_default.propagationFilterEnabled;
+    return state_default.activeBands.size > 0 || state_default.activeModes.size > 0 || state_default.activeMaxDistance !== null || state_default.activeMaxAge !== null || state_default.activeCountry !== null || state_default.activeState !== null || state_default.activeGrid !== null || state_default.activeContinent !== null || state_default.activeMinFreqMHz !== null || state_default.activeMaxFreqMHz !== null || state_default.activeSubBandBand && state_default.activeSubBandModes.size > 0 || state_default.privilegeFilterEnabled || state_default.propagationFilterEnabled;
   }
   function updateFilterIndicator() {
     const active2 = hasActiveFilters();
@@ -10519,10 +10633,15 @@
     if (privFilterCheckbox) {
       privFilterCheckbox.checked = state_default.privilegeFilterEnabled;
     }
+    const minFreqInput = $("minFreqFilter");
+    if (minFreqInput) minFreqInput.value = state_default.activeMinFreqMHz !== null ? state_default.activeMinFreqMHz : "";
+    const maxFreqInput = $("maxFreqFilter");
+    if (maxFreqInput) maxFreqInput.value = state_default.activeMaxFreqMHz !== null ? state_default.activeMaxFreqMHz : "";
     const propBtn = $("propFilterBtn");
     if (propBtn) {
       propBtn.classList.toggle("active", state_default.propagationFilterEnabled);
     }
+    renderSubBandChips();
     updateFilterIndicator();
   }
   function clearAllFilters() {
@@ -10530,6 +10649,10 @@
     state_default.activeModes.clear();
     state_default.activeMaxDistance = null;
     state_default.activeMaxAge = null;
+    state_default.activeMinFreqMHz = null;
+    state_default.activeMaxFreqMHz = null;
+    state_default.activeSubBandBand = null;
+    state_default.activeSubBandModes.clear();
     state_default.activeCountry = null;
     state_default.activeState = null;
     state_default.activeGrid = null;
@@ -10570,6 +10693,11 @@
       continent: state_default.activeContinent,
       privilegeFilter: state_default.privilegeFilterEnabled,
       propagationFilter: state_default.propagationFilterEnabled,
+      minFreqMHz: state_default.activeMinFreqMHz,
+      maxFreqMHz: state_default.activeMaxFreqMHz,
+      subBandBand: state_default.activeSubBandBand,
+      subBandModes: [...state_default.activeSubBandModes],
+      bandPlanRegion: state_default.activeBandPlanRegion,
       sortColumn: state_default.spotSortColumn,
       sortDirection: state_default.spotSortDirection
     };
@@ -10592,6 +10720,11 @@
     state_default.activeContinent = preset.continent ?? null;
     state_default.privilegeFilterEnabled = preset.privilegeFilter ?? false;
     state_default.propagationFilterEnabled = preset.propagationFilter ?? false;
+    state_default.activeMinFreqMHz = preset.minFreqMHz ?? null;
+    state_default.activeMaxFreqMHz = preset.maxFreqMHz ?? null;
+    state_default.activeSubBandBand = preset.subBandBand ?? null;
+    state_default.activeSubBandModes = new Set(preset.subBandModes || []);
+    state_default.activeBandPlanRegion = preset.bandPlanRegion ?? "itu2";
     state_default.spotSortColumn = preset.sortColumn ?? null;
     state_default.spotSortDirection = preset.sortDirection ?? "desc";
     saveCurrentFilters();
@@ -11277,6 +11410,7 @@
   var constants_exports = {};
   __export(constants_exports, {
     ALLOW_OVERLAP_KEY: () => ALLOW_OVERLAP_KEY,
+    BAND_RANGES_MHZ: () => BAND_RANGES_MHZ,
     BREAKPOINT_MOBILE: () => BREAKPOINT_MOBILE,
     DEFAULT_BAND_COLORS: () => DEFAULT_BAND_COLORS,
     DEFAULT_REFERENCE_TAB: () => DEFAULT_REFERENCE_TAB,
@@ -11305,6 +11439,8 @@
     SNAP_GRID_KEY: () => SNAP_GRID_KEY,
     SOLAR_FIELD_DEFS: () => SOLAR_FIELD_DEFS,
     SOURCE_DEFS: () => SOURCE_DEFS,
+    SUB_BAND_MODE_LABELS: () => SUB_BAND_MODE_LABELS,
+    SUB_BAND_PLANS: () => SUB_BAND_PLANS,
     USER_LAYOUT_KEY: () => USER_LAYOUT_KEY,
     US_PRIVILEGES: () => US_PRIVILEGES,
     WIDGET_DEFS: () => WIDGET_DEFS,
@@ -11321,8 +11457,34 @@
     getBandColor: () => getBandColor,
     getBandColorOverrides: () => getBandColorOverrides,
     getLayoutMode: () => getLayoutMode,
+    getNarrowestSubBand: () => getNarrowestSubBand,
+    getSubBandDefinitions: () => getSubBandDefinitions,
+    parseFrequencyMHz: () => parseFrequencyMHz,
     saveBandColors: () => saveBandColors
   });
+  function parseFrequencyMHz(freqStr) {
+    const freq = parseFloat(freqStr);
+    if (isNaN(freq) || freq <= 0) return null;
+    return freq > 1e3 ? freq / 1e3 : freq;
+  }
+  function getSubBandDefinitions(region, band) {
+    const regionDefs = SUB_BAND_PLANS[region];
+    if (!regionDefs) return null;
+    return regionDefs[band] || null;
+  }
+  function getNarrowestSubBand(region, band, freqMHz) {
+    const defs = getSubBandDefinitions(region, band);
+    if (!defs) return null;
+    for (let i = 0; i < defs.length; i++) {
+      const d = defs[i];
+      if (i === defs.length - 1) {
+        if (freqMHz >= d.minMHz && freqMHz <= d.maxMHz) return d;
+      } else {
+        if (freqMHz >= d.minMHz && freqMHz < d.maxMHz) return d;
+      }
+    }
+    return null;
+  }
   function getLayoutMode() {
     const w = window.innerWidth;
     if (w < SCALE_REFLOW_WIDTH) return "mobile";
@@ -11338,7 +11500,7 @@
   function getBandColorOverrides() {
     return { ...bandColorOverrides };
   }
-  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_DEFAULT_SPANS, XTAB_CHANNEL_NAME, XTAB_LEADER_KEY, XTAB_HEARTBEAT_MS, XTAB_LEASE_MS, XTAB_ELECTION_JITTER_MIN_MS, XTAB_ELECTION_JITTER_MAX_MS, XTAB_LEADER_MISS_GRACE_MS, XTAB_INTEREST_DEBOUNCE_MS;
+  var WIDGET_DEFS, SAT_FREQUENCIES, DEFAULT_TRACKED_SATS, BAND_RANGES_MHZ, SUB_BAND_PLANS, SUB_BAND_MODE_LABELS, SOURCE_DEFS, SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, US_PRIVILEGES, WIDGET_HELP, REFERENCE_TABS, DEFAULT_REFERENCE_TAB, BREAKPOINT_MOBILE, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER, DEFAULT_BAND_COLORS, bandColorOverrides, MOBILE_TAB_KEY, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, SNAP_GRID_KEY, ALLOW_OVERLAP_KEY, HEADER_H, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_DEFAULT_SPANS, XTAB_CHANNEL_NAME, XTAB_LEADER_KEY, XTAB_HEARTBEAT_MS, XTAB_LEASE_MS, XTAB_ELECTION_JITTER_MIN_MS, XTAB_ELECTION_JITTER_MAX_MS, XTAB_LEADER_MISS_GRACE_MS, XTAB_INTEREST_DEBOUNCE_MS;
   var init_constants = __esm({
     "src/constants.js"() {
       init_solar();
@@ -11452,6 +11614,73 @@
         }
       };
       DEFAULT_TRACKED_SATS = [25544];
+      BAND_RANGES_MHZ = [
+        { band: "160m", minMHz: 1.8, maxMHz: 2 },
+        { band: "80m", minMHz: 3.5, maxMHz: 4 },
+        { band: "60m", minMHz: 5.3, maxMHz: 5.4 },
+        { band: "40m", minMHz: 7, maxMHz: 7.3 },
+        { band: "30m", minMHz: 10.1, maxMHz: 10.15 },
+        { band: "20m", minMHz: 14, maxMHz: 14.35 },
+        { band: "17m", minMHz: 18.068, maxMHz: 18.168 },
+        { band: "15m", minMHz: 21, maxMHz: 21.45 },
+        { band: "12m", minMHz: 24.89, maxMHz: 24.99 },
+        { band: "10m", minMHz: 28, maxMHz: 29.7 },
+        { band: "6m", minMHz: 50, maxMHz: 54 },
+        { band: "2m", minMHz: 144, maxMHz: 148 },
+        { band: "70cm", minMHz: 420, maxMHz: 450 }
+      ];
+      SUB_BAND_PLANS = {
+        itu2: {
+          "160m": [
+            { id: "cw", label: "CW", minMHz: 1.8, maxMHz: 1.843 },
+            { id: "data", label: "Data", minMHz: 1.843, maxMHz: 1.908 },
+            { id: "phone", label: "SSB", minMHz: 1.908, maxMHz: 2 }
+          ],
+          "80m": [
+            { id: "cw", label: "CW", minMHz: 3.5, maxMHz: 3.6 },
+            { id: "data", label: "Data", minMHz: 3.6, maxMHz: 3.7 },
+            { id: "phone", label: "SSB", minMHz: 3.7, maxMHz: 4 }
+          ],
+          "40m": [
+            { id: "cw", label: "CW", minMHz: 7, maxMHz: 7.04 },
+            { id: "data", label: "Data", minMHz: 7.04, maxMHz: 7.125 },
+            { id: "phone", label: "SSB", minMHz: 7.125, maxMHz: 7.3 }
+          ],
+          "20m": [
+            { id: "cw", label: "CW", minMHz: 14, maxMHz: 14.07 },
+            { id: "data", label: "Data", minMHz: 14.07, maxMHz: 14.15 },
+            { id: "phone", label: "SSB", minMHz: 14.15, maxMHz: 14.35 }
+          ],
+          "17m": [
+            { id: "cw", label: "CW", minMHz: 18.068, maxMHz: 18.11 },
+            { id: "data", label: "Data", minMHz: 18.11, maxMHz: 18.168 }
+          ],
+          "15m": [
+            { id: "cw", label: "CW", minMHz: 21, maxMHz: 21.07 },
+            { id: "data", label: "Data", minMHz: 21.07, maxMHz: 21.2 },
+            { id: "phone", label: "SSB", minMHz: 21.2, maxMHz: 21.45 }
+          ],
+          "12m": [
+            { id: "cw", label: "CW", minMHz: 24.89, maxMHz: 24.93 },
+            { id: "data", label: "Data", minMHz: 24.93, maxMHz: 24.99 }
+          ],
+          "10m": [
+            { id: "cw", label: "CW", minMHz: 28, maxMHz: 28.07 },
+            { id: "data", label: "Data", minMHz: 28.07, maxMHz: 28.3 },
+            { id: "phone", label: "SSB", minMHz: 28.3, maxMHz: 29.7 }
+          ],
+          "6m": [
+            { id: "cw", label: "CW", minMHz: 50, maxMHz: 50.1 },
+            { id: "data", label: "Data", minMHz: 50.1, maxMHz: 50.3 },
+            { id: "phone", label: "SSB", minMHz: 50.3, maxMHz: 54 }
+          ]
+        }
+      };
+      SUB_BAND_MODE_LABELS = {
+        cw: "CW",
+        data: "Data",
+        phone: "SSB"
+      };
       SOURCE_DEFS = {
         pota: {
           label: "POTA",

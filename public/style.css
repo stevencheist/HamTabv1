@@ -1346,6 +1346,81 @@ header {
   cursor: pointer;
 }
 
+/* Frequency range filter */
+.freq-filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#minFreqFilter,
+#maxFreqFilter {
+  width: 58px;
+  padding: 2px 4px;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  border-radius: 3px;
+}
+
+.freq-sep {
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+
+.freq-unit {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+}
+
+.freq-invalid #minFreqFilter,
+.freq-invalid #maxFreqFilter {
+  border-color: #e53935;
+}
+
+/* Sub-band chips */
+.filter-row-subband {
+  gap: 6px;
+}
+
+.subband-meta {
+  font-size: 0.65rem;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+.subband-disabled .subband-filters { display: none; }
+.subband-disabled .subband-meta { display: block; }
+.filter-row-subband:not(.subband-disabled) .subband-meta { display: none; }
+
+.subband-filters {
+  display: flex;
+  gap: 3px;
+}
+
+.subband-chip {
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.subband-chip:hover {
+  background: var(--surface2);
+  color: var(--text);
+}
+
+.subband-chip.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
 .filter-row-presets {
   border-top: 1px solid var(--border);
   padding-top: 6px;

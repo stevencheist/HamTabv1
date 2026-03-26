@@ -1,6 +1,6 @@
 import state from './state.js';
 import { $ } from './dom.js';
-import { SOURCE_DEFS, US_PRIVILEGES } from './constants.js';
+import { SOURCE_DEFS, US_PRIVILEGES, parseFrequencyMHz, getSubBandDefinitions, getNarrowestSubBand, SUB_BAND_MODE_LABELS } from './constants.js';
 import { cacheCallsign } from './utils.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
@@ -61,6 +61,28 @@ export function filterByPrivileges(spot) {
     }
   }
   return false;
+}
+
+// Frequency range filter — inclusive bounds
+export function filterByFrequencyRange(spot) {
+  if (state.activeMinFreqMHz === null && state.activeMaxFreqMHz === null) return true;
+  const freqMHz = parseFrequencyMHz(spot.frequency);
+  if (freqMHz === null) return false;
+  if (state.activeMinFreqMHz !== null && freqMHz < state.activeMinFreqMHz) return false;
+  if (state.activeMaxFreqMHz !== null && freqMHz > state.activeMaxFreqMHz) return false;
+  return true;
+}
+
+// Sub-band mode filter — frequency-zone classifier, not reported-mode
+export function filterBySubBandMode(spot) {
+  if (!state.activeSubBandBand || state.activeSubBandModes.size === 0) return true;
+  const freqMHz = parseFrequencyMHz(spot.frequency);
+  if (freqMHz === null) return false;
+  const spotBand = freqToBand(spot.frequency);
+  if (spotBand !== state.activeSubBandBand) return false;
+  const subBand = getNarrowestSubBand(state.activeBandPlanRegion, spotBand, freqMHz);
+  if (!subBand) return false;
+  return state.activeSubBandModes.has(subBand.id);
 }
 
 // Distance filter — spots without coords pass through (include them)
@@ -298,6 +320,10 @@ export function applyFilter() {
       const spotBand = freqToBand(s.frequency);
       if (!spotBand || !state.activeBands.has(spotBand)) return false;
     }
+    // Frequency range filter
+    if (!filterByFrequencyRange(s)) return false;
+    // Sub-band mode filter (frequency-zone classifier)
+    if (!filterBySubBandMode(s)) return false;
     // Mode: multi-select — empty Set = all modes pass
     if (allowed.includes('mode') && state.activeModes.size > 0) {
       if (!state.activeModes.has((s.mode || '').toUpperCase())) return false;
@@ -362,6 +388,7 @@ export function updateBandFilterButtons() {
     renderSpots();
     renderMarkers();
     updateBandFilterButtons();
+    renderSubBandChips();
   });
   bandFilters.appendChild(allBtn);
 
@@ -381,6 +408,7 @@ export function updateBandFilterButtons() {
       renderSpots();
       renderMarkers();
       updateBandFilterButtons();
+      renderSubBandChips();
     });
     bandFilters.appendChild(btn);
   });
@@ -688,6 +716,30 @@ export function initFilterListeners() {
     });
   }
 
+  // Frequency range filters
+  const minFreqInput = $('minFreqFilter');
+  const maxFreqInput = $('maxFreqFilter');
+  function onFreqRangeChange() {
+    const minVal = minFreqInput ? minFreqInput.value.trim() : '';
+    const maxVal = maxFreqInput ? maxFreqInput.value.trim() : '';
+    state.activeMinFreqMHz = minVal === '' ? null : parseFloat(minVal);
+    state.activeMaxFreqMHz = maxVal === '' ? null : parseFloat(maxVal);
+    if (isNaN(state.activeMinFreqMHz)) state.activeMinFreqMHz = null;
+    if (isNaN(state.activeMaxFreqMHz)) state.activeMaxFreqMHz = null;
+    // Validate: mark invalid if min > max (but still persist — let UI show the error)
+    const freqWrap = $('freqFilterWrap');
+    if (freqWrap) {
+      const invalid = state.activeMinFreqMHz !== null && state.activeMaxFreqMHz !== null && state.activeMinFreqMHz > state.activeMaxFreqMHz;
+      freqWrap.classList.toggle('freq-invalid', invalid);
+    }
+    saveCurrentFilters();
+    applyFilter();
+    renderSpots();
+    renderMarkers();
+  }
+  if (minFreqInput) minFreqInput.addEventListener('input', onFreqRangeChange);
+  if (maxFreqInput) maxFreqInput.addEventListener('input', onFreqRangeChange);
+
   // Propagation filter toggle
   const propBtn = $('propFilterBtn');
   if (propBtn) {
@@ -753,6 +805,58 @@ export function initFilterListeners() {
   }
 }
 
+// --- Sub-band chip rendering ---
+
+export function renderSubBandChips() {
+  const wrap = document.getElementById('subBandFilterWrap');
+  if (!wrap) return;
+  const meta = document.getElementById('subBandMeta');
+  const container = document.getElementById('subBandFilters');
+  if (!container) return;
+
+  // Only enable when exactly one band is selected
+  const singleBand = state.activeBands.size === 1 ? [...state.activeBands][0] : null;
+  const defs = singleBand ? getSubBandDefinitions(state.activeBandPlanRegion, singleBand) : null;
+
+  if (!defs) {
+    wrap.classList.add('subband-disabled');
+    if (meta) meta.textContent = 'Select one band to filter by sub-band';
+    container.innerHTML = '';
+    // Auto-clear sub-band state when bands change away
+    if (state.activeSubBandBand) {
+      state.activeSubBandBand = null;
+      state.activeSubBandModes.clear();
+    }
+    return;
+  }
+
+  wrap.classList.remove('subband-disabled');
+  if (meta) meta.textContent = '';
+  state.activeSubBandBand = singleBand;
+
+  container.innerHTML = '';
+  defs.forEach(d => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'subband-chip' + (state.activeSubBandModes.has(d.id) ? ' active' : '');
+    btn.textContent = d.label;
+    btn.title = `${d.minMHz.toFixed(3)}–${d.maxMHz.toFixed(3)} MHz`;
+    btn.addEventListener('click', () => {
+      if (state.activeSubBandModes.has(d.id)) {
+        state.activeSubBandModes.delete(d.id);
+      } else {
+        state.activeSubBandModes.add(d.id);
+      }
+      btn.classList.toggle('active', state.activeSubBandModes.has(d.id));
+      saveCurrentFilters();
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    });
+    container.appendChild(btn);
+  });
+}
+
 export function spotId(spot) {
   return SOURCE_DEFS[state.currentSource].spotId(spot);
 }
@@ -774,6 +878,11 @@ export function saveCurrentFilters() {
     continent: state.activeContinent,
     privilegeFilter: state.privilegeFilterEnabled,
     propagationFilter: state.propagationFilterEnabled,
+    minFreqMHz: state.activeMinFreqMHz,
+    maxFreqMHz: state.activeMaxFreqMHz,
+    subBandBand: state.activeSubBandBand,
+    subBandModes: [...state.activeSubBandModes],
+    bandPlanRegion: state.activeBandPlanRegion,
     sortColumn: state.spotSortColumn,
     sortDirection: state.spotSortDirection,
   };
@@ -796,6 +905,11 @@ export function loadFiltersForSource(source) {
       state.activeContinent = saved.continent ?? null;
       state.privilegeFilterEnabled = saved.privilegeFilter ?? false;
       state.propagationFilterEnabled = saved.propagationFilter ?? false;
+      state.activeMinFreqMHz = saved.minFreqMHz ?? null;
+      state.activeMaxFreqMHz = saved.maxFreqMHz ?? null;
+      state.activeSubBandBand = saved.subBandBand ?? null;
+      state.activeSubBandModes = new Set(saved.subBandModes || []);
+      state.activeBandPlanRegion = saved.bandPlanRegion ?? 'itu2';
       state.spotSortColumn = saved.sortColumn ?? null;
       state.spotSortDirection = saved.sortDirection ?? 'desc';
       return;
@@ -806,6 +920,11 @@ export function loadFiltersForSource(source) {
   state.activeModes = new Set();
   state.activeMaxDistance = null;
   state.activeMaxAge = null;
+  state.activeMinFreqMHz = null;
+  state.activeMaxFreqMHz = null;
+  state.activeSubBandBand = null;
+  state.activeSubBandModes = new Set();
+  state.activeBandPlanRegion = 'itu2';
   state.activeCountry = null;
   state.activeState = null;
   state.activeGrid = null;
@@ -826,6 +945,9 @@ export function hasActiveFilters() {
     || state.activeState !== null
     || state.activeGrid !== null
     || state.activeContinent !== null
+    || state.activeMinFreqMHz !== null
+    || state.activeMaxFreqMHz !== null
+    || (state.activeSubBandBand && state.activeSubBandModes.size > 0)
     || state.privilegeFilterEnabled
     || state.propagationFilterEnabled;
 }
@@ -884,11 +1006,20 @@ export function updateAllFilterUI() {
     privFilterCheckbox.checked = state.privilegeFilterEnabled;
   }
 
+  // Frequency range
+  const minFreqInput = $('minFreqFilter');
+  if (minFreqInput) minFreqInput.value = state.activeMinFreqMHz !== null ? state.activeMinFreqMHz : '';
+  const maxFreqInput = $('maxFreqFilter');
+  if (maxFreqInput) maxFreqInput.value = state.activeMaxFreqMHz !== null ? state.activeMaxFreqMHz : '';
+
   // Propagation toggle
   const propBtn = $('propFilterBtn');
   if (propBtn) {
     propBtn.classList.toggle('active', state.propagationFilterEnabled);
   }
+
+  // Sub-band chips
+  renderSubBandChips();
 
   updateFilterIndicator();
 }
@@ -899,6 +1030,10 @@ export function clearAllFilters() {
   state.activeModes.clear();
   state.activeMaxDistance = null;
   state.activeMaxAge = null;
+  state.activeMinFreqMHz = null;
+  state.activeMaxFreqMHz = null;
+  state.activeSubBandBand = null;
+  state.activeSubBandModes.clear();
   state.activeCountry = null;
   state.activeState = null;
   state.activeGrid = null;
@@ -948,6 +1083,11 @@ export function savePreset(name) {
     continent: state.activeContinent,
     privilegeFilter: state.privilegeFilterEnabled,
     propagationFilter: state.propagationFilterEnabled,
+    minFreqMHz: state.activeMinFreqMHz,
+    maxFreqMHz: state.activeMaxFreqMHz,
+    subBandBand: state.activeSubBandBand,
+    subBandModes: [...state.activeSubBandModes],
+    bandPlanRegion: state.activeBandPlanRegion,
     sortColumn: state.spotSortColumn,
     sortDirection: state.spotSortDirection,
   };
@@ -973,6 +1113,11 @@ export function loadPreset(name) {
   state.activeContinent = preset.continent ?? null;
   state.privilegeFilterEnabled = preset.privilegeFilter ?? false;
   state.propagationFilterEnabled = preset.propagationFilter ?? false;
+  state.activeMinFreqMHz = preset.minFreqMHz ?? null;
+  state.activeMaxFreqMHz = preset.maxFreqMHz ?? null;
+  state.activeSubBandBand = preset.subBandBand ?? null;
+  state.activeSubBandModes = new Set(preset.subBandModes || []);
+  state.activeBandPlanRegion = preset.bandPlanRegion ?? 'itu2';
   state.spotSortColumn = preset.sortColumn ?? null;
   state.spotSortDirection = preset.sortDirection ?? 'desc';
 

@@ -14,6 +14,11 @@ const state = {
   distanceUnit: localStorage.getItem('hamtab_distance_unit') || 'mi',
   temperatureUnit: localStorage.getItem('hamtab_temperature_unit') || 'F', // F or C
   activeMaxAge: null, // minutes (null = no filter)
+  activeMinFreqMHz: null, // MHz (null = no filter)
+  activeMaxFreqMHz: null, // MHz (null = no filter)
+  activeSubBandBand: null, // band key for sub-band filtering (null = disabled)
+  activeSubBandModes: new Set(), // sub-band mode IDs ('cw', 'data', 'phone')
+  activeBandPlanRegion: 'itu2', // ITU region for sub-band definitions
   propagationFilterEnabled: false, // session-only — filter spots by predicted band reliability (≥30%)
 
   // Filter presets per source

@@ -116,6 +116,109 @@ export const SAT_FREQUENCIES = {
 // Default tracked satellites (NORAD IDs)
 export const DEFAULT_TRACKED_SATS = [25544]; // ISS by default
 
+// --- Band frequency ranges (MHz) ---
+export const BAND_RANGES_MHZ = [
+  { band: '160m', minMHz: 1.8,    maxMHz: 2.0 },
+  { band: '80m',  minMHz: 3.5,    maxMHz: 4.0 },
+  { band: '60m',  minMHz: 5.3,    maxMHz: 5.4 },
+  { band: '40m',  minMHz: 7.0,    maxMHz: 7.3 },
+  { band: '30m',  minMHz: 10.1,   maxMHz: 10.15 },
+  { band: '20m',  minMHz: 14.0,   maxMHz: 14.35 },
+  { band: '17m',  minMHz: 18.068, maxMHz: 18.168 },
+  { band: '15m',  minMHz: 21.0,   maxMHz: 21.45 },
+  { band: '12m',  minMHz: 24.89,  maxMHz: 24.99 },
+  { band: '10m',  minMHz: 28.0,   maxMHz: 29.7 },
+  { band: '6m',   minMHz: 50.0,   maxMHz: 54.0 },
+  { band: '2m',   minMHz: 144.0,  maxMHz: 148.0 },
+  { band: '70cm', minMHz: 420.0,  maxMHz: 450.0 },
+];
+
+// --- Sub-band plan definitions (ITU Region 2 / US-oriented) ---
+// Segments use half-open intervals [min, max) except the final segment which is [min, max]
+export const SUB_BAND_PLANS = {
+  itu2: {
+    '160m': [
+      { id: 'cw',   label: 'CW',   minMHz: 1.8,   maxMHz: 1.843 },
+      { id: 'data', label: 'Data', minMHz: 1.843, maxMHz: 1.908 },
+      { id: 'phone', label: 'SSB', minMHz: 1.908, maxMHz: 2.0 },
+    ],
+    '80m': [
+      { id: 'cw',   label: 'CW',   minMHz: 3.5,   maxMHz: 3.6 },
+      { id: 'data', label: 'Data', minMHz: 3.6,   maxMHz: 3.7 },
+      { id: 'phone', label: 'SSB', minMHz: 3.7,   maxMHz: 4.0 },
+    ],
+    '40m': [
+      { id: 'cw',   label: 'CW',   minMHz: 7.0,   maxMHz: 7.04 },
+      { id: 'data', label: 'Data', minMHz: 7.04,  maxMHz: 7.125 },
+      { id: 'phone', label: 'SSB', minMHz: 7.125, maxMHz: 7.3 },
+    ],
+    '20m': [
+      { id: 'cw',   label: 'CW',   minMHz: 14.0,   maxMHz: 14.07 },
+      { id: 'data', label: 'Data', minMHz: 14.07,  maxMHz: 14.15 },
+      { id: 'phone', label: 'SSB', minMHz: 14.15,  maxMHz: 14.35 },
+    ],
+    '17m': [
+      { id: 'cw',   label: 'CW',   minMHz: 18.068, maxMHz: 18.11 },
+      { id: 'data', label: 'Data', minMHz: 18.11,  maxMHz: 18.168 },
+    ],
+    '15m': [
+      { id: 'cw',   label: 'CW',   minMHz: 21.0,   maxMHz: 21.07 },
+      { id: 'data', label: 'Data', minMHz: 21.07,  maxMHz: 21.2 },
+      { id: 'phone', label: 'SSB', minMHz: 21.2,   maxMHz: 21.45 },
+    ],
+    '12m': [
+      { id: 'cw',   label: 'CW',   minMHz: 24.89,  maxMHz: 24.93 },
+      { id: 'data', label: 'Data', minMHz: 24.93,  maxMHz: 24.99 },
+    ],
+    '10m': [
+      { id: 'cw',   label: 'CW',   minMHz: 28.0,   maxMHz: 28.07 },
+      { id: 'data', label: 'Data', minMHz: 28.07,  maxMHz: 28.3 },
+      { id: 'phone', label: 'SSB', minMHz: 28.3,   maxMHz: 29.7 },
+    ],
+    '6m': [
+      { id: 'cw',   label: 'CW',   minMHz: 50.0,   maxMHz: 50.1 },
+      { id: 'data', label: 'Data', minMHz: 50.1,   maxMHz: 50.3 },
+      { id: 'phone', label: 'SSB', minMHz: 50.3,   maxMHz: 54.0 },
+    ],
+  },
+};
+
+export const SUB_BAND_MODE_LABELS = {
+  cw: 'CW',
+  data: 'Data',
+  phone: 'SSB',
+};
+
+// Parse a frequency value to MHz (handles both MHz and kHz input)
+export function parseFrequencyMHz(freqStr) {
+  const freq = parseFloat(freqStr);
+  if (isNaN(freq) || freq <= 0) return null;
+  return freq > 1000 ? freq / 1000 : freq;
+}
+
+// Get sub-band definitions for a region and band
+export function getSubBandDefinitions(region, band) {
+  const regionDefs = SUB_BAND_PLANS[region];
+  if (!regionDefs) return null;
+  return regionDefs[band] || null;
+}
+
+// Get the narrowest sub-band for a frequency within a band
+export function getNarrowestSubBand(region, band, freqMHz) {
+  const defs = getSubBandDefinitions(region, band);
+  if (!defs) return null;
+  for (let i = 0; i < defs.length; i++) {
+    const d = defs[i];
+    // Last segment uses inclusive upper bound; others use half-open [min, max)
+    if (i === defs.length - 1) {
+      if (freqMHz >= d.minMHz && freqMHz <= d.maxMHz) return d;
+    } else {
+      if (freqMHz >= d.minMHz && freqMHz < d.maxMHz) return d;
+    }
+  }
+  return null;
+}
+
 export const SOURCE_DEFS = {
   pota: {
     label: 'POTA',

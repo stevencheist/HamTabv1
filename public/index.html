@@ -770,8 +770,21 @@
             <div class="band-filters" id="bandFilters"></div>
             <div class="mode-filters" id="modeFilters"></div>
           </div>
-          <!-- Row 2: Distance and Age -->
+          <!-- Row 1b: Sub-band chips (active when exactly one band selected) -->
+          <div class="filter-row filter-row-subband" id="subBandFilterWrap">
+            <label class="filter-label">Sub-band:</label>
+            <div class="subband-meta" id="subBandMeta">Select one band to filter by sub-band</div>
+            <div class="subband-filters" id="subBandFilters"></div>
+          </div>
+          <!-- Row 2: Frequency, Distance and Age -->
           <div class="filter-row filter-row-range">
+            <div class="freq-filter" id="freqFilterWrap">
+              <label class="filter-label">Freq:</label>
+              <input type="text" id="minFreqFilter" inputmode="decimal" placeholder="Min" autocomplete="off">
+              <span class="freq-sep">–</span>
+              <input type="text" id="maxFreqFilter" inputmode="decimal" placeholder="Max" autocomplete="off">
+              <span class="freq-unit">MHz</span>
+            </div>
             <div class="distance-filter" id="distanceFilterWrap">
               <label class="filter-label">Dist:</label>
               <input type="number" id="distanceFilter" min="0" step="50" placeholder="Max">

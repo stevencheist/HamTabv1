@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Scope Waterfall ---
 // Scrolling waterfall canvas — drawImage shift + putImageData row.
 // Ported from VirtualHam waterfall.ts.
-
 import { createColorMap, dbToIndex, DEFAULT_FLOOR_DB, DEFAULT_CEILING_DB } from './scope-color-map.js';
 
 export function createWaterfall(canvas, options) {
@@ -17,12 +18,13 @@ export function createWaterfall(canvas, options) {
   let height = canvas.height;
 
   function pushRow(magnitudes) {
-    // Scroll existing content down by 1 pixel
+    // Scroll existing content down by 1 pixel.
     if (height > 1) {
       ctx.drawImage(canvas, 0, 0, width, height - 1, 0, 1, width, height - 1);
     }
 
-    // Draw new row at top
+    // Draw new row at top.
+
     const imageData = ctx.createImageData(width, 1);
     const data = imageData.data;
     const binScale = bins / width;
@@ -44,7 +46,7 @@ export function createWaterfall(canvas, options) {
   }
 
   function resize() {
-    // Use parent's width — canvas intrinsic size can fight CSS width:100%
+    // Use parent's width — canvas intrinsic size can fight CSS width:100%.
     const parent = canvas.parentElement;
     const parentW = parent ? parent.getBoundingClientRect().width : canvas.getBoundingClientRect().width;
     const dpr = window.devicePixelRatio || 1;

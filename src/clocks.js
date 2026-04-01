@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { fmtTime } from './utils.js';
@@ -17,7 +20,7 @@ export function updateClocks() {
   const now = new Date();
   const localTime = fmtTime(now);
   const utcTime = fmtTime(now, { timeZone: 'UTC' });
-  // Render simplified time-only displays in header
+  // Render simplified time-only displays in header.
   $('clockLocalTime').textContent = localTime;
   $('clockUtcTime').textContent = utcTime;
   updateDayNight();

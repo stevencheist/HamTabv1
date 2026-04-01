@@ -1,12 +1,13 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Safety: Smart Tune Assist ---
 // Optional power reduction during antenna tuning.
 // For rigs where 'auto_reduce' is the smartTuneMethod:
 //   1. Detect tune-in-progress (SWR fluctuating rapidly)
-//   2. Reduce TX power to safe level
-//   3. Wait for SWR to stabilize
-//   4. Restore original power
+//   2. Reduce TX power to safe level.
+//   3. Wait for SWR to stabilize.
+//   4. Restore original power.
 // For 'radio_managed' rigs (FT-DX10 with ATAS): no-op, radio handles everything.
-
 export function createSmartTuneAssist(store, sendCommandFn, options = {}) {
   const tunePower = options.tunePower || 10;      // watts during tune
   const settleMs = options.settleMs || 3000;       // SWR must be stable for this long
@@ -33,14 +34,14 @@ export function createSmartTuneAssist(store, sendCommandFn, options = {}) {
     if (!active) return;
 
     if (swr > 0 && swr <= swrThreshold) {
-      // SWR is good — start settle timer
+      // SWR is good — start settle timer.
       if (!settleTimer) {
         settleTimer = setTimeout(() => {
           finishTune();
         }, settleMs);
       }
     } else {
-      // SWR still high — reset timer
+      // SWR still high — reset timer.
       if (settleTimer) {
         clearTimeout(settleTimer);
         settleTimer = null;

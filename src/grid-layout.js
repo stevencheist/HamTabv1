@@ -1,10 +1,11 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Grid Layout Mode ---
 // Manages the opt-in CSS Grid + Flex Column hybrid layout.
 // Outer CSS Grid: 3 columns (left, map, right) + optional top/bottom rows.
 // Left/right columns and top/bottom bars are flex wrappers with independent sizing.
 // Flex handles between widgets in wrappers allow vertical/horizontal resizing.
 // Track handles on outer grid boundaries allow column width adjustment.
-
 import state from './state.js';
 import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, GRID_DEFAULT_SPANS, GRID_MODE_KEY, GRID_PERM_KEY, GRID_ASSIGN_KEY, GRID_SIZES_KEY, GRID_SPANS_KEY, WIDGET_DEFS, SCALE_REFERENCE_WIDTH } from './constants.js';
 
@@ -75,7 +76,7 @@ function clearGridSpans(permId) {
 
 // --- Span Helpers ---
 
-// Check if a cell is absorbed by an earlier spanning cell
+// Check if a cell is absorbed by an earlier spanning cell.
 function isAbsorbed(cellName, cellNames, spans) {
   const idx = cellNames.indexOf(cellName);
   for (let i = 0; i < idx; i++) {
@@ -129,7 +130,6 @@ function serializeTracks(tracks) {
 // --- Boundary Detection ---
 // Returns resizable boundaries between adjacent tracks.
 // 'fr-fr' boundaries redistribute fr values; 'auto-fr' boundaries convert the auto track to px.
-
 function getResizableBoundaries(tracks) {
   const boundaries = [];
   for (let i = 0; i < tracks.length - 1; i++) {
@@ -197,7 +197,8 @@ function positionTrackHandles() {
   const padding = 6; // px — matches CSS padding on .widget-area.grid-active
   const gap = 6;     // px — matches CSS gap
 
-  // Resolved pixel sizes for columns and rows
+  // Resolved pixel sizes for columns and rows.
+
   const colPx = cs.gridTemplateColumns.split(/\s+/).map(parseFloat);
   const rowPx = cs.gridTemplateRows.split(/\s+/).map(parseFloat);
 
@@ -370,15 +371,16 @@ function removeWrappers() {
   const area = document.getElementById('widgetArea');
   if (!area) return;
 
-  // Move widget children back to #widgetArea before removing wrappers
+  // Move widget children back to #widgetArea before removing wrappers.
+
   const wrapperIds = ['grid-col-left', 'grid-col-right', 'grid-bar-top', 'grid-bar-bottom'];
   wrapperIds.forEach(id => {
     const wrapper = document.getElementById(id);
     if (!wrapper) return;
-    // Move widgets back to widgetArea
+    // Move widgets back to widgetArea.
     const widgets = wrapper.querySelectorAll('.widget');
     widgets.forEach(w => area.appendChild(w));
-    // Remove flex handles and placeholders inside wrapper
+    // Remove flex handles and placeholders inside wrapper.
     wrapper.querySelectorAll('.grid-flex-handle, .grid-cell-placeholder').forEach(el => el.remove());
     wrapper.remove();
   });
@@ -402,16 +404,17 @@ function onFlexHandleMouseDown(e) {
     c => !c.classList.contains('grid-flex-handle')
   );
 
-  // Find the items immediately before and after this handle
+  // Find the items immediately before and after this handle.
+
   const handleIdx = Array.from(wrapper.children).indexOf(handle);
   let beforeEl = null;
   let afterEl = null;
-  // Walk backward from handle to find the previous flex child
+  // Walk backward from handle to find the previous flex child.
   for (let i = handleIdx - 1; i >= 0; i--) {
     const c = wrapper.children[i];
     if (!c.classList.contains('grid-flex-handle')) { beforeEl = c; break; }
   }
-  // Walk forward from handle to find the next flex child
+  // Walk forward from handle to find the next flex child.
   for (let i = handleIdx + 1; i < wrapper.children.length; i++) {
     const c = wrapper.children[i];
     if (!c.classList.contains('grid-flex-handle')) { afterEl = c; break; }
@@ -423,7 +426,8 @@ function onFlexHandleMouseDown(e) {
   const afterFlex = parseFloat(afterEl.style.flexGrow) || 1;
   const totalFlex = beforeFlex + afterFlex;
 
-  // Total pixel space of both items
+  // Total pixel space of both items.
+
   const beforePx = isColumn ? beforeEl.offsetHeight : beforeEl.offsetWidth;
   const afterPx = isColumn ? afterEl.offsetHeight : afterEl.offsetWidth;
   const totalPx = beforePx + afterPx;
@@ -440,13 +444,14 @@ function onFlexHandleMouseDown(e) {
     let newBefore = beforeFlex + deltaFlex;
     let newAfter = afterFlex - deltaFlex;
 
-    // Drag-to-snap: if the squeezed cell would shrink below SNAP_PX, trigger span
+    // Drag-to-snap: if the squeezed cell would shrink below SNAP_PX, trigger span.
+
     if (spanCtx) {
       const estAfterPx = afterPx - delta;
       if (estAfterPx < SNAP_PX && delta > 0) {
         document.removeEventListener('mousemove', onMove);
         document.removeEventListener('mouseup', onUp);
-        // Reset flex to pre-drag values before toggleSpan rebuilds layout
+        // Reset flex to pre-drag values before toggleSpan rebuilds layout.
         beforeEl.style.flexGrow = beforeFlex;
         afterEl.style.flexGrow = afterFlex;
         toggleSpan(handle, wrapper, spanCtx.cellNames, isColumn, spanCtx.flexKey);
@@ -514,12 +519,13 @@ function readCurrentFlexRatios(perm) {
     );
     if (children.length === 0) continue;
 
-    // Expand spanning widgets back to per-cell ratios
+    // Expand spanning widgets back to per-cell ratios.
+
     const perCellRatios = [];
     let childIdx = 0;
     for (let i = 0; i < cellNames.length; i++) {
       if (isAbsorbed(cellNames[i], cellNames, spans)) {
-        // Absorbed cells share the spanning widget's flex evenly
+        // Absorbed cells share the spanning widget's flex evenly.
         continue; // filled by the spanning cell's loop below
       }
       const span = getSpanForVisibleChild(childIdx, cellNames, spans);
@@ -548,7 +554,7 @@ function populateWrapper(wrapperId, cellNames, flexKey, isColumn, customSizes) {
   // Clear wrapper contents
   while (wrapper.firstChild) {
     const child = wrapper.firstChild;
-    // Move widgets back to widgetArea before clearing
+    // Move widgets back to widgetArea before clearing.
     if (child.classList && child.classList.contains('widget')) {
       document.getElementById('widgetArea').appendChild(child);
     } else {
@@ -565,9 +571,9 @@ function populateWrapper(wrapperId, cellNames, flexKey, isColumn, customSizes) {
   let firstRendered = true;
 
   cellNames.forEach((cellName, idx) => {
-    // Skip cells absorbed by a spanning widget above
+    // Skip cells absorbed by a spanning widget above.
     if (isAbsorbed(cellName, cellNames, spans)) {
-      // Hide absorbed cell's widget
+      // Hide absorbed cell's widget.
       const absWidgetId = state.gridAssignments[cellName];
       if (absWidgetId) {
         const absEl = document.getElementById(absWidgetId);
@@ -598,7 +604,8 @@ function populateWrapper(wrapperId, cellNames, flexKey, isColumn, customSizes) {
     const widgetId = state.gridAssignments[cellName];
     let el;
 
-    // Respect widget visibility — treat hidden widgets as empty cells
+    // Respect widget visibility — treat hidden widgets as empty cells.
+
     const isVisible = widgetId && state.widgetVisibility && state.widgetVisibility[widgetId] !== false;
 
     if (isVisible) {
@@ -609,20 +616,21 @@ function populateWrapper(wrapperId, cellNames, flexKey, isColumn, customSizes) {
         wrapper.appendChild(el);
       }
     } else if (widgetId) {
-      // Widget exists but user hid it — keep it hidden
+      // Widget exists but user hid it — keep it hidden.
       const hiddenEl = document.getElementById(widgetId);
       if (hiddenEl) hiddenEl.style.display = 'none';
     }
 
     if (!el) {
-      // Create placeholder for empty cell
+      // Create placeholder for empty cell.
       el = document.createElement('div');
       el.className = 'grid-cell-placeholder';
       el.dataset.gridCell = cellName;
       wrapper.appendChild(el);
     }
 
-    // Spanning widget gets combined flex-grow of all its cells
+    // Spanning widget gets combined flex-grow of all its cells.
+
     const combinedFlex = span > 1
       ? sumFlexForSpan(cellName, span, cellNames, flexValues)
       : flexValues[idx];
@@ -637,7 +645,8 @@ function populateWrapper(wrapperId, cellNames, flexKey, isColumn, customSizes) {
 function toggleSpan(handle, wrapper, cellNames, isColumn, flexKey) {
   if (state.reflowActive || window.innerWidth < SCALE_REFERENCE_WIDTH) return; // no span in Zone B/C
 
-  // Find the visible cells before and after this handle
+  // Find the visible cells before and after this handle.
+
   const children = Array.from(wrapper.children).filter(
     c => !c.classList.contains('grid-flex-handle')
   );
@@ -655,7 +664,8 @@ function toggleSpan(handle, wrapper, cellNames, isColumn, flexKey) {
   }
   if (!beforeEl || !afterEl) return;
 
-  // Map DOM elements back to cell names
+  // Map DOM elements back to cell names.
+
   const spans = state.gridSpans || {};
   const visibleCells = cellNames.filter(c => !isAbsorbed(c, cellNames, spans));
   const beforeCellIdx = children.indexOf(beforeEl);
@@ -670,9 +680,10 @@ function toggleSpan(handle, wrapper, cellNames, isColumn, flexKey) {
   const afterCellPos = cellNames.indexOf(afterCell);
   const beforeCellPos = cellNames.indexOf(beforeCell);
 
-  // Check if beforeCell currently spans over afterCell
+  // Check if beforeCell currently spans over afterCell.
+
   if (beforeCellPos + currentSpan > afterCellPos) {
-    // Unspan — reduce span to stop before afterCell
+    // Unspan — reduce span to stop before afterCell.
     const newSpan = afterCellPos - beforeCellPos;
     if (newSpan <= 1) {
       delete spans[beforeCell];
@@ -680,13 +691,13 @@ function toggleSpan(handle, wrapper, cellNames, isColumn, flexKey) {
       spans[beforeCell] = newSpan;
     }
   } else {
-    // Span — extend beforeCell to absorb afterCell
+    // Span — extend beforeCell to absorb afterCell.
     const afterSpan = spans[afterCell] || 1;
     const newSpan = (afterCellPos + afterSpan) - beforeCellPos;
-    // Clamp to available cells
+    // Clamp to available cells.
     const maxSpan = cellNames.length - beforeCellPos;
     spans[beforeCell] = Math.min(newSpan, maxSpan);
-    // Clear any span the absorbed cell had
+    // Clear any span the absorbed cell had.
     delete spans[afterCell];
   }
 
@@ -716,7 +727,7 @@ export function loadGridAssignments() {
       return saved;
     }
   } catch (e) {}
-  // New user — apply defaults including default spans
+  // New user — apply defaults including default spans.
   const defaults = GRID_DEFAULT_ASSIGNMENTS[state.gridPermutation];
   state.gridAssignments = defaults ? { ...defaults } : {};
   const savedSpans = loadGridSpans(state.gridPermutation);
@@ -752,21 +763,22 @@ export function activateGridMode(permId) {
     loadGridAssignments();
   }
 
-  // Apply outer CSS Grid
+  // Apply outer CSS Grid.
   area.classList.add('grid-active');
   area.style.gridTemplateAreas = perm.outerAreas;
 
-  // Load custom track sizes if saved, otherwise use permutation defaults
+  // Load custom track sizes if saved, otherwise use permutation defaults.
+
   const custom = loadCustomTrackSizes(perm.id);
   area.style.gridTemplateColumns = custom ? custom.columns : perm.outerColumns;
   area.style.gridTemplateRows = custom ? custom.rows : perm.outerRows;
 
-  // Create flex wrappers and populate with widgets
+  // Create flex wrappers and populate with widgets.
   removeWrappers();
   createWrappers(perm);
   applyGridAssignments(custom);
 
-  // Let layout settle then fix map and create resize handles
+  // Let layout settle then fix map and create resize handles.
   setTimeout(() => {
     if (state.map) state.map.invalidateSize();
     createTrackHandles();
@@ -789,7 +801,8 @@ export function deactivateGridMode() {
   area.style.gridTemplateColumns = '';
   area.style.gridTemplateRows = '';
 
-  // Remove grid-area and flex from all widgets, restore saved free-float positions
+  // Remove grid-area and flex from all widgets, restore saved free-float positions.
+
   const saved = getSavedFloatLayout();
   document.querySelectorAll('.widget').forEach(w => {
     w.style.gridArea = '';
@@ -805,7 +818,7 @@ export function deactivateGridMode() {
     }
   });
 
-  // Remove any remaining placeholders
+  // Remove any remaining placeholders.
   area.querySelectorAll('.grid-cell-placeholder').forEach(el => el.remove());
 
   // Let layout settle
@@ -828,7 +841,8 @@ export function applyGridAssignments(customSizes) {
   if (!area || !state.gridAssignments) return;
 
   // Reconcile assignments with visibility — free cells with hidden widgets,
-  // assign visible-but-unplaced widgets to empty cells
+
+  // assign visible-but-unplaced widgets to empty cells.
   const vis = state.widgetVisibility || {};
   const assignments = state.gridAssignments;
   let dirty = false;
@@ -837,7 +851,7 @@ export function applyGridAssignments(customSizes) {
   for (const cell of Object.keys(assignments)) {
     if (vis[assignments[cell]] === false) {
       delete assignments[cell];
-      // Clear span if hidden widget was spanning
+      // Clear span if hidden widget was spanning.
       if (spans[cell]) delete spans[cell];
       dirty = true;
     }
@@ -859,15 +873,17 @@ export function applyGridAssignments(customSizes) {
 
   if (dirty) saveGridAssignments();
 
-  // Load custom sizes if not provided
+  // Load custom sizes if not provided.
+
   if (!customSizes) customSizes = loadCustomTrackSizes(perm.id);
 
-  // Map widget stays as direct grid child
+  // Map widget stays as direct grid child.
+
   const mapEl = document.getElementById('widget-map');
   if (mapEl) {
     mapEl.style.gridArea = 'map';
     mapEl.style.display = '';
-    // Ensure map is a direct child of widgetArea
+    // Ensure map is a direct child of widgetArea.
     if (mapEl.parentElement !== area) area.appendChild(mapEl);
   }
 
@@ -877,13 +893,14 @@ export function applyGridAssignments(customSizes) {
   populateWrapper('grid-bar-top', perm.top, 'topFlex', false, customSizes);
   populateWrapper('grid-bar-bottom', perm.bottom, 'bottomFlex', false, customSizes);
 
-  // Hide unassigned widgets and user-hidden widgets
+  // Hide unassigned widgets and user-hidden widgets.
+
   const assignedWidgets = new Set(Object.values(state.gridAssignments));
   WIDGET_DEFS.forEach(def => {
     if (def.id === 'widget-map') return;
     const el = document.getElementById(def.id);
     if (!el) return;
-    // Hide if unassigned OR if user toggled it off
+    // Hide if unassigned OR if user toggled it off.
     if (!assignedWidgets.has(def.id) || vis[def.id] === false) {
       el.style.gridArea = '';
       el.style.display = 'none';
@@ -893,7 +910,7 @@ export function applyGridAssignments(customSizes) {
   });
 }
 
-// Reset grid assignments and track sizes to defaults for current permutation
+// Reset grid assignments and track sizes to defaults for current permutation.
 export function resetGridAssignments() {
   const defaults = GRID_DEFAULT_ASSIGNMENTS[state.gridPermutation];
   state.gridAssignments = defaults ? { ...defaults } : {};
@@ -936,7 +953,8 @@ export function handleGridDragStart(widget, e) {
     const el = document.elementFromPoint(ev.clientX, ev.clientY);
     widget.style.pointerEvents = '';
 
-    // Clear previous target highlight
+    // Clear previous target highlight.
+
     if (currentTarget) {
       currentTarget.classList.remove('grid-drop-target');
       currentTarget = null;
@@ -944,7 +962,8 @@ export function handleGridDragStart(widget, e) {
 
     if (!el) return;
 
-    // Find the widget or placeholder under cursor
+    // Find the widget or placeholder under cursor.
+
     const target = el.closest('.widget, .grid-cell-placeholder');
     if (target && target !== widget && target.id !== 'widget-map') {
       target.classList.add('grid-drop-target');
@@ -988,16 +1007,18 @@ function performSwap(sourceWidgetId, target) {
   }
   if (!targetCell) return;
 
-  // Prevent swap onto absorbed cells — absorbed cells are hidden, so this
-  // shouldn't normally trigger, but guard against edge cases
+  // Prevent swap onto absorbed cells — absorbed cells are hidden, so this.
+
+  // Shouldn't normally trigger, but guard against edge cases.
   const perm = getGridPermutation(state.gridPermutation);
   const spans = state.gridSpans || {};
-  // Find the wrapper that contains the target cell
+  // Find the wrapper that contains the target cell.
   const wrapperCells = [perm.left, perm.right, perm.top, perm.bottom]
     .find(cells => cells.includes(targetCell)) || [];
   if (isAbsorbed(targetCell, wrapperCells, spans)) return;
 
-  // Clear spans on both cells involved in the swap
+  // Clear spans on both cells involved in the swap.
+
   if (spans[sourceCell]) { delete spans[sourceCell]; }
   if (spans[targetCell]) { delete spans[targetCell]; }
   state.gridSpans = spans;

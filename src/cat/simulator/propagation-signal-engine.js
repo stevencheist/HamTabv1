@@ -1,12 +1,13 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Simulator: Propagation Signal Engine ---
 // Generates band-realistic signal levels, SWR, and noise based on:
 // - Time of day (sinusoidal day/night transition using UTC + longitude offset)
 // - Band-specific propagation characteristics (night bands vs day bands)
 // - Slow fade (random walk every 30s for band condition drift)
 // - Fast QSB flutter (±15 random per reading)
-// - Sporadic E openings on 6m
-// - Parabolic SWR model from band center
-
+// - Sporadic E openings on 6m.
+// - Parabolic SWR model from band center.
 export const BAND_PROPS = {
   '160m': { min: 1_800_000, max: 2_000_000, center: 1_900_000, nightBonus: 60, dayPenalty: -40, baseSignal: 40, noiseFloor: 30 },
   '80m':  { min: 3_500_000, max: 4_000_000, center: 3_750_000, nightBonus: 50, dayPenalty: -30, baseSignal: 50, noiseFloor: 25 },
@@ -20,7 +21,7 @@ export const BAND_PROPS = {
   '6m':   { min: 50_000_000, max: 54_000_000, center: 52_000_000, nightBonus: -50, dayPenalty: 20, baseSignal: 30, noiseFloor: 6 },
 };
 
-// Detect which band a frequency falls in
+// Detect which band a frequency falls in.
 function detectBand(freq) {
   for (const [band, props] of Object.entries(BAND_PROPS)) {
     if (freq >= props.min && freq <= props.max) return band;
@@ -29,7 +30,7 @@ function detectBand(freq) {
 }
 
 // Sinusoidal day factor: 0 = midnight, 1 = noon (smooth transition, not binary)
-// Uses UTC hour + longitude offset to approximate local solar time
+// Uses UTC hour + longitude offset to approximate local solar time.
 export function getDayFactor(longitude) {
   const now = new Date();
   const utcHour = now.getUTCHours() + now.getUTCMinutes() / 60;
@@ -42,21 +43,23 @@ export function createPropagationEngine(options = {}) {
   const latitude = options.latitude || 0;
   const longitude = options.longitude || 0;
 
-  // Slow fade state: random walk updated every 30s
+  // Slow fade state: random walk updated every 30s.
+
   let slowFadeOffset = 0;
   let slowFadeTimer = setInterval(() => {
-    // Random walk: ±20 range, drift by ±5 each step
+    // Random walk: ±20 range, drift by ±5 each step.
     slowFadeOffset += (Math.random() - 0.5) * 10;
     slowFadeOffset = Math.max(-20, Math.min(20, slowFadeOffset));
   }, 30_000);
 
-  // Sporadic E state for 6m
+  // Sporadic E state for 6m.
+
   let sporadicEBoost = 0;
   let sporadicETimer = setInterval(() => {
-    // 8% chance of sporadic E opening on each 30s tick
+    // 8% chance of sporadic E opening on each 30s tick.
     if (Math.random() < 0.08) {
       sporadicEBoost = 60 + Math.random() * 40; // big signal boost
-      // Opening lasts 15-60 seconds
+      // Opening lasts 15-60 seconds.
       setTimeout(() => { sporadicEBoost = 0; }, 15_000 + Math.random() * 45_000);
     }
   }, 30_000);
@@ -68,14 +71,15 @@ export function createPropagationEngine(options = {}) {
     const props = BAND_PROPS[band];
     const dayFactor = getDayFactor(longitude);
 
-    // Base signal + day/night modifier
+    // Base signal + day/night modifier.
+
     const dayNightMod = props.dayPenalty * dayFactor + props.nightBonus * (1 - dayFactor);
     let signal = props.baseSignal + dayNightMod;
 
     // Slow fade (band condition drift)
     signal += slowFadeOffset;
 
-    // Fast QSB flutter: ±15 random
+    // Fast QSB flutter: ±15 random.
     signal += (Math.random() - 0.5) * 30;
 
     // Occasional stronger signals (DX pileup simulation)
@@ -83,7 +87,8 @@ export function createPropagationEngine(options = {}) {
       signal += Math.random() * 50;
     }
 
-    // Sporadic E boost for 6m
+    // Sporadic E boost for 6m.
+
     if (band === '6m') {
       signal += sporadicEBoost;
     }
@@ -100,7 +105,8 @@ export function createPropagationEngine(options = {}) {
     const distFromCenter = Math.abs(frequency - props.center);
     const normalizedDist = distFromCenter / (bandWidth / 2); // 0 at center, 1 at edge
 
-    // Parabolic: 1.1 at center → 2.5 at edges
+    // Parabolic: 1.1 at center → 2.5 at edges.
+
     const baseSwr = 1.1 + 1.4 * normalizedDist * normalizedDist;
 
     // Small random variation
@@ -116,10 +122,11 @@ export function createPropagationEngine(options = {}) {
     const props = BAND_PROPS[band];
     const dayFactor = getDayFactor(longitude);
 
-    // Noise is higher on low bands, especially at night
+    // Noise is higher on low bands, especially at night.
+
     let noise = props.noiseFloor;
     if (props.nightBonus > 0) {
-      // Low bands: more noise at night
+      // Low bands: more noise at night.
       noise += (1 - dayFactor) * 15;
     }
     noise += (Math.random() - 0.5) * 6;

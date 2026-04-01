@@ -1,9 +1,10 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Connection Orchestrator ---
 // Single entry point for connecting to a rig.
 // Handles: transport creation, driver selection, profile lookup, RigManager setup.
 // Supports both real radio (WebSerial) and demo mode (InMemoryTransport).
 // UI calls connectRig() / disconnectRig() — never touches internals.
-
 import { WebSerialTransport } from './transports/web-serial.js';
 import { TciWebSocketTransport } from './transports/tci-websocket.js';
 import { InMemoryTransport } from './simulator/in-memory-transport.js';
@@ -49,14 +50,14 @@ export function getRigStore() {
 }
 
 // --- Connect to a rig ---
-// config: { profileId, protocolFamily, protocol, serialConfig, demo,
-//           autoDetect, existingPort, onDetectProgress,
-//           propagation, latitude, longitude,
-//           baudRate, dataBits, stopBits, parity, flowControl,
-//           pttMethod, pollingInterval, civAddress,
-//           safetyTxIntent, safetyBandLockout, safetyAutoPower,
-//           swrLimit, safePower,
-//           sdrType, sdrHost, sdrPort, sdrPassword }
+// Config: { profileId, protocolFamily, protocol, serialConfig, demo,
+//           AutoDetect, existingPort, onDetectProgress,
+//           Propagation, latitude, longitude,
+//           BaudRate, dataBits, stopBits, parity, flowControl,
+//           PttMethod, pollingInterval, civAddress,
+//           SafetyTxIntent, safetyBandLockout, safetyAutoPower,
+//           SwrLimit, safePower,
+//           SdrType, sdrHost, sdrPort, sdrPassword }
 export async function connectRig(config = {}) {
   if (rigManager && rigManager.isConnected()) {
     console.warn('[cat] Already connected — disconnect first');
@@ -98,7 +99,7 @@ export async function connectRig(config = {}) {
       return false;
     }
 
-    // Push driver capabilities into store
+    // Push driver capabilities into store.
     store.applyEvent({ type: 'capabilities', value: sdrDriver.capabilities() });
     store.set({
       sourceType: 'sdr',
@@ -106,11 +107,12 @@ export async function connectRig(config = {}) {
       remoteName: sdrTransport.serverName,
     });
 
-    // Wire audio: transport → audio player → speakers
+    // Wire audio: transport → audio player → speakers.
     sdrAudioPlayer = createKiwiSdrAudioPlayer();
     sdrTransport.onAudioData((samples) => sdrAudioPlayer.feedSamples(samples));
 
-    // No safety modules for RX-only SDR
+    // No safety modules for RX-only SDR.
+
     return true;
   }
 
@@ -134,7 +136,7 @@ export async function connectRig(config = {}) {
       });
     } else {
       trace.record('state', 'auto_detect_fail', {});
-      // Detection failed — caller should handle
+      // Detection failed — caller should handle.
       return false;
     }
   }
@@ -163,7 +165,8 @@ export async function connectRig(config = {}) {
   }
 
   // --- Build serial config ---
-  // Priority: auto-detect result > explicit config fields > profile defaults > empty
+
+  // Priority: auto-detect result > explicit config fields > profile defaults > empty.
   function buildSerialConfig() {
     if (resolvedSerialConfig) return resolvedSerialConfig;
 
@@ -175,15 +178,17 @@ export async function connectRig(config = {}) {
     if (config.parity) explicit.parity = config.parity;
     if (config.flowControl) explicit.flowControl = config.flowControl;
 
-    // Merge: explicit fields override profile defaults
+    // Merge: explicit fields override profile defaults.
+
     const profileSerial = (profile && profile.serial) || {};
     return { ...profileSerial, ...explicit };
   }
 
   // --- Create transport ---
-  // Reuse the live transport from smart-detect when available — avoids
-  // closing and reopening the serial port, which can fail on some USB
-  // adapters after the rapid open/close cycles during detection probing.
+
+  // Reuse the live transport from smart-detect when available — avoids.
+  // Closing and reopening the serial port, which can fail on some USB
+  // Adapters after the rapid open/close cycles during detection probing.
   let transport;
   const isTci = protocolFamily === 'tci';
   if (isDemo) {
@@ -200,7 +205,7 @@ export async function connectRig(config = {}) {
       port: config.tciPort || 50001,
     });
   } else if (detectedTransport) {
-    // Reuse the transport that smart-detect left open — port is already connected
+    // Reuse the transport that smart-detect left open — port is already connected.
     transport = detectedTransport;
   } else {
     const serialConfig = buildSerialConfig();
@@ -228,12 +233,14 @@ export async function connectRig(config = {}) {
     serialConfig: resolvedSerialConfig,
   });
 
-  // Push driver capabilities into store
+  // Push driver capabilities into store.
+
   if (driver && typeof driver.capabilities === 'function') {
     store.applyEvent({ type: 'capabilities', value: driver.capabilities() });
   }
 
-  // Mark demo mode in store
+  // Mark demo mode in store.
+
   if (isDemo) {
     store.set({ demo: true });
   }
@@ -275,13 +282,15 @@ export async function disconnectRig() {
   if (!rigManager) return;
   getTraceBus().record('state', 'disconnected', {});
 
-  // Stop all safety modules
+  // Stop all safety modules.
+
   for (const mod of activeSafetyModules) {
     try { mod.stop(); } catch (_) { /* ignore */ }
   }
   activeSafetyModules = [];
 
-  // Clean up SDR audio player
+  // Clean up SDR audio player.
+
   if (sdrAudioPlayer) {
     sdrAudioPlayer.destroy();
     sdrAudioPlayer = null;

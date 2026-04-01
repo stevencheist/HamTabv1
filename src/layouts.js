@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Named Layout Profiles ---
 // Header dropdown UI for saving, loading, and deleting named layout profiles.
 // Migration from old single-layout system (hamtab_widgets_user → hamtab_layouts).
-
 import state from './state.js';
 import { $ } from './dom.js';
 import { USER_LAYOUT_KEY, LAYOUTS_KEY } from './constants.js';
@@ -67,11 +68,12 @@ function renderMenu() {
 }
 
 function showSaveInput(menu) {
-  // Replace the "Save Current..." action with an inline input
+  // Replace the "Save Current..." action with an inline input.
   const existing = menu.querySelector('.layout-save-row');
   if (existing) { existing.querySelector('input')?.focus(); return; }
 
-  // Remove the "Save Current..." action
+  // Remove the "Save Current..." action.
+
   const action = menu.querySelector('.layout-menu-action');
   if (action) action.remove();
 
@@ -110,7 +112,7 @@ function showSaveInput(menu) {
   row.appendChild(saveBtn);
   menu.appendChild(row);
 
-  // Focus after appending so the input is in the DOM
+  // Focus after appending so the input is in the DOM.
   requestAnimationFrame(() => input.focus());
 }
 
@@ -175,7 +177,7 @@ export function initLayoutDropdown() {
     });
   }
 
-  // Close on outside click
+  // Close on outside click.
   document.addEventListener('click', (e) => {
     if (!menuOpen) return;
     const dropdown = $('layoutDropdown');
@@ -190,7 +192,7 @@ export function initLayoutDropdown() {
   });
 }
 
-// Export for mobile menu to call
+// Export for mobile menu to call.
 export function openLayoutMenu() {
   openMenu();
 }

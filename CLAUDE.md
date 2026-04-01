@@ -97,11 +97,16 @@ main ──────────────────────── SH
 | `public/robots.txt` | Crawler directives (SEO) |
 | `public/og-image.png` | Social media share preview (SEO) |
 
+## Style Guide
+
+> **Full style guide:** `sffoundry/ai-workflows/reference/style-guide.md` — naming, type annotations, imports, formatting, PR discipline, license headers. Project overrides below.
+
 ## Commenting Style
 
 - JS section headers: `// --- Section Name ---`
 - CSS section headers: `/* ---- Section Name ---- */`
 - Inline comments explain **why**, not what
+- Comments must start with a capital letter and end with a period.
 - No JSDoc — use simple inline comments
 - Include context for complex logic (API rate limits, math algorithms, etc.)
 - **Algorithm citations** — When implementing a published algorithm (e.g. Meeus, SGP4), cite the source and chapter/table in a block comment above the function

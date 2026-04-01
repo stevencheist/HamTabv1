@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Trace Bus ---
 // Ring buffer that captures structured events from the CAT command pipeline.
 // Used for diagnostics panel display and debug bundle export.
 // Each trace event records a command's full lifecycle: enqueue → sent → response → parse.
-
 const DEFAULT_MAX_EVENTS = 500;
 
 export function createTraceBus(options = {}) {
@@ -12,7 +13,8 @@ export function createTraceBus(options = {}) {
   let seq = 0;           // monotonic sequence number
   let listeners = [];     // real-time subscribers
 
-  // Error counters — summarize health at a glance
+  // Error counters — summarize health at a glance.
+
   const counters = {
     commandsSent: 0,
     responsesOk: 0,
@@ -23,9 +25,8 @@ export function createTraceBus(options = {}) {
   };
 
   // --- Record a trace event ---
-  // category: 'queue' | 'transport' | 'parse' | 'state' | 'error'
-  // action:   'enqueue' | 'coalesce' | 'drop' | 'sent' | 'received' |
-  //           'parsed' | 'parse_error' | 'timeout' | 'io_error' | 'event_applied'
+
+  // Category: 'queue' | 'transport' | 'parse' | 'state' | 'error'  // Action:   'enqueue' | 'coalesce' | 'drop' | 'sent' | 'received' |  //           'parsed' | 'parse_error' | 'timeout' | 'io_error' | 'event_applied'.
   function record(category, action, detail = {}) {
     seq++;
     const entry = {
@@ -96,7 +97,7 @@ export function createTraceBus(options = {}) {
   };
 }
 
-// Singleton trace bus — shared across the CAT stack
+// Singleton trace bus — shared across the CAT stack.
 let _instance = null;
 
 export function getTraceBus() {

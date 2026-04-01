@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Driver: Yaesu ASCII (NewCAT) ---
 // Covers: FT-DX10, FT-991A, FT-710, FTDX101D, FT-891, FT-DX3000, etc.
-// Protocol: ASCII commands terminated with ";"
+// Protocol: ASCII commands terminated with ";".
 // Reference: hamtab-planning/reference/ftdx10-cat-protocol.md
-
 // --- Mode code mapping ---
 const MODE_CODES = {
   '1': 'LSB',
@@ -32,14 +33,14 @@ const SMETER_CAL = [
 ];
 
 // --- SWR calibration (raw 0-255 → SWR ratio) ---
-// From Hamlib ftdx10.h FTDX10_SWR_CAL
+// From Hamlib ftdx10.h FTDX10_SWR_CAL.
 const SWR_CAL = [
   [0, 1.0], [26, 1.2], [52, 1.5], [89, 2.0],
   [126, 3.0], [173, 4.0], [236, 5.0], [255, 25.0],
 ];
 
 // --- RF Power meter calibration (raw 0-255 → watts) ---
-// From Hamlib ftdx10.h FTDX10_RFPOWER_METER_CAL
+// From Hamlib ftdx10.h FTDX10_RFPOWER_METER_CAL.
 const POWER_CAL = [
   [0, 0], [27, 5], [94, 25], [147, 50], [176, 75], [205, 100],
 ];
@@ -71,7 +72,8 @@ export const yaesuAscii = {
   terminator: ';',
 
   // --- Initialization commands ---
-  // Sent once after connection to configure the radio for CAT control
+
+  // Sent once after connection to configure the radio for CAT control.
   init() {
     return [
       'ID;',    // Read radio ID — confirms communication
@@ -80,6 +82,7 @@ export const yaesuAscii = {
   },
 
   // --- Capabilities ---
+
   // Declares what this driver supports. UI auto-builds from this list.
   capabilities() {
     return [
@@ -102,6 +105,7 @@ export const yaesuAscii = {
   },
 
   // --- Command encoding ---
+
   // Converts a logical command + params into the ASCII string to send.
   encode(command, params) {
     switch (command) {
@@ -156,16 +160,15 @@ export const yaesuAscii = {
       case 'setProcessor':   return `PR0${params};`;  // 0=off, 1=on
       case 'getProcessorLevel': return 'PL;';
       case 'setProcessorLevel': return `PL${String(params).padStart(3, '0')};`;
-      // EX (Menu) — read/write radio menu settings
-      // params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set
-      // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
+      // EX (Menu) — read/write radio menu settings.
+      // Params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set      // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
       case 'getMenu': {
         const { p1, p2, p3 } = params;
         return `EX${pad(p1,2)}${pad(p2,2)}${pad(p3,2)};`;
       }
       case 'setMenu': {
         const { p1, p2, p3, value, digits } = params;
-        // Handle signed values: string "-06" passes through, number -6 encodes as "-06"
+        // Handle signed values: string "-06" passes through, number -6 encodes as "-06".
         let valStr;
         if (typeof value === 'string') {
           valStr = value;
@@ -182,6 +185,7 @@ export const yaesuAscii = {
   },
 
   // --- Response parsing ---
+
   // Parses an ASCII response string into a {type, value} event.
   // Returns null if response is not recognized.
   parse(response) {
@@ -189,7 +193,8 @@ export const yaesuAscii = {
       return { type: 'error', value: response };
     }
 
-    // Strip trailing semicolons for parsing
+    // Strip trailing semicolons for parsing.
+
     const resp = response.endsWith(';') ? response.slice(0, -1) : response;
 
     // --- Frequency (FA/FB) ---
@@ -329,7 +334,8 @@ export const yaesuAscii = {
     }
 
     // --- Menu (EX P1P1 P2P2 P3P3 P4~P4) ---
-    // Response: EX + 6 digits (address) + value digits
+
+    // Response: EX + 6 digits (address) + value digits.
     if (resp.startsWith('EX') && resp.length >= 8) {
       const p1 = parseInt(resp.slice(2, 4), 10);
       const p2 = parseInt(resp.slice(4, 6), 10);
@@ -345,6 +351,7 @@ export const yaesuAscii = {
   },
 
   // --- Polling commands ---
+
   // Returns the list of commands to send each polling cycle.
   // Meter commands are separate (handled by MeterStreamEngine).
   pollCommands() {
@@ -357,6 +364,7 @@ export const yaesuAscii = {
   },
 
   // --- Meter commands ---
+
   // Sent at adaptive rate by MeterStreamEngine.
   meterCommands() {
     return [

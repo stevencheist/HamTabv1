@@ -28,7 +28,7 @@
         // Markers & selection
         markers: {},
         selectedSpotId: null,
-        // Filters — multi-select bands/modes stored as Sets
+        // Filters — multi-select bands/modes stored as Sets.
         activeBands: /* @__PURE__ */ new Set(),
         activeModes: /* @__PURE__ */ new Set(),
         activeCountry: null,
@@ -54,7 +54,7 @@
         // ITU region for sub-band definitions
         propagationFilterEnabled: false,
         // session-only — filter spots by predicted band reliability (≥30%)
-        // Filter presets per source
+        // Filter presets per source.
         filterPresets: { pota: {}, sota: {}, dxc: {}, wspr: {}, rbn: {} },
         // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
         watchLists: (() => {
@@ -72,7 +72,7 @@
         })(),
         watchRedSpotIds: /* @__PURE__ */ new Set(),
         // spot IDs matching "red" rules — rebuilt each filter pass
-        // Auto-refresh — defaults to on, persisted in localStorage
+        // Auto-refresh — defaults to on, persisted in localStorage.
         autoRefreshEnabled: localStorage.getItem("hamtab_auto_refresh") !== "false",
         countdownSeconds: 60,
         countdownTimer: null,
@@ -106,7 +106,7 @@
         // 'qth' (500km), 'cty' (country bounds), 'world' (all spots)
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
-        // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
+        // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage.
         hiddenDxpeditions: (() => {
           try {
             const s = JSON.parse(localStorage.getItem("hamtab_dxped_hidden"));
@@ -127,7 +127,7 @@
         // loaded in solar.js
         lunarFieldVisibility: null,
         // loaded in lunar.js
-        // Spot column visibility — which columns are shown in the On the Air table
+        // Spot column visibility — which columns are shown in the On the Air table.
         spotColumnVisibility: null,
         // loaded in spots.js
         // Spot table sorting
@@ -135,7 +135,7 @@
         // current sort column key (null = default spotTime)
         spotSortDirection: "desc",
         // 'asc' or 'desc'
-        // Cached data for re-render
+        // Cached data for re-render.
         lastSolarData: null,
         lastLunarData: null,
         spacewxData: null,
@@ -296,7 +296,7 @@
         // L.circleMarker[] for QSO positions on map
         logbookLines: [],
         // L.polyline[] for QSO geodesic paths
-        // Beacons / DXpeditions / Contests
+        // Beacons / DXpeditions / Contests.
         beaconTimer: null,
         // setInterval ID for 1-second beacon updates
         dedxTimer: null,
@@ -312,7 +312,7 @@
         // Progressive scaling
         reflowActive: false,
         // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
-        // POTA Hunter — worked callsign tracking + spotter location
+        // POTA Hunter — worked callsign tracking + spotter location.
         spotterLocation: localStorage.getItem("hamtab_spotter_location") || "",
         // free text for spot comments (e.g. "Dallas, TX")
         hideWorked: localStorage.getItem("hamtab_hide_worked") === "true",
@@ -325,7 +325,7 @@
           }
           return [];
         })(),
-        // Band Opportunity Score cache
+        // Band Opportunity Score cache.
         bandScores: null,
         // Debug mode — enables verbose console logging (cross-tab, fetch diagnostics)
         // Toggle at runtime via console: window.__hamtab_debug()
@@ -1231,7 +1231,7 @@
         ["Andorra", 42.43, 1.41, 42.66, 1.79],
         ["Monaco", 43.72, 7.41, 43.75, 7.44],
         ["Liechtenstein", 47.05, 9.47, 47.27, 9.64],
-        // Russia — split into European and Asian
+        // Russia — split into European and Asian.
         ["Russia (European)", 41.19, 27.33, 69.95, 60],
         ["Russia (Asian)", 42.3, 60, 81.86, 179.99],
         // Middle East
@@ -1360,7 +1360,7 @@
         ["Nauru", -0.56, 166.9, -0.49, 166.96],
         ["Guam", 13.24, 144.62, 13.65, 144.96],
         ["American Samoa", -14.38, -170.83, -14.16, -169.42],
-        // North Asia / other
+        // North Asia / other.
         ["Georgia", 41.05, 40.01, 43.59, 46.72],
         ["Armenia", 38.84, 43.45, 41.3, 46.63],
         ["Azerbaijan", 38.39, 44.79, 41.91, 50.37]
@@ -1548,8 +1548,8 @@
           if (this._onStateChange) this._onStateChange(newState);
         }
         // --- Start persistent reader loop ---
-        // Runs in the background, continuously reads from the serial port into
-        // _rawBuffer. Never calls reader.cancel() — the loop ends only when
+        // Runs in the background, continuously reads from the serial port into.
+        // _rawBuffer. Never calls reader.cancel() — the loop ends only when.
         // disconnect() cancels the reader.
         _startReadLoop() {
           if (this._readLoopRunning) {
@@ -1631,8 +1631,8 @@
           this._readLoopPromise = null;
         }
         // --- Wait for NEW data with timeout ---
-        // Always waits for the read loop to deliver new bytes — never returns
-        // early based on existing buffer content (the caller already checked).
+        // Always waits for the read loop to deliver new bytes — never returns.
+        // Early based on existing buffer content (the caller already checked).
         // This prevents busy-looping when the buffer has partial data without
         // the expected terminator.
         _waitForData(timeoutMs) {
@@ -1650,8 +1650,8 @@
         // --- Connect ---
         // Opens the browser serial port picker, then opens with configured params.
         // Asserts DTR after open. Falls back to no flow control if HW not supported.
-        // If the port is already open (reused from smart-detect), skips open and
-        // just adopts the port reference.
+        // If the port is already open (reused from smart-detect), skips open and.
+        // Just adopts the port reference.
         async connect(existingPort) {
           if (!_WebSerialTransport.isSupported()) {
             throw new Error("Web Serial API not supported in this browser");
@@ -1775,9 +1775,9 @@
           }
         }
         // --- Read until terminator ---
-        // Reads ASCII data from the internal buffer until the terminator character
-        // (default ";") is found. Returns the complete response string including
-        // terminator. Used for Yaesu/Kenwood/Elecraft ASCII protocols.
+        // Reads ASCII data from the internal buffer until the terminator character.
+        // (default ";") is found. Returns the complete response string including.
+        // Terminator. Used for Yaesu/Kenwood/Elecraft ASCII protocols.
         async readUntil(terminator = ";", timeoutMs = 2e3) {
           if (!this.port) {
             throw new Error("Serial port not open");
@@ -2550,7 +2550,7 @@
         }
         // --- Internal: handle incoming WebSocket message ---
         // KiwiSDR sends ALL frames as binary ArrayBuffers with a 3-byte ASCII tag:
-        //   "SND" — audio + S-meter data
+        //   "SND" — audio + S-meter data.
         //   "MSG" — text key=value protocol messages (sent as binary, not WS text)
         _handleMessage(event) {
           if (event.data instanceof ArrayBuffer) {
@@ -2635,7 +2635,7 @@
         }
         // --- Convert dBm to raw 0-255 scale for S-meter compatibility ---
         // KiwiSDR range: roughly -130 dBm (noise floor) to -10 dBm (strong)
-        // Maps linearly: -130 → 0, -10 → 255
+        // Maps linearly: -130 → 0, -10 → 255.
         _dbToRaw(dbm) {
           const clamped = Math.max(-130, Math.min(-10, dbm));
           return Math.round((clamped + 130) / 120 * 255);
@@ -2757,7 +2757,7 @@
         label: "Yaesu (NewCAT)",
         terminator: ";",
         // --- Initialization commands ---
-        // Sent once after connection to configure the radio for CAT control
+        // Sent once after connection to configure the radio for CAT control.
         init() {
           return [
             "ID;",
@@ -2891,9 +2891,8 @@
               return "PL;";
             case "setProcessorLevel":
               return `PL${String(params).padStart(3, "0")};`;
-            // EX (Menu) — read/write radio menu settings
-            // params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set
-            // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
+            // EX (Menu) — read/write radio menu settings.
+            // Params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set      // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
             case "getMenu": {
               const { p1, p2, p3 } = params;
               return `EX${pad(p1, 2)}${pad(p2, 2)}${pad(p3, 2)};`;
@@ -3459,7 +3458,7 @@
           return "CIV:" + Array.from(frame).map((b) => b.toString(16).padStart(2, "0")).join("");
         },
         // --- Response parsing ---
-        // Accepts either a hex-encoded string (CIV:...) or raw response string
+        // Accepts either a hex-encoded string (CIV:...) or raw response string.
         parse(response) {
           if (!response) return null;
           let bytes;
@@ -3623,7 +3622,7 @@
           ];
         },
         // --- Command encoding ---
-        // Elecraft uses 11-digit frequency fields like Kenwood
+        // Elecraft uses 11-digit frequency fields like Kenwood.
         encode(command, params) {
           switch (command) {
             case "getFrequency":
@@ -3746,11 +3745,11 @@
       kiwisdrWs = {
         name: "kiwisdr_ws",
         label: "KiwiSDR (WebSocket)",
-        // No init commands — transport handles WebSocket handshake + auth
+        // No init commands — transport handles WebSocket handshake + auth.
         init() {
           return [];
         },
-        // RX-only capabilities — no PTT, no SWR, no power
+        // RX-only capabilities — no PTT, no SWR, no power.
         capabilities() {
           return [
             "frequency_read",
@@ -3760,7 +3759,7 @@
             "meter_signal"
           ];
         },
-        // Encode logical command → KIWI: marker string
+        // Encode logical command → KIWI: marker string.
         encode(command, params) {
           switch (command) {
             case "getFrequency":
@@ -3777,7 +3776,7 @@
               return null;
           }
         },
-        // Parse KIWI response → event object for RigStateStore
+        // Parse KIWI response → event object for RigStateStore.
         parse(response) {
           if (!response) return null;
           if (response.startsWith("FREQ:")) {
@@ -3796,7 +3795,7 @@
           }
           return null;
         },
-        // Commands sent each polling cycle
+        // Commands sent each polling cycle.
         pollCommands() {
           return [
             "getFrequency",
@@ -3804,7 +3803,7 @@
             "getSignal"
           ];
         }
-        // No meter commands — S-meter handled via pollCommands
+        // No meter commands — S-meter handled via pollCommands.
         // (KiwiSDR pushes S-meter in binary frames; no separate meter cycle needed)
       };
     }
@@ -3859,7 +3858,7 @@
         terminator: ";",
         binary: false,
         // --- Initialization commands ---
-        // After WebSocket connects, subscribe to TCI push notifications
+        // After WebSocket connects, subscribe to TCI push notifications.
         init() {
           return [
             "VFO:0,0;",
@@ -3887,7 +3886,7 @@
           ];
         },
         // --- Polling commands ---
-        // These read from the TCI transport's cache — effectively free
+        // These read from the TCI transport's cache — effectively free.
         pollCommands() {
           return [
             "getFrequency",
@@ -3904,7 +3903,7 @@
           ];
         },
         // --- Command encoding ---
-        // Converts HamTab logical commands → TCI wire format
+        // Converts HamTab logical commands → TCI wire format.
         encode(command, params) {
           switch (command) {
             case "getFrequency":
@@ -3938,7 +3937,7 @@
           }
         },
         // --- Response parsing ---
-        // Parses TCI response strings into {type, value} events for RigStateStore
+        // Parses TCI response strings into {type, value} events for RigStateStore.
         parse(response) {
           if (!response) return null;
           const resp = response.endsWith(";") ? response.slice(0, -1) : response;
@@ -4435,7 +4434,7 @@
       txLocked: false,
       txLockReason: "",
       // Menu responses — keyed by address string (e.g. "010416" for P1=01 P2=04 P3=16)
-      // Populated by EX command responses, used by digital setup to read/restore settings
+      // Populated by EX command responses, used by digital setup to read/restore settings.
       menuResponses: {},
       // --- Radio settings (populated by profile read commands) ---
       afGain: null,
@@ -5491,7 +5490,7 @@
       init_web_serial();
       init_rig_profiles();
       PROBES = [
-        // 1. Yaesu 38400/8N1 — newer radios: FT-DX10, FT-710, FT-DX101D/MP
+        // 1. Yaesu 38400/8N1 — newer radios: FT-DX10, FT-710, FT-DX101D/MP.
         {
           name: "Yaesu 38400",
           serialConfig: { baudRate: 38400, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
@@ -5558,7 +5557,7 @@
             return parseAsciiId(resp, "yaesu_ascii");
           }
         },
-        // 7. Kenwood 9600/8N1 — TS-480
+        // 7. Kenwood 9600/8N1 — TS-480.
         {
           name: "Kenwood 9600",
           serialConfig: { baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
@@ -5754,7 +5753,7 @@
     let nextStartTime = 0;
     let muted = false;
     return {
-      // Schedule PCM Int16 samples for playback
+      // Schedule PCM Int16 samples for playback.
       feedSamples(int16Array) {
         if (!int16Array.length) return;
         if (ctx.state === "suspended") ctx.resume();
@@ -6709,7 +6708,7 @@
     const reference = refEl.textContent.trim();
     const comments = commentEl ? commentEl.value.trim() : "";
     if (!activator || !reference) {
-      if (statusEl) statusEl.textContent = "Missing activator or reference";
+      if (statusEl) statusEl.textContent = "Missing activator or reference.";
       return;
     }
     if (submitBtn) {
@@ -10482,7 +10481,7 @@
     const defs = singleBand ? getSubBandDefinitions(state_default.activeBandPlanRegion, singleBand) : null;
     if (!defs) {
       wrap.classList.add("subband-disabled");
-      if (meta) meta.textContent = "Select one band to filter by sub-band";
+      if (meta) meta.textContent = "Select one band to filter by sub-band.";
       container.innerHTML = "";
       if (state_default.activeSubBandBand) {
         state_default.activeSubBandBand = null;
@@ -11093,7 +11092,6 @@
         });
         L.marker([mid[1], mid[0]], { icon, pane: "propagation", interactive: false }).addTo(state_default.propLabelLayer);
       });
-      state_default.map.invalidateSize();
     } catch (err2) {
       console.error("Failed to fetch propagation:", err2);
     }
@@ -12386,7 +12384,7 @@
           columns: "1fr 2fr 1fr",
           rows: "1fr 1fr",
           cellNames: ["L1", "L2", "R1", "R2"],
-          // Flex-column hybrid fields — used by grid-layout.js at runtime
+          // Flex-column hybrid fields — used by grid-layout.js at runtime.
           left: ["L1", "L2"],
           right: ["R1", "R2"],
           top: [],
@@ -15433,7 +15431,7 @@ ${beacon.location}`);
       list.textContent = "";
       const empty = document.createElement("div");
       empty.className = "dxped-empty";
-      empty.textContent = "No DXpeditions found";
+      empty.textContent = "No DXpeditions found.";
       list.appendChild(empty);
       if (countEl) countEl.textContent = "";
       updateDxpeditionMarkers([]);
@@ -15447,7 +15445,7 @@ ${beacon.location}`);
     if (filtered.length === 0 && hiddenCount === 0) {
       const empty = document.createElement("div");
       empty.className = "dxped-empty";
-      empty.textContent = "No DXpeditions match the selected time filter";
+      empty.textContent = "No DXpeditions match the selected time filter.";
       list.appendChild(empty);
       updateDxpeditionMarkers([]);
       return;
@@ -15584,7 +15582,7 @@ ${beacon.location}`);
       list.textContent = "";
       const empty = document.createElement("div");
       empty.className = "contest-empty";
-      empty.textContent = "No upcoming contests found";
+      empty.textContent = "No upcoming contests found.";
       list.appendChild(empty);
       if (countEl) countEl.textContent = "";
       return;
@@ -15602,7 +15600,7 @@ ${beacon.location}`);
       list.textContent = "";
       const empty = document.createElement("div");
       empty.className = "contest-empty";
-      empty.textContent = "No upcoming contests found";
+      empty.textContent = "No upcoming contests found.";
       list.appendChild(empty);
       if (countEl) countEl.textContent = "";
       return;
@@ -16396,7 +16394,7 @@ ${beacon.location}`);
     if (!summary) return;
     if (!state_default.myCallsign) {
       if (status) {
-        status.textContent = "Set your callsign in Config";
+        status.textContent = "Set your callsign in Config.";
         status.classList.add("visible");
       }
       summary.innerHTML = "";
@@ -16405,16 +16403,16 @@ ${beacon.location}`);
     }
     if (status) {
       if (state_default.liveSpots.error && !state_default.liveSpots.lastFetch) {
-        status.textContent = "PSKReporter unavailable \u2014 retrying";
+        status.textContent = "PSKReporter unavailable \u2014 retrying.";
         status.classList.add("visible");
       } else if (state_default.liveSpots.data.length === 0 && state_default.liveSpots.lastFetch) {
-        status.textContent = "No spots in last hour";
+        status.textContent = "No spots in last hour.";
         status.classList.add("visible");
       } else if (!state_default.liveSpots.lastFetch) {
         status.textContent = "Loading...";
         status.classList.add("visible");
       } else if (state_default.liveSpots.stale) {
-        status.textContent = "Showing cached data \u2014 PSKReporter slow";
+        status.textContent = "Showing cached data \u2014 PSKReporter slow.";
         status.classList.add("visible");
       } else {
         status.textContent = "";
@@ -21084,7 +21082,6 @@ ${beacon.location}`);
         ctx.lineTo(width, y);
         ctx.stroke();
       }
-      ctx.fillStyle = "#4a5a7a";
       ctx.font = "10px Consolas, monospace";
       ctx.textAlign = "left";
       for (let db = floorDb; db <= ceilingDb; db += gridStepDb) {
@@ -22463,7 +22460,7 @@ ${beacon.location}`);
       if (!navigator.serial || !navigator.serial.getPorts) return null;
       const ports = await navigator.serial.getPorts();
       if (ports.length === 0) {
-        statusEl.textContent = "No authorized ports \u2014 change to Auto in Radio settings";
+        statusEl.textContent = "No authorized ports \u2014 change to Auto in Radio settings.";
         return null;
       }
       return ports[0];
@@ -22504,7 +22501,7 @@ ${beacon.location}`);
         const urlInput = $("rigSdrUrl");
         const rawUrl = urlInput ? urlInput.value.trim() : "";
         if (!rawUrl) {
-          statusEl.textContent = "Enter a KiwiSDR host address";
+          statusEl.textContent = "Enter a KiwiSDR host address.";
           connectBtn.disabled = false;
           return;
         }
@@ -22547,9 +22544,9 @@ ${beacon.location}`);
           const isSecure = location.protocol === "https:";
           const isLoopback = tciHost === "localhost" || tciHost === "127.0.0.1";
           if (isSecure && !isLoopback) {
-            statusEl.textContent = `TCI failed \u2014 ws:// blocked from HTTPS. Use Host: localhost or 127.0.0.1`;
+            statusEl.textContent = `TCI failed \u2014 ws:// blocked from HTTPS. Use Host: localhost or 127.0.0.1.`;
           } else {
-            statusEl.textContent = `TCI failed \u2014 check TCI is enabled on ${tciHost}:${tciPort}`;
+            statusEl.textContent = `TCI failed \u2014 check TCI is enabled on ${tciHost}:${tciPort}.`;
           }
         }
       } else {
@@ -22864,7 +22861,7 @@ ${beacon.location}`);
     } catch (_) {
     }
     const statusEl = $("rigStatus");
-    if (statusEl) statusEl.textContent = "Released for WSJT-X \u2014 reconnect when done";
+    if (statusEl) statusEl.textContent = "Released for WSJT-X \u2014 reconnect when done.";
   }
   function handleRestoreFromWSJTX() {
     if (!isRigConnected() || !state_default.digitalRestoreState) return;
@@ -23011,7 +23008,7 @@ ${beacon.location}`);
     if (!nameInput || !isRigConnected()) return;
     const name = nameInput.value.trim();
     if (!name) {
-      if (statusEl) statusEl.textContent = "Enter a profile name";
+      if (statusEl) statusEl.textContent = "Enter a profile name.";
       return;
     }
     if (statusEl) statusEl.textContent = "Reading radio settings...";
@@ -23399,7 +23396,6 @@ ${beacon.location}`);
       counter.classList.remove("over-limit");
     }
   }
-  var _initApp = null;
   function setInitApp(fn) {
     _initApp = fn;
   }
@@ -23576,8 +23572,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.70.0";
-    $("aboutVersion").textContent = "0.70.0";
+    $("splashVersion").textContent = "0.70.1";
+    $("aboutVersion").textContent = "0.70.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -23630,7 +23626,7 @@ ${beacon.location}`);
     }
     const dataSyncToggle = document.getElementById("dataSyncToggle");
     if (dataSyncToggle) dataSyncToggle.checked = isSyncEnabled();
-    const dataSyncSection = document.getElementById("dataSyncSection");
+    const dataSyncSection = document.getElementById("data-sync-section");
     if (dataSyncSection) {
       dataSyncSection.classList.add("hidden");
       checkSyncCapability().then((capable) => {
@@ -23881,7 +23877,7 @@ ${beacon.location}`);
       if (ports.length === 0) {
         const opt = document.createElement("option");
         opt.value = "";
-        opt.textContent = "No authorized ports \u2014 click Auto-Detect or use Auto port mode";
+        opt.textContent = "No authorized ports \u2014 click Auto-Detect or use Auto port mode.";
         portList.appendChild(opt);
         return;
       }
@@ -24358,7 +24354,7 @@ ${beacon.location}`);
     $("splashCallsignLocBtn").addEventListener("click", async () => {
       const call = $("splashCallsign").value.trim().toUpperCase();
       if (!call) {
-        updateLocStatus("Enter a callsign first", true);
+        updateLocStatus("Enter a callsign first.", true);
         return;
       }
       const btn = $("splashCallsignLocBtn");
@@ -24383,10 +24379,10 @@ ${beacon.location}`);
           $("splashGpsBtn").classList.remove("active");
           updateLocStatus("Location set from callsign");
         } else {
-          updateLocStatus("No location found for " + call, true);
+          updateLocStatus("No location found for " + call + ".", true);
         }
       } catch {
-        updateLocStatus("Lookup failed \u2014 try again", true);
+        updateLocStatus("Lookup failed \u2014 try again.", true);
       } finally {
         btn.disabled = false;
       }
@@ -24394,7 +24390,7 @@ ${beacon.location}`);
     $("splashSaveLayout").addEventListener("click", () => {
       const name = $("splashLayoutName").value.trim();
       if (!name) {
-        $("splashLayoutStatus").textContent = "Enter a layout name";
+        $("splashLayoutStatus").textContent = "Enter a layout name.";
         return;
       }
       const ok = saveNamedLayout(name);
@@ -24523,7 +24519,7 @@ ${beacon.location}`);
             setDataStatus("Copied to clipboard", false);
           }).catch(() => {
             textarea.select();
-            setDataStatus("Select and copy manually", true);
+            setDataStatus("Select and copy manually.", true);
           });
         }
       });
@@ -24532,7 +24528,7 @@ ${beacon.location}`);
       dataImportApply.addEventListener("click", () => {
         const textarea = document.getElementById("dataImportCode");
         if (!textarea || !textarea.value.trim()) {
-          setDataStatus("Paste a config code first", true);
+          setDataStatus("Paste a config code first.", true);
           return;
         }
         if (!confirm("This will replace all your settings including your callsign. Continue?")) return;
@@ -24551,7 +24547,7 @@ ${beacon.location}`);
         if (dataSyncToggleCb.checked && state_default.myCallsign) {
           pushConfig(state_default.myCallsign).then((ok) => {
             const el2 = document.getElementById("dataSyncStatus");
-            if (el2) el2.textContent = ok ? "Synced now" : "Sync failed \u2014 will retry on next save";
+            if (el2) el2.textContent = ok ? "Synced now." : "Sync failed \u2014 will retry on next save.";
           });
         }
       });
@@ -25231,7 +25227,7 @@ ${beacon.location}`);
       renderLogbook();
       renderLogbookOnMap();
       const zone = $("logbookImportZone");
-      const content = $("logbookContent");
+      const content = $("logbook-content");
       if (zone) zone.classList.add("hidden");
       if (content) content.classList.remove("hidden");
     } catch (err2) {
@@ -25244,7 +25240,7 @@ ${beacon.location}`);
     if (saved.length > 0) {
       state_default.logbookData = saved;
       const zone2 = $("logbookImportZone");
-      const content = $("logbookContent");
+      const content = $("logbook-content");
       if (zone2) zone2.classList.add("hidden");
       if (content) content.classList.remove("hidden");
       renderLogbook();
@@ -25296,7 +25292,7 @@ ${beacon.location}`);
         clearLogbookFromMap();
         renderLogbook();
         const zn = $("logbookImportZone");
-        const ct = $("logbookContent");
+        const ct = $("logbook-content");
         if (zn) zn.classList.remove("hidden");
         if (ct) ct.classList.add("hidden");
       });
@@ -25502,7 +25498,7 @@ ${beacon.location}`);
   }
   function pollForServer(attempts) {
     if (attempts <= 0) {
-      $("updateLabel").textContent = "Server did not come back";
+      $("updateLabel").textContent = "Server did not come back.";
       $("updateDot").className = "update-dot red";
       return;
     }
@@ -25834,16 +25830,16 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       // honeypot
     };
     if (data.feedback.length < 10) {
-      showStatus("Feedback must be at least 10 characters", "error");
+      showStatus("Feedback must be at least 10 characters.", "error");
       return;
     }
     if (data.feedback.length > 5e3) {
-      showStatus("Feedback must be less than 5000 characters", "error");
+      showStatus("Feedback must be less than 5000 characters.", "error");
       return;
     }
     const timeSinceOpen = Date.now() - formOpenTime;
     if (timeSinceOpen < 3e3) {
-      showStatus("Please take a moment to review your feedback", "error");
+      showStatus("Please take a moment to review your feedback.", "error");
       return;
     }
     submitBtn.disabled = true;

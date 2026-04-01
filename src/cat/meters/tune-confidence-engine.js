@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Tune Confidence Engine ---
 // Maps SWR readings to confidence levels for UI display.
 // Levels: good (green), caution (amber), unsafe (red), unknown (gray)
 // Thresholds are configurable per rig profile.
-
 const DEFAULT_THRESHOLDS = {
   good: 1.5,     // SWR ≤ 1.5 — well-matched
   caution: 3.0,  // SWR ≤ 3.0 — needs attention

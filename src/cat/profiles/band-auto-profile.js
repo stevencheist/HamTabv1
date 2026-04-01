@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Band Auto-Profile ---
 // Maps spot type/mode to rig settings (mode, power hints).
 // When a user clicks a spot, this determines what mode the rig should use.
-
 // --- Spot mode → rig mode mapping ---
 // Spot modes come from POTA/SOTA/DXC sources. Rig modes are driver-level.
 // Below 10 MHz: LSB for voice. Above 10 MHz: USB for voice.
@@ -29,12 +30,12 @@ const SPOT_TO_RIG_MODE = {
 };
 
 // --- Frequency-dependent SSB mode ---
-// Convention: LSB below 10 MHz, USB at 10 MHz and above
+// Convention: LSB below 10 MHz, USB at 10 MHz and above.
 const SSB_CROSSOVER = 10_000_000; // Hz
 
 // --- Resolve rig mode from spot data ---
-// spotMode: string from spot source (e.g., "FT8", "SSB", "CW")
-// freqHz: frequency in Hz (used for SSB → USB/LSB decision)
+// SpotMode: string from spot source (e.g., "FT8", "SSB", "CW").
+// FreqHz: frequency in Hz (used for SSB → USB/LSB decision).
 export function resolveRigMode(spotMode, freqHz) {
   if (!spotMode) return null;
 
@@ -44,12 +45,14 @@ export function resolveRigMode(spotMode, freqHz) {
   const mapped = SPOT_TO_RIG_MODE[upper];
   if (mapped) return mapped;
 
-  // SSB: resolve by frequency
+  // SSB: resolve by frequency.
+
   if (upper === 'SSB' || upper === 'PH' || upper === 'PHONE') {
     return freqHz >= SSB_CROSSOVER ? 'USB' : 'LSB';
   }
 
-  // Unknown mode — don't change rig mode
+  // Unknown mode — don't change rig mode.
+
   return null;
 }
 
@@ -57,7 +60,7 @@ export function resolveRigMode(spotMode, freqHz) {
 // Spot sources use inconsistent units:
 //   POTA/SOTA: MHz string ("14.074")
 //   DXC/some sources: kHz string ("14074" or "14074.0")
-// Mirrors the logic in filters.js freqToBand(): if > 1000, it's kHz
+// Mirrors the logic in filters.js freqToBand(): if > 1000, it's kHz.
 export function spotFreqToHz(freq) {
   let val;
   if (typeof freq === 'number') {

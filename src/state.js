@@ -1,9 +1,12 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 const state = {
   // Markers & selection
   markers: {},
   selectedSpotId: null,
 
-  // Filters — multi-select bands/modes stored as Sets
+  // Filters — multi-select bands/modes stored as Sets.
   activeBands: new Set(),
   activeModes: new Set(),
   activeCountry: null,
@@ -21,7 +24,7 @@ const state = {
   activeBandPlanRegion: 'itu2', // ITU region for sub-band definitions
   propagationFilterEnabled: false, // session-only — filter spots by predicted band reliability (≥30%)
 
-  // Filter presets per source
+  // Filter presets per source.
   filterPresets: { pota: {}, sota: {}, dxc: {}, wspr: {}, rbn: {} },
 
   // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
@@ -37,7 +40,7 @@ const state = {
   })(),
   watchRedSpotIds: new Set(), // spot IDs matching "red" rules — rebuilt each filter pass
 
-  // Auto-refresh — defaults to on, persisted in localStorage
+  // Auto-refresh — defaults to on, persisted in localStorage.
   autoRefreshEnabled: localStorage.getItem('hamtab_auto_refresh') !== 'false',
   countdownSeconds: 60,
   countdownTimer: null,
@@ -77,7 +80,7 @@ const state = {
   // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
   dxpedTimeFilter: localStorage.getItem('hamtab_dxped_time_filter') || 'all',
 
-  // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
+  // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage.
   hiddenDxpeditions: (() => {
     try {
       const s = JSON.parse(localStorage.getItem('hamtab_dxped_hidden'));
@@ -98,14 +101,14 @@ const state = {
   solarFieldVisibility: null, // loaded in solar.js
   lunarFieldVisibility: null, // loaded in lunar.js
 
-  // Spot column visibility — which columns are shown in the On the Air table
+  // Spot column visibility — which columns are shown in the On the Air table.
   spotColumnVisibility: null, // loaded in spots.js
 
   // Spot table sorting
   spotSortColumn: null, // current sort column key (null = default spotTime)
   spotSortDirection: 'desc', // 'asc' or 'desc'
 
-  // Cached data for re-render
+  // Cached data for re-render.
   lastSolarData: null,
   lastLunarData: null,
   spacewxData: null,   // { kp: [], xray: [], sfi: [], wind: [], mag: [] }
@@ -230,7 +233,7 @@ const state = {
   logbookMarkers: [], // L.circleMarker[] for QSO positions on map
   logbookLines: [], // L.polyline[] for QSO geodesic paths
 
-  // Beacons / DXpeditions / Contests
+  // Beacons / DXpeditions / Contests.
   beaconTimer: null,          // setInterval ID for 1-second beacon updates
   dedxTimer: null,            // setInterval ID for 1-second DE/DX Info clock updates
   stopwatchTimer: null,       // setInterval ID for 100ms stopwatch/countdown updates
@@ -243,7 +246,7 @@ const state = {
   // Progressive scaling
   reflowActive: false, // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
 
-  // POTA Hunter — worked callsign tracking + spotter location
+  // POTA Hunter — worked callsign tracking + spotter location.
   spotterLocation: localStorage.getItem('hamtab_spotter_location') || '', // free text for spot comments (e.g. "Dallas, TX")
   hideWorked: localStorage.getItem('hamtab_hide_worked') === 'true', // filter toggle
   workedList: (() => {
@@ -254,10 +257,11 @@ const state = {
     return [];
   })(),
 
-  // Band Opportunity Score cache
+  // Band Opportunity Score cache.
   bandScores: null,
 
   // Debug mode — enables verbose console logging (cross-tab, fetch diagnostics)
+
   // Toggle at runtime via console: window.__hamtab_debug()
   debug: false,
 
@@ -357,7 +361,7 @@ const state = {
   digitalRestoreState: null, // runtime only — snapshot of freq/mode/power before digital enable
 };
 
-// Migrate old SVG metric values
+// Migrate old SVG metric values.
 if (state.propMetric === 'mof_sp' || state.propMetric === 'lof_sp') {
   state.propMetric = 'mufd';
   localStorage.setItem('hamtab_prop_metric', state.propMetric);
@@ -374,7 +378,7 @@ try {
   }
 } catch (e) {}
 
-// Load saved manual location
+// Load saved manual location.
 const savedLat = localStorage.getItem('hamtab_lat');
 const savedLon = localStorage.getItem('hamtab_lon');
 if (savedLat !== null && savedLon !== null) {
@@ -388,7 +392,7 @@ if (savedLat !== null && savedLon !== null) {
   }
 }
 
-// Fall back to cached GPS location if no manual override
+// Fall back to cached GPS location if no manual override.
 if (!state.manualLoc) {
   const gpsLat = localStorage.getItem('hamtab_gps_lat');
   const gpsLon = localStorage.getItem('hamtab_gps_lon');

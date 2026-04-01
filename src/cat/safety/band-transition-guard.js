@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Safety: Band Transition Guard ---
 // Locks TX during band changes to prevent transmitting on the wrong frequency.
 // Detects band change from frequency updates, applies TX lockout for a brief window.
-
 import { detectBand } from '../rig-state-store.js';
 
 export function createBandTransitionGuard(store, options = {}) {
@@ -15,12 +16,12 @@ export function createBandTransitionGuard(store, options = {}) {
     unsubscribe = store.subscribe(state => {
       const band = detectBand(state.frequency);
       if (band && lastBand && band !== lastBand) {
-        // Band changed — lock TX
+        // Band changed — lock TX.
         store.set({ txLocked: true, txLockReason: `Band change: ${lastBand} → ${band}` });
 
         if (lockoutTimer) clearTimeout(lockoutTimer);
         lockoutTimer = setTimeout(() => {
-          // Only unlock if still locked for this reason
+          // Only unlock if still locked for this reason.
           const current = store.get();
           if (current.txLockReason && current.txLockReason.startsWith('Band change:')) {
             store.set({ txLocked: false, txLockReason: '' });

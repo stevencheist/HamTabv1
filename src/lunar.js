@@ -1,10 +1,13 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { LUNAR_FIELD_DEFS } from './constants.js';
 import { fmtTime } from './utils.js';
 
 // --- Moon image cache ---
-// NASA SVS provides pre-rendered LROC moon frames with accurate lighting per hour
+// NASA SVS provides pre-rendered LROC moon frames with accurate lighting per hour.
 let moonImage = null;
 let moonImageLoading = false;
 
@@ -44,7 +47,7 @@ export function lunarPlColor(val) {
   return 'var(--red)';
 }
 
-// Moon elevation color — green above 20° (good EME), yellow 0-20°, dim below horizon
+// Moon elevation color — green above 20° (good EME), yellow 0-20°, dim below horizon.
 export function lunarElColor(val) {
   const n = parseFloat(val);
   if (isNaN(n)) return '';
@@ -71,7 +74,7 @@ export function saveLunarFieldVisibility() {
 
 export async function fetchLunar() {
   try {
-    // Pass observer coordinates for moon az/el and rise/set
+    // Pass observer coordinates for moon az/el and rise/set.
     let url = '/api/lunar';
     if (state.myLat !== null && state.myLon !== null) {
       url += `?lat=${state.myLat}&lon=${state.myLon}`;
@@ -81,7 +84,7 @@ export async function fetchLunar() {
     const data = await resp.json();
     state.lastLunarData = data;
     renderLunar(data);
-    // Update moon marker on map
+    // Update moon marker on map.
     const { updateMoonMarker } = await import('./map-init.js');
     updateMoonMarker();
   } catch (err) {
@@ -100,7 +103,7 @@ export function renderMoonPhase(illumination, phase) {
 
   ctx.clearRect(0, 0, size, size);
 
-  // Start loading NASA moon image
+  // Start loading NASA moon image.
   loadMoonImage();
 
   // Illumination fraction 0–1
@@ -108,14 +111,15 @@ export function renderMoonPhase(illumination, phase) {
   const waning = (phase || '').toLowerCase().includes('waning') || (phase || '').toLowerCase().includes('last');
 
   if (moonImage) {
-    // NASA SVS image already has correct lighting/shadows — just draw clipped to circle
+    // NASA SVS image already has correct lighting/shadows — just draw clipped to circle.
     ctx.save();
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.clip();
 
-    // The source image is square with the moon centered; scale to fill the circle
-    // The moon in the 730x730 frame occupies roughly the center ~85% of the image
+    // The source image is square with the moon centered; scale to fill the circle.
+
+    // The moon in the 730x730 frame occupies roughly the center ~85% of the image.
     const scale = r * 2 / (moonImage.width * 0.82);
     const drawSize = moonImage.width * scale;
     const offset = (drawSize - r * 2) / 2;
@@ -123,7 +127,7 @@ export function renderMoonPhase(illumination, phase) {
 
     ctx.restore();
   } else {
-    // Fallback: flat rendering while image loads
+    // Fallback: flat rendering while image loads.
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.fillStyle = '#1a1a2e';
@@ -182,7 +186,7 @@ export function renderLunar(data) {
     if (rawVal === undefined || rawVal === null || rawVal === '') {
       displayVal = '-';
     } else if (f.format === 'time') {
-      // Unix timestamp → formatted local time
+      // Unix timestamp → formatted local time.
       displayVal = fmtTime(new Date(rawVal * 1000));
     } else if (f.key === 'distance') {
       displayVal = Number(rawVal).toLocaleString() + f.unit;

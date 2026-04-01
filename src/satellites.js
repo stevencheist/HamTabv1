@@ -1,6 +1,7 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Satellite Tracking Module ---
-// Multi-satellite tracking using N2YO API
-
+// Multi-satellite tracking using N2YO API.
 import state from './state.js';
 import { $ } from './dom.js';
 import { SAT_FREQUENCIES, DEFAULT_TRACKED_SATS } from './constants.js';
@@ -12,7 +13,7 @@ import { openModal, closeModal } from './a11y.js';
 const EARTH_RADIUS_KM = 6371;
 const SPEED_OF_LIGHT_KM_S = 299792.458;
 
-// Typical LEO satellite altitude for footprint calculation when not provided
+// Typical LEO satellite altitude for footprint calculation when not provided.
 const DEFAULT_SAT_ALT_KM = 400;
 
 // --- Initialization ---
@@ -23,7 +24,8 @@ export function initSatellites() {
   // ISS always uses free SGP4 endpoint (no API key needed)
   fetchIssPosition();
 
-  // Other satellites need N2YO API key
+  // Other satellites need N2YO API key.
+
   if (state.n2yoApiKey) {
     fetchSatellitePositions();
   }
@@ -42,7 +44,8 @@ function initSatelliteListeners() {
     cfgOk.addEventListener('click', dismissSatelliteConfig);
   }
 
-  // Close config on overlay click
+  // Close config on overlay click.
+
   const splash = $('satCfgSplash');
   if (splash) {
     splash.addEventListener('click', (e) => {
@@ -69,7 +72,7 @@ export async function fetchIssPosition() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 
-    // Store position in same shape as N2YO data
+    // Store position in same shape as N2YO data.
     state.satellites.positions['25544'] = {
       satId: 25544,
       name: data.name,
@@ -93,7 +96,7 @@ export async function fetchIssPosition() {
   }
 }
 
-// Split orbit path at international date line crossings for proper Leaflet rendering
+// Split orbit path at international date line crossings for proper Leaflet rendering.
 function splitAtDateline(points) {
   const segments = [[]];
   for (let i = 0; i < points.length; i++) {
@@ -110,7 +113,8 @@ function splitAtDateline(points) {
 function updateIssOrbitLine() {
   if (!state.map) return;
 
-  // Remove old orbit line
+  // Remove old orbit line.
+
   if (state.satellites.orbitLines['25544']) {
     state.map.removeLayer(state.satellites.orbitLines['25544']);
     delete state.satellites.orbitLines['25544'];
@@ -151,7 +155,8 @@ export async function fetchSatelliteList() {
 export async function fetchSatellitePositions() {
   if (!state.n2yoApiKey || state.satellites.tracked.length === 0) return;
 
-  // Filter out ISS — it uses the free SGP4 endpoint
+  // Filter out ISS — it uses the free SGP4 endpoint.
+
   const n2yoIds = state.satellites.tracked.filter(id => id !== 25544);
   if (n2yoIds.length === 0) return; // only ISS tracked, already handled
 
@@ -165,7 +170,8 @@ export async function fetchSatellitePositions() {
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     const data = await resp.json();
 
-    // Merge N2YO positions while preserving ISS position from free endpoint
+    // Merge N2YO positions while preserving ISS position from free endpoint.
+
     const issPos = state.satellites.positions['25544'];
     state.satellites.positions = data;
     if (issPos) state.satellites.positions['25544'] = issPos;
@@ -205,7 +211,8 @@ export function updateSatelliteMarkers() {
 
   const positions = state.satellites.positions;
 
-  // Remove markers for satellites no longer tracked
+  // Remove markers for satellites no longer tracked.
+
   for (const satId of Object.keys(state.satellites.markers)) {
     if (!positions[satId]) {
       state.map.removeLayer(state.satellites.markers[satId]);
@@ -225,7 +232,8 @@ export function updateSatelliteMarkers() {
     }
   }
 
-  // Update or create markers for each satellite
+  // Update or create markers for each satellite.
+
   for (const [satId, pos] of Object.entries(positions)) {
     const satInfo = SAT_FREQUENCIES[satId] || { name: pos.name || `SAT ${satId}` };
     const name = satInfo.name || pos.name || `SAT ${satId}`;
@@ -236,10 +244,11 @@ export function updateSatelliteMarkers() {
     const footprintRadiusKm = calculateFootprintRadius(altKm);
     const radiusMeters = footprintRadiusKm * 1000;
 
-    // Marker — ISS gets special styling
+    // Marker — ISS gets special styling.
+
     const isISS = satId === '25544' || satId === 25544;
     if (state.satellites.markers[satId]) {
-      // Skip update if position delta is tiny (< 0.01° ≈ 1.1 km) — reduces DOM thrash
+      // Skip update if position delta is tiny (< 0.01° ≈ 1.1 km) — reduces DOM thrash.
       const prev = state.satellites.markers[satId].getLatLng();
       if (Math.abs(prev.lat - pos.lat) > 0.01 || Math.abs(prev.lng - pos.lon) > 0.01) {
         state.satellites.markers[satId].setLatLng([pos.lat, pos.lon]);
@@ -268,7 +277,8 @@ export function updateSatelliteMarkers() {
     // Update popup content
     state.satellites.markers[satId].setPopupContent(buildSatellitePopup(satId, pos, satInfo));
 
-    // Update marker icon class for above/below horizon
+    // Update marker icon class for above/below horizon.
+
     const markerEl = state.satellites.markers[satId].getElement();
     if (markerEl) {
       const iconEl = markerEl.querySelector('.sat-icon');
@@ -305,7 +315,8 @@ function buildSatellitePopup(satId, pos, satInfo) {
   const statusColor = isAbove ? 'var(--green)' : 'var(--text-dim)';
   const isISS = satId === '25544' || satId === 25544;
 
-  // Use ISS-specific styling for ISS popup
+  // Use ISS-specific styling for ISS popup.
+
   const popupClass = isISS ? 'iss-popup' : 'sat-popup';
   const titleClass = isISS ? 'iss-popup-title' : 'sat-popup-title';
   const rowClass = isISS ? 'iss-popup-row' : 'sat-popup-row';
@@ -319,7 +330,8 @@ function buildSatellitePopup(satId, pos, satInfo) {
   html += `<div class="${rowClass}">Az: ${pos.azimuth.toFixed(1)}&deg; &bull; El: ${pos.elevation.toFixed(1)}&deg;</div>`;
   html += `<div class="${rowClass}" style="color:${statusColor}">${statusText}</div>`;
 
-  // TLE epoch age — color uses configurable maxTleAge threshold
+  // TLE epoch age — color uses configurable maxTleAge threshold.
+
   if (pos.tleEpoch) {
     const ageDays = Math.floor((Date.now() / 1000 - pos.tleEpoch) / 86400);
     const maxAge = state.maxTleAge || 7;
@@ -330,7 +342,8 @@ function buildSatellitePopup(satId, pos, satInfo) {
     html += `<div class="${rowClass}">TLE: <span style="color:${ageColor}">${ageDays}d old${warn}</span> (${epochDate})</div>`;
   }
 
-  // Radio frequencies if known
+  // Radio frequencies if known.
+
   if (satInfo.uplinks || satInfo.downlinks) {
     html += `<div class="${headerClass}">${isISS ? 'Amateur Radio (ARISS)' : 'Amateur Radio Frequencies'}</div>`;
     html += `<table class="${tableClass}">`;
@@ -375,7 +388,7 @@ function calculateFootprintRadius(altitudeKm) {
 
 // --- Doppler Shift Calculation ---
 
-// Calculate Doppler shift for a given frequency based on satellite elevation
+// Calculate Doppler shift for a given frequency based on satellite elevation.
 // Uses a simplified model based on elevation angle and typical LEO velocity (~7.8 km/s)
 function calculateDopplerShift(freqMHz, pos) {
   if (pos.elevation === undefined || pos.elevation === null) return null;
@@ -383,7 +396,8 @@ function calculateDopplerShift(freqMHz, pos) {
   // Typical LEO orbital velocity (ISS is about 7.66 km/s)
   const orbitalVelocityKmS = 7.8;
 
-  // Radial velocity component depends on elevation angle
+  // Radial velocity component depends on elevation angle.
+
   // At horizon (0°): maximum Doppler (approaching or receding)
   // At zenith (90°): zero Doppler (perpendicular to observer)
   // Simplified: radial_v ≈ orbital_v * cos(elevation)
@@ -425,7 +439,8 @@ export function renderSatelliteWidget() {
     const isAbove = pos.elevation > 0;
     const isSelected = state.satellites.selectedSatId === parseInt(satId, 10);
 
-    // Calculate Doppler for primary downlink
+    // Calculate Doppler for primary downlink.
+
     let dopplerStr = '';
     if (satInfo.downlinks && satInfo.downlinks.length > 0) {
       const doppler = calculateDopplerShift(satInfo.downlinks[0].freq, pos);
@@ -434,7 +449,8 @@ export function renderSatelliteWidget() {
       }
     }
 
-    // TLE age badge — days since TLE epoch, color uses configurable threshold
+    // TLE age badge — days since TLE epoch, color uses configurable threshold.
+
     let tleAgeHtml = '';
     if (pos.tleEpoch) {
       const ageDays = Math.floor((Date.now() / 1000 - pos.tleEpoch) / 86400);
@@ -457,7 +473,8 @@ export function renderSatelliteWidget() {
     html += `</div>`;
   }
 
-  // Show hint if user has non-ISS satellites tracked but no N2YO key
+  // Show hint if user has non-ISS satellites tracked but no N2YO key.
+
   if (!state.n2yoApiKey && tracked.some(id => id !== 25544)) {
     html += '<div class="sat-no-key" style="font-size:0.85em;margin-top:4px">N2YO key needed for other satellites</div>';
   }
@@ -476,7 +493,8 @@ export function renderSatelliteWidget() {
 export function selectSatellite(satId) {
   state.satellites.selectedSatId = satId;
 
-  // Update widget selection styling
+  // Update widget selection styling.
+
   const satList = $('satList');
   if (satList) {
     satList.querySelectorAll('.sat-row').forEach(row => {
@@ -484,7 +502,8 @@ export function selectSatellite(satId) {
     });
   }
 
-  // Pan map to satellite
+  // Pan map to satellite.
+
   const pos = state.satellites.positions[satId];
   if (pos && state.map) {
     state.map.panTo([pos.lat, pos.lon]);
@@ -493,7 +512,8 @@ export function selectSatellite(satId) {
     }
   }
 
-  // Fetch and display passes
+  // Fetch and display passes.
+
   const cached = state.satellites.passes[satId];
   if (!cached || Date.now() > cached.expires) {
     fetchSatellitePasses(satId);
@@ -557,19 +577,22 @@ function showSatelliteConfig() {
   const splash = $('satCfgSplash');
   if (!splash) return;
 
-  // Populate API key field
+  // Populate API key field.
+
   const apiKeyInput = $('satApiKey');
   if (apiKeyInput) {
     apiKeyInput.value = state.n2yoApiKey;
   }
 
-  // Populate max TLE age
+  // Populate max TLE age.
+
   const tleAgeInput = $('satMaxTleAge');
   if (tleAgeInput) {
     tleAgeInput.value = state.maxTleAge;
   }
 
-  // Fetch satellite list if we have a key
+  // Fetch satellite list if we have a key.
+
   if (state.n2yoApiKey && state.satellites.available.length === 0) {
     fetchSatelliteList();
   }
@@ -588,7 +611,8 @@ function dismissSatelliteConfig() {
     state.n2yoApiKey = apiKeyInput.value.trim();
     localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
 
-    // Persist to server .env
+    // Persist to server .env.
+
     if (state.n2yoApiKey) {
       fetch('/api/config/env', {
         method: 'POST',
@@ -598,7 +622,8 @@ function dismissSatelliteConfig() {
     }
   }
 
-  // Save max TLE age
+  // Save max TLE age.
+
   const tleAgeInput = $('satMaxTleAge');
   if (tleAgeInput) {
     const age = parseInt(tleAgeInput.value, 10);
@@ -622,7 +647,7 @@ function dismissSatelliteConfig() {
 
   closeModal(splash);
 
-  // Refresh positions with new settings
+  // Refresh positions with new settings.
   fetchIssPosition(); // ISS always uses free endpoint
   if (state.n2yoApiKey) {
     fetchSatellitePositions();
@@ -633,15 +658,18 @@ function renderSatelliteSelectList() {
   const selectList = $('satSelectList');
   if (!selectList) return;
 
-  // Combine known satellites with any from API
+  // Combine known satellites with any from API.
+
   const allSats = new Map();
 
-  // Add known satellites from our frequency database
+  // Add known satellites from our frequency database.
+
   for (const [id, info] of Object.entries(SAT_FREQUENCIES)) {
     allSats.set(parseInt(id, 10), info.name);
   }
 
-  // Add satellites from API
+  // Add satellites from API.
+
   for (const sat of state.satellites.available) {
     if (!allSats.has(sat.satId)) {
       allSats.set(sat.satId, sat.name);

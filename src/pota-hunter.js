@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- POTA Hunter: Confirm QSO + Spot Reporter ---
 // Adds "Confirm QSO" and "Spot" buttons to DX Detail when viewing POTA spots.
 // Worked callsigns are tracked in localStorage and can be filtered from On the Air.
-
 import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
@@ -78,7 +79,7 @@ export function renderHunterButtons(spot, container) {
       confirmBtn.textContent = '✓ Worked';
       confirmBtn.disabled = true;
       confirmBtn.classList.add('pota-hunter-worked');
-      // Re-filter if hide worked is on
+      // Re-filter if hide worked is on.
       if (state.hideWorked) {
         applyFilter();
         renderSpots();
@@ -153,12 +154,12 @@ export function initWorkedFilterListeners() {
 // --- Spot Reporter Popup ---
 
 function getDefaultRst() {
-  // Try to get RST from rig S-meter if available
+  // Try to get RST from rig S-meter if available.
   try {
     const smeterEl = document.querySelector('.rig-smeter-value');
     if (smeterEl && smeterEl.textContent) {
       const raw = smeterEl.textContent.trim();
-      // S-meter values like "S7", "S9+10" etc — convert to RST
+      // S-meter values like "S7", "S9+10" etc — convert to RST.
       const match = raw.match(/S(\d)/);
       if (match) {
         const s = parseInt(match[1], 10);
@@ -212,7 +213,7 @@ function submitSpot() {
   if (!callEl || !freqEl || !refEl) return;
 
   const activator = callEl.textContent.trim();
-  // Parse frequency — POTA API wants kHz string
+  // Parse frequency — POTA API wants kHz string.
   const freqText = freqEl.textContent.replace(/[^\d.]/g, '').trim();
   const freqKhz = (parseFloat(freqText) * 1000).toFixed(0);
   const mode = modeEl ? modeEl.textContent.trim() : '';
@@ -220,7 +221,7 @@ function submitSpot() {
   const comments = commentEl ? commentEl.value.trim() : '';
 
   if (!activator || !reference) {
-    if (statusEl) statusEl.textContent = 'Missing activator or reference';
+    if (statusEl) statusEl.textContent = 'Missing activator or reference.';
     return;
   }
 
@@ -267,7 +268,8 @@ export function initPotaHunter() {
 
   initWorkedFilterListeners();
 
-  // Spot reporter popup listeners
+  // Spot reporter popup listeners.
+
   const popup = $('potaSpotPopup');
   if (!popup) return;
 
@@ -281,7 +283,7 @@ export function initPotaHunter() {
     }
   });
 
-  // Clean expired on startup
+  // Clean expired on startup.
   cleanExpiredWorked();
   renderWorkedFilterToggle();
 }

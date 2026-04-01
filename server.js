@@ -1,24 +1,33 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 require('dotenv').config();
 
 // --- Imports ---
-const express = require('express');
+
+// Built-in.
+const dns = require('dns');
 const fs = require('fs');
+const https = require('https');
+const net = require('net');
 const path = require('path');
 const { URL } = require('url');
+
+// Third-party.
+const cors = require('cors');
+const express = require('express');
+const { XMLParser } = require('fast-xml-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { XMLParser } = require('fast-xml-parser');
-const dns = require('dns');
-const https = require('https');
-const cors = require('cors');
+const yaml = require('js-yaml');
 const mqtt = require('mqtt');
-const net = require('net');
-const voacap = require('./voacap-bridge.js');
 const satellite = require('satellite.js');
 const swaggerUi = require('swagger-ui-express');
-const YAML = require('js-yaml');
+
+// Local.
 const { getConfig } = require('./server-config.js');
 const { startListeners } = require('./server-startup.js');
+const voacap = require('./voacap-bridge.js');
 
 const app = express();
 const config = getConfig();
@@ -30,7 +39,7 @@ if (config.trustProxy) app.set('trust proxy', 1);
 // CSP relaxed for /api/docs (Swagger UI needs inline scripts)
 app.use((req, res, next) => {
   if (req.path.startsWith('/api/docs') || req.path.startsWith('/api-docs')) {
-    // Swagger UI needs relaxed CSP
+    // Swagger UI needs relaxed CSP.
     res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:");
     return next();
   }
@@ -40,7 +49,7 @@ app.use((req, res, next) => {
 app.use(helmet(config.helmetOptions));
 
 // CORS — lanmode only (restrict to same-origin, localhost, and RFC 1918 private ranges)
-// Hostedmode is same-origin behind Cloudflare — no CORS needed
+// Hostedmode is same-origin behind Cloudflare — no CORS needed.
 if (!config.isHostedmode) {
   app.use(cors({
     origin(origin, callback) {
@@ -60,12 +69,12 @@ if (!config.isHostedmode) {
   }));
 }
 
-// Health check — before rate limiter so probes aren't counted
+// Health check — before rate limiter so probes aren't counted.
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, uptime: process.uptime() });
 });
 
-// Rate limiting — /api/ routes only; generous in LAN mode, stricter when hosted
+// Rate limiting — /api/ routes only; generous in LAN mode, stricter when hosted.
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: process.env.HOSTED_MODE === '1' ? 60 : 300,
@@ -91,7 +100,7 @@ app.use(express.json({ limit: '100kb' }));
 // Edge caching (Cloudflare) requires additional Worker-side config (hostedmode only).
 // max-age = browser TTL, s-maxage = shared/CDN TTL
 const CACHE_RULES = [
-  // Tier 1 — globally-shared, slow-changing data
+  // Tier 1 — globally-shared, slow-changing data.
   { prefix: '/api/solar/frames',        cc: 'public, max-age=300, s-maxage=3600' },    // SDO hourly; browser 5m, edge 1h
   { prefix: '/api/solar',               cc: 'public, max-age=300, s-maxage=3600' },    // upstream ~hourly; browser 5m, edge 1h
   { prefix: '/api/spacewx/history',     cc: 'public, max-age=300, s-maxage=900' },     // upstream 15m; browser 5m, edge 15m
@@ -104,7 +113,7 @@ const CACHE_RULES = [
   { prefix: '/api/contests',           cc: 'public, max-age=1800, s-maxage=21600' },   // schedules; browser 30m, edge 6h
   { prefix: '/api/propagation',        cc: 'public, max-age=300, s-maxage=3600' },     // upstream ~hourly; browser 5m, edge 1h
   { prefix: '/api/voacap/ssn',         cc: 'public, max-age=86400, s-maxage=604800' }, // NOAA monthly; browser 1d, edge 7d
-  // Tier 2 — per-endpoint, faster-changing data
+  // Tier 2 — per-endpoint, faster-changing data.
   { prefix: '/api/spots/psk/heard',    cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
   { prefix: '/api/spots/psk',          cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
   { prefix: '/api/spots/wspr',         cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
@@ -133,15 +142,15 @@ app.use((req, res, next) => {
 app.use(express.static('public'));
 
 // --- API Documentation (Swagger UI) ---
-const openapiSpec = YAML.load(fs.readFileSync(path.join(__dirname, 'openapi.yaml'), 'utf8'));
+const openapiSpec = yaml.load(fs.readFileSync(path.join(__dirname, 'openapi.yaml'), 'utf8'));
 app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
   customCss: '.swagger-ui .topbar { display: none }',
   customSiteTitle: 'HamTab API Documentation',
 }));
-// Redirect /api to /api/docs for convenience
+// Redirect /api to /api/docs for convenience.
 app.get('/api', (req, res) => res.redirect('/api/docs'));
 
-// Proxy POTA spots API
+// Proxy POTA spots API.
 app.get('/api/spots', async (req, res) => {
   try {
     const data = await fetchJSON('https://api.pota.app/spot/activator');
@@ -153,28 +162,28 @@ app.get('/api/spots', async (req, res) => {
     res.json(spots);
   } catch (err) {
     console.error('Error fetching spots:', err.message);
-    res.status(502).json({ error: 'Failed to fetch POTA spots' });
+    res.status(502).json({ error: 'Failed to fetch POTA spots.' });
   }
 });
 
 // --- POTA Spot Submission Proxy ---
-// Posts a spot to api.pota.app on behalf of the user
+// Posts a spot to api.pota.app on behalf of the user.
 app.post('/api/pota/spot', express.json(), async (req, res) => {
   try {
     const { activator, spotter, frequency, reference, mode, comments } = req.body;
 
     // Validate required fields
     if (!activator || !/^[A-Z0-9]{3,10}$/i.test(activator)) {
-      return res.status(400).json({ error: 'Invalid activator callsign' });
+      return res.status(400).json({ error: 'Invalid activator callsign.' });
     }
     if (!spotter || !/^[A-Z0-9]{3,10}$/i.test(spotter)) {
-      return res.status(400).json({ error: 'Invalid spotter callsign' });
+      return res.status(400).json({ error: 'Invalid spotter callsign.' });
     }
     if (!reference || !/^[A-Z0-9]+-\d{4,}$/i.test(reference)) {
-      return res.status(400).json({ error: 'Invalid park reference' });
+      return res.status(400).json({ error: 'Invalid park reference.' });
     }
     if (!frequency || isNaN(parseFloat(frequency))) {
-      return res.status(400).json({ error: 'Invalid frequency' });
+      return res.status(400).json({ error: 'Invalid frequency.' });
     }
 
     const spotData = {
@@ -202,7 +211,7 @@ app.post('/api/pota/spot', express.json(), async (req, res) => {
     }
   } catch (err) {
     console.error('[POTA spot] Error:', err.message);
-    res.status(502).json({ error: 'Failed to submit spot' });
+    res.status(502).json({ error: 'Failed to submit spot.' });
   }
 });
 
@@ -227,7 +236,7 @@ async function fetchCallCoords(callsign) {
         lon = parseFloat(data.location.longitude) || null;
       }
     } else {
-      // Non-US calls — HamQTH global database
+      // Non-US calls — HamQTH global database.
       const data = await lookupHamqth(key);
       if (data && data.lat != null && data.lon != null) {
         lat = data.lat;
@@ -262,13 +271,12 @@ const PSK_CACHE_TTL = 5 * 60 * 1000; // 5 minutes — PSKReporter recommended mi
 
 // --- PSKReporter outbound request governor ---
 // Prevents rate-limit blocks when many users share the same container IP.
-// - Split token buckets: separate limits for global feed vs per-callsign heard queries
-// - Circuit breaker: stops upstream calls after consecutive failures, auto-recovers
-// - Request coalescing: duplicate in-flight callsign queries share one upstream call
-// - Stale-while-revalidate: return last known good data when upstream fails
-
+// - Split token buckets: separate limits for global feed vs per-callsign heard queries.
+// - Circuit breaker: stops upstream calls after consecutive failures, auto-recovers.
+// - Request coalescing: duplicate in-flight callsign queries share one upstream call.
+// - Stale-while-revalidate: return last known good data when upstream fails.
 // --- Per-endpoint token buckets ---
-// Split budget so heard queries (many callsigns) don't starve the global feed
+// Split budget so heard queries (many callsigns) don't starve the global feed.
 function createTokenBucket(limit, windowMs) {
   return { limit, windowMs, tokens: limit, resetAt: Date.now() + windowMs };
 }
@@ -290,7 +298,7 @@ function pskAcquireToken(bucket) {
 }
 
 // --- Circuit breaker ---
-// Opens after consecutive upstream failures, serves stale data during cooldown
+// Opens after consecutive upstream failures, serves stale data during cooldown.
 const PSK_CB_THRESHOLD = 3;          // consecutive failures before opening
 const PSK_CB_COOLDOWN  = 60 * 1000;  // 60s — half-open attempt interval
 const pskCircuitBreaker = {
@@ -302,15 +310,14 @@ const pskCircuitBreaker = {
 function pskCbAllowRequest() {
   if (pskCircuitBreaker.state === 'closed') return true;
   if (pskCircuitBreaker.state === 'open') {
-    // Check if cooldown elapsed → transition to half-open
+    // Check if cooldown elapsed → transition to half-open.
     if (Date.now() - pskCircuitBreaker.openedAt >= PSK_CB_COOLDOWN) {
       pskCircuitBreaker.state = 'half-open';
       return true; // allow one probe request
     }
     return false;
   }
-  // half-open — allow (one probe already in flight)
-  return true;
+  // Half-open — allow (one probe already in flight)  return true;
 }
 
 function pskCbRecordSuccess() {
@@ -327,7 +334,7 @@ function pskCbRecordFailure() {
   }
 }
 
-// Build response metadata for stale/breaker status
+// Build response metadata for stale/breaker status.
 function pskMeta(cache) {
   if (!cache?.data) return undefined;
   const ageMs = Date.now() - (cache.expires - PSK_CACHE_TTL);
@@ -336,7 +343,7 @@ function pskMeta(cache) {
   return { stale, ageSeconds: Math.round(ageMs / 1000), circuitBreaker: pskCircuitBreaker.state };
 }
 
-// In-flight request dedup — keyed by full URL
+// In-flight request dedup — keyed by full URL.
 const pskInflight = new Map(); // url → Promise<string>
 
 async function pskFetchDedup(url) {
@@ -346,20 +353,19 @@ async function pskFetchDedup(url) {
   return promise;
 }
 
-// App contact string — PSKReporter requires this for identification
+// App contact string — PSKReporter requires this for identification.
 const PSK_APP_CONTACT = 'appcontact=admin@hamtab.net';
 
 // --- PSKReporter MQTT real-time feed ---
 // Connects to mqtt.pskreporter.info (community service by M0LTE) for real-time spots.
 // Bypasses HTTP retrieval API entirely — no Cloudflare IP blocking issues.
 // Falls back to HTTP retrieval if MQTT is unavailable.
-
 const MQTT_BROKER = 'mqtt://mqtt.pskreporter.info:1883';
 const MQTT_SPOT_TTL = 60 * 60 * 1000; // 1 hour — matches HTTP query window
 const MQTT_RECONNECT_MS = 30 * 1000;  // 30s reconnect delay
 const MQTT_CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 min — purge expired spots
 
-// Per-callsign MQTT spot accumulators
+// Per-callsign MQTT spot accumulators.
 // { 'CALLSIGN': { spots: Map<key, spot>, subscribed: true, lastAccess: ts } }
 const mqttCallsigns = {};
 
@@ -406,7 +412,7 @@ function mqttCleanupSubscriptions() {
   }
 }
 
-// Purge spots older than TTL from all accumulators
+// Purge spots older than TTL from all accumulators.
 function mqttPurgeExpiredSpots() {
   const cutoff = Date.now() - MQTT_SPOT_TTL;
   for (const entry of Object.values(mqttCallsigns)) {
@@ -416,7 +422,7 @@ function mqttPurgeExpiredSpots() {
   }
 }
 
-// Convert MQTT JSON message to our internal spot format
+// Convert MQTT JSON message to our internal spot format.
 function mqttMessageToSpot(msg) {
   const freqHz = msg.f || 0;
   const freqMHz = (freqHz / 1000000).toFixed(3);
@@ -510,7 +516,8 @@ function initMqttClient() {
     mqttConnected = true;
     console.log('[MQTT] Connected to mqtt.pskreporter.info');
 
-    // Re-subscribe all active callsigns on reconnect
+    // Re-subscribe all active callsigns on reconnect.
+
     for (const [call, entry] of Object.entries(mqttCallsigns)) {
       const topic = `pskr/filter/v2/+/+/${call}/#`;
       mqttClient.subscribe(topic, { qos: 0 }, (err) => {
@@ -521,6 +528,7 @@ function initMqttClient() {
     }
 
     // Note: global feed (pskr/filter/v2/#) is NOT subscribed — too much data.
+
     // /api/spots/psk uses HTTP fallback. MQTT is for per-callsign Live Spots only.
   });
 
@@ -532,11 +540,12 @@ function initMqttClient() {
       // Dedupe key: sender-receiver-band-timestamp
       const key = `${spot.callsign}-${spot.receiver}-${spot.band}-${spot.spotTime}`;
 
-      // Route to per-callsign accumulator if subscribed
+      // Route to per-callsign accumulator if subscribed.
+
       const senderUpper = (spot.callsign || '').toUpperCase();
       if (mqttCallsigns[senderUpper]) {
         mqttCallsigns[senderUpper].spots.set(key, spot);
-        // Cap at 500 spots per callsign
+        // Cap at 500 spots per callsign.
         if (mqttCallsigns[senderUpper].spots.size > 500) {
           const oldest = mqttCallsigns[senderUpper].spots.keys().next().value;
           mqttCallsigns[senderUpper].spots.delete(oldest);
@@ -544,7 +553,7 @@ function initMqttClient() {
       }
 
     } catch {
-      // Silently skip malformed messages
+      // Silently skip malformed messages.
     }
   });
 
@@ -554,7 +563,7 @@ function initMqttClient() {
 
   mqttClient.on('close', () => {
     mqttConnected = false;
-    // Mark all subscriptions as needing re-subscribe
+    // Mark all subscriptions as needing re-subscribe.
     for (const entry of Object.values(mqttCallsigns)) {
       entry.subscribed = false;
     }
@@ -571,14 +580,13 @@ function initMqttClient() {
   }, MQTT_CLEANUP_INTERVAL);
 }
 
-// Start MQTT on server boot
+// Start MQTT on server boot.
 initMqttClient();
 
 // --- DX Cluster TCP Telnet + RBN Live Feeds ---
 // Lazy TCP connections to DX Cluster and Reverse Beacon Network.
 // Connected when first SSE client subscribes, disconnected after idle timeout.
 // Uses node:net (no new dependencies). Skipped in hostedmode (no long-lived TCP).
-
 const DXC_TCP_HOST = process.env.DXC_TCP_HOST || 'dxc.ai8w.net';
 const DXC_TCP_PORT = parseInt(process.env.DXC_TCP_PORT, 10) || 7300;
 const RBN_TCP_HOST = 'telnet.reversebeacon.net';
@@ -589,7 +597,7 @@ const DXC_TCP_RECONNECT_MS = 30 * 1000;  // 30s backoff
 const DXC_TCP_IDLE_MS = 5 * 60 * 1000;   // 5 min idle disconnect
 const DXC_TCP_HEARTBEAT_MS = 30 * 1000;  // 30s SSE heartbeat
 
-// Shared state for each TCP source
+// Shared state for each TCP source.
 function createTcpSource() {
   return {
     socket: null,
@@ -607,8 +615,8 @@ const dxcTcp = createTcpSource();
 const rbnTcp = createTcpSource();
 
 // --- DXC Spot Parser ---
-// Format: "DX de <spotter>:     <freq_khz>  <dx_call>       <comment>           <time>Z"
-// Example: "DX de W3LPL:     14025.0  JA1ABC       CW 10 dB 25 WPM             1423Z"
+// Format: "DX de <spotter>:     <freq_khz>  <dx_call>       <comment>           <time>Z".
+// Example: "DX de W3LPL:     14025.0  JA1ABC       CW 10 dB 25 WPM             1423Z".
 const DXC_SPOT_RE = /^DX\s+de\s+(\S+):\s+([\d.]+)\s+(\S+)\s+(.*?)\s+(\d{4})Z\s*$/;
 
 function parseDxcSpot(line) {
@@ -637,8 +645,8 @@ function parseDxcSpot(line) {
 }
 
 // --- RBN Spot Parser ---
-// Same DX-spot format but often includes dB, WPM, and type in comment
-// Example: "DX de KM3T-2-#:  14040.1  UA3AKO      CW    18 dB  25 WPM  CQ      1423Z"
+// Same DX-spot format but often includes dB, WPM, and type in comment.
+// Example: "DX de KM3T-2-#:  14040.1  UA3AKO      CW    18 dB  25 WPM  CQ      1423Z".
 const RBN_DB_RE = /(\d+)\s*dB/i;
 const RBN_WPM_RE = /(\d+)\s*WPM/i;
 const RBN_TYPE_RE = /\b(CQ|BEACON|NCDXF|DX)\b/i;
@@ -648,7 +656,8 @@ function parseRbnSpot(line) {
   if (!base) return null;
   base.source = 'rbn';
 
-  // Extract RBN-specific fields from comment
+  // Extract RBN-specific fields from comment.
+
   const dbMatch = base.comments.match(RBN_DB_RE);
   const wpmMatch = base.comments.match(RBN_WPM_RE);
   const typeMatch = base.comments.match(RBN_TYPE_RE);
@@ -709,7 +718,8 @@ function connectTcpSource(source, host, port, callsign, parseFn) {
       const line = rawLine.replace(/\r/g, '').trim();
       if (!line) continue;
 
-      // Login prompt detection — send callsign once
+      // Login prompt detection — send callsign once.
+
       if (!source.loginSent && (line.includes('login:') || line.includes('call:') || line.includes('Please enter your call'))) {
         sock.write(loginCall + '\r\n');
         source.loginSent = true;
@@ -742,7 +752,8 @@ function connectTcpSource(source, host, port, callsign, parseFn) {
     console.log(`[TCP] Disconnected from ${host}:${port}`);
     broadcastSseStatus(source, { connected: false, host });
 
-    // Reconnect if there are still SSE clients
+    // Reconnect if there are still SSE clients.
+
     if (source.sseClients.size > 0) {
       source.reconnectTimer = setTimeout(() => {
         connectTcpSource(source, host, port, callsign, parseFn);
@@ -801,30 +812,33 @@ function addSseClient(source, res, host, port, callsign, parseFn) {
     'X-Accel-Buffering': 'no', // nginx proxy compat
   });
 
-  // Send current ring buffer as init event
+  // Send current ring buffer as init event.
+
   const initData = JSON.stringify(source.ring.map(s => { const { _ts, ...rest } = s; return rest; }));
   res.write(`event: init\ndata: ${initData}\n\n`);
 
-  // Send current connection status
+  // Send current connection status.
   res.write(`event: status\ndata: ${JSON.stringify({ connected: source.connected, host })}\n\n`);
 
   source.sseClients.add(res);
 
-  // Heartbeat to keep connection alive
+  // Heartbeat to keep connection alive.
+
   const heartbeat = setInterval(() => {
     res.write(`event: heartbeat\ndata: \n\n`);
   }, DXC_TCP_HEARTBEAT_MS);
 
-  // Start TCP connection if not already connected
+  // Start TCP connection if not already connected.
+
   if (!source.socket) {
     connectTcpSource(source, host, port, callsign, parseFn);
   }
 
-  // Cleanup on client disconnect
+  // Cleanup on client disconnect.
   res.on('close', () => {
     source.sseClients.delete(res);
     clearInterval(heartbeat);
-    // Start idle timer if no clients remain
+    // Start idle timer if no clients remain.
     if (source.sseClients.size === 0) {
       resetIdleTimer(source, host, port);
     }
@@ -834,13 +848,13 @@ function addSseClient(source, res, host, port, callsign, parseFn) {
 // --- SSE Endpoints ---
 
 if (process.env.HOSTED_MODE !== '1') {
-  // DXC live TCP stream
+  // DXC live TCP stream.
   app.get('/api/spots/dxc/stream', (req, res) => {
     const callsign = (req.query.callsign || '').replace(/[^A-Z0-9/]/gi, '').substring(0, 10);
     addSseClient(dxcTcp, res, DXC_TCP_HOST, DXC_TCP_PORT, callsign, parseDxcSpot);
   });
 
-  // RBN live TCP stream
+  // RBN live TCP stream.
   app.get('/api/spots/rbn/stream', (req, res) => {
     const callsign = (req.query.callsign || '').replace(/[^A-Z0-9/]/gi, '').substring(0, 10);
     addSseClient(rbnTcp, res, RBN_TCP_HOST, RBN_TCP_PORT, callsign, parseRbnSpot);
@@ -852,7 +866,7 @@ if (process.env.HOSTED_MODE !== '1') {
   });
 }
 
-// Extract mode from DXC comment field
+// Extract mode from DXC comment field.
 function extractModeFromComment(comment) {
   if (!comment) return '';
   const c = comment.toUpperCase();
@@ -876,7 +890,7 @@ function extractModeFromComment(comment) {
   return '';
 }
 
-// Convert frequency to band string
+// Convert frequency to band string.
 function freqToBandStr(freqMHz) {
   const freq = parseFloat(freqMHz);
   if (isNaN(freq)) return '';
@@ -896,12 +910,12 @@ function freqToBandStr(freqMHz) {
   return '';
 }
 
-// Convert Maidenhead grid square to lat/lon
+// Convert Maidenhead grid square to lat/lon.
 function gridToLatLon(grid) {
   if (!grid || grid.length < 4) return null;
   const A = 'A'.charCodeAt(0);
   const ZERO = '0'.charCodeAt(0);
-  // Field (AA): 20° longitude, 10° latitude per field
+  // Field (AA): 20° longitude, 10° latitude per field.
   const lon = (grid.charCodeAt(0) - A) * 20 + (grid.charCodeAt(2) - ZERO) * 2 + 1 - 180;
   const lat = (grid.charCodeAt(1) - A) * 10 + (grid.charCodeAt(3) - ZERO) + 0.5 - 90;
   return { lat, lon };
@@ -915,7 +929,7 @@ function isUSCallsign(call) {
   return /^([KNW][A-Z]?\d|A[A-L]\d)/i.test(call);
 }
 
-// HamQTH session cache — XML API uses session-based auth with ~1h TTL
+// HamQTH session cache — XML API uses session-based auth with ~1h TTL.
 let hamqthSession = { id: null, expires: 0 };
 
 async function getHamqthSessionId() {
@@ -923,7 +937,8 @@ async function getHamqthSessionId() {
   const pass = process.env.HAMQTH_PASS;
   if (!user || !pass) return null;
 
-  // Return cached session if still valid
+  // Return cached session if still valid.
+
   if (hamqthSession.id && Date.now() < hamqthSession.expires) {
     return hamqthSession.id;
   }
@@ -945,7 +960,7 @@ async function getHamqthSessionId() {
 }
 
 function parseHamqthResponse(xml) {
-  // Extract fields from HamQTH XML response via regex
+  // Extract fields from HamQTH XML response via regex.
   const field = (name) => {
     const m = xml.match(new RegExp(`<${name}>([^<]*)</${name}>`));
     return m ? m[1].trim() : '';
@@ -962,7 +977,8 @@ function parseHamqthResponse(xml) {
   let lat = parseFloat(field('latitude')) || null;
   let lon = parseFloat(field('longitude')) || null;
 
-  // Fallback: derive lat/lon from grid square if HamQTH didn't provide coordinates
+  // Fallback: derive lat/lon from grid square if HamQTH didn't provide coordinates.
+
   if (lat === null && lon === null && grid) {
     const ll = gridToLatLon(grid);
     if (ll) { lat = ll.lat; lon = ll.lon; }
@@ -990,7 +1006,8 @@ async function lookupHamqth(call, retried) {
     const url = `https://www.hamqth.com/xml.php?id=${encodeURIComponent(sid)}&callsign=${encodeURIComponent(call)}&prg=HamTab`;
     const xml = await fetchText(url);
 
-    // Session expired — clear and retry once
+    // Session expired — clear and retry once.
+
     if (!retried && xml.includes('Session does not exist')) {
       hamqthSession = { id: null, expires: 0 };
       return lookupHamqth(call, true);
@@ -1006,10 +1023,10 @@ async function lookupHamqth(call, retried) {
   }
 }
 
-// Proxy HamQTH DX Cluster spots
+// Proxy HamQTH DX Cluster spots.
 app.get('/api/spots/dxc', async (req, res) => {
   try {
-    // Return cached data if fresh
+    // Return cached data if fresh.
     if (dxcCache.data && Date.now() < dxcCache.expires) {
       return res.json(dxcCache.data);
     }
@@ -1019,13 +1036,14 @@ app.get('/api/spots/dxc', async (req, res) => {
 
     const spots = [];
     for (const line of lines) {
-      // HamQTH CSV is caret-delimited: callsign^freq^datetime^spotter^comment^lotw^eqsl^continent^band^country^adif_id
+      // HamQTH CSV is caret-delimited: callsign^freq^datetime^spotter^comment^lotw^eqsl^continent^band^country^adif_id.
       const parts = line.split('^');
       if (parts.length < 11) continue;
 
       const [callsign, freqKhz, datetime, spotter, comment, lotw, eqsl, continent, band, country, adifId] = parts;
 
-      // Convert frequency from kHz to MHz
+      // Convert frequency from kHz to MHz.
+
       const freqMHz = (parseFloat(freqKhz) / 1000).toFixed(3);
 
       // Parse datetime (format: YYYY-MM-DD HH:MM:SS)
@@ -1052,7 +1070,8 @@ app.get('/api/spots/dxc', async (req, res) => {
       });
     }
 
-    // Batch lookup coordinates for unique US callsigns
+    // Batch lookup coordinates for unique US callsigns.
+
     const usCallsigns = new Set();
     for (const s of spots) {
       if (s.callsign && /^[AKNW][A-Z]?\d/.test(s.callsign.toUpperCase())) {
@@ -1060,7 +1079,8 @@ app.get('/api/spots/dxc', async (req, res) => {
       }
     }
 
-    // Limit concurrent lookups to avoid overwhelming callook.info
+    // Limit concurrent lookups to avoid overwhelming callook.info.
+
     const callsignArray = [...usCallsigns].slice(0, 50); // max 50 lookups per refresh
     await Promise.allSettled(callsignArray.map(c => fetchCallCoords(c)));
 
@@ -1080,29 +1100,31 @@ app.get('/api/spots/dxc', async (req, res) => {
     res.json(spots);
   } catch (err) {
     console.error('Error fetching DXC spots:', err.message);
-    res.status(502).json({ error: 'Failed to fetch DX Cluster spots' });
+    res.status(502).json({ error: 'Failed to fetch DX Cluster spots.' });
   }
 });
 
 // Proxy PSKReporter API
 app.get('/api/spots/psk', async (req, res) => {
   try {
-    // Return cached data if fresh
+    // Return cached data if fresh.
     if (pskCache.data && Date.now() < pskCache.expires) {
       return res.json(pskCache.data);
     }
 
-    // Circuit breaker check — serve stale if breaker is open
-    // Global PSK returns a plain array (consumed by source tab), so no _meta wrapper
+    // Circuit breaker check — serve stale if breaker is open.
+
+    // Global PSK returns a plain array (consumed by source tab), so no _meta wrapper.
     if (!pskCbAllowRequest()) {
       if (pskCache.data) return res.json(pskCache.data);
-      return res.status(503).json({ error: 'PSKReporter circuit breaker open — try again shortly' });
+      return res.status(503).json({ error: 'PSKReporter circuit breaker open — try again shortly.' });
     }
 
-    // Rate limit check — serve stale data if throttled
+    // Rate limit check — serve stale data if throttled.
+
     if (!pskAcquireToken(pskGlobalBucket)) {
       if (pskCache.data) return res.json(pskCache.data); // stale-while-revalidate
-      return res.status(429).json({ error: 'PSKReporter rate limit — try again shortly' });
+      return res.status(429).json({ error: 'PSKReporter rate limit — try again shortly.' });
     }
 
     // Build query params
@@ -1125,7 +1147,8 @@ app.get('/api/spots/psk', async (req, res) => {
     });
     const doc = parser.parse(xml);
 
-    // Extract reception reports array
+    // Extract reception reports array.
+
     const reports = doc.receptionReports?.receptionReport;
     if (!reports) {
       pskCache = { data: [], expires: Date.now() + PSK_CACHE_TTL };
@@ -1134,7 +1157,8 @@ app.get('/api/spots/psk', async (req, res) => {
 
     const reportArray = Array.isArray(reports) ? reports : [reports];
 
-    // Transform to spot format
+    // Transform to spot format.
+
     const spots = reportArray.map(r => {
       const freqHz = parseInt(r.frequency, 10) || 0;
       const freqMHz = (freqHz / 1000000).toFixed(3);
@@ -1166,7 +1190,8 @@ app.get('/api/spots/psk', async (req, res) => {
       };
     });
 
-    // Filter out spots with no valid transmitter coordinates
+    // Filter out spots with no valid transmitter coordinates.
+
     const validSpots = spots.filter(s => s.latitude !== null && s.longitude !== null);
 
     pskCache = { data: validSpots, expires: Date.now() + PSK_CACHE_TTL };
@@ -1174,15 +1199,15 @@ app.get('/api/spots/psk', async (req, res) => {
   } catch (err) {
     console.error('Error fetching PSKReporter spots:', err.message);
     pskCbRecordFailure(); // track consecutive failures
-    // Stale-while-revalidate — serve old data if available
+    // Stale-while-revalidate — serve old data if available.
     if (pskCache.data) return res.json(pskCache.data);
-    res.status(502).json({ error: 'PSKReporter is unavailable — try again shortly' });
+    res.status(502).json({ error: 'PSKReporter is unavailable — try again shortly.' });
   }
 });
 
 // --- Live Spots (PSKReporter "heard" query) ---
 
-// Per-callsign cache for Live Spots
+// Per-callsign cache for Live Spots.
 const pskHeardCache = {}; // { 'CALLSIGN': { data, expires }, ... }
 const PSK_HEARD_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
@@ -1198,23 +1223,24 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   return R * c;
 }
 
-// Live Spots: Query PSKReporter for spots where YOUR signal was received
+// Live Spots: Query PSKReporter for spots where YOUR signal was received.
 app.get('/api/spots/psk/heard', async (req, res) => {
   const callsign = (req.query.callsign || '').toUpperCase().trim();
   try {
 
     // Validate callsign format
     if (!callsign || !/^[A-Z0-9]{3,10}$/i.test(callsign)) {
-      return res.status(400).json({ error: 'Provide a valid callsign' });
+      return res.status(400).json({ error: 'Provide a valid callsign.' });
     }
 
     // Ensure MQTT subscription for this callsign (idempotent)
     mqttSubscribeCallsign(callsign);
 
-    // Prefer MQTT data if connected and has spots for this callsign
+    // Prefer MQTT data if connected and has spots for this callsign.
+
     if (mqttConnected && mqttCallsigns[callsign]?.spots.size > 0) {
       const result = mqttBuildHeardResponse(callsign);
-      // Also update the HTTP cache so stale fallback has fresh data
+      // Also update the HTTP cache so stale fallback has fresh data.
       pskHeardCache[callsign] = { data: result, expires: Date.now() + PSK_HEARD_CACHE_TTL };
       return res.json(result);
     }
@@ -1225,20 +1251,23 @@ app.get('/api/spots/psk/heard', async (req, res) => {
       return res.json(cached.data);
     }
 
-    // Circuit breaker check — serve stale if breaker is open
+    // Circuit breaker check — serve stale if breaker is open.
+
     if (!pskCbAllowRequest()) {
       const meta = pskMeta(cached);
       if (cached?.data) return res.json({ ...cached.data, _meta: meta });
-      return res.status(503).json({ error: 'PSKReporter circuit breaker open — try again shortly' });
+      return res.status(503).json({ error: 'PSKReporter circuit breaker open — try again shortly.' });
     }
 
-    // Rate limit check — serve stale data if throttled
+    // Rate limit check — serve stale data if throttled.
+
     if (!pskAcquireToken(pskHeardBucket)) {
       if (cached?.data) return res.json(cached.data); // stale-while-revalidate
-      return res.status(429).json({ error: 'PSKReporter rate limit — try again shortly' });
+      return res.status(429).json({ error: 'PSKReporter rate limit — try again shortly.' });
     }
 
-    // Build query params for PSKReporter
+    // Build query params for PSKReporter.
+
     const params = new URLSearchParams({
       senderCallsign: callsign,
       flowStartSeconds: '-3600', // Last hour
@@ -1268,7 +1297,8 @@ app.get('/api/spots/psk/heard', async (req, res) => {
 
     const reportArray = Array.isArray(reports) ? reports : [reports];
 
-    // Transform to spot format
+    // Transform to spot format.
+
     const spots = reportArray.map(r => {
       const freqHz = parseInt(r.frequency, 10) || 0;
       const freqMHz = (freqHz / 1000000).toFixed(3);
@@ -1281,7 +1311,8 @@ app.get('/api/spots/psk/heard', async (req, res) => {
       const snrVal = parseInt(r.sNR, 10);
       const snrStr = isNaN(snrVal) ? '' : `${snrVal > 0 ? '+' : ''}${snrVal}`;
 
-      // Calculate distance if both coords available
+      // Calculate distance if both coords available.
+
       let distanceKm = null;
       if (senderCoords && receiverCoords) {
         distanceKm = Math.round(haversineKm(
@@ -1308,10 +1339,12 @@ app.get('/api/spots/psk/heard', async (req, res) => {
       };
     });
 
-    // Filter out spots with no valid receiver coordinates
+    // Filter out spots with no valid receiver coordinates.
+
     const validSpots = spots.filter(s => s.receiverLat !== null && s.receiverLon !== null);
 
-    // Build summary by band
+    // Build summary by band.
+
     const summary = {};
     for (const spot of validSpots) {
       if (!spot.band) continue;
@@ -1331,18 +1364,17 @@ app.get('/api/spots/psk/heard', async (req, res) => {
   } catch (err) {
     console.error('Error fetching PSKReporter heard spots:', err.message);
     pskCbRecordFailure(); // track consecutive failures
-    // Stale-while-revalidate — serve old data if available
+    // Stale-while-revalidate — serve old data if available.
     const stale = pskHeardCache[callsign];
     if (stale?.data) return res.json(stale.data);
-    res.status(502).json({ error: 'PSKReporter is unavailable — try again shortly' });
+    res.status(502).json({ error: 'PSKReporter is unavailable — try again shortly.' });
   }
 });
 
 // --- Internal PSKReporter XML parse endpoints (hostedmode Worker edge-fetch) ---
 // The Worker fetches PSKReporter from edge IPs (avoids container IP blocking),
-// then POSTs the raw XML here for parsing. Not called in lanmode.
-
-// Shared parser: PSKReporter XML → spot array
+// Then POSTs the raw XML here for parsing. Not called in lanmode.
+// Shared parser: PSKReporter XML → spot array.
 function parsePskSpots(xml) {
   const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' });
   const doc = parser.parse(xml);
@@ -1425,7 +1457,7 @@ app.post('/api/internal/psk-parse', express.text({ type: '*/*', limit: '5mb' }),
     res.json(validSpots);
   } catch (err) {
     console.error('[internal/psk-parse] Error:', err.message);
-    res.status(500).json({ error: 'XML parse failed' });
+    res.status(500).json({ error: 'XML parse failed.' });
   }
 });
 
@@ -1453,7 +1485,7 @@ app.post('/api/internal/psk-heard-parse', express.text({ type: '*/*', limit: '5m
     res.json(result);
   } catch (err) {
     console.error('[internal/psk-heard-parse] Error:', err.message);
-    res.status(500).json({ error: 'XML parse failed' });
+    res.status(500).json({ error: 'XML parse failed.' });
   }
 });
 
@@ -1503,18 +1535,19 @@ app.get('/api/spots/wspr', async (req, res) => {
       };
     });
 
-    // Filter out spots with no valid transmitter coordinates
+    // Filter out spots with no valid transmitter coordinates.
+
     const validSpots = spots.filter(s => s.latitude !== null && s.longitude !== null);
 
     wsprCache = { data: validSpots, expires: Date.now() + WSPR_CACHE_TTL };
     res.json(validSpots);
   } catch (err) {
     console.error('Error fetching WSPR spots:', err.message);
-    res.status(502).json({ error: 'Failed to fetch WSPR spots' });
+    res.status(502).json({ error: 'Failed to fetch WSPR spots.' });
   }
 });
 
-// Proxy SOTA spots API
+// Proxy SOTA spots API.
 app.get('/api/spots/sota', async (req, res) => {
   try {
     const data = await fetchJSON('https://api2.sota.org.uk/api/spots/50/all');
@@ -1534,7 +1567,8 @@ app.get('/api/spots/sota', async (req, res) => {
       _summit:     s.summitCode || '',
     }));
 
-    // Look up coordinates for each unique summit
+    // Look up coordinates for each unique summit.
+
     const unique = new Map();
     for (const s of spots) {
       if (s._assoc && s._summit) {
@@ -1546,7 +1580,8 @@ app.get('/api/spots/sota', async (req, res) => {
       [...unique.values()].map(u => fetchSummitCoords(u.assoc, u.summit))
     );
 
-    // Merge coordinates and strip internal fields
+    // Merge coordinates and strip internal fields.
+
     const enriched = spots.map(s => {
       if (s._assoc && s._summit) {
         const coords = sotaSummitCache[`${s._assoc}/${s._summit}`];
@@ -1563,7 +1598,7 @@ app.get('/api/spots/sota', async (req, res) => {
     res.json(enriched);
   } catch (err) {
     console.error('Error fetching SOTA spots:', err.message);
-    res.status(502).json({ error: 'Failed to fetch SOTA spots' });
+    res.status(502).json({ error: 'Failed to fetch SOTA spots.' });
   }
 });
 
@@ -1586,11 +1621,11 @@ app.get('/api/spots/wwff', async (req, res) => {
     res.json(spots);
   } catch (err) {
     console.error('Error fetching WWFF spots:', err.message);
-    res.status(502).json({ error: 'Failed to fetch WWFF spots' });
+    res.status(502).json({ error: 'Failed to fetch WWFF spots.' });
   }
 });
 
-// Fetch and parse solar XML data
+// Fetch and parse solar XML data.
 app.get('/api/solar', async (req, res) => {
   try {
     const xml = await fetchText('https://www.hamqsl.com/solarxml.php');
@@ -1598,13 +1633,13 @@ app.get('/api/solar', async (req, res) => {
     res.json(solar);
   } catch (err) {
     console.error('Error fetching solar data:', err.message);
-    res.status(502).json({ error: 'Failed to fetch solar data' });
+    res.status(502).json({ error: 'Failed to fetch solar data.' });
   }
 });
 
 // --- Space Weather History (NOAA SWPC) ---
 
-// Per-type in-memory cache, 15-minute TTL
+// Per-type in-memory cache, 15-minute TTL.
 const spacewxCache = {}; // { type: { data, expires } }
 const SPACEWX_TTL = 15 * 60 * 1000; // 15 minutes
 
@@ -1616,7 +1651,7 @@ const SPACEWX_URLS = {
   mag:  'https://services.swpc.noaa.gov/products/solar-wind/mag-7-day.json',
 };
 
-// Downsample high-resolution data by bucket-averaging into ~targetPts points
+// Downsample high-resolution data by bucket-averaging into ~targetPts points.
 function downsampleSpacewx(arr, targetPts) {
   if (arr.length <= targetPts) return arr;
   const bucketSize = Math.ceil(arr.length / targetPts);
@@ -1624,7 +1659,7 @@ function downsampleSpacewx(arr, targetPts) {
   for (let i = 0; i < arr.length; i += bucketSize) {
     const bucket = arr.slice(i, i + bucketSize);
     const avgTime = bucket[Math.floor(bucket.length / 2)].time_tag;
-    // Average each numeric field in the bucket
+    // Average each numeric field in the bucket.
     const keys = Object.keys(bucket[0]).filter(k => k !== 'time_tag');
     const avg = { time_tag: avgTime };
     for (const k of keys) {
@@ -1636,7 +1671,7 @@ function downsampleSpacewx(arr, targetPts) {
   return result;
 }
 
-// Normalize NOAA data into uniform { time_tag, value, [value2] } format
+// Normalize NOAA data into uniform { time_tag, value, [value2] } format.
 function normalizeSpacewx(type, raw) {
   switch (type) {
     case 'kp': {
@@ -1689,11 +1724,11 @@ function normalizeSpacewx(type, raw) {
 app.get('/api/spacewx/history', async (req, res) => {
   const type = req.query.type;
   if (!type || !SPACEWX_URLS[type]) {
-    return res.status(400).json({ error: 'Invalid type. Use: kp, xray, sfi, wind, mag' });
+    return res.status(400).json({ error: 'Invalid type. Use: kp, xray, sfi, wind, mag.' });
   }
 
   try {
-    // Return cached data if fresh
+    // Return cached data if fresh.
     const cached = spacewxCache[type];
     if (cached && Date.now() < cached.expires) {
       return res.json(cached.data);
@@ -1706,7 +1741,7 @@ app.get('/api/spacewx/history', async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error(`Error fetching spacewx ${type}:`, err.message);
-    res.status(502).json({ error: `Failed to fetch space weather ${type} data` });
+    res.status(502).json({ error: `Failed to fetch space weather ${type} data.` });
   }
 });
 
@@ -1734,11 +1769,11 @@ const SAT_TLE_MAX = 500; // max cached entries
 app.get('/api/satellites/list', async (req, res) => {
   const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.N2YO_API_KEY;
   if (!apiKey) {
-    return res.status(503).json({ error: 'No N2YO API key configured' });
+    return res.status(503).json({ error: 'No N2YO API key configured.' });
   }
 
   try {
-    // Return cached data if fresh
+    // Return cached data if fresh.
     if (satListCache.data && Date.now() < satListCache.expires) {
       return res.json(satListCache.data);
     }
@@ -1746,7 +1781,8 @@ app.get('/api/satellites/list', async (req, res) => {
     const url = `https://api.n2yo.com/rest/v1/satellite/above/0/0/0/90/18/&apiKey=${apiKey}`;
     const data = await fetchJSON(url);
 
-    // Extract satellite list from response
+    // Extract satellite list from response.
+
     const satellites = (data.above || []).map(s => ({
       satId: s.satid,
       name: s.satname,
@@ -1757,7 +1793,7 @@ app.get('/api/satellites/list', async (req, res) => {
     res.json(satellites);
   } catch (err) {
     console.error('Error fetching satellite list:', err.message);
-    res.status(502).json({ error: 'Failed to fetch satellite list' });
+    res.status(502).json({ error: 'Failed to fetch satellite list.' });
   }
 });
 
@@ -1765,27 +1801,27 @@ app.get('/api/satellites/list', async (req, res) => {
 app.get('/api/satellites/positions', async (req, res) => {
   const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.N2YO_API_KEY;
   if (!apiKey) {
-    return res.status(503).json({ error: 'No N2YO API key configured' });
+    return res.status(503).json({ error: 'No N2YO API key configured.' });
   }
 
   const { ids, lat, lon, seconds } = req.query;
   if (!ids) {
-    return res.status(400).json({ error: 'Provide satellite IDs' });
+    return res.status(400).json({ error: 'Provide satellite IDs.' });
   }
 
   const obsLat = parseFloat(lat) || 0;
   const obsLon = parseFloat(lon) || 0;
   if (obsLat < -90 || obsLat > 90 || obsLon < -180 || obsLon > 180) {
-    return res.status(400).json({ error: 'lat must be -90..90, lon must be -180..180' });
+    return res.status(400).json({ error: 'Lat must be -90..90, lon must be -180..180.' });
   }
   const secs = parseInt(seconds, 10) || 1;
   const satIds = ids.split(',').map(id => id.trim()).filter(Boolean).slice(0, 10); // max 10 satellites
 
   if (satIds.length === 0) {
-    return res.status(400).json({ error: 'Provide at least one satellite ID' });
+    return res.status(400).json({ error: 'Provide at least one satellite ID.' });
   }
   if (!satIds.every(id => /^\d+$/.test(id))) {
-    return res.status(400).json({ error: 'Satellite IDs must be numeric' });
+    return res.status(400).json({ error: 'Satellite IDs must be numeric.' });
   }
 
   // Cache key includes IDs + rounded observer coords (~1.1 km granularity)
@@ -1797,7 +1833,7 @@ app.get('/api/satellites/positions', async (req, res) => {
   try {
     const positions = {};
 
-    // Fetch positions for each satellite in parallel
+    // Fetch positions for each satellite in parallel.
     await Promise.all(satIds.map(async (satId) => {
       try {
         const url = `https://api.n2yo.com/rest/v1/satellite/positions/${encodeURIComponent(satId)}/${obsLat}/${obsLon}/0/${secs}/&apiKey=${apiKey}`;
@@ -1826,26 +1862,26 @@ app.get('/api/satellites/positions', async (req, res) => {
     res.json(positions);
   } catch (err) {
     console.error('Error fetching satellite positions:', err.message);
-    res.status(502).json({ error: 'Failed to fetch satellite positions' });
+    res.status(502).json({ error: 'Failed to fetch satellite positions.' });
   }
 });
 
-// Fetch pass predictions for a single satellite
+// Fetch pass predictions for a single satellite.
 app.get('/api/satellites/passes', async (req, res) => {
   const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.N2YO_API_KEY;
   if (!apiKey) {
-    return res.status(503).json({ error: 'No N2YO API key configured' });
+    return res.status(503).json({ error: 'No N2YO API key configured.' });
   }
 
   const { id, lat, lon, days, minEl } = req.query;
   if (!id || !/^\d+$/.test(id)) {
-    return res.status(400).json({ error: 'Provide a valid numeric satellite ID' });
+    return res.status(400).json({ error: 'Provide a valid numeric satellite ID.' });
   }
 
   const obsLat = parseFloat(lat);
   const obsLon = parseFloat(lon);
   if (isNaN(obsLat) || isNaN(obsLon) || obsLat < -90 || obsLat > 90 || obsLon < -180 || obsLon > 180) {
-    return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+    return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180).' });
   }
 
   const numDays = Math.min(parseInt(days, 10) || 2, 10); // max 10 days
@@ -1892,7 +1928,7 @@ app.get('/api/satellites/passes', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error fetching satellite passes:', err.message);
-    res.status(502).json({ error: 'Failed to fetch satellite passes' });
+    res.status(502).json({ error: 'Failed to fetch satellite passes.' });
   }
 });
 
@@ -1900,12 +1936,12 @@ app.get('/api/satellites/passes', async (req, res) => {
 app.get('/api/satellites/tle', async (req, res) => {
   const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.N2YO_API_KEY;
   if (!apiKey) {
-    return res.status(503).json({ error: 'No N2YO API key configured' });
+    return res.status(503).json({ error: 'No N2YO API key configured.' });
   }
 
   const { id } = req.query;
   if (!id || !/^\d+$/.test(id)) {
-    return res.status(400).json({ error: 'Provide a valid numeric satellite ID' });
+    return res.status(400).json({ error: 'Provide a valid numeric satellite ID.' });
   }
 
   // Check cache
@@ -1934,17 +1970,17 @@ app.get('/api/satellites/tle', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error fetching satellite TLE:', err.message);
-    res.status(502).json({ error: 'Failed to fetch satellite TLE' });
+    res.status(502).json({ error: 'Failed to fetch satellite TLE.' });
   }
 });
 
 // --- Keyless ISS Tracking (SGP4 via satellite.js) ---
 
-// ISS TLE cache — fetched from CelesTrak, no API key needed
+// ISS TLE cache — fetched from CelesTrak, no API key needed.
 let issTleCache = { data: null, expires: 0 };
 const ISS_TLE_TTL = 6 * 60 * 60 * 1000; // 6h — TLE doesn't change often
 
-// ISS computed position/orbit cache — recomputed every 10s
+// ISS computed position/orbit cache — recomputed every 10s.
 let issComputedCache = { data: null, expires: 0, obsKey: '' };
 const ISS_COMPUTED_TTL = 10 * 1000; // 10s — matches satellite position refresh
 
@@ -1962,14 +1998,15 @@ async function fetchIssTle() {
     throw new Error('Invalid TLE response from CelesTrak');
   }
 
-  // 3-line TLE format: name, line1, line2
+  // 3-line TLE format: name, line1, line2.
+
   const tle = { name: lines[0], line1: lines[1], line2: lines[2] };
   issTleCache = { data: tle, expires: Date.now() + ISS_TLE_TTL };
   return tle;
 }
 
 // Compute ISS orbit ground track — 100 points over ~92.5 min (one full orbit)
-// Starts 10 min in the past to show where ISS came from
+// Starts 10 min in the past to show where ISS came from.
 function computeIssOrbitPath(satrec) {
   const points = [];
   const now = new Date();
@@ -1995,16 +2032,17 @@ function computeIssOrbitPath(satrec) {
   return points;
 }
 
-// ISS position endpoint — free, no API key required
+// ISS position endpoint — free, no API key required.
 app.get('/api/iss/position', async (req, res) => {
   const obsLat = parseFloat(req.query.lat) || 0;
   const obsLon = parseFloat(req.query.lon) || 0;
   if (obsLat < -90 || obsLat > 90 || obsLon < -180 || obsLon > 180) {
-    return res.status(400).json({ error: 'lat must be -90..90, lon must be -180..180' });
+    return res.status(400).json({ error: 'Lat must be -90..90, lon must be -180..180.' });
   }
   const obsKey = `${obsLat.toFixed(2)}:${obsLon.toFixed(2)}`;
 
-  // Return cached data if fresh and same observer
+  // Return cached data if fresh and same observer.
+
   if (issComputedCache.data && Date.now() < issComputedCache.expires && issComputedCache.obsKey === obsKey) {
     return res.json(issComputedCache.data);
   }
@@ -2017,7 +2055,7 @@ app.get('/api/iss/position', async (req, res) => {
     const now = new Date();
     const posVel = satellite.propagate(satrec, now);
     if (!posVel.position) {
-      return res.status(500).json({ error: 'SGP4 propagation failed' });
+      return res.status(500).json({ error: 'SGP4 propagation failed.' });
     }
 
     const gmst = satellite.gstime(now);
@@ -2026,7 +2064,8 @@ app.get('/api/iss/position', async (req, res) => {
     const lon = satellite.degreesLong(geo.longitude);
     const alt = geo.height; // km
 
-    // Velocity magnitude (km/s) from ECI velocity vector
+    // Velocity magnitude (km/s) from ECI velocity vector.
+
     const vx = posVel.velocity.x, vy = posVel.velocity.y, vz = posVel.velocity.z;
     const velocity = Math.sqrt(vx * vx + vy * vy + vz * vz);
 
@@ -2071,14 +2110,14 @@ app.get('/api/iss/position', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error computing ISS position:', err.message);
-    res.status(502).json({ error: 'Failed to compute ISS position' });
+    res.status(502).json({ error: 'Failed to compute ISS position.' });
   }
 });
 
-// Lunar / EME conditions
+// Lunar / EME conditions.
 app.get('/api/lunar', (req, res) => {
   try {
-    // Optional observer coordinates for az/el and rise/set
+    // Optional observer coordinates for az/el and rise/set.
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
     const hasObserver = !isNaN(lat) && !isNaN(lon)
@@ -2087,27 +2126,29 @@ app.get('/api/lunar', (req, res) => {
     res.json(lunar);
   } catch (err) {
     console.error('Error computing lunar data:', err.message);
-    res.status(500).json({ error: 'Failed to compute lunar data' });
+    res.status(500).json({ error: 'Failed to compute lunar data.' });
   }
 });
 
-// Proxy Weather Underground API
+// Proxy Weather Underground API.
 app.get('/api/weather', async (req, res) => {
   const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.WU_API_KEY;
   if (!apiKey) {
-    return res.status(503).json({ error: 'No weather API key configured' });
+    return res.status(503).json({ error: 'No weather API key configured.' });
   }
   try {
     const { station } = req.query;
     if (!station) {
-      return res.status(400).json({ error: 'Provide a station ID' });
+      return res.status(400).json({ error: 'Provide a station ID.' });
     }
 
-    // Try current observations first
+    // Try current observations first.
+
     const currentUrl = `https://api.weather.com/v2/pws/observations/current?stationId=${encodeURIComponent(station)}&format=json&units=e&apiKey=${apiKey}`;
     let raw = await fetchText(currentUrl);
 
-    // If 204 / empty, fall back to today's observations and use the latest
+    // If 204 / empty, fall back to today's observations and use the latest.
+
     if (!raw || !raw.trim()) {
       const dayUrl = `https://api.weather.com/v2/pws/observations/all/1day?stationId=${encodeURIComponent(station)}&format=json&units=e&apiKey=${apiKey}`;
       raw = await fetchText(dayUrl);
@@ -2123,7 +2164,8 @@ app.get('/api/weather', async (req, res) => {
       return res.json({ temp: null, condition: 'No data', windSpeed: null, windDir: '', humidity: null });
     }
 
-    // Use the most recent observation
+    // Use the most recent observation.
+
     const obs = obsList[obsList.length - 1];
     const imp = obs.imperial || {};
     res.json({
@@ -2136,7 +2178,7 @@ app.get('/api/weather', async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching weather:', err.message);
-    res.status(502).json({ error: 'Failed to fetch weather data' });
+    res.status(502).json({ error: 'Failed to fetch weather data.' });
   }
 });
 
@@ -2148,7 +2190,7 @@ function degToCompass(deg) {
 // NWS weather conditions (background gradient for local clock)
 const nwsGridCache = {}; // { 'lat,lon': { forecastUrl, expires } }
 
-// NWS API only covers the US and territories — reject out-of-range coordinates early
+// NWS API only covers the US and territories — reject out-of-range coordinates early.
 function isNwsCoverage(lat, lon) {
   return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
 }
@@ -2158,10 +2200,10 @@ app.get('/api/weather/conditions', async (req, res) => {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180).' });
     }
     if (!isNwsCoverage(lat, lon)) {
-      return res.status(400).json({ error: 'NWS only covers US locations' });
+      return res.status(400).json({ error: 'NWS only covers US locations.' });
     }
     const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
     let grid = nwsGridCache[key];
@@ -2172,7 +2214,7 @@ app.get('/api/weather/conditions', async (req, res) => {
       const forecastUrl = data && data.properties && data.properties.forecastHourly;
       if (!forecastUrl) {
         console.error('NWS points response missing forecastHourly:', JSON.stringify(data).substring(0, 500));
-        return res.status(502).json({ error: 'NWS returned no forecast URL for this location' });
+        return res.status(502).json({ error: 'NWS returned no forecast URL for this location.' });
       }
       grid = { forecastUrl, expires: Date.now() + 6 * 3600 * 1000 };
       nwsGridCache[key] = grid;
@@ -2190,7 +2232,7 @@ app.get('/api/weather/conditions', async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching NWS conditions:', err.message);
-    res.status(502).json({ error: 'Failed to fetch weather conditions' });
+    res.status(502).json({ error: 'Failed to fetch weather conditions.' });
   }
 });
 
@@ -2200,7 +2242,7 @@ app.get('/api/weather/alerts', async (req, res) => {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180).' });
     }
     if (!isNwsCoverage(lat, lon)) {
       return res.json([]); // no alerts outside US coverage
@@ -2222,7 +2264,7 @@ app.get('/api/weather/alerts', async (req, res) => {
     res.json(alerts);
   } catch (err) {
     console.error('Error fetching NWS alerts:', err.message);
-    res.status(502).json({ error: 'Failed to fetch weather alerts' });
+    res.status(502).json({ error: 'Failed to fetch weather alerts.' });
   }
 });
 
@@ -2232,17 +2274,18 @@ app.get('/api/weather/owm', async (req, res) => {
     const lat = parseFloat(req.query.lat);
     const lon = parseFloat(req.query.lon);
     if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
+      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180).' });
     }
     const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.OWM_API_KEY;
     if (!apiKey) {
-      return res.status(400).json({ error: 'OWM API key required' });
+      return res.status(400).json({ error: 'OWM API key required.' });
     }
     const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&appid=${encodeURIComponent(apiKey)}&units=imperial`;
     const raw = await fetchText(url);
     const data = JSON.parse(raw);
 
-    // Map OWM response to same shape as NWS conditions endpoint
+    // Map OWM response to same shape as NWS conditions endpoint.
+
     const weather = data.weather && data.weather[0] ? data.weather[0].main : '';
     const temp = data.main ? Math.round(data.main.temp) : null;
     const humidity = data.main ? data.main.humidity : null;
@@ -2262,7 +2305,7 @@ app.get('/api/weather/owm', async (req, res) => {
     });
   } catch (err) {
     console.error('Error fetching OWM conditions:', err.message);
-    res.status(502).json({ error: 'Failed to fetch OWM weather data' });
+    res.status(502).json({ error: 'Failed to fetch OWM weather data.' });
   }
 });
 
@@ -2299,7 +2342,7 @@ function nwsFetchOnce(url, redirectCount = 0) {
       const req = https.get(options, (resp) => {
         if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
           resp.resume();
-          // Handle relative redirects by resolving against the original URL
+          // Handle relative redirects by resolving against the original URL.
           let redirectUrl;
           try { redirectUrl = new URL(resp.headers.location, url).href; } catch (e) {
             return reject(new Error(`Bad redirect Location: "${resp.headers.location}" from ${url}`));
@@ -2349,7 +2392,7 @@ app.get('/api/callsign/:call', async (req, res) => {
   try {
     const rawCall = req.params.call;
     if (!/^[A-Z0-9]{1,10}$/i.test(rawCall)) {
-      return res.status(400).json({ error: 'Invalid callsign format' });
+      return res.status(400).json({ error: 'Invalid callsign format.' });
     }
     const callUpper = rawCall.toUpperCase();
 
@@ -2362,7 +2405,8 @@ app.get('/api/callsign/:call', async (req, res) => {
       let lat = loc.latitude ? parseFloat(loc.latitude) : null;
       let lon = loc.longitude ? parseFloat(loc.longitude) : null;
 
-      // Fallback: geocode via Nominatim when callook.info has address but no coordinates
+      // Fallback: geocode via Nominatim when callook.info has address but no coordinates.
+
       if (lat === null && lon === null && addr.line2) {
         try {
           const q = encodeURIComponent(addr.line2);
@@ -2374,7 +2418,7 @@ app.get('/api/callsign/:call', async (req, res) => {
             lon = parseFloat(geoResults[0].lon);
           }
         } catch {
-          // Geocode is best-effort — silently fall through with null coordinates
+          // Geocode is best-effort — silently fall through with null coordinates.
         }
       }
 
@@ -2391,7 +2435,7 @@ app.get('/api/callsign/:call', async (req, res) => {
         source: 'callook',
       });
     } else {
-      // Non-US calls — HamQTH global database
+      // Non-US calls — HamQTH global database.
       const data = await lookupHamqth(callUpper);
       if (data) {
         res.json(data);
@@ -2401,49 +2445,50 @@ app.get('/api/callsign/:call', async (req, res) => {
     }
   } catch (err) {
     console.error('Error fetching callsign data:', err.message);
-    res.status(502).json({ error: 'Failed to fetch callsign data' });
+    res.status(502).json({ error: 'Failed to fetch callsign data.' });
   }
 });
 
 // --- Mode-Specific Endpoints ---
 // (Empty on main - populated on deployment branches)
-// Lanmode adds: /api/update/*, /api/restart
+// Lanmode adds: /api/update/*, /api/restart.
 // Hostedmode adds: /api/settings-sync (future)
-
 // --- Configuration Endpoints ---
 app.post('/api/config/env', (req, res) => {
   try {
-    // Security gate: require loopback/private IP, or a CONFIG_ADMIN_TOKEN if set
+    // Security gate: require loopback/private IP, or a CONFIG_ADMIN_TOKEN if set.
     const rawIp = (req.ip || req.connection.remoteAddress || '').replace(/^::ffff:/, '');
     const adminToken = process.env.CONFIG_ADMIN_TOKEN;
     if (adminToken) {
       if (req.headers['x-admin-token'] !== adminToken) {
         console.warn(`Blocked /api/config/env from ${rawIp} — invalid admin token`);
-        return res.status(403).json({ error: 'Forbidden' });
+        return res.status(403).json({ error: 'Forbidden.' });
       }
     } else if (!isPrivateIP(rawIp)) {
       console.warn(`Blocked /api/config/env from non-private IP: ${rawIp}`);
-      return res.status(403).json({ error: 'Forbidden — config endpoint restricted to local network' });
+      return res.status(403).json({ error: 'Forbidden — config endpoint restricted to local network.' });
     }
 
     const envPath = path.join(__dirname, '.env');
     const updates = req.body; // { key: value, ... }
     if (!updates || typeof updates !== 'object') {
-      return res.status(400).json({ error: 'Invalid body' });
+      return res.status(400).json({ error: 'Invalid body.' });
     }
 
-    // Read existing .env lines
+    // Read existing .env lines.
+
     let lines = [];
     if (fs.existsSync(envPath)) {
       lines = fs.readFileSync(envPath, 'utf-8').split('\n');
     }
 
-    // Update or append each key
+    // Update or append each key.
+
     const allowedKeys = ['WU_API_KEY', 'OWM_API_KEY', 'N2YO_API_KEY', 'HAMQTH_USER', 'HAMQTH_PASS'];
     for (const [key, value] of Object.entries(updates)) {
-      // Only allow known env keys
+      // Only allow known env keys.
       if (!allowedKeys.includes(key)) continue;
-      // Sanitize: reject control chars (newline injection), enforce max length
+      // Sanitize: reject control chars (newline injection), enforce max length.
       const sanitized = String(value).replace(/[\r\n\0]/g, '').trim();
       if (sanitized.length > 128 || sanitized.length === 0) continue;
       const idx = lines.findIndex(l => l.startsWith(key + '='));
@@ -2466,7 +2511,7 @@ app.post('/api/config/env', (req, res) => {
     res.json({ ok: true });
   } catch (err) {
     console.error('Failed to update .env:', err.message);
-    res.status(500).json({ error: 'Failed to save config' });
+    res.status(500).json({ error: 'Failed to save config.' });
   }
 });
 
@@ -2478,36 +2523,40 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
     // 1. Honeypot check (bots fill hidden "website" field)
     if (website) {
       console.log('Feedback spam blocked (honeypot)');
-      return res.status(400).json({ error: 'Invalid submission' });
+      return res.status(400).json({ error: 'Invalid submission.' });
     }
 
-    // 2. Validate feedback content
+    // 2. Validate feedback content.
+
     if (!feedback || typeof feedback !== 'string') {
-      return res.status(400).json({ error: 'Feedback is required' });
+      return res.status(400).json({ error: 'Feedback is required.' });
     }
 
     const feedbackTrimmed = feedback.trim();
     if (feedbackTrimmed.length < 10) {
-      return res.status(400).json({ error: 'Feedback must be at least 10 characters' });
+      return res.status(400).json({ error: 'Feedback must be at least 10 characters.' });
     }
 
     if (feedbackTrimmed.length > 5000) {
-      return res.status(400).json({ error: 'Feedback must be less than 5000 characters' });
+      return res.status(400).json({ error: 'Feedback must be less than 5000 characters.' });
     }
 
-    // 3. Simple spam keyword filter
+    // 3. Simple spam keyword filter.
+
     const spamKeywords = ['viagra', 'casino', 'lottery', 'crypto wallet', 'buy bitcoin'];
     const lowerFeedback = feedbackTrimmed.toLowerCase();
     if (spamKeywords.some(kw => lowerFeedback.includes(kw))) {
       console.log('Feedback spam blocked (keywords)');
-      return res.status(400).json({ error: 'Invalid content' });
+      return res.status(400).json({ error: 'Invalid content.' });
     }
 
-    // 4. Validate optional fields
+    // 4. Validate optional fields.
+
     const nameSafe = (name || '').trim().substring(0, 100);
     const emailSafe = (email || '').trim().substring(0, 100);
 
-    // 5. Check for GitHub token — if not configured, optionally relay to hamtab.net
+    // 5. Check for GitHub token — if not configured, optionally relay to hamtab.net.
+
     const githubToken = process.env.GITHUB_FEEDBACK_TOKEN;
     if (!githubToken) {
       // Relay requires explicit opt-in via FEEDBACK_RELAY_ENABLED=1
@@ -2515,7 +2564,7 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
       if (!relayEnabled) {
         console.warn('Feedback rejected — no GITHUB_FEEDBACK_TOKEN and FEEDBACK_RELAY_ENABLED not set');
         return res.status(503).json({
-          error: 'Feedback not configured. Set GITHUB_FEEDBACK_TOKEN or FEEDBACK_RELAY_ENABLED=1 in .env. You can also submit feedback at https://github.com/stevencheist/HamTabv1/issues'
+          error: 'Feedback not configured. Set GITHUB_FEEDBACK_TOKEN or FEEDBACK_RELAY_ENABLED=1 in .env. You can also submit feedback at https://github.com/stevencheist/HamTabv1/issues.'
         });
       }
 
@@ -2539,7 +2588,7 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
               const result = JSON.parse(data);
               res.status(relayRes.statusCode).json(result);
             } catch {
-              res.status(relayRes.statusCode).json({ error: 'Relay response parse error' });
+              res.status(relayRes.statusCode).json({ error: 'Relay response parse error.' });
             }
           });
         });
@@ -2551,7 +2600,7 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
         relayReq.on('error', (err) => {
           console.error('Relay to hamtab.net failed:', err.message);
           res.status(503).json({
-            error: 'Feedback relay unavailable. Please submit feedback directly at https://github.com/stevencheist/HamTabv1/issues'
+            error: 'Feedback relay unavailable. Please submit feedback directly at https://github.com/stevencheist/HamTabv1/issues.'
           });
         });
 
@@ -2561,12 +2610,13 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
       } catch (relayErr) {
         console.error('Relay error:', relayErr.message);
         return res.status(503).json({
-          error: 'Feedback relay unavailable. Please submit feedback directly at https://github.com/stevencheist/HamTabv1/issues'
+          error: 'Feedback relay unavailable. Please submit feedback directly at https://github.com/stevencheist/HamTabv1/issues.'
         });
       }
     }
 
-    // 6. Build GitHub issue body
+    // 6. Build GitHub issue body.
+
     let issueBody = feedbackTrimmed;
     if (nameSafe || emailSafe) {
       issueBody += '\n\n---\n\n**Submitted by:**';
@@ -2574,7 +2624,8 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
       if (emailSafe) issueBody += `\nEmail: ${emailSafe}`;
     }
 
-    // 7. Create GitHub issue
+    // 7. Create GitHub issue.
+
     const issueData = JSON.stringify({
       title: `[Feedback] ${feedbackTrimmed.substring(0, 50)}${feedbackTrimmed.length > 50 ? '...' : ''}`,
       body: issueBody,
@@ -2594,7 +2645,8 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
       }
     };
 
-    // Make GitHub API request
+    // Make GitHub API request.
+
     const githubReq = https.request(options, (githubRes) => {
       let data = '';
       githubRes.on('data', chunk => data += chunk);
@@ -2627,14 +2679,14 @@ app.post('/api/feedback', feedbackLimiter, async (req, res) => {
   }
 });
 
-// Proxy NASA SDO solar images
+// Proxy NASA SDO solar images.
 const SDO_TYPES = new Set(['0193', '0171', '0304', 'HMIIC']);
 
 // --- SDO browse frame list (animated time-lapse) ---
-// Cache per-day directory listings to avoid re-scraping
+// Cache per-day directory listings to avoid re-scraping.
 const sdoDirCache = {}; // { 'YYYY/MM/DD:type': { frames: [], expires: timestamp } }
 
-// Scrape one day's directory listing for frame filenames
+// Scrape one day's directory listing for frame filenames.
 async function scrapeSDODay(dateKey, type) {
   const cacheKey = `${dateKey}:${type}`;
   const cached = sdoDirCache[cacheKey];
@@ -2646,7 +2698,8 @@ async function scrapeSDODay(dateKey, type) {
   let match;
   while ((match = pattern.exec(html)) !== null) frames.push(match[0]);
 
-  // Yesterday's listing is immutable — cache for 6 hours; today's for 10 minutes
+  // Yesterday's listing is immutable — cache for 6 hours; today's for 10 minutes.
+
   const now = new Date();
   const todayKey = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${String(now.getUTCDate()).padStart(2, '0')}`;
   const ttl = (dateKey === todayKey) ? 10 * 60 * 1000 : 6 * 3600 * 1000;
@@ -2665,7 +2718,8 @@ app.get('/api/solar/frames', async (req, res) => {
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     const yesterdayKey = `${yesterday.getUTCFullYear()}/${String(yesterday.getUTCMonth() + 1).padStart(2, '0')}/${String(yesterday.getUTCDate()).padStart(2, '0')}`;
 
-    // Fetch both days in parallel
+    // Fetch both days in parallel.
+
     const [yesterdayFrames, todayFrames] = await Promise.all([
       scrapeSDODay(yesterdayKey, type).catch(() => []),
       scrapeSDODay(todayKey, type).catch(() => []),
@@ -2677,18 +2731,18 @@ app.get('/api/solar/frames', async (req, res) => {
     res.json(frames);
   } catch (err) {
     console.error('Error fetching SDO frame list:', err.message);
-    res.status(502).json({ error: 'Failed to fetch SDO frame list' });
+    res.status(502).json({ error: 'Failed to fetch SDO frame list.' });
   }
 });
 
-// Proxy individual SDO browse frames
+// Proxy individual SDO browse frames.
 const SDO_FRAME_RE = /^\d{8}_\d{6}_512_\w+\.jpg$/;
 
 app.get('/api/solar/frame/:filename', async (req, res) => {
   try {
     const filename = req.params.filename;
     if (!SDO_FRAME_RE.test(filename)) {
-      return res.status(400).json({ error: 'Invalid filename' });
+      return res.status(400).json({ error: 'Invalid filename.' });
     }
 
     // Extract date from filename (YYYYMMDD_HHMMSS_512_type.jpg)
@@ -2699,7 +2753,7 @@ app.get('/api/solar/frame/:filename', async (req, res) => {
     const parsed = new URL(url);
     const resolvedIP = await resolveHost(parsed.hostname);
     if (isPrivateIP(resolvedIP)) {
-      return res.status(403).json({ error: 'Blocked' });
+      return res.status(403).json({ error: 'Blocked.' });
     }
     const proxyReq = https.get({
       hostname: resolvedIP,
@@ -2710,7 +2764,7 @@ app.get('/api/solar/frame/:filename', async (req, res) => {
     }, (upstream) => {
       if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
         upstream.resume();
-        return res.status(502).json({ error: 'Failed to fetch SDO frame' });
+        return res.status(502).json({ error: 'Failed to fetch SDO frame.' });
       }
       res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
       res.set('Cache-Control', 'public, max-age=86400');
@@ -2718,12 +2772,12 @@ app.get('/api/solar/frame/:filename', async (req, res) => {
     });
     proxyReq.on('error', (err) => {
       console.error('SDO frame proxy error:', err.message);
-      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch SDO frame' });
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch SDO frame.' });
     });
     proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
   } catch (err) {
     console.error('Error fetching SDO frame:', err.message);
-    res.status(502).json({ error: 'Failed to fetch SDO frame' });
+    res.status(502).json({ error: 'Failed to fetch SDO frame.' });
   }
 });
 
@@ -2734,7 +2788,7 @@ app.get('/api/solar/image', async (req, res) => {
     const parsed = new URL(url);
     const resolvedIP = await resolveHost(parsed.hostname);
     if (isPrivateIP(resolvedIP)) {
-      return res.status(403).json({ error: 'Blocked' });
+      return res.status(403).json({ error: 'Blocked.' });
     }
     const proxyReq = https.get({
       hostname: resolvedIP,
@@ -2745,7 +2799,7 @@ app.get('/api/solar/image', async (req, res) => {
     }, (upstream) => {
       if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
         upstream.resume();
-        return res.status(502).json({ error: 'Failed to fetch SDO image' });
+        return res.status(502).json({ error: 'Failed to fetch SDO image.' });
       }
       res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
       res.set('Cache-Control', 'public, max-age=300');
@@ -2753,12 +2807,12 @@ app.get('/api/solar/image', async (req, res) => {
     });
     proxyReq.on('error', (err) => {
       console.error('SDO image proxy error:', err.message);
-      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch SDO image' });
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch SDO image.' });
     });
     proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
   } catch (err) {
     console.error('Error fetching SDO image:', err.message);
-    res.status(502).json({ error: 'Failed to fetch SDO image' });
+    res.status(502).json({ error: 'Failed to fetch SDO image.' });
   }
 });
 
@@ -2774,7 +2828,7 @@ app.get('/api/lunar/image', async (req, res) => {
     const parsed = new URL(url);
     const resolvedIP = await resolveHost(parsed.hostname);
     if (isPrivateIP(resolvedIP)) {
-      return res.status(403).json({ error: 'Blocked' });
+      return res.status(403).json({ error: 'Blocked.' });
     }
     const proxyReq = https.get({
       hostname: resolvedIP,
@@ -2785,21 +2839,21 @@ app.get('/api/lunar/image', async (req, res) => {
     }, (upstream) => {
       if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
         upstream.resume();
-        return res.status(502).json({ error: 'Failed to fetch moon image' });
+        return res.status(502).json({ error: 'Failed to fetch moon image.' });
       }
       res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
-      // Cache 1 hour — frame changes hourly
+      // Cache 1 hour — frame changes hourly.
       res.set('Cache-Control', 'public, max-age=3600');
       upstream.pipe(res);
     });
     proxyReq.on('error', (err) => {
       console.error('Moon image proxy error:', err.message);
-      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch moon image' });
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch moon image.' });
     });
     proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
   } catch (err) {
     console.error('Error fetching moon image:', err.message);
-    res.status(502).json({ error: 'Failed to fetch moon image' });
+    res.status(502).json({ error: 'Failed to fetch moon image.' });
   }
 });
 
@@ -2949,13 +3003,13 @@ const DXCC_COORDS = {
 };
 
 function parseDxpeditionItem(item) {
-  // Title format: "Entity: Dates -- Callsign -- QSL via: Method"
+  // Title format: "Entity: Dates -- Callsign -- QSL via: Method".
   const title = (item.title || '').trim();
   const parts = title.split(/\s*--\s*/);
   let entity = '', dateStr = '', callsign = '', qsl = '';
 
   if (parts.length >= 1) {
-    // First segment: "Entity: Dates" or just "Entity"
+    // First segment: "Entity: Dates" or just "Entity".
     const colonIdx = parts[0].indexOf(':');
     if (colonIdx > 0) {
       entity = parts[0].substring(0, colonIdx).trim();
@@ -2969,7 +3023,8 @@ function parseDxpeditionItem(item) {
     qsl = parts[2].replace(/^QSL\s*via:\s*/i, '').trim();
   }
 
-  // Parse date range with best-effort regex
+  // Parse date range with best-effort regex.
+
   // Patterns: "Jan 1-Feb 16, 2026", "January 1 - February 16, 2026"
   let startDate = null, endDate = null;
   const now = new Date();
@@ -2982,7 +3037,7 @@ function parseDxpeditionItem(item) {
     endDate = parseDatePart(rangeMatch[3], parseInt(rangeMatch[4]), yr);
     if (endDate) endDate.setUTCHours(23, 59, 59);
   } else {
-    // Single month range: "Jan 1-16, 2026"
+    // Single month range: "Jan 1-16, 2026".
     const singleMatch = dateStr.match(/(\w+)\s+(\d+)\s*[-–]\s*(\d+)(?:\s*,?\s*(\d{4}))?/);
     if (singleMatch) {
       const yr = singleMatch[4] ? parseInt(singleMatch[4]) : year;
@@ -2994,7 +3049,8 @@ function parseDxpeditionItem(item) {
 
   const active = startDate && endDate && now >= startDate && now <= endDate;
 
-  // Look up approximate coordinates from DXCC entity name
+  // Look up approximate coordinates from DXCC entity name.
+
   const coords = DXCC_COORDS[entity.toLowerCase().trim()] || null;
 
   return {
@@ -3038,7 +3094,7 @@ app.get('/api/dxpeditions', async (req, res) => {
       .map(parseDxpeditionItem)
       .filter(d => d.callsign) // skip items without a callsign
       .sort((a, b) => {
-        // Active first, then by start date ascending
+        // Active first, then by start date ascending.
         if (a.active !== b.active) return a.active ? -1 : 1;
         const aDate = a.startDate ? new Date(a.startDate).getTime() : 0;
         const bDate = b.startDate ? new Date(b.startDate).getTime() : 0;
@@ -3050,7 +3106,7 @@ app.get('/api/dxpeditions', async (req, res) => {
     res.json(results);
   } catch (err) {
     console.error('Error fetching DXpeditions:', err.message);
-    res.status(502).json({ error: 'Failed to fetch DXpedition data' });
+    res.status(502).json({ error: 'Failed to fetch DXpedition data.' });
   }
 });
 
@@ -3064,7 +3120,8 @@ function parseContestItem(item) {
   const description = (item.description || '').trim();
   const link = (item.link || '').trim();
 
-  // Parse dates from description: "0000Z, Feb 7 to 2400Z, Feb 8"
+  // Parse dates from description: "0000Z, Feb 7 to 2400Z, Feb 8".
+
   let startDate = null, endDate = null, dateStr = description;
   const now = new Date();
   const year = now.getUTCFullYear();
@@ -3083,7 +3140,7 @@ function parseContestItem(item) {
       startDate.setUTCHours(startHour, startMin);
     }
     if (endDate) {
-      // 2400Z means midnight of the next day
+      // 2400Z means midnight of the next day.
       if (endHourRaw === 24) {
         endDate.setUTCDate(endDate.getUTCDate() + 1);
         endDate.setUTCHours(0, 0);
@@ -3093,7 +3150,8 @@ function parseContestItem(item) {
     }
   }
 
-  // Infer mode from contest name
+  // Infer mode from contest name.
+
   const upper = name.toUpperCase();
   let mode = 'mixed';
   if (/\bCW\b/.test(upper)) mode = 'cw';
@@ -3137,7 +3195,7 @@ app.get('/api/contests', async (req, res) => {
       .map(parseContestItem)
       .filter(c => c.status !== 'past') // exclude past contests
       .sort((a, b) => {
-        // Active first, then upcoming by start date
+        // Active first, then upcoming by start date.
         if (a.status !== b.status) {
           if (a.status === 'active') return -1;
           if (b.status === 'active') return 1;
@@ -3152,11 +3210,11 @@ app.get('/api/contests', async (req, res) => {
     res.json(results);
   } catch (err) {
     console.error('Error fetching contests:', err.message);
-    res.status(502).json({ error: 'Failed to fetch contest data' });
+    res.status(502).json({ error: 'Failed to fetch contest data.' });
   }
 });
 
-// Proxy prop.kc2g.com propagation GeoJSON contours
+// Proxy prop.kc2g.com propagation GeoJSON contours.
 app.get('/api/propagation', async (req, res) => {
   try {
     const validTypes = ['mufd', 'fof2'];
@@ -3165,7 +3223,7 @@ app.get('/api/propagation', async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error('Error fetching propagation data:', err.message);
-    res.status(502).json({ error: 'Failed to fetch propagation data' });
+    res.status(502).json({ error: 'Failed to fetch propagation data.' });
   }
 });
 
@@ -3178,7 +3236,7 @@ app.get('/api/propagation/image', async (req, res) => {
     const parsed = new URL(url);
     const resolvedIP = await resolveHost(parsed.hostname);
     if (isPrivateIP(resolvedIP)) {
-      return res.status(403).json({ error: 'Blocked' });
+      return res.status(403).json({ error: 'Blocked.' });
     }
     const proxyReq = https.get({
       hostname: resolvedIP,
@@ -3189,7 +3247,7 @@ app.get('/api/propagation/image', async (req, res) => {
     }, (upstream) => {
       if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
         upstream.resume();
-        return res.status(502).json({ error: 'Failed to fetch propagation image' });
+        return res.status(502).json({ error: 'Failed to fetch propagation image.' });
       }
       res.set('Content-Type', upstream.headers['content-type'] || 'image/jpeg');
       res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
@@ -3197,24 +3255,24 @@ app.get('/api/propagation/image', async (req, res) => {
     });
     proxyReq.on('error', (err) => {
       console.error('Propagation image proxy error:', err.message);
-      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch propagation image' });
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch propagation image.' });
     });
     proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
   } catch (err) {
     console.error('Error fetching propagation image:', err.message);
-    res.status(502).json({ error: 'Failed to fetch propagation image' });
+    res.status(502).json({ error: 'Failed to fetch propagation image.' });
   }
 });
 
-// D-RAP (D Region Absorption Prediction) image overlay — NOAA SWPC
-// Shows HF radio absorption caused by solar X-ray and proton events
+// D-RAP (D Region Absorption Prediction) image overlay — NOAA SWPC.
+// Shows HF radio absorption caused by solar X-ray and proton events.
 app.get('/api/drap/image', async (req, res) => {
   try {
     const url = 'https://services.swpc.noaa.gov/images/animations/d-rap/global/latest.png';
     const parsed = new URL(url);
     const resolvedIP = await resolveHost(parsed.hostname);
     if (isPrivateIP(resolvedIP)) {
-      return res.status(403).json({ error: 'Blocked' });
+      return res.status(403).json({ error: 'Blocked.' });
     }
     const proxyReq = https.get({
       hostname: resolvedIP,
@@ -3225,7 +3283,7 @@ app.get('/api/drap/image', async (req, res) => {
     }, (upstream) => {
       if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
         upstream.resume();
-        return res.status(502).json({ error: 'Failed to fetch D-RAP image' });
+        return res.status(502).json({ error: 'Failed to fetch D-RAP image.' });
       }
       res.set('Content-Type', upstream.headers['content-type'] || 'image/png');
       res.set('Cache-Control', 'public, max-age=300, s-maxage=900'); // 5m browser, 15m edge
@@ -3233,17 +3291,17 @@ app.get('/api/drap/image', async (req, res) => {
     });
     proxyReq.on('error', (err) => {
       console.error('D-RAP image proxy error:', err.message);
-      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch D-RAP image' });
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch D-RAP image.' });
     });
     proxyReq.setTimeout(15000, () => { proxyReq.destroy(); });
   } catch (err) {
     console.error('Error fetching D-RAP image:', err.message);
-    res.status(502).json({ error: 'Failed to fetch D-RAP image' });
+    res.status(502).json({ error: 'Failed to fetch D-RAP image.' });
   }
 });
 
-// D-RAP text grid — parsed frequency data for client-side heatmap rendering
-// 4° lat/lon grid of "Highest Frequency Affected by 1dB Absorption" in MHz
+// D-RAP text grid — parsed frequency data for client-side heatmap rendering.
+// 4° lat/lon grid of "Highest Frequency Affected by 1dB Absorption" in MHz.
 const drapDataCache = { data: null, expires: 0 };
 const DRAP_TTL = 5 * 60 * 1000; // 5 min — SWPC updates ~every 1-2 min but data changes slowly
 
@@ -3255,7 +3313,8 @@ app.get('/api/drap/data', async (req, res) => {
     const url = 'https://services.swpc.noaa.gov/text/drap_global_frequencies.txt';
     const text = await secureFetch(url);
 
-    // Parse the NOAA text grid into a structured object
+    // Parse the NOAA text grid into a structured object.
+
     const lines = text.split('\n');
     const lons = []; // longitude values from header
     const rows = []; // { lat, values[] }
@@ -3264,13 +3323,15 @@ app.get('/api/drap/data', async (req, res) => {
       const trimmed = line.trim();
       if (!trimmed || trimmed.startsWith('#') || trimmed.startsWith('---')) continue;
 
-      // Header row: longitude values
+      // Header row: longitude values.
+
       if (lons.length === 0 && /^\s*-?\d+/.test(trimmed) && !trimmed.includes('|')) {
         trimmed.split(/\s+/).forEach(v => lons.push(parseFloat(v)));
         continue;
       }
 
-      // Data row: "lat | val val val ..."
+      // Data row: "lat | val val val ...".
+
       const match = trimmed.match(/^\s*(-?\d+)\s*\|\s*(.+)$/);
       if (match) {
         const lat = parseInt(match[1]);
@@ -3285,7 +3346,7 @@ app.get('/api/drap/data', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error fetching D-RAP data:', err.message);
-    res.status(502).json({ error: 'Failed to fetch D-RAP data' });
+    res.status(502).json({ error: 'Failed to fetch D-RAP data.' });
   }
 });
 
@@ -3300,7 +3361,7 @@ app.get('/api/weather/radar', async (req, res) => {
       return res.json(radarCache.data);
     }
     const json = await fetchJSON('https://api.rainviewer.com/public/weather-maps.json');
-    // Extract latest radar frame
+    // Extract latest radar frame.
     const radar = json.radar;
     if (!radar || !radar.past || !radar.past.length) {
       throw new Error('No radar frames available');
@@ -3312,27 +3373,27 @@ app.get('/api/weather/radar', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error fetching weather radar:', err.message);
-    res.status(502).json({ error: 'Failed to fetch weather radar data' });
+    res.status(502).json({ error: 'Failed to fetch weather radar data.' });
   }
 });
 
-// Cloud cover tiles — proxy OpenWeatherMap tile API to keep API key server-side
+// Cloud cover tiles — proxy OpenWeatherMap tile API to keep API key server-side.
 app.get('/api/weather/clouds/:z/:x/:y', async (req, res) => {
   try {
     const apiKey = process.env.OWM_API_KEY;
     if (!apiKey) {
-      return res.status(503).json({ error: 'No OpenWeatherMap API key configured' });
+      return res.status(503).json({ error: 'No OpenWeatherMap API key configured.' });
     }
     const { z, x, y } = req.params;
-    // Validate tile coordinates are integers
+    // Validate tile coordinates are integers.
     if (!/^\d+$/.test(z) || !/^\d+$/.test(x) || !/^\d+$/.test(y)) {
-      return res.status(400).json({ error: 'Invalid tile coordinates' });
+      return res.status(400).json({ error: 'Invalid tile coordinates.' });
     }
     const url = `https://tile.openweathermap.org/map/clouds_new/${z}/${x}/${y}.png?appid=${apiKey}`;
     const parsed = new URL(url);
     const resolvedIP = await resolveHost(parsed.hostname);
     if (isPrivateIP(resolvedIP)) {
-      return res.status(403).json({ error: 'Blocked' });
+      return res.status(403).json({ error: 'Blocked.' });
     }
     const proxyReq = https.get({
       hostname: resolvedIP,
@@ -3343,7 +3404,7 @@ app.get('/api/weather/clouds/:z/:x/:y', async (req, res) => {
     }, (upstream) => {
       if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
         upstream.resume();
-        return res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
+        return res.status(502).json({ error: 'Failed to fetch cloud cover tile.' });
       }
       res.set('Content-Type', upstream.headers['content-type'] || 'image/png');
       res.set('Cache-Control', 'public, max-age=1800, s-maxage=3600'); // 30m browser, 1h edge
@@ -3351,18 +3412,18 @@ app.get('/api/weather/clouds/:z/:x/:y', async (req, res) => {
     });
     proxyReq.on('error', (err) => {
       console.error('Cloud cover tile proxy error:', err.message);
-      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
+      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch cloud cover tile.' });
     });
     proxyReq.setTimeout(10000, () => { proxyReq.destroy(); });
   } catch (err) {
     console.error('Error fetching cloud cover tile:', err.message);
-    res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
+    res.status(502).json({ error: 'Failed to fetch cloud cover tile.' });
   }
 });
 
 // --- VOACAP prediction engine ---
 
-// SSN cache — refreshed every 24 hours from NOAA predicted monthly sunspot number
+// SSN cache — refreshed every 24 hours from NOAA predicted monthly sunspot number.
 const ssnCache = { data: null, expires: 0 };
 const SSN_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
@@ -3378,7 +3439,8 @@ async function getCurrentSSN() {
     const currentYear = now.getUTCFullYear();
     const currentMonth = now.getUTCMonth() + 1;
 
-    // Find entry matching current UTC month/year
+    // Find entry matching current UTC month/year.
+
     let entry = null;
     if (Array.isArray(raw)) {
       entry = raw.find(e =>
@@ -3396,7 +3458,7 @@ async function getCurrentSSN() {
         source: 'noaa',
       };
     } else {
-      // Fallback: use first entry or a reasonable default
+      // Fallback: use first entry or a reasonable default.
       const fallbackSSN = Array.isArray(raw) && raw.length > 0 && raw[0]['predicted_ssn'] != null
         ? parseFloat(raw[0]['predicted_ssn'])
         : 50;
@@ -3413,10 +3475,12 @@ async function getCurrentSSN() {
   } catch (err) {
     console.error('Error fetching SSN:', err.message);
 
-    // If we have stale data, return it
+    // If we have stale data, return it.
+
     if (ssnCache.data) return ssnCache.data;
 
-    // Last resort: reasonable default
+    // Last resort: reasonable default.
+
     return {
       ssn: 50,
       month: new Date().getUTCMonth() + 1,
@@ -3428,12 +3492,12 @@ async function getCurrentSSN() {
 
 // --- K-index cache for real-time geomagnetic corrections ---
 // K-index from HamQSL updates every 3 hours but conditions can change rapidly,
-// so we use a 10-minute cache to balance freshness with API load.
+// So we use a 10-minute cache to balance freshness with API load.
 const kIndexCache = { kindex: null, aindex: null, expires: 0 };
 const KINDEX_TTL = 10 * 60 * 1000; // 10 minutes
 
 async function getCurrentKIndex() {
-  // Return cached data if still valid
+  // Return cached data if still valid.
   if (Date.now() < kIndexCache.expires && kIndexCache.kindex !== null) {
     return { kindex: kIndexCache.kindex, aindex: kIndexCache.aindex };
   }
@@ -3453,7 +3517,8 @@ async function getCurrentKIndex() {
   } catch (err) {
     console.error('Error fetching K-index:', err.message);
 
-    // If we have stale data, return it
+    // If we have stale data, return it.
+
     if (kIndexCache.kindex !== null) {
       return { kindex: kIndexCache.kindex, aindex: kIndexCache.aindex };
     }
@@ -3464,20 +3529,19 @@ async function getCurrentKIndex() {
 }
 
 // Calculate effective SSN with K-index degradation for geomagnetic storms.
-// During storms, absorption increases and MUF decreases. We model this
-// by reducing the "effective" SSN used for propagation calculations.
-//
+// During storms, absorption increases and MUF decreases. We model this.
+// By reducing the "effective" SSN used for propagation calculations.//.
 // Research basis (NOAA G-scale, SWSC aviation study):
 // - G1 (Kp=5): Minor storm, degradation begins
 // - G2 (Kp=6): "HF fading at higher latitudes"
 // - G3 (Kp=7): "HF may be intermittent" — ~50% MUF drop threshold
 // - G4 (Kp=8): "HF sporadic" — severe degradation
 // - G5 (Kp=9): "HF may be impossible" — near blackout
-// Sources: swpc.noaa.gov/noaa-scales-explanation, swsc-journal.org 2022
+// Sources: swpc.noaa.gov/noaa-scales-explanation, swsc-journal.org 2022.
 function calculateEffectiveSSN(baseSSN, kIndex) {
   // K-index to degradation factor mapping based on NOAA G-scale research:
-  // - MOD threshold: 30% MUF drop, SEV threshold: 50% MUF drop
-  // - "Storm-time decrease falls to 0.3-0.5 of undisturbed levels"
+  // - MOD threshold: 30% MUF drop, SEV threshold: 50% MUF drop.
+  // - "Storm-time decrease falls to 0.3-0.5 of undisturbed levels".
   const degradationMap = {
     0: 1.00,  // quiet — no effect
     1: 1.00,  // quiet — no effect
@@ -3491,7 +3555,8 @@ function calculateEffectiveSSN(baseSSN, kIndex) {
     9: 0.15,  // G5 extreme — "may be impossible" (~85% loss)
   };
 
-  // If K-index unavailable, use base SSN unchanged
+  // If K-index unavailable, use base SSN unchanged.
+
   if (kIndex === null || kIndex === undefined || kIndex < 0 || kIndex > 9) {
     return {
       effectiveSSN: baseSSN,
@@ -3525,13 +3590,13 @@ function getKBand(kIndex) {
   return 'x';
 }
 
-// VOACAP prediction cache — keyed by rounded params, TTL 1 hour
+// VOACAP prediction cache — keyed by rounded params, TTL 1 hour.
 const voacapCache = {}; // { key: { data, expires } }
 const VOACAP_TTL = 60 * 60 * 1000; // 1 hour
 
 
 // Simplified propagation model (server-side fallback when Python unavailable)
-// Mirrors the client-side calculate24HourMatrix from band-conditions.js
+// Mirrors the client-side calculate24HourMatrix from band-conditions.js.
 function simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toaDeg, longPath) {
   // Mode SNR/bandwidth mapping
   const modeParams = {
@@ -3559,7 +3624,7 @@ function simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toaDeg, l
   const matrix = [];
 
   for (let hour = 0; hour < 24; hour++) {
-    // Solar zenith–based day fraction
+    // Solar zenith–based day fraction.
     const df = dayFractionServer(txLat, txLon, hour);
     const muf = calculateMUFServer(sfi, df);
 
@@ -3618,35 +3683,35 @@ function calculateMUFServer(sfi, dayFrac) {
 // Key changes:
 // - Above MUF: much steeper dropoff (was 40% base, now 15%)
 // - FT8 bonus: reduced from +30 to +15 (still significant but not magic)
-// - Below optimal: reduced daytime floor, increased night bonus modestly
+// - Below optimal: reduced daytime floor, increased night bonus modestly.
 function calculateBandReliabilityServer(freqMHz, muf, isDay, opts) {
   const mufLower = muf * 0.5;   // LUF approximation
   const mufOptimal = muf * 0.85; // optimal frequency ~85% of MUF
   let base = 0;
 
   if (freqMHz < mufLower) {
-    // Below LUF: heavy D-layer absorption during day, better at night
+    // Below LUF: heavy D-layer absorption during day, better at night.
     if (isDay) {
       base = Math.max(0, 10 - (mufLower - freqMHz) * 3); // was 20, now 10 max
     } else {
       base = Math.min(70, 40 + (mufLower - freqMHz) * 1.0); // reduced from 85/60
     }
   } else if (freqMHz <= mufOptimal) {
-    // Between LUF and optimal: good propagation zone
+    // Between LUF and optimal: good propagation zone.
     const position = (freqMHz - mufLower) / (mufOptimal - mufLower);
     base = 50 + (35 * Math.sin(position * Math.PI)); // was 70+30, now 50+35
   } else if (freqMHz <= muf) {
-    // Between optimal and MUF: still usable but degrading
+    // Between optimal and MUF: still usable but degrading.
     const position = (freqMHz - mufOptimal) / (muf - mufOptimal);
     base = 75 - (position * 35); // was 90-40, now 75-35 (ends at 40% at MUF)
   } else {
-    // Above MUF: rapid dropoff — signals won't reflect
+    // Above MUF: rapid dropoff — signals won't reflect.
     const excess = freqMHz - muf;
     base = Math.max(0, 15 - excess * 5); // was 40-3x, now 15-5x (much steeper)
   }
 
   if (opts) {
-    // Mode adjustments — FT8 helps but isn't magic
+    // Mode adjustments — FT8 helps but isn't magic.
     if (opts.mode === 'CW') base += 8;      // was +10
     else if (opts.mode === 'FT8') base += 15; // was +30 (way too high)
 
@@ -3655,7 +3720,8 @@ function calculateBandReliabilityServer(freqMHz, muf, isDay, opts) {
       base += 10 * Math.log10(opts.powerWatts / 100) * 1.5;
     }
 
-    // TOA adjustment — higher angles slightly better for skip
+    // TOA adjustment — higher angles slightly better for skip.
+
     if (opts.toaDeg != null) {
       base += (opts.toaDeg - 5) * 0.5; // reduced from 1.5
     }
@@ -3683,11 +3749,11 @@ app.get('/api/voacap/ssn', async (req, res) => {
     res.json(ssn);
   } catch (err) {
     console.error('Error fetching SSN:', err.message);
-    res.status(502).json({ error: 'Failed to fetch SSN data' });
+    res.status(502).json({ error: 'Failed to fetch SSN data.' });
   }
 });
 
-// VOACAP bridge diagnostics — helps debug container startup issues
+// VOACAP bridge diagnostics — helps debug container startup issues.
 app.get('/api/voacap/status', (req, res) => {
   res.json(voacap.getStatus());
 });
@@ -3699,16 +3765,16 @@ app.get('/api/voacap', async (req, res) => {
     const txLat = parseFloat(req.query.txLat);
     const txLon = parseFloat(req.query.txLon);
     if (isNaN(txLat) || isNaN(txLon) || txLat < -90 || txLat > 90 || txLon < -180 || txLon > 180) {
-      return res.status(400).json({ error: 'Invalid or missing txLat/txLon' });
+      return res.status(400).json({ error: 'Invalid or missing txLat/txLon.' });
     }
 
     const rxLat = req.query.rxLat != null ? parseFloat(req.query.rxLat) : null;
     const rxLon = req.query.rxLon != null ? parseFloat(req.query.rxLon) : null;
     if (rxLat != null && (isNaN(rxLat) || rxLat < -90 || rxLat > 90)) {
-      return res.status(400).json({ error: 'Invalid rxLat' });
+      return res.status(400).json({ error: 'Invalid rxLat.' });
     }
     if (rxLon != null && (isNaN(rxLon) || rxLon < -180 || rxLon > 180)) {
-      return res.status(400).json({ error: 'Invalid rxLon' });
+      return res.status(400).json({ error: 'Invalid rxLon.' });
     }
 
     const validPowers = [5, 100, 1000];
@@ -3729,6 +3795,7 @@ app.get('/api/voacap', async (req, res) => {
     const snrOverride = (clientSnr != null && !isNaN(clientSnr)) ? Math.max(-10, Math.min(100, clientSnr)) : null;
 
     // API token validation — if VOACAP_API_TOKENS is set in .env, require a valid token.
+
     // Format: comma-separated list of tokens, e.g. VOACAP_API_TOKENS=abc123,def456
     // Client sends token via X-Voacap-Token header or ?token= query param.
     // When not configured (lanmode default), all requests are allowed.
@@ -3737,11 +3804,12 @@ app.get('/api/voacap', async (req, res) => {
       const tokenSet = new Set(allowedTokens.split(',').map(t => t.trim()).filter(Boolean));
       const clientToken = req.headers['x-voacap-token'] || req.query.token || '';
       if (!tokenSet.has(clientToken)) {
-        return res.status(401).json({ error: 'Invalid or missing API token' });
+        return res.status(401).json({ error: 'Invalid or missing API token.' });
       }
     }
 
-    // Fetch SSN and K-index in parallel for real-time corrections
+    // Fetch SSN and K-index in parallel for real-time corrections.
+
     const [ssnData, kIndexData] = await Promise.all([
       getCurrentSSN(),
       getCurrentKIndex(),
@@ -3751,12 +3819,14 @@ app.get('/api/voacap', async (req, res) => {
     const month = ssnData.month;
     const kIndex = kIndexData.kindex;
 
-    // Calculate effective SSN with K-index degradation
+    // Calculate effective SSN with K-index degradation.
+
     const ssnCorrection = calculateEffectiveSSN(baseSSN, kIndex);
     const ssn = ssnCorrection.effectiveSSN;
     const kBand = getKBand(kIndex);
 
-    // Cache key — round lat/lon to 1 decimal, include K-band for storm transitions
+    // Cache key — round lat/lon to 1 decimal, include K-band for storm transitions.
+
     const cacheKey = [
       Math.round(txLat * 10) / 10,
       Math.round(txLon * 10) / 10,
@@ -3772,6 +3842,7 @@ app.get('/api/voacap', async (req, res) => {
     }
 
     // Mode → default required SNR (dB above noise in BW) and bandwidth.
+
     // These are the "Normal" (level 3) defaults. Client can override via ?snr= param.
     // See SENSITIVITY_LEVELS in voacap.js for the full 1-5 preset table.
     const modeMap = {
@@ -3792,7 +3863,7 @@ app.get('/api/voacap', async (req, res) => {
     if (rxLat != null && rxLon != null) {
       targets = [{ name: 'target', lat: rxLat, lon: rxLon }];
     } else {
-      // Use representative global targets; swap NA for Caribbean if TX is in NA
+      // Use representative global targets; swap NA for Caribbean if TX is in NA.
       targets = VOACAP_TARGETS.map(t => {
         if (t.name === 'North America' && txLat > 24 && txLat < 50 && txLon > -130 && txLon < -60) {
           return { name: 'Caribbean', lat: 18.0, lon: -66.0 };
@@ -3802,6 +3873,7 @@ app.get('/api/voacap', async (req, res) => {
     }
 
     // Hybrid approach: try dvoacap with a short inline timeout.
+
     // On lanmode (fast CPU), dvoacap completes in seconds — return it inline.
     // On hostedmode (slow container), timeout fires — return simplified immediately,
     // let dvoacap continue in the background and cache for the next request.
@@ -3827,7 +3899,7 @@ app.get('/api/voacap', async (req, res) => {
     };
 
     if (voacap.isAvailable()) {
-      // Start the prediction — we'll race it against a timeout
+      // Start the prediction — we'll race it against a timeout.
       const predictionPromise = voacap.predictMatrix(predictionParams);
 
       try {
@@ -3838,7 +3910,8 @@ app.get('/api/voacap', async (req, res) => {
           ),
         ]);
 
-        // dvoacap completed in time — use it
+        // Dvoacap completed in time — use it.
+
         if (result.ok && result.matrix) {
           engine = 'dvoacap';
           matrix = result.matrix;
@@ -3847,12 +3920,12 @@ app.get('/api/voacap', async (req, res) => {
           matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
         }
       } catch (err) {
-        // Inline timeout or prediction error — return simplified now
+        // Inline timeout or prediction error — return simplified now.
         matrix = simplifiedVoacapMatrix(txLat, txLon, ssn, month, power, mode, toa, longPath);
 
         if (err.message === 'inline timeout') {
           fallbackReason = 'dvoacap too slow — running in background';
-          // Let the prediction continue in the background — cache result when done
+          // Let the prediction continue in the background — cache result when done.
           predictionPromise.then(result => {
             if (result.ok && result.matrix) {
               console.log('[VOACAP] Background prediction complete — caching dvoacap result');
@@ -3899,17 +3972,16 @@ app.get('/api/voacap', async (req, res) => {
     res.json(response);
   } catch (err) {
     console.error('Error in /api/voacap:', err.message);
-    res.status(500).json({ error: 'Failed to compute VOACAP predictions' });
+    res.status(500).json({ error: 'Failed to compute VOACAP predictions.' });
   }
 });
 
 // --- Lunar math (simplified Meeus algorithms) ---
 
 // Lunar position via Jean Meeus, "Astronomical Algorithms" 2nd ed.
-// Chapters 47 (position) & 48 (illumination). Coefficients are the
-// principal terms from Table 47.A; lower-order terms omitted for speed.
-
-// Greenwich Mean Sidereal Time in degrees from Julian Date
+// Chapters 47 (position) & 48 (illumination). Coefficients are the.
+// Principal terms from Table 47.A; lower-order terms omitted for speed.
+// Greenwich Mean Sidereal Time in degrees from Julian Date.
 // Meeus, Chapter 12
 function gmst(JD) {
   const T = (JD - 2451545.0) / 36525.0;
@@ -3917,8 +3989,8 @@ function gmst(JD) {
     + 0.000387933 * T * T - T * T * T / 38710000);
 }
 
-// Compute moon equatorial coordinates (RA, Dec) and horizontal parallax
-// at an arbitrary Date. Extracted from computeLunar for reuse in rise/set.
+// Compute moon equatorial coordinates (RA, Dec) and horizontal parallax.
+// At an arbitrary Date. Extracted from computeLunar for reuse in rise/set.
 function moonEquatorial(date) {
   const JD = julianDate(date);
   const T = (JD - 2451545.0) / 36525.0;
@@ -3964,15 +4036,16 @@ function moonEquatorial(date) {
   const cosRA = Math.cos(betaRad) * Math.cos(lambdaRad);
   const rightAscension = mod360(Math.atan2(sinRA, cosRA) / rad);
 
-  // Sun's ecliptic longitude (approximate) — needed for phase/illumination
+  // Sun's ecliptic longitude (approximate) — needed for phase/illumination.
+
   const sunLongitude = mod360(280.4665 + 36000.7698 * T);
 
   return { rightAscension, declination, horizParallax, lambda, beta, JD, T,
     sunLongitude, Mp, D, M, F, Lp };
 }
 
-// Compute moon horizontal coordinates (azimuth, elevation) from observer
-// Meeus, Chapter 13 — sidereal time + coordinate transformation
+// Compute moon horizontal coordinates (azimuth, elevation) from observer.
+// Meeus, Chapter 13 — sidereal time + coordinate transformation.
 function moonHorizontal(date, lat, lon) {
   const eq = moonEquatorial(date);
   const rad = Math.PI / 180;
@@ -3988,7 +4061,8 @@ function moonHorizontal(date, lat, lon) {
     + Math.cos(latRad) * Math.cos(decRad) * Math.cos(haRad);
   const altitude = Math.asin(sinAlt) / rad;
 
-  // Azimuth measured from North, clockwise
+  // Azimuth measured from North, clockwise.
+
   const cosAlt = Math.cos(altitude * rad);
   let azimuth = 0;
   if (Math.abs(cosAlt) > 1e-10) {
@@ -4000,8 +4074,8 @@ function moonHorizontal(date, lat, lon) {
   return { azimuth, elevation: altitude, horizParallax: eq.horizParallax };
 }
 
-// Compute next moonrise and moonset from current time
-// Searches forward 48 hours in 5-minute steps, then linear-interpolates
+// Compute next moonrise and moonset from current time.
+// Searches forward 48 hours in 5-minute steps, then linear-interpolates.
 // Standard altitude: h0 = 0.7275 * parallax - 34/60 (refraction + semidiameter)
 function computeMoonRiseSet(lat, lon) {
   const now = new Date();
@@ -4019,12 +4093,12 @@ function computeMoonRiseSet(lat, lon) {
 
     if (prevCorr !== null) {
       if (prevCorr < 0 && corr >= 0 && !rise) {
-        // Moon rising — interpolate
+        // Moon rising — interpolate.
         const frac = -prevCorr / (corr - prevCorr);
         rise = Math.floor((now.getTime() + ((i - 1) + frac) * STEP_MS) / 1000);
       }
       if (prevCorr >= 0 && corr < 0 && !set) {
-        // Moon setting — interpolate
+        // Moon setting — interpolate.
         const frac = prevCorr / (prevCorr - corr);
         set = Math.floor((now.getTime() + ((i - 1) + frac) * STEP_MS) / 1000);
       }
@@ -4063,7 +4137,8 @@ function computeLunar(lat, lon) {
     rightAscension: Math.round(eq.rightAscension * 10) / 10,
   };
 
-  // Observer-dependent fields — only computed when lat/lon provided
+  // Observer-dependent fields — only computed when lat/lon provided.
+
   if (lat !== undefined && lon !== undefined) {
     const horiz = moonHorizontal(now, lat, lon);
     result.azimuth = Math.round(horiz.azimuth * 10) / 10;
@@ -4118,13 +4193,13 @@ const REQUEST_TIMEOUT_MS = 10000; // 10 seconds
 // SSRF guard: rejects all non-routable IPs (loopback, link-local, IPv6 ULA, etc.).
 // Broader than isRFC1918() below, which only checks LAN-routable ranges for TLS cert SANs.
 function isPrivateIP(ip) {
-  // IPv6 loopback and private
+  // IPv6 loopback and private.
   if (ip === '::1') return true;
   if (ip.startsWith('fc') || ip.startsWith('fd')) return true; // unique local
   if (ip.startsWith('fe80')) return true; // link-local
   if (ip === '::') return true; // unspecified address
   if (ip.startsWith('::ffff:')) {
-    // IPv4-mapped IPv6 — extract and check the IPv4 part
+    // IPv4-mapped IPv6 — extract and check the IPv4 part.
     return isPrivateIP(ip.substring(7));
   }
 
@@ -4147,7 +4222,7 @@ function isPrivateIP(ip) {
 }
 
 async function resolveHost(hostname) {
-  // If it's already an IP literal, return it directly
+  // If it's already an IP literal, return it directly.
   if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname.includes(':')) {
     return hostname;
   }
@@ -4163,18 +4238,20 @@ function secureFetch(url, redirectCount = 0) {
 
     const parsed = new URL(url);
 
-    // SSRF guard: HTTPS-only for external requests
+    // SSRF guard: HTTPS-only for external requests.
+
     if (parsed.protocol !== 'https:') {
       return reject(new Error('Only HTTPS URLs are allowed'));
     }
 
-    // Resolve DNS and check the actual IP before connecting
+    // Resolve DNS and check the actual IP before connecting.
     resolveHost(parsed.hostname).then((resolvedIP) => {
       if (isPrivateIP(resolvedIP)) {
         return reject(new Error('Requests to private addresses are blocked'));
       }
 
-      // Pin the resolved IP to prevent TOCTOU / DNS rebinding
+      // Pin the resolved IP to prevent TOCTOU / DNS rebinding.
+
       const options = {
         hostname: resolvedIP,
         path: parsed.pathname + parsed.search,
@@ -4290,7 +4367,8 @@ function parseSolarXML(xml) {
     muf:           str(sd.muf),
   };
 
-  // Parse HF band conditions
+  // Parse HF band conditions.
+
   const bands = [];
   const rawBands = sd.calculatedconditions?.band;
   if (rawBands) {
@@ -4341,7 +4419,7 @@ const PID_FILE = path.join(__dirname, 'server.pid');
 // Initialize VOACAP bridge (Python child process for real predictions)
 voacap.init();
 
-// Write PID file so dev tooling can find and kill this process cleanly
+// Write PID file so dev tooling can find and kill this process cleanly.
 fs.writeFileSync(PID_FILE, String(process.pid));
 
 // Start HTTP (always) and HTTPS (lanmode only)
@@ -4356,7 +4434,8 @@ function gracefulShutdown(signal) {
   shutdownInProgress = true;
   console.log(`\n[shutdown] ${signal} received — draining connections...`);
 
-  // Force exit after 10s if drain stalls
+  // Force exit after 10s if drain stalls.
+
   const forceTimer = setTimeout(() => {
     console.error('[shutdown] Timed out waiting for connections to drain — forcing exit');
     process.exit(1);
@@ -4370,7 +4449,8 @@ function gracefulShutdown(signal) {
     if (pendingCloses === 0) finishShutdown();
   }
 
-  // Stop accepting new connections, drain existing
+  // Stop accepting new connections, drain existing.
+
   if (servers.httpServer) {
     pendingCloses++;
     servers.httpServer.close(onServerClosed);

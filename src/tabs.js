@@ -1,10 +1,12 @@
-// Mobile tab bar — one tab per visible widget, filters always pinned at top
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+// Mobile tab bar — one tab per visible widget, filters always pinned at top.
 import state from './state.js';
 import { WIDGET_DEFS, MOBILE_TAB_KEY, getLayoutMode } from './constants.js';
 
 let initialized = false;
 
-// Secondary widget per tab — persisted in localStorage
+// Secondary widget per tab — persisted in localStorage.
 const SECONDARY_KEY = 'hamtab_mobile_secondary';
 let secondaryWidgets = {}; // { primaryWidgetId: secondaryWidgetId }
 try {
@@ -37,7 +39,8 @@ export function buildTabBar() {
     btn.dataset.tab = def.id;
     btn.title = def.name;
 
-    // Map gets a small pin icon; everything else is text-only
+    // Map gets a small pin icon; everything else is text-only.
+
     if (def.id === 'widget-map') {
       btn.innerHTML = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${def.short}</span>`;
     } else {
@@ -45,7 +48,7 @@ export function buildTabBar() {
     }
 
     btn.addEventListener('click', () => {
-      // Tap active tab → scroll widget area to top
+      // Tap active tab → scroll widget area to top.
       if (def.id === state.activeTab) {
         const area = document.getElementById('widgetArea');
         if (area) area.scrollTo({ top: 0, behavior: 'smooth' });
@@ -57,7 +60,7 @@ export function buildTabBar() {
     tabBar.appendChild(btn);
   });
 
-  // Highlight the active button
+  // Highlight the active button.
   tabBar.querySelectorAll('.tab-bar-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.tab === state.activeTab);
   });
@@ -72,7 +75,8 @@ function dismantleGridForMobile() {
   const area = document.getElementById('widgetArea');
   if (!area) return;
 
-  // Move widgets out of grid wrapper divs back to widgetArea
+  // Move widgets out of grid wrapper divs back to widgetArea.
+
   const wrapperIds = ['grid-col-left', 'grid-col-right', 'grid-bar-top', 'grid-bar-bottom'];
   wrapperIds.forEach(id => {
     const wrapper = document.getElementById(id);
@@ -81,12 +85,12 @@ function dismantleGridForMobile() {
     widgets.forEach(w => area.appendChild(w));
   });
 
-  // Hide (don't remove) wrappers, handles, and placeholders so desktop can restore
+  // Hide (don't remove) wrappers, handles, and placeholders so desktop can restore.
   area.querySelectorAll('.grid-col-wrapper, .grid-bar-wrapper, .grid-flex-handle, .grid-cell-placeholder, .grid-track-handle').forEach(el => {
     el.style.display = 'none';
   });
 
-  // Clear grid classes and inline styles on area
+  // Clear grid classes and inline styles on area.
   area.classList.remove('grid-active', 'reflow-layout');
   area.style.gridTemplateAreas = '';
   area.style.gridTemplateColumns = '';
@@ -98,14 +102,15 @@ function dismantleGridForMobile() {
  * Lists all visible widgets except filters and the primary.
  */
 function buildSecondaryPicker(area, primaryId) {
-  // Remove any existing picker
+  // Remove any existing picker.
   const old = document.getElementById('mobileSecondaryPicker');
   if (old) old.remove();
 
   const vis = state.widgetVisibility || {};
   const currentSecondary = secondaryWidgets[primaryId] || '';
 
-  // Build list of eligible secondary widgets
+  // Build list of eligible secondary widgets.
+
   const options = WIDGET_DEFS.filter(
     w => w.id !== 'widget-filters' && w.id !== primaryId && vis[w.id] !== false
   );
@@ -154,10 +159,11 @@ function buildSecondaryPicker(area, primaryId) {
 export function switchTab(widgetId) {
   if (getLayoutMode() !== 'mobile') return;
 
-  // Dismantle grid wrappers on first mobile tab switch
+  // Dismantle grid wrappers on first mobile tab switch.
   dismantleGridForMobile();
 
-  // Validate that this widget exists and is visible
+  // Validate that this widget exists and is visible.
+
   const vis = state.widgetVisibility || {};
   const def = WIDGET_DEFS.find(w => w.id === widgetId);
   if (!def || vis[widgetId] === false) {
@@ -175,7 +181,8 @@ export function switchTab(widgetId) {
     saveSecondary();
   }
 
-  // Update button active states
+  // Update button active states.
+
   const tabBar = document.getElementById('tabBar');
   if (tabBar) {
     tabBar.querySelectorAll('.tab-bar-btn').forEach(btn => {
@@ -188,29 +195,29 @@ export function switchTab(widgetId) {
 
   const area = document.getElementById('widgetArea');
 
-  // Show/hide widgets — filters always visible, primary + optional secondary visible, rest hidden
+  // Show/hide widgets — filters always visible, primary + optional secondary visible, rest hidden.
   WIDGET_DEFS.forEach(w => {
     const el = document.getElementById(w.id);
     if (!el) return;
 
-    // Clear any grid/flex inline styles from grid-layout.js
+    // Clear any grid/flex inline styles from grid-layout.js.
     el.style.gridArea = '';
     el.style.flex = '';
     el.style.flexGrow = '';
     el.style.flexShrink = '';
     el.style.flexBasis = '';
 
-    // Remove active-widget class from all
+    // Remove active-widget class from all.
     el.classList.remove('mobile-active-widget');
     el.classList.remove('mobile-secondary-widget');
 
     if (w.id === 'widget-filters') {
-      // Filters always visible (if user hasn't disabled them), collapsed by default
+      // Filters always visible (if user hasn't disabled them), collapsed by default.
       el.style.display = vis[w.id] !== false ? '' : 'none';
       if (el.style.display !== 'none') {
         el.style.order = '-1';
         area.prepend(el);
-        // Auto-collapse filters on mobile if not already set
+        // Auto-collapse filters on mobile if not already set.
         if (!el.dataset.mobileCollapsed) {
           el.classList.add('collapsed');
           el.dataset.mobileCollapsed = '1';
@@ -273,7 +280,8 @@ export function initTabs() {
   const tabBar = document.getElementById('tabBar');
   if (!tabBar) return;
 
-  // Build tabs and apply on mobile
+  // Build tabs and apply on mobile.
+
   if (getLayoutMode() === 'mobile') {
     buildTabBar();
     const saved = state.activeTab || 'widget-map';
@@ -291,12 +299,12 @@ export function initTabs() {
       buildTabBar();
       switchTab(state.activeTab || 'widget-map');
     } else {
-      // Desktop — CSS hides tab bar, show all visible widgets
+      // Desktop — CSS hides tab bar, show all visible widgets.
       document.body.classList.remove('tab-map-active');
       // Remove secondary picker
       const picker = document.getElementById('mobileSecondaryPicker');
       if (picker) picker.remove();
-      // Re-show grid wrappers if they exist
+      // Re-show grid wrappers if they exist.
       const area = document.getElementById('widgetArea');
       if (area) {
         area.querySelectorAll('.grid-col-wrapper, .grid-bar-wrapper, .grid-flex-handle, .grid-cell-placeholder, .grid-track-handle').forEach(el => {

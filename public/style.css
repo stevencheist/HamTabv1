@@ -1,3 +1,6 @@
+/* Copyright (c) 2026 SF Foundry. MIT License. */
+/* SPDX-License-Identifier: MIT */
+
 * {
   margin: 0;
   padding: 0;
@@ -60,7 +63,7 @@ html, body {
   overflow-y: auto;
 }
 
-/* -- Config modal tab layout -- */
+/* ---- Config modal tab layout ---- */
 
 .config-box {
   max-height: min(90vh, 80vh);
@@ -168,7 +171,7 @@ html, body {
   margin-top: 12px;
 }
 
-/* -- Location override section -- */
+/* ---- Location override section ---- */
 
 .splash-divider {
   border: none;
@@ -318,7 +321,7 @@ html, body {
   color: var(--red);
 }
 
-/* -- Time format section -- */
+/* ---- Time format section ---- */
 
 .splash-time-format {
   display: flex;
@@ -348,7 +351,7 @@ html, body {
   cursor: pointer;
 }
 
-/* -- Units section -- */
+/* ---- Units section ---- */
 
 .splash-units-section {
   margin-bottom: 12px;
@@ -387,7 +390,7 @@ html, body {
   cursor: pointer;
 }
 
-/* -- Widget visibility section -- */
+/* ---- Widget visibility section ---- */
 
 .splash-widgets-section {
   display: flex;
@@ -999,7 +1002,7 @@ header {
   border-color: var(--accent);
 }
 
-/* -- Auto-refresh toggle in config modal -- */
+/* ---- Auto-refresh toggle in config modal ---- */
 
 .splash-autorefresh-section {
   text-align: left;

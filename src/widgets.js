@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { WIDGET_DEFS, WIDGET_STORAGE_KEY, USER_LAYOUT_KEY, LAYOUTS_KEY, MAX_LAYOUTS, SNAP_DIST, SNAP_GRID, HEADER_H, getLayoutMode, SCALE_REFERENCE_WIDTH, SCALE_MIN_FACTOR, SCALE_REFLOW_WIDTH, REFLOW_WIDGET_ORDER } from './constants.js';
 import { isGridMode, activateGridMode, deactivateGridMode, applyGridAssignments, handleGridDragStart, repositionGridHandles, saveGridAssignments } from './grid-layout.js';
@@ -22,7 +25,7 @@ export function loadWidgetVisibility() {
   try {
     const saved = JSON.parse(localStorage.getItem(WIDGET_VIS_KEY));
     if (saved && typeof saved === 'object') {
-      // Returning user — detect new widgets not in their saved config
+      // Returning user — detect new widgets not in their saved config.
       const newWidgets = [];
       WIDGET_DEFS.forEach(w => {
         if (!(w.id in saved)) {
@@ -37,7 +40,7 @@ export function loadWidgetVisibility() {
       return saved;
     }
   } catch (e) {}
-  // Brand new user — all widgets active
+  // Brand new user — all widgets active.
   const vis = {};
   WIDGET_DEFS.forEach(w => vis[w.id] = true);
   return vis;
@@ -74,7 +77,7 @@ export function applyWidgetVisibility() {
       el.style.display = '';
     }
   });
-  // Re-distribute right-column widgets to fill available space
+  // Re-distribute right-column widgets to fill available space.
   redistributeRightColumn();
   if (state.map) setTimeout(() => state.map.invalidateSize(), 50);
 }
@@ -126,7 +129,8 @@ export function getDefaultLayout() {
 
   const rightX = leftW + centerW + pad * 3;
 
-  // Split left column: filters (220px) at top, activations below
+  // Split left column: filters (220px) at top, activations below.
+
   const filtersH = 220;
   const activationsH = H - filtersH - pad * 3;
 
@@ -137,7 +141,8 @@ export function getDefaultLayout() {
     'widget-solar': { left: rightX, top: pad, width: rightW, height: rightHalf },
   };
 
-  // Stack visible right-column widgets below solar
+  // Stack visible right-column widgets below solar.
+
   const rightBottomIds = ['widget-spacewx', 'widget-propagation', 'widget-voacap', 'widget-live-spots', 'widget-lunar', 'widget-satellites', 'widget-rst', 'widget-spot-detail', 'widget-contests', 'widget-dxpeditions', 'widget-beacons', 'widget-dedx', 'widget-stopwatch', 'widget-analog-clock'];
   const vis = state.widgetVisibility || {};
   const visibleBottom = rightBottomIds.filter(id => vis[id] !== false);
@@ -149,7 +154,7 @@ export function getDefaultLayout() {
     layout[id] = { left: rightX, top: curY, width: rightW, height: slotH };
     curY += slotH + pad;
   });
-  // Include hidden ones off-screen so layout object is complete
+  // Include hidden ones off-screen so layout object is complete.
   rightBottomIds.filter(id => vis[id] === false).forEach(id => {
     layout[id] = { left: rightX, top: rightHalf + pad * 2, width: rightW, height: 150 };
   });
@@ -169,11 +174,12 @@ function snapPosition(left, top, wW, wH) {
 
   const { width: aW, height: aH } = getWidgetArea();
 
-  // Grid snap — round to nearest SNAP_GRID increment
+  // Grid snap — round to nearest SNAP_GRID increment.
   left = Math.round(left / SNAP_GRID) * SNAP_GRID;
   top = Math.round(top / SNAP_GRID) * SNAP_GRID;
 
-  // Edge/center snap — higher priority, overrides grid snap when near edges
+  // Edge/center snap — higher priority, overrides grid snap when near edges.
+
   const right = left + wW;
   const bottom = top + wH;
 
@@ -211,7 +217,7 @@ function getWidgetRect(widget) {
 }
 
 function rectsOverlap(r1, r2) {
-  // Two rectangles overlap if they intersect on both axes
+  // Two rectangles overlap if they intersect on both axes.
   return !(r1.left + r1.width <= r2.left ||  // r1 is left of r2
            r2.left + r2.width <= r1.left ||  // r2 is left of r1
            r1.top + r1.height <= r2.top ||   // r1 is above r2
@@ -219,8 +225,8 @@ function rectsOverlap(r1, r2) {
 }
 
 function resolveOverlaps(movedWidget) {
-  // Push other widgets away from the moved widget to eliminate overlaps
-  // Uses iterative resolution to handle chain reactions
+  // Push other widgets away from the moved widget to eliminate overlaps.
+  // Uses iterative resolution to handle chain reactions.
   const { width: aW, height: aH } = getWidgetArea();
   const pad = 6; // gap between widgets
   const maxIterations = 10; // prevent infinite loops
@@ -237,13 +243,15 @@ function resolveOverlaps(movedWidget) {
       const otherRect = getWidgetRect(other);
       if (!rectsOverlap(movedRect, otherRect)) return;
 
-      // Calculate overlap distances for each direction
+      // Calculate overlap distances for each direction.
+
       const overlapLeft = (movedRect.left + movedRect.width) - otherRect.left;   // push right
       const overlapRight = (otherRect.left + otherRect.width) - movedRect.left;  // push left
       const overlapTop = (movedRect.top + movedRect.height) - otherRect.top;     // push down
       const overlapBottom = (otherRect.top + otherRect.height) - movedRect.top;  // push up
 
-      // Find minimum push direction
+      // Find minimum push direction.
+
       const pushes = [
         { dir: 'right', dist: overlapLeft, newLeft: movedRect.left + movedRect.width + pad, newTop: otherRect.top },
         { dir: 'left', dist: overlapRight, newLeft: movedRect.left - otherRect.width - pad, newTop: otherRect.top },
@@ -251,7 +259,8 @@ function resolveOverlaps(movedWidget) {
         { dir: 'up', dist: overlapBottom, newLeft: otherRect.left, newTop: movedRect.top - otherRect.height - pad },
       ];
 
-      // Filter out pushes that would go out of bounds
+      // Filter out pushes that would go out of bounds.
+
       const validPushes = pushes.filter(p => {
         return p.newLeft >= 0 &&
                p.newTop >= 0 &&
@@ -259,11 +268,13 @@ function resolveOverlaps(movedWidget) {
                p.newTop + otherRect.height <= aH;
       });
 
-      // Pick the smallest valid push, or fallback to smallest if all go out of bounds
+      // Pick the smallest valid push, or fallback to smallest if all go out of bounds.
+
       const sorted = (validPushes.length > 0 ? validPushes : pushes).sort((a, b) => a.dist - b.dist);
       const best = sorted[0];
 
-      // Apply push with clamping
+      // Apply push with clamping.
+
       let newLeft = Math.max(0, Math.min(best.newLeft, aW - otherRect.width));
       let newTop = Math.max(0, Math.min(best.newTop, aH - otherRect.height));
 
@@ -279,8 +290,8 @@ function resolveOverlaps(movedWidget) {
 }
 
 function resolveAllOverlaps() {
-  // Check all widget pairs and resolve any overlaps
-  // Used after window resize reflow
+  // Check all widget pairs and resolve any overlaps.
+  // Used after window resize reflow.
   const widgets = Array.from(document.querySelectorAll('.widget')).filter(w => {
     return w.style.display !== 'none' &&
            (!state.widgetVisibility || state.widgetVisibility[w.id] !== false);
@@ -480,7 +491,8 @@ function setupDrag(widget, handle) {
     origLeft = parseInt(widget.style.left) || 0;
     origTop = parseInt(widget.style.top) || 0;
 
-    // Show grid lines while dragging
+    // Show grid lines while dragging.
+
     if (state.snapToGrid) {
       document.getElementById('widgetArea').classList.add('snap-grid-visible');
     }
@@ -529,7 +541,8 @@ function setupResize(widget, handle) {
     origLeft = parseInt(widget.style.left) || 0;
     origTop = parseInt(widget.style.top) || 0;
 
-    // Show grid lines while resizing
+    // Show grid lines while resizing.
+
     if (state.snapToGrid) {
       document.getElementById('widgetArea').classList.add('snap-grid-visible');
     }
@@ -537,7 +550,7 @@ function setupResize(widget, handle) {
     function onMove(ev) {
       let newW = origW + (ev.clientX - startX);
       let newH = origH + (ev.clientY - startY);
-      // Snap size to grid increments
+      // Snap size to grid increments.
       if (state.snapToGrid) {
         newW = Math.round(newW / SNAP_GRID) * SNAP_GRID;
         newH = Math.round(newH / SNAP_GRID) * SNAP_GRID;
@@ -569,11 +582,11 @@ function setupResize(widget, handle) {
 
 function applyLayout(layout) {
   if (getLayoutMode() !== 'desktop') {
-    // On mobile/tablet, CSS handles layout — just ensure map resizes
+    // On mobile/tablet, CSS handles layout — just ensure map resizes.
     if (state.map) setTimeout(() => state.map.invalidateSize(), 200);
     return;
   }
-  // Build fallback positions for widgets missing from saved layout
+  // Build fallback positions for widgets missing from saved layout.
   const defaults = getDefaultLayout();
   document.querySelectorAll('.widget').forEach(widget => {
     const pos = layout[widget.id] || defaults[widget.id];
@@ -594,7 +607,7 @@ let prevAreaH = 0;
 
 function reflowWidgets() {
   if (isGridMode()) {
-    // CSS Grid auto-reflows; reposition resize handles and fix map
+    // CSS Grid auto-reflows; reposition resize handles and fix map.
     repositionGridHandles();
     if (state.map) state.map.invalidateSize();
     return;
@@ -622,7 +635,8 @@ function reflowWidgets() {
     w = Math.max(150, w);
     h = Math.max(80, h);
 
-    // Clamp to area bounds
+    // Clamp to area bounds.
+
     if (w > aW) w = aW;
     if (h > aH) h = aH;
     if (left + w > aW) left = Math.max(0, aW - w);
@@ -637,7 +651,7 @@ function reflowWidgets() {
   prevAreaW = aW;
   prevAreaH = aH;
 
-  // Resolve any overlaps created by proportional scaling
+  // Resolve any overlaps created by proportional scaling.
   resolveAllOverlaps();
 
   if (state.map) state.map.invalidateSize();
@@ -658,13 +672,15 @@ export function applyProgressiveScale() {
 
   const w = window.innerWidth;
 
-  // Zone C: reflow layout
+  // Zone C: reflow layout.
+
   if (w < SCALE_REFLOW_WIDTH) {
     if (!state.reflowActive) applyReflowLayout();
     return;
   }
 
-  // Exiting Zone C → Zone A/B
+  // Exiting Zone C → Zone A/B.
+
   if (state.reflowActive) exitReflowLayout();
 
   const factor = computeScaleFactor();
@@ -676,14 +692,15 @@ export function applyProgressiveScale() {
     area.style.width = `${100 / factor}%`; // compensate for shrink so container fills viewport
     area.classList.add('scaling-active');
   } else {
-    // Zone A: full scale, no transform
+    // Zone A: full scale, no transform.
     area.style.transform = '';
     area.style.width = '';
     area.style.transformOrigin = '';
     area.classList.remove('scaling-active');
   }
 
-  // Leaflet map coordinate fix after scale change
+  // Leaflet map coordinate fix after scale change.
+
   if (state.map) state.map.invalidateSize();
 }
 
@@ -693,13 +710,14 @@ function applyReflowLayout() {
 
   state.reflowActive = true;
 
-  // Clear any Zone B transform
+  // Clear any Zone B transform.
   area.style.transform = '';
   area.style.width = '';
   area.style.transformOrigin = '';
   area.classList.remove('scaling-active');
 
-  // When tabs are active on mobile, skip reflow grid — use tab layout instead
+  // When tabs are active on mobile, skip reflow grid — use tab layout instead.
+
   if (getLayoutMode() === 'mobile') {
     area.classList.remove('reflow-layout');
     rebuildTabs();
@@ -733,11 +751,12 @@ function exitReflowLayout() {
   state.reflowActive = false;
   area.classList.remove('reflow-layout');
 
-  // Restore layout from saved state
+  // Restore layout from saved state.
+
   if (isGridMode()) {
     activateGridMode(state.gridPermutation);
   } else {
-    // Restore float layout from localStorage
+    // Restore float layout from localStorage.
     let layout;
     try {
       const saved = localStorage.getItem(WIDGET_STORAGE_KEY);
@@ -758,7 +777,8 @@ export function initWidgets() {
     if (saved) {
       layout = JSON.parse(saved);
 
-      // Clear layout if it contains removed clock widgets
+      // Clear layout if it contains removed clock widgets.
+
       if (layout['widget-clock-local'] || layout['widget-clock-utc']) {
         console.log('Clearing old layout with clock widgets');
         localStorage.removeItem(WIDGET_STORAGE_KEY);
@@ -789,7 +809,8 @@ export function initWidgets() {
   applyLayout(layout);
   applyWidgetVisibility();
 
-  // Seed previous dimensions for proportional resize scaling
+  // Seed previous dimensions for proportional resize scaling.
+
   const area = getWidgetArea();
   prevAreaW = area.width;
   prevAreaH = area.height;
@@ -818,9 +839,10 @@ export function initWidgets() {
       });
       header.insertBefore(closeBtn, header.firstChild);
 
-      // Mobile: collapsible widgets — tap header to toggle
+      // Mobile: collapsible widgets — tap header to toggle.
+
       if (!isDesktop) {
-        // Widgets that start expanded on mobile
+        // Widgets that start expanded on mobile.
         const expandedByDefault = new Set(['widget-map', 'widget-activations']);
         const collapseKey = 'hamtab_collapsed';
         let collapsed;
@@ -828,14 +850,15 @@ export function initWidgets() {
           collapsed = new Set(JSON.parse(localStorage.getItem(collapseKey) || '[]'));
         } catch { collapsed = new Set(); }
 
-        // Apply initial collapsed state
+        // Apply initial collapsed state.
+
         const wid = widget.id;
         if (collapsed.has(wid) || (!collapsed.size && !expandedByDefault.has(wid))) {
           widget.classList.add('collapsed');
         }
 
         header.addEventListener('click', (e) => {
-          // Don't collapse when clicking buttons inside the header
+          // Don't collapse when clicking buttons inside the header.
           if (e.target.closest('button') || e.target.closest('select') || e.target.closest('a')) return;
 
           widget.classList.toggle('collapsed');
@@ -845,7 +868,8 @@ export function initWidgets() {
           document.querySelectorAll('.widget.collapsed').forEach(w => allCollapsed.push(w.id));
           localStorage.setItem(collapseKey, JSON.stringify(allCollapsed));
 
-          // If expanding the map, invalidate so Leaflet re-renders
+          // If expanding the map, invalidate so Leaflet re-renders.
+
           if (wid === 'widget-map' && !widget.classList.contains('collapsed') && state.map) {
             setTimeout(() => state.map.invalidateSize(), 50);
           }
@@ -897,7 +921,7 @@ export function initWidgets() {
       const enterFS = () => {
         mapWidget.classList.add('map-fullscreen');
         document.body.classList.add('map-fullscreen-active'); // neutralize parent transform + overflow
-        // Restore saved widget visibility preference
+        // Restore saved widget visibility preference.
         if (localStorage.getItem(fsHideKey) === 'true') {
           document.body.classList.add('fs-widgets-hidden');
         }
@@ -942,11 +966,12 @@ export function initWidgets() {
     }).observe(document.getElementById('widgetArea'));
   }
 
-  // Activate grid mode if saved
+  // Activate grid mode if saved.
+
   if (isGridMode()) {
     activateGridMode(state.gridPermutation);
   }
 
-  // Set correct scaling zone on initial load
+  // Set correct scaling zone on initial load.
   applyProgressiveScale();
 }

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { esc, cacheCallsign } from './utils.js';
@@ -13,14 +16,14 @@ import { renderHunterButtons } from './pota-hunter.js';
 let currentSpot = null;
 let clockInterval = null;
 
-// Weather cache keyed by rounded lat,lon
+// Weather cache keyed by rounded lat,lon.
 const spotDetailWeatherCache = {};
 
 function weatherCacheKey(lat, lon) {
   return `${lat.toFixed(1)},${lon.toFixed(1)}`;
 }
 
-// NWS API only covers the US and territories
+// NWS API only covers the US and territories.
 function isNwsCoverage(lat, lon) {
   return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
 }
@@ -59,7 +62,8 @@ async function fetchSpotWeather(lat, lon) {
     } catch { /* fall through to OWM */ }
   }
 
-  // OWM fallback — global coverage, requires user-supplied API key
+  // OWM fallback — global coverage, requires user-supplied API key.
+
   if (state.owmApiKey) {
     try {
       const resp = await fetch(`/api/weather/owm?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}`, {
@@ -142,7 +146,8 @@ export async function updateSpotDetail(spot) {
     `;
   }
 
-  // DX local time placeholder
+  // DX local time placeholder.
+
   const localTime = !isNaN(lon) ? localTimeAtLon(lon, state.use24h) : '';
 
   // Build DXC-specific rows
@@ -151,13 +156,15 @@ export async function updateSpotDetail(spot) {
     ${continent ? `<div class="spot-detail-row"><span class="spot-detail-label">Continent:</span> ${esc(continent)}</div>` : ''}
   ` : '';
 
-  // Build compact freq/mode/band line
+  // Build compact freq/mode/band line.
+
   const freqParts = [esc(freq) + ' MHz'];
   if (mode) freqParts.push(esc(mode));
   if (band) freqParts.push(esc(band));
   const freqLine = freqParts.join(' · ');
 
-  // Build compact bearing/distance line
+  // Build compact bearing/distance line.
+
   let navHtml = '';
   if (state.myLat !== null && state.myLon !== null && !isNaN(lat) && !isNaN(lon)) {
     const deg = bearingTo(state.myLat, state.myLon, lat, lon);
@@ -188,7 +195,7 @@ export async function updateSpotDetail(spot) {
     <div class="spot-detail-wx" id="spotDetailWx"></div>
   `;
 
-  // Render tune button and auto-tune if rig is connected
+  // Render tune button and auto-tune if rig is connected.
   renderTuneButton(spot);
   if (isRigConnected() && spot.frequency) {
     tuneToSpot(spot);
@@ -198,13 +205,15 @@ export async function updateSpotDetail(spot) {
   const hunterContainer = document.getElementById('spotDetailHunter');
   if (hunterContainer) renderHunterButtons(spot, hunterContainer);
 
-  // Start ticking local time
+  // Start ticking local time.
+
   if (clockInterval) clearInterval(clockInterval);
   if (!isNaN(lon)) {
     clockInterval = setInterval(() => renderLocalTime(lon), 1000);
   }
 
-  // Fetch callsign info async
+  // Fetch callsign info async.
+
   const info = await fetchCallsignInfo(displayCall);
   const nameEl = document.getElementById('spotDetailName');
   if (info && nameEl && currentSpot === spot) {
@@ -223,7 +232,7 @@ export async function updateSpotDetail(spot) {
     if (wx && wxEl && currentSpot === spot) {
       const cls = wxClass(wx.shortForecast);
       wxEl.className = `spot-detail-wx ${cls}`;
-      // Convert temperature to user's preferred unit
+      // Convert temperature to user's preferred unit.
       let tempStr = '';
       if (wx.temperature != null) {
         const apiUnit = wx.temperatureUnit || 'F';
@@ -267,7 +276,8 @@ function renderTuneButton(spot) {
   container.innerHTML = '';
   container.appendChild(btn);
 
-  // Show band plan warning if applicable
+  // Show band plan warning if applicable.
+
   if (validation.warning) {
     const warn = document.createElement('div');
     warn.className = 'spot-detail-tune-warn';
@@ -289,7 +299,8 @@ function tuneToSpot(spot) {
   // Set frequency (high priority)
   sendRigCommand('setFrequency', freqHz, 2);
 
-  // Set mode if we can resolve it
+  // Set mode if we can resolve it.
+
   const rigMode = resolveRigMode(spot.mode, freqHz);
   if (rigMode) {
     sendRigCommand('setMode', rigMode, 1);

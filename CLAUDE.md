@@ -589,3 +589,20 @@ Rules added from past RCAs. Each links to the original analysis.
 - Post-merge validation (CLAUDE.md § Branch Sync Protocol) — `node -c server.js` + duplicate section scan after every merge
 - RCA protocol (this section) — forces analysis after every major incident
 **See:** RCA was documented in this section; no separate file was written.
+
+## Coordination CLI
+
+Use the `aiw` CLI for coordination operations (preferred over manual bash commands):
+
+```bash
+aiw work claim <project> "<desc>" [branch]   # Claim work
+aiw work release "<search>"                   # Release claim
+aiw research register <PREFIX> "<summary>" --project <proj>  # Register research
+aiw quality log <ID> <partner> <type> <outcome> <score> <rework>  # Log quality
+aiw session start                             # Pre-flight checklist
+aiw session end                               # Post-flight cleanup
+```
+
+Install: `pip install -e ~/sffoundry/ai-workflows/tools/aiw`
+Full reference: `aiw --help` or `~/sffoundry/ai-workflows/tools/aiw/README.md`
+

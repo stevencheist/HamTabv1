@@ -23572,8 +23572,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.70.1";
-    $("aboutVersion").textContent = "0.70.1";
+    $("splashVersion").textContent = "0.70.2";
+    $("aboutVersion").textContent = "0.70.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

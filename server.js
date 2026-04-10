@@ -15,22 +15,37 @@ const { getConfig } = require('./server-config.js');
 const { startListeners } = require('./server-startup.js');
 
 // --- Extracted modules ---
-const { isPrivateIP, resolveHost, secureFetch, fetchJSON, fetchText, MAX_REDIRECTS, MAX_RESPONSE_BYTES } = require('./server/services/http-fetch');
+const { isPrivateIP, resolveHost, secureFetch, fetchJSON, fetchText } = require('./server/services/http-fetch');
 const { registerCache, startEviction, stopEviction } = require('./server/services/cache-store');
 const cacheControlMiddleware = require('./server/middleware/cache-control');
-const { setupSecurity, setupDocs, feedbackLimiter } = require('./server/middleware/security');
+const { setupSecurity } = require('./server/middleware/security');
+
+// --- Routers ---
+const metaRouter = require('./server/routes/meta');
+const { setupDocs } = require('./server/routes/meta');
+const callsignRouter = require('./server/routes/callsign');
+const configRouter = require('./server/routes/config');
+const weatherRouter = require('./server/routes/weather');
 
 const app = express();
 const config = getConfig();
 
-// --- Security, rate limiting, body parsing ---
+// --- Security, rate limiting, body parsing, static files ---
 setupSecurity(app, config);
+
+// --- Health check (before rate limiter is fine — setupSecurity registers it first) ---
+app.use(metaRouter);
 
 // --- Cache-Control headers ---
 app.use(cacheControlMiddleware);
 
-// --- Static files & API docs ---
+// --- API docs ---
 setupDocs(app, __dirname);
+
+// --- Routers ---
+app.use('/api', callsignRouter);
+app.use('/api', configRouter);
+app.use('/api/weather', weatherRouter);
 
 // Proxy POTA spots API
 app.get('/api/spots', async (req, res) => {
@@ -787,115 +802,7 @@ function freqToBandStr(freqMHz) {
   return '';
 }
 
-// Convert Maidenhead grid square to lat/lon
-function gridToLatLon(grid) {
-  if (!grid || grid.length < 4) return null;
-  const A = 'A'.charCodeAt(0);
-  const ZERO = '0'.charCodeAt(0);
-  // Field (AA): 20° longitude, 10° latitude per field
-  const lon = (grid.charCodeAt(0) - A) * 20 + (grid.charCodeAt(2) - ZERO) * 2 + 1 - 180;
-  const lat = (grid.charCodeAt(1) - A) * 10 + (grid.charCodeAt(3) - ZERO) + 0.5 - 90;
-  return { lat, lon };
-}
-
-// --- HamQTH Callsign Lookup (global, non-US) ---
-
-// US callsign prefix detection — routes to callook.info (FCC data)
-function isUSCallsign(call) {
-  if (!call) return false;
-  return /^([KNW][A-Z]?\d|A[A-L]\d)/i.test(call);
-}
-
-// HamQTH session cache — XML API uses session-based auth with ~1h TTL
-let hamqthSession = { id: null, expires: 0 };
-
-async function getHamqthSessionId() {
-  const user = process.env.HAMQTH_USER;
-  const pass = process.env.HAMQTH_PASS;
-  if (!user || !pass) return null;
-
-  // Return cached session if still valid
-  if (hamqthSession.id && Date.now() < hamqthSession.expires) {
-    return hamqthSession.id;
-  }
-
-  try {
-    const url = `https://www.hamqth.com/xml.php?u=${encodeURIComponent(user)}&p=${encodeURIComponent(pass)}`;
-    const xml = await fetchText(url);
-    const match = xml.match(/<session_id>([^<]+)<\/session_id>/);
-    if (match) {
-      hamqthSession = { id: match[1], expires: Date.now() + 55 * 60 * 1000 }; // 55 min TTL (server expires at 60)
-      return match[1];
-    }
-    console.error('HamQTH auth failed:', xml.substring(0, 200));
-    return null;
-  } catch (err) {
-    console.error('HamQTH session error:', err.message);
-    return null;
-  }
-}
-
-function parseHamqthResponse(xml) {
-  // Extract fields from HamQTH XML response via regex
-  const field = (name) => {
-    const m = xml.match(new RegExp(`<${name}>([^<]*)</${name}>`));
-    return m ? m[1].trim() : '';
-  };
-
-  const callsign = field('callsign');
-  if (!callsign) return null;
-
-  const name = [field('nick'), field('adr_name')].filter(Boolean).join(' ').trim() || callsign;
-  const city = field('adr_city');
-  const country = field('country');
-  const addr2 = [city, country].filter(Boolean).join(', ');
-  const grid = field('grid');
-  let lat = parseFloat(field('latitude')) || null;
-  let lon = parseFloat(field('longitude')) || null;
-
-  // Fallback: derive lat/lon from grid square if HamQTH didn't provide coordinates
-  if (lat === null && lon === null && grid) {
-    const ll = gridToLatLon(grid);
-    if (ll) { lat = ll.lat; lon = ll.lon; }
-  }
-
-  return {
-    status: 'VALID',
-    class: '',
-    name,
-    addr1: field('adr_street1'),
-    addr2,
-    grid,
-    lat,
-    lon,
-    country,
-    source: 'hamqth',
-  };
-}
-
-async function lookupHamqth(call, retried) {
-  const sid = await getHamqthSessionId();
-  if (!sid) return null;
-
-  try {
-    const url = `https://www.hamqth.com/xml.php?id=${encodeURIComponent(sid)}&callsign=${encodeURIComponent(call)}&prg=HamTab`;
-    const xml = await fetchText(url);
-
-    // Session expired — clear and retry once
-    if (!retried && xml.includes('Session does not exist')) {
-      hamqthSession = { id: null, expires: 0 };
-      return lookupHamqth(call, true);
-    }
-
-    // Check for error (not found, etc.)
-    if (xml.includes('<error>')) return null;
-
-    return parseHamqthResponse(xml);
-  } catch (err) {
-    console.error('HamQTH lookup error:', err.message);
-    return null;
-  }
-}
+// (Callsign helpers + HamQTH lookup moved to server/routes/callsign.js)
 
 // Proxy HamQTH DX Cluster spots
 app.get('/api/spots/dxc', async (req, res) => {
@@ -1982,541 +1889,19 @@ app.get('/api/lunar', (req, res) => {
   }
 });
 
-// Proxy Weather Underground API
-app.get('/api/weather', async (req, res) => {
-  const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.WU_API_KEY;
-  if (!apiKey) {
-    return res.status(503).json({ error: 'No weather API key configured' });
-  }
-  try {
-    const { station } = req.query;
-    if (!station) {
-      return res.status(400).json({ error: 'Provide a station ID' });
-    }
+// (Weather routes moved to server/routes/weather.js)
 
-    // Try current observations first
-    const currentUrl = `https://api.weather.com/v2/pws/observations/current?stationId=${encodeURIComponent(station)}&format=json&units=e&apiKey=${apiKey}`;
-    let raw = await fetchText(currentUrl);
-
-    // If 204 / empty, fall back to today's observations and use the latest
-    if (!raw || !raw.trim()) {
-      const dayUrl = `https://api.weather.com/v2/pws/observations/all/1day?stationId=${encodeURIComponent(station)}&format=json&units=e&apiKey=${apiKey}`;
-      raw = await fetchText(dayUrl);
-    }
-
-    if (!raw || !raw.trim()) {
-      return res.json({ temp: null, condition: 'No data', windSpeed: null, windDir: '', humidity: null });
-    }
-
-    const data = JSON.parse(raw);
-    const obsList = data.observations;
-    if (!obsList || !obsList.length) {
-      return res.json({ temp: null, condition: 'No data', windSpeed: null, windDir: '', humidity: null });
-    }
-
-    // Use the most recent observation
-    const obs = obsList[obsList.length - 1];
-    const imp = obs.imperial || {};
-    res.json({
-      temp: imp.temp ?? imp.tempAvg ?? null,
-      condition: null,
-      windSpeed: imp.windSpeed ?? imp.windspeedAvg ?? null,
-      windDir: obs.winddir != null ? degToCompass(obs.winddir) : (obs.winddirAvg != null ? degToCompass(obs.winddirAvg) : ''),
-      humidity: obs.humidity ?? obs.humidityAvg ?? null,
-      neighborhood: obs.neighborhood || null,
-    });
-  } catch (err) {
-    console.error('Error fetching weather:', err.message);
-    res.status(502).json({ error: 'Failed to fetch weather data' });
-  }
-});
-
-function degToCompass(deg) {
-  const dirs = ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
-  return dirs[Math.round(deg / 22.5) % 16] || '';
-}
-
-// NWS weather conditions (background gradient for local clock)
-const nwsGridCache = {}; // { 'lat,lon': { forecastUrl, expires } }
-
-// NWS API only covers the US and territories — reject out-of-range coordinates early
-function isNwsCoverage(lat, lon) {
-  return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
-}
-
-app.get('/api/weather/conditions', async (req, res) => {
-  try {
-    const lat = parseFloat(req.query.lat);
-    const lon = parseFloat(req.query.lon);
-    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
-    }
-    if (!isNwsCoverage(lat, lon)) {
-      return res.status(400).json({ error: 'NWS only covers US locations' });
-    }
-    const key = `${lat.toFixed(4)},${lon.toFixed(4)}`;
-    let grid = nwsGridCache[key];
-    if (!grid || Date.now() > grid.expires) {
-      const pointsUrl = `https://api.weather.gov/points/${lat.toFixed(4)},${lon.toFixed(4)}`;
-      const pointsRaw = await nwsFetch(pointsUrl);
-      const data = JSON.parse(pointsRaw);
-      const forecastUrl = data && data.properties && data.properties.forecastHourly;
-      if (!forecastUrl) {
-        console.error('NWS points response missing forecastHourly:', JSON.stringify(data).substring(0, 500));
-        return res.status(502).json({ error: 'NWS returned no forecast URL for this location' });
-      }
-      grid = { forecastUrl, expires: Date.now() + 6 * 3600 * 1000 };
-      nwsGridCache[key] = grid;
-    }
-    const forecast = JSON.parse(await nwsFetch(grid.forecastUrl));
-    const period = forecast.properties.periods[0];
-    res.json({
-      shortForecast: period.shortForecast,
-      temperature: period.temperature,
-      temperatureUnit: period.temperatureUnit,
-      isDaytime: period.isDaytime,
-      windSpeed: period.windSpeed,
-      windDirection: period.windDirection,
-      relativeHumidity: period.relativeHumidity ? period.relativeHumidity.value : null,
-    });
-  } catch (err) {
-    console.error('Error fetching NWS conditions:', err.message);
-    res.status(502).json({ error: 'Failed to fetch weather conditions' });
-  }
-});
-
-// NWS weather alerts
-app.get('/api/weather/alerts', async (req, res) => {
-  try {
-    const lat = parseFloat(req.query.lat);
-    const lon = parseFloat(req.query.lon);
-    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
-    }
-    if (!isNwsCoverage(lat, lon)) {
-      return res.json([]); // no alerts outside US coverage
-    }
-    const raw = await nwsFetch(`https://api.weather.gov/alerts/active?point=${lat},${lon}`);
-    const data = JSON.parse(raw);
-    const alerts = (data.features || []).map(f => {
-      const p = f.properties;
-      return {
-        event: p.event,
-        severity: p.severity,
-        headline: p.headline,
-        description: p.description,
-        web: p.web,
-        urgency: p.urgency,
-        expires: p.expires,
-      };
-    });
-    res.json(alerts);
-  } catch (err) {
-    console.error('Error fetching NWS alerts:', err.message);
-    res.status(502).json({ error: 'Failed to fetch weather alerts' });
-  }
-});
-
-// OWM Current Weather (global coverage — fallback when NWS unavailable)
-app.get('/api/weather/owm', async (req, res) => {
-  try {
-    const lat = parseFloat(req.query.lat);
-    const lon = parseFloat(req.query.lon);
-    if (isNaN(lat) || isNaN(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) {
-      return res.status(400).json({ error: 'Provide valid lat (-90..90) and lon (-180..180)' });
-    }
-    const apiKey = req.headers['x-api-key'] || req.query.apikey || process.env.OWM_API_KEY;
-    if (!apiKey) {
-      return res.status(400).json({ error: 'OWM API key required' });
-    }
-    const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&appid=${encodeURIComponent(apiKey)}&units=imperial`;
-    const raw = await fetchText(url);
-    const data = JSON.parse(raw);
-
-    // Map OWM response to same shape as NWS conditions endpoint
-    const weather = data.weather && data.weather[0] ? data.weather[0].main : '';
-    const temp = data.main ? Math.round(data.main.temp) : null;
-    const humidity = data.main ? data.main.humidity : null;
-    const windSpeedMph = data.wind ? Math.round(data.wind.speed) : null;
-    const windDeg = data.wind ? data.wind.deg : null;
-    const isDaytime = data.sys ? (Date.now() / 1000 > data.sys.sunrise && Date.now() / 1000 < data.sys.sunset) : true;
-
-    res.json({
-      shortForecast: weather,
-      temperature: temp,
-      temperatureUnit: 'F',
-      isDaytime,
-      windSpeed: windSpeedMph != null ? windSpeedMph + ' mph' : null,
-      windDirection: windDeg != null ? degToCompass(windDeg) : '',
-      relativeHumidity: humidity,
-      source: 'owm',
-    });
-  } catch (err) {
-    console.error('Error fetching OWM conditions:', err.message);
-    res.status(502).json({ error: 'Failed to fetch OWM weather data' });
-  }
-});
-
-function nwsFetchOnce(url, redirectCount = 0) {
-  return new Promise((resolve, reject) => {
-    if (redirectCount > MAX_REDIRECTS) {
-      return reject(new Error('Too many NWS redirects'));
-    }
-    if (!url || typeof url !== 'string') {
-      return reject(new Error(`nwsFetchOnce called with invalid url: ${JSON.stringify(url)}`));
-    }
-    let parsed;
-    try { parsed = new URL(url); } catch (e) {
-      return reject(new Error(`Invalid URL passed to nwsFetch: "${url}" — ${e.message}`));
-    }
-    if (parsed.protocol !== 'https:') {
-      return reject(new Error('Only HTTPS URLs are allowed for NWS requests'));
-    }
-    resolveHost(parsed.hostname).then((resolvedIP) => {
-      if (isPrivateIP(resolvedIP)) {
-        return reject(new Error('Requests to private addresses are blocked'));
-      }
-      const options = {
-        hostname: resolvedIP,
-        path: parsed.pathname + parsed.search,
-        port: 443,
-        headers: {
-          'User-Agent': 'HamTab/1.0 (ham radio dashboard)',
-          'Host': parsed.hostname,
-          'Accept': 'application/geo+json',
-        },
-        servername: parsed.hostname,
-      };
-      const req = https.get(options, (resp) => {
-        if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
-          resp.resume();
-          // Handle relative redirects by resolving against the original URL
-          let redirectUrl;
-          try { redirectUrl = new URL(resp.headers.location, url).href; } catch (e) {
-            return reject(new Error(`Bad redirect Location: "${resp.headers.location}" from ${url}`));
-          }
-          return nwsFetchOnce(redirectUrl, redirectCount + 1).then(resolve).catch(reject);
-        }
-        if (resp.statusCode < 200 || resp.statusCode >= 300) {
-          resp.resume();
-          return reject(new Error(`HTTP ${resp.statusCode} from ${parsed.hostname}${parsed.pathname}`));
-        }
-        let data = '';
-        let bytes = 0;
-        resp.on('data', chunk => {
-          bytes += chunk.length;
-          if (bytes > MAX_RESPONSE_BYTES) {
-            resp.destroy();
-            return reject(new Error('NWS response too large'));
-          }
-          data += chunk;
-        });
-        resp.on('end', () => resolve(data));
-        resp.on('error', reject);
-      });
-      req.on('error', (err) => reject(new Error(`${err.message} (${parsed.hostname})`)));
-      req.setTimeout(15000, () => { req.destroy(); reject(new Error(`Request timed out (${parsed.hostname}${parsed.pathname})`)); });
-    }).catch(reject);
-  });
-}
-
-async function nwsFetch(url, retries = 2) {
-  for (let i = 0; i <= retries; i++) {
-    try {
-      return await nwsFetchOnce(url);
-    } catch (err) {
-      if (i < retries) {
-        console.log(`NWS fetch retry ${i + 1}/${retries}: ${err.message}`);
-        await new Promise(r => setTimeout(r, 1000 * (i + 1)));
-      } else {
-        throw err;
-      }
-    }
-  }
-}
-
-// Callsign lookup — US calls via callook.info (FCC), non-US via HamQTH (global)
-app.get('/api/callsign/:call', async (req, res) => {
-  try {
-    const rawCall = req.params.call;
-    if (!/^[A-Z0-9]{1,10}$/i.test(rawCall)) {
-      return res.status(400).json({ error: 'Invalid callsign format' });
-    }
-    const callUpper = rawCall.toUpperCase();
-
-    if (isUSCallsign(callUpper)) {
-      // US calls — callook.info (FCC database)
-      const call = encodeURIComponent(callUpper);
-      const data = await fetchJSON(`https://callook.info/${call}/json`);
-      const addr = data.address || {};
-      const loc = data.location || {};
-      let lat = loc.latitude ? parseFloat(loc.latitude) : null;
-      let lon = loc.longitude ? parseFloat(loc.longitude) : null;
-
-      // Fallback: geocode via Nominatim when callook.info has address but no coordinates
-      if (lat === null && lon === null && addr.line2) {
-        try {
-          const q = encodeURIComponent(addr.line2);
-          const geoUrl = `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1&countrycodes=us`;
-          const geoText = await secureFetch(geoUrl);
-          const geoResults = JSON.parse(geoText);
-          if (geoResults.length > 0) {
-            lat = parseFloat(geoResults[0].lat);
-            lon = parseFloat(geoResults[0].lon);
-          }
-        } catch {
-          // Geocode is best-effort — silently fall through with null coordinates
-        }
-      }
-
-      res.json({
-        status: data.status || 'INVALID',
-        class: (data.current && data.current.operClass) || '',
-        name: (data.name || ''),
-        addr1: addr.line1 || '',
-        addr2: addr.line2 || '',
-        grid: loc.gridsquare || '',
-        lat,
-        lon,
-        country: 'United States',
-        source: 'callook',
-      });
-    } else {
-      // Non-US calls — HamQTH global database
-      const data = await lookupHamqth(callUpper);
-      if (data) {
-        res.json(data);
-      } else {
-        res.json({ status: 'NOT_FOUND', class: '', name: '', addr1: '', addr2: '', grid: '', lat: null, lon: null, country: '', source: 'hamqth' });
-      }
-    }
-  } catch (err) {
-    console.error('Error fetching callsign data:', err.message);
-    res.status(502).json({ error: 'Failed to fetch callsign data' });
-  }
-});
+// (Weather conditions/alerts/OWM/NWS fetch moved to server/routes/weather.js)
+// (Callsign route moved to server/routes/callsign.js)
 
 // --- Mode-Specific Endpoints ---
 // (Empty on main - populated on deployment branches)
 // Lanmode adds: /api/update/*, /api/restart
 // Hostedmode adds: /api/settings-sync (future)
 
-// --- Configuration Endpoints ---
-app.post('/api/config/env', (req, res) => {
-  try {
-    // Security gate: require loopback/private IP, or a CONFIG_ADMIN_TOKEN if set
-    const rawIp = (req.ip || req.connection.remoteAddress || '').replace(/^::ffff:/, '');
-    const adminToken = process.env.CONFIG_ADMIN_TOKEN;
-    if (adminToken) {
-      if (req.headers['x-admin-token'] !== adminToken) {
-        console.warn(`Blocked /api/config/env from ${rawIp} — invalid admin token`);
-        return res.status(403).json({ error: 'Forbidden' });
-      }
-    } else if (!isPrivateIP(rawIp)) {
-      console.warn(`Blocked /api/config/env from non-private IP: ${rawIp}`);
-      return res.status(403).json({ error: 'Forbidden — config endpoint restricted to local network' });
-    }
+// (Config endpoint moved to server/routes/config.js)
 
-    const envPath = path.join(__dirname, '.env');
-    const updates = req.body; // { key: value, ... }
-    if (!updates || typeof updates !== 'object') {
-      return res.status(400).json({ error: 'Invalid body' });
-    }
-
-    // Read existing .env lines
-    let lines = [];
-    if (fs.existsSync(envPath)) {
-      lines = fs.readFileSync(envPath, 'utf-8').split('\n');
-    }
-
-    // Update or append each key
-    const allowedKeys = ['WU_API_KEY', 'OWM_API_KEY', 'N2YO_API_KEY', 'HAMQTH_USER', 'HAMQTH_PASS'];
-    for (const [key, value] of Object.entries(updates)) {
-      // Only allow known env keys
-      if (!allowedKeys.includes(key)) continue;
-      // Sanitize: reject control chars (newline injection), enforce max length
-      const sanitized = String(value).replace(/[\r\n\0]/g, '').trim();
-      if (sanitized.length > 128 || sanitized.length === 0) continue;
-      const idx = lines.findIndex(l => l.startsWith(key + '='));
-      const entry = `${key}=${sanitized}`;
-      if (idx >= 0) {
-        lines[idx] = entry;
-      } else {
-        lines.push(entry);
-      }
-    }
-
-    fs.writeFileSync(envPath, lines.filter(l => l.trim() !== '').join('\n') + '\n');
-    // Update process.env so it takes effect immediately (with same sanitization)
-    for (const [key, value] of Object.entries(updates)) {
-      if (!allowedKeys.includes(key)) continue;
-      const sanitized = String(value).replace(/[\r\n\0]/g, '').trim();
-      if (sanitized.length > 128 || sanitized.length === 0) continue;
-      process.env[key] = sanitized;
-    }
-    res.json({ ok: true });
-  } catch (err) {
-    console.error('Failed to update .env:', err.message);
-    res.status(500).json({ error: 'Failed to save config' });
-  }
-});
-
-// --- Feedback endpoint (creates GitHub issue) ---
-app.post('/api/feedback', feedbackLimiter, async (req, res) => {
-  try {
-    const { name, email, feedback, website } = req.body;
-
-    // 1. Honeypot check (bots fill hidden "website" field)
-    if (website) {
-      console.log('Feedback spam blocked (honeypot)');
-      return res.status(400).json({ error: 'Invalid submission' });
-    }
-
-    // 2. Validate feedback content
-    if (!feedback || typeof feedback !== 'string') {
-      return res.status(400).json({ error: 'Feedback is required' });
-    }
-
-    const feedbackTrimmed = feedback.trim();
-    if (feedbackTrimmed.length < 10) {
-      return res.status(400).json({ error: 'Feedback must be at least 10 characters' });
-    }
-
-    if (feedbackTrimmed.length > 5000) {
-      return res.status(400).json({ error: 'Feedback must be less than 5000 characters' });
-    }
-
-    // 3. Simple spam keyword filter
-    const spamKeywords = ['viagra', 'casino', 'lottery', 'crypto wallet', 'buy bitcoin'];
-    const lowerFeedback = feedbackTrimmed.toLowerCase();
-    if (spamKeywords.some(kw => lowerFeedback.includes(kw))) {
-      console.log('Feedback spam blocked (keywords)');
-      return res.status(400).json({ error: 'Invalid content' });
-    }
-
-    // 4. Validate optional fields
-    const nameSafe = (name || '').trim().substring(0, 100);
-    const emailSafe = (email || '').trim().substring(0, 100);
-
-    // 5. Check for GitHub token — if not configured, optionally relay to hamtab.net
-    const githubToken = process.env.GITHUB_FEEDBACK_TOKEN;
-    if (!githubToken) {
-      // Relay requires explicit opt-in via FEEDBACK_RELAY_ENABLED=1
-      const relayEnabled = process.env.FEEDBACK_RELAY_ENABLED === '1';
-      if (!relayEnabled) {
-        console.warn('Feedback rejected — no GITHUB_FEEDBACK_TOKEN and FEEDBACK_RELAY_ENABLED not set');
-        return res.status(503).json({
-          error: 'Feedback not configured. Set GITHUB_FEEDBACK_TOKEN or FEEDBACK_RELAY_ENABLED=1 in .env. You can also submit feedback at https://github.com/stevencheist/HamTabv1/issues'
-        });
-      }
-
-      console.log('No local GITHUB_FEEDBACK_TOKEN — relaying to hamtab.net (opt-in enabled)');
-      try {
-        const relayData = JSON.stringify({ name, email, feedback, website });
-        const relayReq = https.request({
-          hostname: 'hamtab.net',
-          path: '/api/feedback',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(relayData),
-            'User-Agent': 'HamTab-Lanmode-Relay',
-          },
-        }, (relayRes) => {
-          let data = '';
-          relayRes.on('data', chunk => data += chunk);
-          relayRes.on('end', () => {
-            try {
-              const result = JSON.parse(data);
-              res.status(relayRes.statusCode).json(result);
-            } catch {
-              res.status(relayRes.statusCode).json({ error: 'Relay response parse error' });
-            }
-          });
-        });
-
-        relayReq.setTimeout(15000, () => { // 15s timeout
-          relayReq.destroy(new Error('Relay request timed out'));
-        });
-
-        relayReq.on('error', (err) => {
-          console.error('Relay to hamtab.net failed:', err.message);
-          res.status(503).json({
-            error: 'Feedback relay unavailable. Please submit feedback directly at https://github.com/stevencheist/HamTabv1/issues'
-          });
-        });
-
-        relayReq.write(relayData);
-        relayReq.end();
-        return;
-      } catch (relayErr) {
-        console.error('Relay error:', relayErr.message);
-        return res.status(503).json({
-          error: 'Feedback relay unavailable. Please submit feedback directly at https://github.com/stevencheist/HamTabv1/issues'
-        });
-      }
-    }
-
-    // 6. Build GitHub issue body
-    let issueBody = feedbackTrimmed;
-    if (nameSafe || emailSafe) {
-      issueBody += '\n\n---\n\n**Submitted by:**';
-      if (nameSafe) issueBody += `\nName: ${nameSafe}`;
-      if (emailSafe) issueBody += `\nEmail: ${emailSafe}`;
-    }
-
-    // 7. Create GitHub issue
-    const issueData = JSON.stringify({
-      title: `[Feedback] ${feedbackTrimmed.substring(0, 50)}${feedbackTrimmed.length > 50 ? '...' : ''}`,
-      body: issueBody,
-      labels: ['feedback']
-    });
-
-    const options = {
-      hostname: 'api.github.com',
-      path: '/repos/stevencheist/HamTabv1/issues',
-      method: 'POST',
-      headers: {
-        'User-Agent': 'HamTab-Feedback',
-        'Authorization': `Bearer ${githubToken}`,
-        'Accept': 'application/vnd.github+json',
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(issueData)
-      }
-    };
-
-    // Make GitHub API request
-    const githubReq = https.request(options, (githubRes) => {
-      let data = '';
-      githubRes.on('data', chunk => data += chunk);
-      githubRes.on('end', () => {
-        if (githubRes.statusCode === 201) {
-          console.log('Feedback submitted successfully');
-          res.json({ success: true, message: 'Feedback submitted successfully' });
-        } else {
-          console.error('GitHub API error:', githubRes.statusCode, data);
-          res.status(500).json({ error: 'Failed to submit feedback. Please try again later.' });
-        }
-      });
-    });
-
-    githubReq.setTimeout(15000, () => { // 15s timeout
-      githubReq.destroy(new Error('GitHub API request timed out'));
-    });
-
-    githubReq.on('error', (err) => {
-      console.error('GitHub API request error:', err.message);
-      res.status(500).json({ error: 'Failed to submit feedback. Please try again later.' });
-    });
-
-    githubReq.write(issueData);
-    githubReq.end();
-
-  } catch (err) {
-    console.error('Feedback endpoint error:', err.message);
-    res.status(500).json({ error: 'Failed to submit feedback. Please try again later.' });
-  }
-});
+// (Feedback endpoint moved to server/routes/config.js)
 
 // Proxy NASA SDO solar images
 const SDO_TYPES = new Set(['0193', '0171', '0304', 'HMIIC']);
@@ -3180,76 +2565,7 @@ app.get('/api/drap/data', async (req, res) => {
   }
 });
 
-// --- Weather Radar (RainViewer) ---
-
-const radarCache = { data: null, expires: 0 };
-const RADAR_TTL = 5 * 60 * 1000; // 5 minutes
-
-app.get('/api/weather/radar', async (req, res) => {
-  try {
-    if (radarCache.data && Date.now() < radarCache.expires) {
-      return res.json(radarCache.data);
-    }
-    const json = await fetchJSON('https://api.rainviewer.com/public/weather-maps.json');
-    // Extract latest radar frame
-    const radar = json.radar;
-    if (!radar || !radar.past || !radar.past.length) {
-      throw new Error('No radar frames available');
-    }
-    const latest = radar.past[radar.past.length - 1];
-    const result = { host: json.host, path: latest.path, time: latest.time };
-    radarCache.data = result;
-    radarCache.expires = Date.now() + RADAR_TTL;
-    res.json(result);
-  } catch (err) {
-    console.error('Error fetching weather radar:', err.message);
-    res.status(502).json({ error: 'Failed to fetch weather radar data' });
-  }
-});
-
-// Cloud cover tiles — proxy OpenWeatherMap tile API to keep API key server-side
-app.get('/api/weather/clouds/:z/:x/:y', async (req, res) => {
-  try {
-    const apiKey = process.env.OWM_API_KEY;
-    if (!apiKey) {
-      return res.status(503).json({ error: 'No OpenWeatherMap API key configured' });
-    }
-    const { z, x, y } = req.params;
-    // Validate tile coordinates are integers
-    if (!/^\d+$/.test(z) || !/^\d+$/.test(x) || !/^\d+$/.test(y)) {
-      return res.status(400).json({ error: 'Invalid tile coordinates' });
-    }
-    const url = `https://tile.openweathermap.org/map/clouds_new/${z}/${x}/${y}.png?appid=${apiKey}`;
-    const parsed = new URL(url);
-    const resolvedIP = await resolveHost(parsed.hostname);
-    if (isPrivateIP(resolvedIP)) {
-      return res.status(403).json({ error: 'Blocked' });
-    }
-    const proxyReq = https.get({
-      hostname: resolvedIP,
-      path: parsed.pathname + parsed.search,
-      port: 443,
-      headers: { 'User-Agent': 'HamTab/1.0', 'Host': parsed.hostname },
-      servername: parsed.hostname,
-    }, (upstream) => {
-      if (upstream.statusCode < 200 || upstream.statusCode >= 300) {
-        upstream.resume();
-        return res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
-      }
-      res.set('Content-Type', upstream.headers['content-type'] || 'image/png');
-      res.set('Cache-Control', 'public, max-age=1800, s-maxage=3600'); // 30m browser, 1h edge
-      upstream.pipe(res);
-    });
-    proxyReq.on('error', (err) => {
-      console.error('Cloud cover tile proxy error:', err.message);
-      if (!res.headersSent) res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
-    });
-    proxyReq.setTimeout(10000, () => { proxyReq.destroy(); });
-  } catch (err) {
-    console.error('Error fetching cloud cover tile:', err.message);
-    res.status(502).json({ error: 'Failed to fetch cloud cover tile' });
-  }
-});
+// (Weather radar + cloud tiles moved to server/routes/weather.js)
 
 // --- VOACAP prediction engine ---
 
@@ -4096,7 +3412,7 @@ function parseSolarXML(xml) {
 }
 
 // --- Cache eviction (register all caches with the shared eviction service) ---
-[dxcCallCache, pskHeardCache, satPassCache, satTleCache, nwsGridCache, sdoDirCache, sotaSummitCache, voacapCache, dxpeditionCache, contestCache].forEach(registerCache);
+[dxcCallCache, pskHeardCache, satPassCache, satTleCache, sdoDirCache, sotaSummitCache, voacapCache, dxpeditionCache, contestCache].forEach(registerCache);
 startEviction();
 
 // --- Server startup ---

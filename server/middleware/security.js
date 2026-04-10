@@ -1,15 +1,11 @@
 // --- Security & bootstrap middleware ---
-// Extracted from server.js — CSP, helmet, CORS, rate limiting, body parsing,
-// static files, and Swagger UI setup.
+// Extracted from server.js — CSP, helmet, CORS, rate limiting, body parsing.
 
-const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const cors = require('cors');
-const swaggerUi = require('swagger-ui-express');
-const YAML = require('js-yaml');
 const { URL } = require('url');
 const { isPrivateIP } = require('../services/http-fetch');
 
@@ -57,11 +53,6 @@ function setupSecurity(app, config) {
     }));
   }
 
-  // Health check — before rate limiter so probes aren't counted
-  app.get('/api/health', (_req, res) => {
-    res.json({ ok: true, uptime: process.uptime() });
-  });
-
   // Rate limiting — /api/ routes only; generous in LAN mode, stricter when hosted
   const apiLimiter = rateLimit({
     windowMs: 60 * 1000,
@@ -73,18 +64,8 @@ function setupSecurity(app, config) {
   app.use('/api/', apiLimiter);
 
   app.use(express.json({ limit: '100kb' }));
+
+  app.use(express.static(path.join(process.cwd(), 'public')));
 }
 
-function setupDocs(app, rootDir) {
-  app.use(express.static(path.join(rootDir, 'public')));
-
-  const openapiSpec = YAML.load(fs.readFileSync(path.join(rootDir, 'openapi.yaml'), 'utf8'));
-  app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
-    customCss: '.swagger-ui .topbar { display: none }',
-    customSiteTitle: 'HamTab API Documentation',
-  }));
-  // Redirect /api to /api/docs for convenience
-  app.get('/api', (req, res) => res.redirect('/api/docs'));
-}
-
-module.exports = { setupSecurity, setupDocs, feedbackLimiter };
+module.exports = { setupSecurity, feedbackLimiter };

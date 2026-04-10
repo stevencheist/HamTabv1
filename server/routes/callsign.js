@@ -182,3 +182,6 @@ router.get('/callsign/:call', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.isUSCallsign = isUSCallsign;
+module.exports.lookupHamqth = lookupHamqth;
+module.exports.gridToLatLon = gridToLatLon;

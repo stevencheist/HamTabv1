@@ -1,11 +1,11 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Safety: Antenna Tune Controller ---
 // Detects band changes and alerts the user to tune their antenna.
 // For ATAS-120/auto-tuners: shows a toast/alert.
-// smartTuneMethod from rig profile determines behavior:
-//   'radio_managed' — radio handles tuning (FT-DX10 with ATAS). Just alert.
+// SmartTuneMethod from rig profile determines behavior://   'radio_managed' — radio handles tuning (FT-DX10 with ATAS). Just alert.
 //   'auto_reduce' — reduce power, send tune command, wait, restore.
 //   'manual_alert' — show alert only, user handles tuning.
-
 import { detectBand } from '../rig-state-store.js';
 
 export function createAntennaTuneController(store, options = {}) {
@@ -34,8 +34,8 @@ export function createAntennaTuneController(store, options = {}) {
         break;
 
       case 'auto_reduce':
-        // Future: reduce power → send tune command → wait → restore
-        // For now, just alert
+        // Future: reduce power → send tune command → wait → restore.
+        // For now, just alert.
         if (onTuneNeeded) onTuneNeeded(fromBand, toBand);
         break;
 

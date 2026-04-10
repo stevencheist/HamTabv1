@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Stopwatch / Timer Widget ---
 // Dual-mode: Stopwatch (count up with laps) and Countdown (preset or custom).
 // HamClock pane type — station ID timer (10 min for FCC ID requirement).
 // All client-side, no server interaction.
-
 import state from './state.js';
 import { $ } from './dom.js';
 import { isWidgetVisible } from './widgets.js';
@@ -168,17 +169,17 @@ function renderLaps() {
   container.innerHTML = html;
 }
 
-// Public start/stop for visibility-gated lifecycle
+// Public start/stop for visibility-gated lifecycle.
 export function startStopwatchDisplay() {
   renderDisplay();
   renderLaps();
 }
 
 export function stopStopwatchDisplay() {
-  // Timer already stopped via state.stopwatchTimer; nothing to clean up
+  // Timer already stopped via state.stopwatchTimer; nothing to clean up.
 }
 
-// Read-only getters for clock complication
+// Read-only getters for clock complication.
 export function getStopwatchElapsed() { return elapsed; }
 export function getStopwatchRunning() { return running; }
 export function getStopwatchMode() { return mode; }

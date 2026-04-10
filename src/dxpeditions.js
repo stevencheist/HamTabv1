@@ -1,11 +1,12 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- DXpeditions Widget ---
 // Fetches DXpedition data from /api/dxpeditions (NG3K RSS feed) and renders card list.
 // Also plots DXpedition locations on the map as circle markers.
-
 import state from './state.js';
 import { $ } from './dom.js';
 
-// Time filter cutoffs in milliseconds from now
+// Time filter cutoffs in milliseconds from now.
 const TIME_FILTER_MS = {
   active: 0,       // special case — only items where active === true
   '7d':  7 * 24 * 60 * 60 * 1000,
@@ -25,7 +26,7 @@ function filterByTime(data) {
   const now = Date.now();
   return data.filter(d => {
     if (d.active) return true; // always show active
-    // Show if starts within the time window
+    // Show if starts within the time window.
     if (d.startDate) {
       const start = new Date(d.startDate).getTime();
       return start - now <= cutoff;
@@ -72,7 +73,7 @@ export function initDxpeditionListeners() {
       localStorage.setItem('hamtab_dxped_time_filter', filterSel.value);
       renderDxpeditions();
     });
-    // Prevent widget drag when interacting with dropdown
+    // Prevent widget drag when interacting with dropdown.
     filterSel.addEventListener('mousedown', (e) => { e.stopPropagation(); });
   }
 }
@@ -98,7 +99,7 @@ export function renderDxpeditions() {
     list.textContent = '';
     const empty = document.createElement('div');
     empty.className = 'dxped-empty';
-    empty.textContent = 'No DXpeditions found';
+    empty.textContent = 'No DXpeditions found.';
     list.appendChild(empty);
     if (countEl) countEl.textContent = '';
     updateDxpeditionMarkers([]);
@@ -106,7 +107,7 @@ export function renderDxpeditions() {
   }
 
   const timeFiltered = filterByTime(data);
-  // Filter out hidden DXpeditions
+  // Filter out hidden DXpeditions.
   const hiddenCount = timeFiltered.filter(d => state.hiddenDxpeditions.has(d.callsign)).length;
   const filtered = timeFiltered.filter(d => !state.hiddenDxpeditions.has(d.callsign));
 
@@ -116,7 +117,7 @@ export function renderDxpeditions() {
   if (filtered.length === 0 && hiddenCount === 0) {
     const empty = document.createElement('div');
     empty.className = 'dxped-empty';
-    empty.textContent = 'No DXpeditions match the selected time filter';
+    empty.textContent = 'No DXpeditions match the selected time filter.';
     list.appendChild(empty);
     updateDxpeditionMarkers([]);
     return;
@@ -172,7 +173,8 @@ export function renderDxpeditions() {
     list.appendChild(card);
   }
 
-  // Show "N hidden" link to restore if any are hidden
+  // Show "N hidden" link to restore if any are hidden.
+
   if (hiddenCount > 0) {
     const unhideRow = document.createElement('div');
     unhideRow.className = 'dxped-unhide-row';

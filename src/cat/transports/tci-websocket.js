@@ -1,9 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Transport: TCI WebSocket ---
 // Connects to TCI-compatible SDR applications (Thetis, ExpertSDR, SunSDR)
-// via native WebSocket on ws://{host}:{port}.
-// TCI pushes state updates — polling reads from local cache (no network round-trip).
+// Via native WebSocket on ws://{host}:{port}.// TCI pushes state updates — polling reads from local cache (no network round-trip).
 // Lanmode-first: ws:// from https:// only works for localhost (secure context).
-
 import { ConnectionState } from './web-serial.js';
 
 // --- TCI WebSocket Transport ---
@@ -16,7 +16,7 @@ export class TciWebSocketTransport {
     this._ws = null;
     this._ready = false; // true after TCI server sends READY
 
-    // State cache — updated by WebSocket push notifications
+    // State cache — updated by WebSocket push notifications.
     this.cache = {
       frequency: 0,
       frequencyB: 0,
@@ -58,7 +58,8 @@ export class TciWebSocketTransport {
         return;
       }
 
-      // Timeout if server doesn't respond within 5s
+      // Timeout if server doesn't respond within 5s.
+
       const timeout = setTimeout(() => {
         if (this.state === ConnectionState.CONNECTING) {
           console.warn('[tci] Connection timeout');
@@ -103,15 +104,17 @@ export class TciWebSocketTransport {
   _handleMessage(data) {
     if (!data || typeof data !== 'string') return;
 
-    // TCI messages are semicolon-terminated, may arrive in batches
+    // TCI messages are semicolon-terminated, may arrive in batches.
+
     const messages = data.split(';').filter(Boolean);
 
     for (const msg of messages) {
       const trimmed = msg.trim();
 
       // VFO:receiver,sub_receiver,frequency
-      // VFO:0,0,14074000 → VFO A frequency
-      // VFO:0,1,14076000 → VFO B frequency
+
+      // VFO:0,0,14074000 → VFO A frequency.
+      // VFO:0,1,14076000 → VFO B frequency.
       if (trimmed.startsWith('VFO:')) {
         const parts = trimmed.slice(4).split(',');
         if (parts.length >= 3) {
@@ -126,6 +129,7 @@ export class TciWebSocketTransport {
       }
 
       // MODULATION:receiver,mode
+
       // MODULATION:0,USB
       if (trimmed.startsWith('MODULATION:')) {
         const parts = trimmed.slice(11).split(',');
@@ -136,6 +140,7 @@ export class TciWebSocketTransport {
       }
 
       // TRX:receiver,enabled  (TX state)
+
       // TRX:0,true → transmitting
       // TRX:0,false → receiving
       if (trimmed.startsWith('TRX:')) {
@@ -183,23 +188,26 @@ export class TciWebSocketTransport {
   }
 
   // --- Send a TCI command ---
+
   // GET commands return cached values (no network round-trip).
   // SET commands are sent over the WebSocket.
   async sendCommand(cmd) {
     if (!cmd) return '';
 
-    // GET commands → return cached value formatted as a TCI response
-    // The TCI driver's parse() will turn these into rig state events
+    // GET commands → return cached value formatted as a TCI response.
+
+    // The TCI driver's parse() will turn these into rig state events.
     if (cmd.startsWith('GET_VFO:0,0')) return `VFO:0,0,${this.cache.frequency};`;
     if (cmd.startsWith('GET_VFO:0,1')) return `VFO:0,1,${this.cache.frequencyB};`;
     if (cmd.startsWith('GET_MODULATION:')) return `MODULATION:0,${this.cache.mode};`;
     if (cmd.startsWith('GET_TRX:')) return `TRX:0,${this.cache.ptt};`;
     if (cmd.startsWith('GET_RX_SENSORS')) return `RX_SENSORS:0,${this.cache.signal};`;
-    // TX_SENSORS returns power + SWR as separate "messages" so the
-    // rig-manager's response splitter feeds both events to the driver parser
+    // TX_SENSORS returns power + SWR as separate "messages" so the.
+    // rig-manager's response splitter feeds both events to the driver parser.
     if (cmd.startsWith('GET_TX_SENSORS')) return `TX_POWER:0,${this.cache.power};TX_SWR:0,${this.cache.swr};`;
 
-    // SET commands → send over WebSocket
+    // SET commands → send over WebSocket.
+
     if (this._ws && this._ws.readyState === WebSocket.OPEN) {
       this._ws.send(cmd);
     }

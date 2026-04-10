@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 export function migrate() {
   if (localStorage.getItem('hamtab_migrated')) return;
   const PREFIX_OLD = 'pota_';
@@ -16,7 +19,7 @@ export function migrate() {
   localStorage.setItem('hamtab_migrated', '1');
 }
 
-// v2: Rename old 'hamclock' theme to 'terminal' (before new 'hamclock' theme is introduced)
+// V2: Rename old 'hamclock' theme to 'terminal' (before new 'hamclock' theme is introduced).
 export function migrateV2() {
   if (localStorage.getItem('hamtab_migration_v2')) return;
   if (localStorage.getItem('hamtab_theme') === 'hamclock') {

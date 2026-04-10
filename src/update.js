@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { fmtTime } from './utils.js';
@@ -20,9 +23,9 @@ export async function checkUpdateStatus() {
       state.updateReleaseUrl = null;
     }
 
-    // Platform label removed from header — info shown in config modal About tab
+    // Platform label removed from header — info shown in config modal About tab.
   } catch (e) {
-    // ignore
+    // Ignore.
   }
 }
 
@@ -34,7 +37,7 @@ export function startUpdateStatusPolling() {
 
 function pollForServer(attempts) {
   if (attempts <= 0) {
-    $('updateLabel').textContent = 'Server did not come back';
+    $('updateLabel').textContent = 'Server did not come back.';
     $('updateDot').className = 'update-dot red';
     return;
   }
@@ -64,7 +67,7 @@ export function sendUpdateInterval() {
 }
 
 export function initUpdateListeners() {
-  // Green dot opens release page in new tab
+  // Green dot opens release page in new tab.
   $('updateIndicator').addEventListener('click', () => {
     if ($('updateDot').classList.contains('green') && state.updateReleaseUrl) {
       window.open(state.updateReleaseUrl, '_blank', 'noopener');

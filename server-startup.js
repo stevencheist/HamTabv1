@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Server listener startup ---
 // Starts HTTP on all modes. Starts HTTPS (self-signed) in lanmode only.
 // Returns server references for graceful shutdown.
-
 const https = require('https');
 const { ensureCerts } = require('./server-tls.js');
 

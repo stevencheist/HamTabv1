@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Diagnostics Panel UI ---
 // Real-time command trace viewer and debug bundle export.
 // Shown via the magnifying glass button on the On-Air Rig widget.
-
 import { getTraceBus } from './trace-bus.js';
 import { downloadSnapshot, captureSnapshot } from './snapshot.js';
 import { getRigStore } from '../connection-orchestrator.js';
@@ -29,7 +30,8 @@ export function initDiagPanel() {
     if (traceEl) traceEl.innerHTML = '';
   });
 
-  // Close on overlay click
+  // Close on overlay click.
+
   const splash = $('rigDiagSplash');
   if (splash) {
     splash.addEventListener('click', (e) => {
@@ -56,7 +58,8 @@ function openDiagPanel() {
   updateCounters();
   renderExistingEvents();
 
-  // Subscribe to real-time trace events
+  // Subscribe to real-time trace events.
+
   if (unsubTrace) unsubTrace();
   unsubTrace = getTraceBus().subscribe(appendTraceEntry);
 }
@@ -126,7 +129,8 @@ function renderExistingEvents() {
   traceEl.innerHTML = '';
   const events = getTraceBus().getEvents();
 
-  // Show last 200 to avoid overwhelming the DOM on open
+  // Show last 200 to avoid overwhelming the DOM on open.
+
   const recent = events.slice(-200);
   for (const ev of recent) {
     appendTraceEntry(ev, false);
@@ -141,7 +145,7 @@ function appendTraceEntry(entry, autoScroll = true) {
   const traceEl = $('rigDiagTrace');
   if (!traceEl) return;
 
-  // Update counters on each event
+  // Update counters on each event.
   updateCounters();
 
   const time = new Date(entry.ts).toLocaleTimeString('en-US', { hour12: false, fractionalSecondDigits: 1 });

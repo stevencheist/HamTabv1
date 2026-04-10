@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { WIDGET_DEFS } from './constants.js';
@@ -200,7 +203,8 @@ function updateWidgetSlotEnforcement() {
   const isGrid = floatRadio ? !floatRadio.checked : false;
   const supportsGrid = currentThemeSupportsGrid();
 
-  // Float mode or non-grid theme — no limits
+  // Float mode or non-grid theme — no limits.
+
   if (!isGrid || !supportsGrid) {
     counter.textContent = '';
     counter.classList.remove('over-limit');
@@ -223,7 +227,7 @@ function updateWidgetSlotEnforcement() {
   const checkboxes = widgetList.querySelectorAll('input[type="checkbox"]');
   let checkedNonMap = 0;
 
-  // Force-check and disable the map checkbox; count non-map checked
+  // Force-check and disable the map checkbox; count non-map checked.
   checkboxes.forEach(cb => {
     if (cb.dataset.widgetId === 'widget-map') {
       cb.checked = true;
@@ -236,7 +240,7 @@ function updateWidgetSlotEnforcement() {
 
   const atLimit = checkedNonMap >= maxSlots;
 
-  // Disable unchecked non-map boxes when at/over limit
+  // Disable unchecked non-map boxes when at/over limit.
   checkboxes.forEach(cb => {
     if (cb.dataset.widgetId === 'widget-map') return; // already handled
     if (atLimit && !cb.checked) {
@@ -259,8 +263,7 @@ function updateWidgetSlotEnforcement() {
   }
 }
 
-// initApp is passed in to avoid circular dependency
-let _initApp = null;
+// InitApp is passed in to avoid circular dependencylet _initApp = null;
 export function setInitApp(fn) { _initApp = fn; }
 
 function renderSplashLayoutList() {
@@ -345,7 +348,8 @@ export function showSplash() {
     updateLocStatus('Using GPS');
   }
 
-  // Load preferences — defensive null-checks for deployment-mode differences
+  // Load preferences — defensive null-checks for deployment-mode differences.
+
   const timeFmt24 = $('timeFmt24');
   const timeFmt12 = $('timeFmt12');
   if (timeFmt24) timeFmt24.checked = state.use24h;
@@ -387,7 +391,7 @@ export function showSplash() {
   $('splashOwmApiKey').value = state.owmApiKey;
   $('splashN2yoApiKey').value = state.n2yoApiKey;
   $('splashHamqthUser').value = state.hamqthUser;
-  // Password field intentionally left empty — stored server-side only
+  // Password field intentionally left empty — stored server-side only.
   $('splashHamqthPass').value = '';
   $('splashHamqthPass').placeholder = state.hamqthUser ? '(server-configured)' : '';
 
@@ -437,13 +441,14 @@ export function showSplash() {
         themeSelector.querySelectorAll('.theme-swatch').forEach(s => s.classList.remove('active'));
         swatch.classList.add('active');
 
-        // Update grid section visibility based on new theme
+        // Update grid section visibility based on new theme.
+
         const gridSec = document.getElementById('gridModeSection');
         if (gridSec) {
           const supports = currentThemeSupportsGrid();
           gridSec.style.display = supports ? '' : 'none';
           if (!supports) {
-            // Force float mode radio when switching to non-grid theme
+            // Force float mode radio when switching to non-grid theme.
             const floatRadio = document.getElementById('layoutModeFloat');
             if (floatRadio) floatRadio.checked = true;
             const permSec = document.getElementById('gridPermSection');
@@ -467,7 +472,8 @@ export function showSplash() {
   const cfgGrayscale = $('cfgGrayscale');
   if (cfgGrayscale) cfgGrayscale.checked = state.grayscale;
 
-  // Disable weather backgrounds toggle
+  // Disable weather backgrounds toggle.
+
   const cfgDisableWxBg = $('cfgDisableWxBg');
   if (cfgDisableWxBg) cfgDisableWxBg.checked = state.disableWxBackgrounds;
 
@@ -475,7 +481,8 @@ export function showSplash() {
   const cfgTextScale = $('cfgTextScale');
   if (cfgTextScale) cfgTextScale.value = String(state.textScale);
 
-  // Accessibility toggles — init from state
+  // Accessibility toggles — init from state.
+
   const cfgFocusTrap = $('cfgFocusTrap');
   if (cfgFocusTrap) cfgFocusTrap.checked = state.a11yFocusTrap;
   const cfgEscapeClose = $('cfgEscapeClose');
@@ -493,14 +500,15 @@ export function showSplash() {
   const gridSection = document.getElementById('gridModeSection');
   const gridPermSection = document.getElementById('gridPermSection');
   if (gridSection) {
-    // Hide grid section if current theme doesn't support it
+    // Hide grid section if current theme doesn't support it.
     gridSection.style.display = currentThemeSupportsGrid() ? '' : 'none';
 
-    // Set radio buttons from state
+    // Set radio buttons from state.
     $('layoutModeFloat').checked = state.gridMode !== 'grid';
     $('layoutModeGrid').checked = state.gridMode === 'grid';
 
-    // Set float options from state
+    // Set float options from state.
+
     const snapCheck = document.getElementById('snapToGridCheck');
     const overlapCheck = document.getElementById('allowOverlapCheck');
     const floatOpts = document.getElementById('floatOptions');
@@ -521,12 +529,14 @@ export function showSplash() {
       permSelect.value = state.gridPermutation;
     }
 
-    // Show/hide perm section based on mode
+    // Show/hide perm section based on mode.
+
     if (gridPermSection) {
       gridPermSection.style.display = state.gridMode === 'grid' ? '' : 'none';
     }
 
-    // Initialize staged assignments from current state or defaults
+    // Initialize staged assignments from current state or defaults.
+
     const currentPerm = permSelect ? permSelect.value : state.gridPermutation;
     if (state.gridAssignments && Object.keys(state.gridAssignments).length > 0) {
       stagedAssignments = { ...state.gridAssignments };
@@ -536,7 +546,7 @@ export function showSplash() {
     }
     selectedCell = null;
 
-    // Render preview with assignments
+    // Render preview with assignments.
     renderGridPreview(currentPerm, stagedAssignments);
   }
 
@@ -559,8 +569,9 @@ export function showSplash() {
   const dataSyncToggle = document.getElementById('dataSyncToggle');
   if (dataSyncToggle) dataSyncToggle.checked = isSyncEnabled();
 
-  // Show LAN sync section only if server supports it
-  const dataSyncSection = document.getElementById('dataSyncSection');
+  // Show LAN sync section only if server supports it.
+
+  const dataSyncSection = document.getElementById('data-sync-section');
   if (dataSyncSection) {
     dataSyncSection.classList.add('hidden');
     checkSyncCapability().then(capable => {
@@ -592,7 +603,7 @@ function loadRadioConfig() {
   const protocolFamily = $('radioProtocolFamily');
   if (protocolFamily) protocolFamily.value = state.radioProtocolFamily;
 
-  // Populate model preset dropdown filtered by protocol family
+  // Populate model preset dropdown filtered by protocol family.
   populateModelPresets();
 
   // Port mode
@@ -653,7 +664,7 @@ function loadRadioConfig() {
   if (audioSampleRate) audioSampleRate.value = String(state.radioAudioSampleRate);
   refreshAudioDeviceList();
 
-  // Show/hide sections based on connection type
+  // Show/hide sections based on connection type.
   updateRadioSections();
 }
 
@@ -665,7 +676,8 @@ function populateModelPresets() {
   const familySelect = $('radioProtocolFamily');
   const selectedFamily = familySelect ? familySelect.value : 'auto';
 
-  // Clear existing options except the first "(None)" option
+  // Clear existing options except the first "(None)" option.
+
   while (presetSelect.options.length > 1) presetSelect.remove(1);
 
   const profs = getAvailableProfiles();
@@ -679,7 +691,8 @@ function populateModelPresets() {
     presetSelect.appendChild(opt);
   }
 
-  // Restore saved model preset
+  // Restore saved model preset.
+
   const saved = state.radioModelPreset;
   if (saved && presetSelect.querySelector(`option[value="${saved}"]`)) {
     presetSelect.value = saved;
@@ -695,7 +708,8 @@ function applyModelPresetDefaults() {
   const profile = profs.find(p => p.id === presetSelect.value);
   if (!profile || !profile.serial) return;
 
-  // Fill serial settings from profile
+  // Fill serial settings from profile.
+
   const baudRate = $('radioBaudRate');
   const dataBits = $('radioDataBits');
   const stopBits = $('radioStopBits');
@@ -714,13 +728,15 @@ function applyModelPresetDefaults() {
   if (pttMethod && profile.control) pttMethod.value = profile.control.pttMethod;
   if (pollingInterval && profile.control) pollingInterval.value = profile.control.pollingInterval;
 
-  // Fill CI-V address if Icom
+  // Fill CI-V address if Icom.
+
   if (profile.civAddress) {
     const civAddress = $('radioCivAddress');
     if (civAddress) civAddress.value = profile.civAddress;
   }
 
-  // Also set protocol family to match
+  // Also set protocol family to match.
+
   const familySelect = $('radioProtocolFamily');
   if (familySelect && profile.protocol) {
     familySelect.value = profile.protocol;
@@ -733,7 +749,8 @@ function resetRadioConfig() {
   const presetSelect = $('radioModelPreset');
   if (presetSelect) presetSelect.value = '';
 
-  // Reset serial settings to defaults
+  // Reset serial settings to defaults.
+
   const baudRate = $('radioBaudRate');
   const dataBits = $('radioDataBits');
   const stopBits = $('radioStopBits');
@@ -812,7 +829,8 @@ async function handleAutoDetect() {
 
       updateCivRowVisibility();
 
-      // Set port mode to manual so Connect reuses this authorized port
+      // Set port mode to manual so Connect reuses this authorized port.
+
       const portMode = $('radioPortMode');
       if (portMode) {
         portMode.value = 'manual';
@@ -833,13 +851,14 @@ async function handleAutoDetect() {
     if (statusEl) statusEl.textContent = `Error: ${err.message}`;
   }
 
-  // Close the port — Connect will reopen it via the authorized port list
+  // Close the port — Connect will reopen it via the authorized port list.
+
   try { await port.close(); } catch { /* already closed */ }
   btn.disabled = false;
 }
 
 // --- Refresh authorized port list ---
-// Known USB serial chip VID:PID → friendly name
+// Known USB serial chip VID:PID → friendly name.
 const USB_SERIAL_CHIPS = {
   '0403:6001': 'FTDI FT232R',
   '0403:6010': 'FTDI FT2232',
@@ -863,14 +882,16 @@ function describePort(info, index, sameChipIndex) {
   const key = `${vid}:${pid}`;
   const chipName = USB_SERIAL_CHIPS[key] || `USB ${key}`;
 
-  // Dual-port chips (CP2105): label Enhanced vs Standard by interface order
-  // Note: WebSerial doesn't expose actual COM numbers — port index is sequential
+  // Dual-port chips (CP2105): label Enhanced vs Standard by interface order.
+
+  // Note: WebSerial doesn't expose actual COM numbers — port index is sequential.
   if (pid === 'EA70' && sameChipIndex !== null) {
     const role = sameChipIndex === 0 ? 'Enhanced (CAT)' : 'Standard (Audio)';
     return `Port ${portNum}: ${role}`;
   }
 
-  // Multiple ports with same chip: number them
+  // Multiple ports with same chip: number them.
+
   if (sameChipIndex !== null) {
     return `Port ${portNum}: ${chipName}`;
   }
@@ -897,12 +918,13 @@ async function refreshPortList() {
     if (ports.length === 0) {
       const opt = document.createElement('option');
       opt.value = '';
-      opt.textContent = 'No authorized ports — click Auto-Detect or use Auto port mode';
+      opt.textContent = 'No authorized ports — click Auto-Detect or use Auto port mode.';
       portList.appendChild(opt);
       return;
     }
 
-    // Count ports per VID:PID to detect multi-port chips
+    // Count ports per VID:PID to detect multi-port chips.
+
     const vidPidCount = {};
     const vidPidIndex = {};
     ports.forEach(port => {
@@ -916,7 +938,8 @@ async function refreshPortList() {
       const info = port.getInfo();
       const key = info.usbVendorId ? `${info.usbVendorId}:${info.usbProductId}` : null;
 
-      // Track index within same-chip group for multi-port labeling
+      // Track index within same-chip group for multi-port labeling.
+
       let sameChipIndex = null;
       if (key && vidPidCount[key] > 1) {
         vidPidIndex[key] = (vidPidIndex[key] ?? -1) + 1;
@@ -979,7 +1002,8 @@ async function refreshAudioDeviceList() {
       deviceList.appendChild(opt);
     });
 
-    // Show/hide permission hint based on whether labels are available
+    // Show/hide permission hint based on whether labels are available.
+
     if (permHint) permHint.style.display = (audioInputs.length > 0 && !hasLabels) ? '' : 'none';
     if (grantBtn) grantBtn.style.display = hasLabels ? 'none' : '';
 
@@ -1000,11 +1024,11 @@ async function refreshAudioDeviceList() {
 // --- Request microphone permission to reveal audio device labels ---
 async function grantAudioPermission() {
   try {
-    // Brief getUserMedia call unlocks device labels for enumerateDevices
+    // Brief getUserMedia call unlocks device labels for enumerateDevices.
     const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    // Stop tracks immediately — we just needed the permission grant
+    // Stop tracks immediately — we just needed the permission grant.
     for (const track of tempStream.getTracks()) track.stop();
-    // Re-enumerate with labels now available
+    // Re-enumerate with labels now available.
     await refreshAudioDeviceList();
   } catch (err) {
     console.warn('[audio-scope] Permission denied:', err.message);
@@ -1027,13 +1051,15 @@ function updateRadioSections() {
   const demoSection = document.getElementById('radioDemoSection');
   const tciSection = document.getElementById('radioTciSection');
 
-  // Check if TCI protocol is selected
+  // Check if TCI protocol is selected.
+
   const familySelect = $('radioProtocolFamily');
   const isTci = familySelect && familySelect.value === 'tci';
 
   // Real radio: show protocol, port, serial, control, safety; hide demo
-  // TCI: show protocol + TCI section; hide serial/port/control
-  // Demo: hide all real sections; show demo
+
+  // TCI: show protocol + TCI section; hide serial/port/control.
+  // Demo: hide all real sections; show demo.
   if (protocolSection) protocolSection.style.display = isReal ? '' : 'none';
   if (tciSection) tciSection.style.display = (isReal && isTci) ? '' : 'none';
   if (portSection) portSection.style.display = (isReal && !isTci) ? '' : 'none';
@@ -1046,10 +1072,10 @@ function updateRadioSections() {
   const audioScopeSection = document.getElementById('radioAudioScopeSection');
   if (audioScopeSection) audioScopeSection.style.display = (isReal && !isTci) ? '' : 'none';
 
-  // Port list row: only show when port mode is 'manual'
+  // Port list row: only show when port mode is 'manual'.
   updatePortListVisibility();
 
-  // CI-V row: only show for Icom protocol family
+  // CI-V row: only show for Icom protocol family.
   updateCivRowVisibility();
 }
 
@@ -1062,11 +1088,13 @@ function updatePortListVisibility() {
   const isManual = portMode && portMode.value === 'manual';
   portListRow.style.display = isManual ? '' : 'none';
 
-  // Show/hide the port hint alongside the port list
+  // Show/hide the port hint alongside the port list.
+
   const portHint = document.getElementById('radioPortHint');
   if (portHint) portHint.style.display = isManual ? '' : 'none';
 
-  // Auto-populate port list when switching to manual
+  // Auto-populate port list when switching to manual.
+
   if (isManual) refreshPortList();
 }
 
@@ -1088,7 +1116,7 @@ function saveRadioConfig() {
   state.radioConnectionType = $('radioConnReal') && $('radioConnReal').checked ? 'real' : 'demo';
   localStorage.setItem('hamtab_radio_conn_type', state.radioConnectionType);
 
-  // Protocol + model preset
+  // Protocol + model preset.
   state.radioProtocolFamily = $('radioProtocolFamily')?.value || 'auto';
   state.radioModelPreset = $('radioModelPreset')?.value || '';
   localStorage.setItem('hamtab_radio_protocol', state.radioProtocolFamily);
@@ -1153,14 +1181,15 @@ function saveRadioConfig() {
 }
 
 function dismissSplash() {
-  // Get callsign — required to proceed
+  // Get callsign — required to proceed.
   const callsignEl = $('splashCallsign');
   const val = callsignEl ? callsignEl.value.trim().toUpperCase() : '';
   if (!val) return;
 
   // Hide modal FIRST — before anything that could fail.
-  // This prevents the splash from staying stuck on screen if localStorage
-  // or a DOM query throws (e.g. locked-down browsers, CSP issues).
+
+  // This prevents the splash from staying stuck on screen if localStorage.
+  // Or a DOM query throws (e.g. locked-down browsers, CSP issues).
   const splashEl = $('splash');
   const gridDropdown = $('splashGridDropdown');
   if (gridDropdown) gridDropdown.classList.remove('open');
@@ -1169,7 +1198,8 @@ function dismissSplash() {
   // Capture old widget visibility before applying changes (for refresh-on-show hook)
   const oldVis = { ...state.widgetVisibility };
 
-  // Save all settings — wrapped so modal stays hidden even if storage fails
+  // Save all settings — wrapped so modal stays hidden even if storage fails.
+
   try {
     state.myCallsign = val;
     localStorage.setItem('hamtab_callsign', state.myCallsign);
@@ -1215,9 +1245,8 @@ function dismissSplash() {
     localStorage.setItem('hamtab_owm_apikey', state.owmApiKey);
     localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
     localStorage.setItem('hamtab_hamqth_user', state.hamqthUser);
-    // hamqth password: server-side only, never in localStorage
-
-    // Persist API keys to server .env so all clients share them
+    // Hamqth password: server-side only, never in localStorage.
+    // Persist API keys to server .env so all clients share them.
     const envUpdates = {};
     if (state.wxApiKey) envUpdates.WU_API_KEY = state.wxApiKey;
     if (state.owmApiKey) envUpdates.OWM_API_KEY = state.owmApiKey;
@@ -1280,15 +1309,18 @@ function dismissSplash() {
     if (justShown('widget-dxpeditions'))  fetchDxpeditions();
     if (justShown('widget-contests'))     fetchContests();
 
-    // Beacon timer start/stop — avoid 1 Hz timer running for a hidden widget
+    // Beacon timer start/stop — avoid 1 Hz timer running for a hidden widget.
+
     if (justShown('widget-beacons'))  { startBeaconTimer(); updateBeaconMarkers(); }
     if (justHidden('widget-beacons')) { stopBeaconTimer(); }
 
-    // DE/DX Info timer start/stop — avoid 1 Hz timer running for a hidden widget
+    // DE/DX Info timer start/stop — avoid 1 Hz timer running for a hidden widget.
+
     if (justShown('widget-dedx'))  { startDedxTimer(); }
     if (justHidden('widget-dedx')) { stopDedxTimer(); }
 
-    // On-Air Rig — init/destroy: stops all CAT polling, safety, propagation when hidden
+    // On-Air Rig — init/destroy: stops all CAT polling, safety, propagation when hidden.
+
     if (justShown('widget-on-air-rig'))  { initOnAirRig(); }
     if (justHidden('widget-on-air-rig')) { destroyOnAirRig(); }
 
@@ -1307,7 +1339,8 @@ function dismissSplash() {
     console.warn('Error saving settings:', e);
   }
 
-  // Post-dismiss updates — separate try/catch so UI refresh doesn't block on settings errors
+  // Post-dismiss updates — separate try/catch so UI refresh doesn't block on settings errors.
+
   try {
     updateOperatorDisplay();
     centerMapOnUser();
@@ -1486,7 +1519,7 @@ export function initSplashListeners() {
   $('splashCallsignLocBtn').addEventListener('click', async () => {
     const call = $('splashCallsign').value.trim().toUpperCase();
     if (!call) {
-      updateLocStatus('Enter a callsign first', true);
+      updateLocStatus('Enter a callsign first.', true);
       return;
     }
 
@@ -1514,10 +1547,10 @@ export function initSplashListeners() {
         $('splashGpsBtn').classList.remove('active');
         updateLocStatus('Location set from callsign');
       } else {
-        updateLocStatus('No location found for ' + call, true);
+        updateLocStatus('No location found for ' + call + '.', true);
       }
     } catch {
-      updateLocStatus('Lookup failed — try again', true);
+      updateLocStatus('Lookup failed — try again.', true);
     } finally {
       btn.disabled = false;
     }
@@ -1527,7 +1560,7 @@ export function initSplashListeners() {
   $('splashSaveLayout').addEventListener('click', () => {
     const name = $('splashLayoutName').value.trim();
     if (!name) {
-      $('splashLayoutStatus').textContent = 'Enter a layout name';
+      $('splashLayoutStatus').textContent = 'Enter a layout name.';
       return;
     }
     const ok = saveNamedLayout(name);
@@ -1568,7 +1601,7 @@ export function initSplashListeners() {
       if (gridPermSection) gridPermSection.style.display = '';
       if (floatOptions) floatOptions.style.display = 'none';
       if (gridPermSelect) {
-        // Initialize staged assignments if switching to grid
+        // Initialize staged assignments if switching to grid.
         if (!stagedAssignments || Object.keys(stagedAssignments).length === 0) {
           const defaults = GRID_DEFAULT_ASSIGNMENTS[gridPermSelect.value];
           stagedAssignments = defaults ? { ...defaults } : {};
@@ -1608,7 +1641,8 @@ export function initSplashListeners() {
     });
   }
 
-  // Reset Grid button — clears assignments, spans, and track sizes
+  // Reset Grid button — clears assignments, spans, and track sizes.
+
   const resetGridBtn = document.getElementById('resetGridBtn');
   if (resetGridBtn) {
     resetGridBtn.addEventListener('click', () => {
@@ -1669,7 +1703,7 @@ export function initSplashListeners() {
           setDataStatus('Copied to clipboard', false);
         }).catch(() => {
           textarea.select();
-          setDataStatus('Select and copy manually', true);
+          setDataStatus('Select and copy manually.', true);
         });
       }
     });
@@ -1679,7 +1713,7 @@ export function initSplashListeners() {
     dataImportApply.addEventListener('click', () => {
       const textarea = document.getElementById('dataImportCode');
       if (!textarea || !textarea.value.trim()) {
-        setDataStatus('Paste a config code first', true);
+        setDataStatus('Paste a config code first.', true);
         return;
       }
       if (!confirm('This will replace all your settings including your callsign. Continue?')) return;
@@ -1699,7 +1733,7 @@ export function initSplashListeners() {
       if (dataSyncToggleCb.checked && state.myCallsign) {
         pushConfig(state.myCallsign).then(ok => {
           const el = document.getElementById('dataSyncStatus');
-          if (el) el.textContent = ok ? 'Synced now' : 'Sync failed — will retry on next save';
+          if (el) el.textContent = ok ? 'Synced now.' : 'Sync failed — will retry on next save.';
         });
       }
     });
@@ -1711,8 +1745,9 @@ export function initSplashListeners() {
   if (radioConnReal) radioConnReal.addEventListener('change', updateRadioSections);
   if (radioConnDemo) radioConnDemo.addEventListener('change', updateRadioSections);
 
-  // Protocol family → filter model presets + update CI-V visibility
-  // Switching back to "auto" resets all detection results
+  // Protocol family → filter model presets + update CI-V visibility.
+
+  // Switching back to "auto" resets all detection results.
   const radioProtocolFamily = $('radioProtocolFamily');
   if (radioProtocolFamily) {
     radioProtocolFamily.addEventListener('change', () => {
@@ -1725,13 +1760,15 @@ export function initSplashListeners() {
     });
   }
 
-  // Model preset → auto-fill serial/control settings from profile
+  // Model preset → auto-fill serial/control settings from profile.
+
   const radioModelPreset = $('radioModelPreset');
   if (radioModelPreset) {
     radioModelPreset.addEventListener('change', applyModelPresetDefaults);
   }
 
-  // Port mode → show/hide authorized port list
+  // Port mode → show/hide authorized port list.
+
   const radioPortMode = $('radioPortMode');
   if (radioPortMode) {
     radioPortMode.addEventListener('change', updatePortListVisibility);
@@ -1743,13 +1780,15 @@ export function initSplashListeners() {
     radioRefreshPorts.addEventListener('click', refreshPortList);
   }
 
-  // Refresh audio devices button
+  // Refresh audio devices button.
+
   const radioAudioRefresh = $('radioAudioRefresh');
   if (radioAudioRefresh) {
     radioAudioRefresh.addEventListener('click', refreshAudioDeviceList);
   }
 
-  // Grant audio permission button — unlocks device labels
+  // Grant audio permission button — unlocks device labels.
+
   const radioAudioGrantPerm = $('radioAudioGrantPerm');
   if (radioAudioGrantPerm) {
     radioAudioGrantPerm.addEventListener('click', grantAudioPermission);
@@ -1765,7 +1804,8 @@ export function initSplashListeners() {
     showSplash();
   });
 
-  // Auto-refresh toggle in config modal Display tab
+  // Auto-refresh toggle in config modal Display tab.
+
   const cfgAutoRefreshCb = $('cfgAutoRefresh');
   if (cfgAutoRefreshCb) {
     cfgAutoRefreshCb.addEventListener('change', () => {
@@ -1777,7 +1817,8 @@ export function initSplashListeners() {
     });
   }
 
-  // Compact header toggle in Appearance tab
+  // Compact header toggle in Appearance tab.
+
   const cfgSlimHeaderCb = $('cfgSlimHeader');
   if (cfgSlimHeaderCb) {
     cfgSlimHeaderCb.addEventListener('change', () => {
@@ -1787,7 +1828,8 @@ export function initSplashListeners() {
     });
   }
 
-  // Grayscale toggle in Appearance tab
+  // Grayscale toggle in Appearance tab.
+
   const cfgGrayscaleCb = $('cfgGrayscale');
   if (cfgGrayscaleCb) {
     cfgGrayscaleCb.addEventListener('change', () => {
@@ -1795,7 +1837,7 @@ export function initSplashListeners() {
       localStorage.setItem('hamtab_grayscale', String(state.grayscale));
       document.body.classList.toggle('grayscale', state.grayscale);
 
-      // Re-render VOACAP with updated color palette
+      // Re-render VOACAP with updated color palette.
       renderVoacapMatrix();
       if (state.hfPropOverlayBand) {
         const band = state.hfPropOverlayBand;
@@ -1805,25 +1847,27 @@ export function initSplashListeners() {
     });
   }
 
-  // Disable weather backgrounds toggle in Appearance tab
+  // Disable weather backgrounds toggle in Appearance tab.
+
   const cfgDisableWxBgCb = $('cfgDisableWxBg');
   if (cfgDisableWxBgCb) {
     cfgDisableWxBgCb.addEventListener('change', () => {
       state.disableWxBackgrounds = cfgDisableWxBgCb.checked;
       localStorage.setItem('hamtab_disable_wx_bg', String(state.disableWxBackgrounds));
-      // Immediately strip or re-apply weather background classes
+      // Immediately strip or re-apply weather background classes.
       const hcl = document.getElementById('headerClockLocal');
       if (hcl) {
         const wxClasses = ['wx-clear-day','wx-clear-night','wx-partly-cloudy-day','wx-partly-cloudy-night','wx-cloudy','wx-rain','wx-thunderstorm','wx-snow','wx-fog'];
         if (state.disableWxBackgrounds) {
           wxClasses.forEach(c => hcl.classList.remove(c));
         }
-        // If re-enabling, next weather fetch will re-apply the class
+        // If re-enabling, next weather fetch will re-apply the class.
       }
     });
   }
 
-  // Text scale selector in Appearance tab
+  // Text scale selector in Appearance tab.
+
   const cfgTextScaleSel = $('cfgTextScale');
   if (cfgTextScaleSel) {
     cfgTextScaleSel.addEventListener('change', () => {
@@ -1866,7 +1910,8 @@ export function initSplashListeners() {
     });
   }
 
-  // Band color reset button
+  // Band color reset button.
+
   const bandColorResetBtn = document.getElementById('bandColorResetBtn');
   if (bandColorResetBtn) {
     bandColorResetBtn.addEventListener('click', () => {
@@ -1912,25 +1957,28 @@ function populateBandColorPickers() {
 }
 
 
-// Build a mini CSS Grid preview showing the permutation layout with widget assignments
+// Build a mini CSS Grid preview showing the permutation layout with widget assignments.
 function renderGridPreview(permId, assignments) {
   const container = document.getElementById('gridPermPreview');
   if (!container) return;
   const perm = getGridPermutation(permId);
   container.innerHTML = '';
 
-  // Close any open picker
+  // Close any open picker.
+
   const picker = document.getElementById('gridAssignPicker');
   if (picker) { picker.innerHTML = ''; picker.classList.remove('open'); }
 
   const asgn = assignments || stagedAssignments || {};
 
-  // Build reverse map: widgetId → short abbreviation
+  // Build reverse map: widgetId → short abbreviation.
+
   const widgetShortMap = {};
   WIDGET_DEFS.forEach(w => { widgetShortMap[w.id] = w.short || w.name.substring(0, 4); });
 
-  // Build areas string with spans applied — replace absorbed cell names
-  // with the spanning cell's name so CSS grid merges them visually
+  // Build areas string with spans applied — replace absorbed cell names.
+
+  // with the spanning cell's name so CSS grid merges them visually.
   const spans = (permId === state.gridPermutation) ? (state.gridSpans || {}) : {};
   let areas = perm.areas;
   const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
@@ -1957,7 +2005,7 @@ function renderGridPreview(permId, assignments) {
   mapCell.textContent = 'MAP';
   container.appendChild(mapCell);
 
-  // Widget cells — skip absorbed cells
+  // Widget cells — skip absorbed cells.
   perm.cellNames.forEach(name => {
     if (absorbed.has(name)) return;
     const cell = document.createElement('div');
@@ -1981,7 +2029,7 @@ function renderGridPreview(permId, assignments) {
     widgetEl.textContent = widgetId ? (widgetShortMap[widgetId] || '\u2014') : '\u2014';
     cell.appendChild(widgetEl);
 
-    // Click handler to select cell and open picker
+    // Click handler to select cell and open picker.
     cell.addEventListener('click', () => {
       if (selectedCell === name) {
         selectedCell = null;
@@ -1997,7 +2045,7 @@ function renderGridPreview(permId, assignments) {
   });
 }
 
-// Render the widget picker below the preview for a selected cell
+// Render the widget picker below the preview for a selected cell.
 function renderAssignmentPicker(cellName, assignments, permId) {
   const picker = document.getElementById('gridAssignPicker');
   if (!picker) return;
@@ -2006,7 +2054,8 @@ function renderAssignmentPicker(cellName, assignments, permId) {
   const asgn = assignments || stagedAssignments;
   const currentWidgetId = asgn[cellName] || null;
 
-  // Build list of enabled non-map widgets
+  // Build list of enabled non-map widgets.
+
   const widgetList = document.getElementById('splashWidgetList');
   const enabledWidgets = [];
   if (widgetList) {
@@ -2018,7 +2067,8 @@ function renderAssignmentPicker(cellName, assignments, permId) {
     });
   }
 
-  // Build reverse map: widgetId → cellName for hint display
+  // Build reverse map: widgetId → cellName for hint display.
+
   const reverseMap = {};
   for (const [cell, wid] of Object.entries(asgn)) {
     if (wid) reverseMap[wid] = cell;
@@ -2047,7 +2097,8 @@ function renderAssignmentPicker(cellName, assignments, permId) {
     nameSpan.textContent = w.name;
     opt.appendChild(nameSpan);
 
-    // Show current cell hint if assigned elsewhere
+    // Show current cell hint if assigned elsewhere.
+
     if (reverseMap[w.id] && reverseMap[w.id] !== cellName) {
       const hint = document.createElement('span');
       hint.className = 'assign-hint';
@@ -2056,7 +2107,7 @@ function renderAssignmentPicker(cellName, assignments, permId) {
     }
 
     opt.addEventListener('click', () => {
-      // Swap logic: if target widget is assigned elsewhere, its old cell gets whatever was here
+      // Swap logic: if target widget is assigned elsewhere, its old cell gets whatever was here.
       const oldCell = reverseMap[w.id] || null;
       const displaced = asgn[cellName] || null;
 
@@ -2082,7 +2133,7 @@ function renderAssignmentPicker(cellName, assignments, permId) {
   picker.classList.add('open');
 }
 
-// Update cell badges next to widget checkboxes
+// Update cell badges next to widget checkboxes.
 function updateWidgetCellBadges(assignments) {
   const widgetList = document.getElementById('splashWidgetList');
   if (!widgetList) return;
@@ -2095,7 +2146,8 @@ function updateWidgetCellBadges(assignments) {
 
   if (!isGrid) return;
 
-  // Build reverse map: widgetId → cellName
+  // Build reverse map: widgetId → cellName.
+
   const asgn = assignments || stagedAssignments || {};
   const reverseMap = {};
   for (const [cell, wid] of Object.entries(asgn)) {
@@ -2115,7 +2167,7 @@ function updateWidgetCellBadges(assignments) {
   });
 }
 
-// Handle widget checkbox change — auto-assign/unassign in staged assignments
+// Handle widget checkbox change — auto-assign/unassign in staged assignments.
 function onWidgetCheckboxChange(widgetId, checked) {
   const floatRadio = document.getElementById('layoutModeFloat');
   const isGrid = floatRadio ? !floatRadio.checked : false;
@@ -2126,7 +2178,7 @@ function onWidgetCheckboxChange(widgetId, checked) {
   const perm = getGridPermutation(permId);
 
   if (!checked) {
-    // Remove from staged assignments, free its cell
+    // Remove from staged assignments, free its cell.
     for (const [cell, wid] of Object.entries(stagedAssignments)) {
       if (wid === widgetId) {
         delete stagedAssignments[cell];
@@ -2134,7 +2186,7 @@ function onWidgetCheckboxChange(widgetId, checked) {
       }
     }
   } else {
-    // Auto-assign to first empty cell
+    // Auto-assign to first empty cell.
     const spans = (permId === state.gridPermutation) ? (state.gridSpans || {}) : {};
     const allWrappers = [perm.left, perm.right, perm.top, perm.bottom];
     const absorbed = new Set();

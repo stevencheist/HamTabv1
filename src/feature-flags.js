@@ -1,3 +1,5 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Feature Flags: Visibility Gate System ---
 // Controls which features are visible based on the user's callsign.
 //
@@ -10,9 +12,8 @@
 //   import { isFeatureVisible } from './feature-flags.js';
 //   if (isFeatureVisible('preset_profiles')) { /* render UI */ }
 //
-// Lifecycle: dev:KG5DPV → test → release
+// Lifecycle: dev:KG5DPV → test → release.
 // When promoting, just change the tier string in FEATURE_FLAGS below.
-
 import state from './state.js';
 
 // --- Developer callsigns ---
@@ -41,7 +42,8 @@ export function isFeatureVisible(featureName) {
     return DEV_CALLSIGNS.includes(callsign);
   }
 
-  // 'dev:<CALLSIGN>' — only that specific developer
+  // 'dev:<CALLSIGN>' — only that specific developer.
+
   if (tier.startsWith('dev:')) {
     const devCall = tier.slice(4).toUpperCase();
     return callsign === devCall;

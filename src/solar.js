@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
@@ -90,7 +93,7 @@ export function geomagLabel(val) {
 const SOLAR_VIS_KEY = 'hamtab_solar_fields';
 
 export function loadSolarFieldVisibility() {
-  // Lazy import to break circular dependency
+  // Lazy import to break circular dependency.
   const { SOLAR_FIELD_DEFS } = require('./constants.js');
   try {
     const saved = JSON.parse(localStorage.getItem(SOLAR_VIS_KEY));
@@ -125,7 +128,7 @@ export function initSolarImage() {
 
   select.addEventListener('change', () => {
     localStorage.setItem('hamtab_sdo_type', select.value);
-    // Type changed — full reload
+    // Type changed — full reload.
     solarFrames = [];
     solarFrameNames = [];
     solarCurrentType = '';
@@ -187,7 +190,8 @@ async function loadSolarFrames() {
   const type = select ? select.value : '0193';
   const isFullReload = (type !== solarCurrentType || solarFrames.length === 0);
 
-  // Only stop animation for full reloads
+  // Only stop animation for full reloads.
+
   if (isFullReload) stopSolarAnimation();
 
   try {
@@ -201,14 +205,14 @@ async function loadSolarFrames() {
     }
 
     if (isFullReload) {
-      // Full load — preload all frames
+      // Full load — preload all frames.
       const loaded = await Promise.all(filenames.map(preloadImage));
       solarFrames = loaded.filter(Boolean);
       solarFrameNames = filenames.filter((fn, i) => loaded[i] !== null);
       solarFrameIndex = 0;
       solarCurrentType = type;
     } else {
-      // Incremental — find new frames not yet loaded and append them
+      // Incremental — find new frames not yet loaded and append them.
       const existingSet = new Set(solarFrameNames);
       const newNames = filenames.filter(fn => !existingSet.has(fn));
       if (newNames.length > 0) {
@@ -219,7 +223,7 @@ async function loadSolarFrames() {
             solarFrameNames.push(newNames[i]);
           }
         }
-        // Trim to last 48 frames if grown too large
+        // Trim to last 48 frames if grown too large.
         if (solarFrames.length > 48) {
           const excess = solarFrames.length - 48;
           solarFrames.splice(0, excess);
@@ -250,7 +254,7 @@ async function loadSolarFrames() {
   }
 }
 
-// Fall back to single latest image if frames fail
+// Fall back to single latest image if frames fail.
 function loadSolarImageFallback(type) {
   solarCurrentType = type;
   const canvas = $('solarCanvas');
@@ -265,7 +269,7 @@ function loadSolarImageFallback(type) {
   img.src = '/api/solar/image?type=' + encodeURIComponent(type) + '&t=' + Date.now();
 }
 
-// Called by fetchSolar() on each refresh — do incremental update, not full reload
+// Called by fetchSolar() on each refresh — do incremental update, not full reload.
 export function loadSolarImage() {
   loadSolarFrames();
 }
@@ -278,17 +282,17 @@ export async function fetchSolar() {
     state.lastSolarData = data;
     renderSolar(data);
     loadSolarImage();
-    // Also update propagation widgets since they depend on solar data
+    // Also update propagation widgets since they depend on solar data.
     const { renderPropagationWidget } = await import('./band-conditions.js');
     renderPropagationWidget();
     const { renderVoacapMatrix } = await import('./voacap.js');
     renderVoacapMatrix();
     // Auto-enable D-RAP overlay when Kp ≥ 5 (geomagnetic storm)
     checkAutoStormOverlay(data);
-    // Re-render propagation heatmap overlay now that solar indices are available
+    // Re-render propagation heatmap overlay now that solar indices are available.
     const { renderPropagationHeatmapOverlay } = await import('./map-overlays.js');
     renderPropagationHeatmapOverlay();
-    // Update Band Opportunity Score with fresh solar data
+    // Update Band Opportunity Score with fresh solar data.
     const { renderBandScoreWidget } = await import('./band-score.js');
     renderBandScoreWidget();
   } catch (err) {
@@ -362,7 +366,7 @@ export async function fetchPropagation() {
 
     state.propLabelLayer = L.layerGroup({ pane: 'propagation' }).addTo(state.map);
     data.features.forEach(feature => {
-      // Flatten MultiLineString to a single coordinate array
+      // Flatten MultiLineString to a single coordinate array.
       let coords = feature.geometry.coordinates;
       if (!coords || coords.length === 0) return;
       if (feature.geometry.type === 'MultiLineString') {
@@ -380,9 +384,9 @@ export async function fetchPropagation() {
       L.marker([mid[1], mid[0]], { icon, pane: 'propagation', interactive: false }).addTo(state.propLabelLayer);
     });
 
-    // Force SVG renderer to recalculate viewport bounds for the new layer —
-    // without this, contour lines can clip mid-map when data loads after initial layout
-    state.map.invalidateSize();
+    // Force SVG renderer to recalculate viewport bounds for the new layer —.
+
+    // Without this, contour lines can clip mid-map when data loads after initial layout    state.map.invalidateSize();
   } catch (err) {
     console.error('Failed to fetch propagation:', err);
   }
@@ -398,7 +402,7 @@ export function updateGrayLine() {
   const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
   const sunLon = -(utcHours - 12) * 15;
 
-  // Store sub-solar position for sun marker
+  // Store sub-solar position for sun marker.
   state.sunLat = sunDec;
   state.sunLon = sunLon;
 
@@ -406,7 +410,8 @@ export function updateGrayLine() {
   const dec = Math.abs(sunDec) < 0.1 ? 0.1 : sunDec;
   const tanDec = Math.tan(dec * rad);
 
-  // Compute terminator once, reuse for night and day polygons
+  // Compute terminator once, reuse for night and day polygons.
+
   const terminator = [];
   for (let lon = -180; lon <= 180; lon += 2) {
     const lat = Math.atan(-Math.cos((lon - sunLon) * rad) / tanDec) / rad;

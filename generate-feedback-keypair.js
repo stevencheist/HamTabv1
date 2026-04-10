@@ -1,5 +1,7 @@
-// Generate RSA keypair for feedback email encryption
-// Run once: node generate-feedback-keypair.js
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+// Generate RSA keypair for feedback email encryption.
+// Run once: node generate-feedback-keypair.js.
 // Store private key securely offline (both Steven and Francisco should have a copy)
 
 const crypto = require('crypto');

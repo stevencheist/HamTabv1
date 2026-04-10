@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- On-Air Rig Control Widget ---
 // Displays live rig state: frequency, mode, TX/RX, S-meter, SWR, power, RST.
 // Connect/disconnect via WebSerial. All state from RigStateStore.
-
 import { $ } from './dom.js';
 import { isWidgetVisible, onWidgetHide } from './widgets.js';
 import state from './state.js';
@@ -32,30 +33,31 @@ let initialized = false;
 let listenersAttached = false; // event listeners persist across show/hide — only attach once
 
 // --- Cached DOM refs (populated once in initOnAirRig) ---
-// Avoids repeated $() lookups on every 200-500ms render cycle
+// Avoids repeated $() lookups on every 200-500ms render cycle.
 const dom = {};
 
 // --- Last rendered values for diff-based updates ---
-// Only write to DOM when a value actually changed
+// Only write to DOM when a value actually changed.
 let prev = {};
 
 // --- Sync propagation overlays + VOACAP to rig band ---
 // Called when the rig changes band (frequency change crosses band boundary).
 // Updates: propagation heatmap, WSPR heatmap, VOACAP overlay, and config dropdowns.
 // Note: `state` at module scope is the app state from state.js. Inside render(),
-// the parameter shadows it with rig state — this function runs at module scope.
+// The parameter shadows it with rig state — this function runs at module scope.
 function syncOverlaysToBand(band) {
-  // Update propagation heatmap band
+  // Update propagation heatmap band.
   if (state.propagationHeatmapBand !== band) {
     state.propagationHeatmapBand = band;
     localStorage.setItem('hamtab_prop_heatmap_band', band);
     renderPropagationHeatmapOverlay();
-    // Sync the config dropdown if it exists
+    // Sync the config dropdown if it exists.
     const propSelect = $('mapOvPropHeatmapBand');
     if (propSelect) propSelect.value = band;
   }
 
-  // Update WSPR heatmap band
+  // Update WSPR heatmap band.
+
   if (state.wsprHeatmapBand !== band) {
     state.wsprHeatmapBand = band;
     localStorage.setItem('hamtab_wspr_heatmap_band', band);
@@ -64,7 +66,8 @@ function syncOverlaysToBand(band) {
     if (wsprSelect) wsprSelect.value = band;
   }
 
-  // Update VOACAP overlay if one is active
+  // Update VOACAP overlay if one is active.
+
   if (state.hfPropOverlayBand && state.hfPropOverlayBand !== band) {
     toggleBandOverlay(band);
   }
@@ -74,7 +77,7 @@ function syncOverlaysToBand(band) {
 
 const BAND_IDS = ['160m', '80m', '40m', '30m', '20m', '17m', '15m', '12m', '10m', '6m'];
 
-// User-facing modes → CAT mode strings
+// User-facing modes → CAT mode strings.
 const USER_MODES = [
   { label: 'LSB',  cat: 'LSB' },
   { label: 'USB',  cat: 'USB' },
@@ -93,14 +96,14 @@ const BAND_SIDEBAND = {
   '12m': 'USB',  '10m': 'USB', '6m': 'USB',
 };
 
-// FT8 dial frequencies per band (Hz) — used for DATA mode defaults
+// FT8 dial frequencies per band (Hz) — used for DATA mode defaults.
 const FT8_FREQUENCIES = {
   '160m': 1_840_000,  '80m': 3_573_000,  '40m': 7_074_000,  '30m': 10_136_000,
   '20m': 14_074_000,  '17m': 18_100_000, '15m': 21_074_000, '12m': 24_915_000,
   '10m': 28_074_000,  '6m': 50_313_000,
 };
 
-// FT4 dial frequencies per band (Hz) — WSJT-X conventional frequencies
+// FT4 dial frequencies per band (Hz) — WSJT-X conventional frequencies.
 const FT4_FREQUENCIES = {
   '80m': 3_575_000,  '40m': 7_047_500,  '30m': 10_140_000,
   '20m': 14_080_000, '17m': 18_104_000, '15m': 21_140_000, '12m': 24_919_000,
@@ -108,7 +111,7 @@ const FT4_FREQUENCIES = {
 };
 
 // --- Digital Setup frequency lookup ---
-// Returns the conventional dial frequency (Hz) for a digital mode + band combo
+// Returns the conventional dial frequency (Hz) for a digital mode + band combo.
 function getDigitalFrequency(mode, bandId) {
   if (mode === 'FT8') return FT8_FREQUENCIES[bandId] || null;
   if (mode === 'FT4') return FT4_FREQUENCIES[bandId] || null;
@@ -121,31 +124,34 @@ function getDefaultFrequency(bandId, userMode) {
   const segments = BAND_SEGMENTS[bandId];
   if (!segments || segments.length === 0) return null;
 
-  // Find zones by type
+  // Find zones by type.
+
   const cwZone = segments.find(s => s.zone === 'CW');
   const dataZone = segments.find(s => s.zone === 'DATA');
   const phoneZone = segments.find(s => s.zone === 'PHONE');
 
   if (userMode === 'CW') {
-    // CW zone midpoint, offset +25kHz into the zone
+    // CW zone midpoint, offset +25kHz into the zone.
     if (cwZone) return cwZone.min + 25_000;
     return segments[0].min + 25_000;
   }
 
   if (userMode === 'DATA') {
-    // Prefer known FT8 frequency, else DATA zone midpoint
+    // Prefer known FT8 frequency, else DATA zone midpoint.
     const ft8 = FT8_FREQUENCIES[bandId];
     if (ft8) return ft8;
     if (dataZone) return Math.round((dataZone.min + dataZone.max) / 2);
     return segments[0].min + 25_000;
   }
 
-  // SSB/AM/FM → PHONE zone
+  // SSB/AM/FM → PHONE zone.
+
   if (phoneZone) {
     return Math.round((phoneZone.min + phoneZone.max) / 2);
   }
 
-  // 30m exception: no phone zone — fall back to CW zone midpoint
+  // 30m exception: no phone zone — fall back to CW zone midpoint.
+
   if (cwZone) {
     return Math.round((cwZone.min + cwZone.max) / 2);
   }
@@ -164,7 +170,7 @@ function catModeToUserLabel(catMode) {
   if (upper === 'FM' || upper === 'FM-N') return 'FM';
   if (upper.startsWith('DATA') || upper.startsWith('DIG') || upper === 'PKT-U' || upper === 'PKT-L'
     || upper === 'RTTY' || upper === 'RTTY-R' || upper === 'PSK') return 'DATA';
-  // SSB without explicit sideband — guess from common usage
+  // SSB without explicit sideband — guess from common usage.
   if (upper === 'SSB') return 'USB';
   return '';
 }
@@ -203,12 +209,14 @@ function populateBandButtons() {
 function onBandButtonClick(bandId) {
   if (!isRigConnected()) return;
 
-  // Get current mode from rig state, default to USB
+  // Get current mode from rig state, default to USB.
+
   const store = getRigStore();
   const rigState = store.get();
   let userMode = catModeToUserLabel(rigState.mode) || 'USB';
 
-  // Auto-correct SSB sideband for target band
+  // Auto-correct SSB sideband for target band.
+
   if (userMode === 'LSB' || userMode === 'USB') {
     const correct = BAND_SIDEBAND[bandId];
     if (correct) userMode = correct;
@@ -260,8 +268,9 @@ function onBandModeChange() {
   let userMode = modeSelect.value;
   if (!bandId || !userMode) return;
 
-  // Auto-correct sideband when band changes
-  // If user has LSB or USB selected, switch to the correct one for this band
+  // Auto-correct sideband when band changes.
+
+  // If user has LSB or USB selected, switch to the correct one for this band.
   if (userMode === 'LSB' || userMode === 'USB') {
     const correct = BAND_SIDEBAND[bandId];
     if (correct && correct !== userMode) {
@@ -275,15 +284,15 @@ function onBandModeChange() {
 
   const catMode = userModeToCat(userMode, bandId);
 
-  // Send frequency first, then mode
+  // Send frequency first, then mode.
   sendRigCommand('setFrequency', targetHz, 1);
   sendRigCommand('setMode', catMode, 1);
 }
 let lastBandOverlay = ''; // track last rendered band to avoid thrashing
 
 // --- Format frequency in Hz to standard ham display ---
-// Examples: 14074000 → "14.074.000", 7074000 → "7.074.000", 146520000 → "146.520.000"
-// Format: MHz.kHz.Hz with dots as group separators
+// Examples: 14074000 → "14.074.000", 7074000 → "7.074.000", 146520000 → "146.520.000".
+// Format: MHz.kHz.Hz with dots as group separators.
 function formatFrequency(hz) {
   if (!hz || hz <= 0) return '----.---';
   const mhz = Math.floor(hz / 1_000_000);
@@ -346,7 +355,7 @@ function cacheDomRefs() {
   dom.powerOffBtn = $('rigPowerOffBtn');
   dom.muteBtn = $('rigSdrMute');
   dom.bandOverlay = $('rigBandOverlay');
-  // Band buttons: cache once, avoids querySelectorAll each render
+  // Band buttons: cache once, avoids querySelectorAll each render.
   const container = $('rigBandButtons');
   dom.bandBtns = container ? Array.from(container.querySelectorAll('.rig-band-btn')) : [];
 }
@@ -356,7 +365,8 @@ function render(state) {
   if (!isWidgetVisible('widget-on-air-rig')) return;
   if (!dom.freq) return;
 
-  // Frequency display with confidence ring — diff: only update if changed
+  // Frequency display with confidence ring — diff: only update if changed.
+
   const freqText = formatFrequency(state.frequency);
   if (freqText !== prev.freqText) {
     console.warn('[rig-ui] freq update:', state.frequency, '→', freqText, 'dom.freq=', !!dom.freq);
@@ -371,7 +381,8 @@ function render(state) {
     }
   }
 
-  // VFO B — show only when radio provides a secondary frequency
+  // VFO B — show only when radio provides a secondary frequency.
+
   if (dom.vfoBRow && dom.freqB) {
     if (state.frequencyB > 0) {
       const freqBText = formatFrequency(state.frequencyB);
@@ -392,23 +403,25 @@ function render(state) {
   // Band indicator
   if (dom.band && state.band !== prev.band) {
     dom.band.textContent = state.band || '';
-    // Band quick-tune button active state — only update when band changes
+    // Band quick-tune button active state — only update when band changes.
     for (const btn of dom.bandBtns) {
       btn.classList.toggle('active', btn.dataset.band === state.band);
     }
-    // Sync propagation overlays and VOACAP to the rig's current band
+    // Sync propagation overlays and VOACAP to the rig's current band.
     if (state.band) syncOverlaysToBand(state.band);
     prev.band = state.band;
   }
 
-  // Mode — diff update
+  // Mode — diff update.
+
   const modeText = state.mode || '---';
   if (modeText !== prev.modeText) {
     dom.mode.textContent = modeText;
     prev.modeText = modeText;
   }
 
-  // TX/RX state — diff: only toggle classes when ptt/rxOnly changes
+  // TX/RX state — diff: only toggle classes when ptt/rxOnly changes.
+
   const txKey = state.rxOnly ? 'rx-only' : state.ptt ? 'tx' : 'rx';
   if (txKey !== prev.txKey) {
     if (state.rxOnly || !state.ptt) {
@@ -423,7 +436,8 @@ function render(state) {
     prev.txKey = txKey;
   }
 
-  // RST badge — diff update
+  // RST badge — diff update.
+
   if (dom.rst) {
     const rstVisible = state.signal > 0 && !state.ptt;
     const rstText = rstVisible ? `RST ${buildRST(state.sUnits)}` : '';
@@ -463,7 +477,8 @@ function render(state) {
     }
   }
 
-  // SWR display — only show during TX, hide for RX-only or if radio lacks meter_swr
+  // SWR display — only show during TX, hide for RX-only or if radio lacks meter_swr.
+
   const caps = state.capabilities || [];
   const hasSwr = caps.includes('meter_swr');
   if (dom.swr) {
@@ -490,7 +505,8 @@ function render(state) {
     }
   }
 
-  // TX Power display — hide for RX-only or if radio lacks meter_power capability
+  // TX Power display — hide for RX-only or if radio lacks meter_power capability.
+
   if (dom.power) {
     const hasPowerMeter = caps.includes('meter_power');
     if (state.rxOnly || !hasPowerMeter) {
@@ -517,10 +533,11 @@ function render(state) {
     }
   }
 
-  // Band overlay — show CW/DIGI/PHONE zones with position indicator
+  // Band overlay — show CW/DIGI/PHONE zones with position indicator.
   renderBandOverlay(state);
 
-  // Band + Mode selectors
+  // Band + Mode selectors.
+
   if (dom.bandModeRow) {
     if (state.connected) {
       dom.bandModeRow.classList.remove('hidden');
@@ -535,7 +552,8 @@ function render(state) {
     }
   }
 
-  // Power slider — show when connected and radio supports rf_power
+  // Power slider — show when connected and radio supports rf_power.
+
   if (dom.powerRow && state.connected && !state.rxOnly && caps.includes('rf_power')) {
     dom.powerRow.classList.remove('hidden');
     if (dom.powerValue && state.rfPower > 0) {
@@ -557,7 +575,8 @@ function render(state) {
     dom.status.classList.remove('rig-status-warn');
   }
 
-  // Connection status + demo/SDR badge
+  // Connection status + demo/SDR badge.
+
   if (state.connected) {
     if (!state.txLocked) {
       if (state.sourceType === 'sdr') {
@@ -574,7 +593,8 @@ function render(state) {
     dom.connectBtn.textContent = 'Connect';
   }
 
-  // Demo badge in header
+  // Demo badge in header.
+
   const header = document.querySelector('#widget-on-air-rig .widget-header');
   if (header) {
     let badge = header.querySelector('.rig-demo-badge');
@@ -589,7 +609,8 @@ function render(state) {
       badge.remove();
     }
 
-    // SDR RX ONLY badge
+    // SDR RX ONLY badge.
+
     let sdrBadge = header.querySelector('.rig-sdr-badge');
     if (state.rxOnly && state.connected) {
       if (!sdrBadge) {
@@ -603,7 +624,8 @@ function render(state) {
     }
   }
 
-  // Power off button — show when connected to a real radio with power_off capability
+  // Power off button — show when connected to a real radio with power_off capability.
+
   if (dom.powerOffBtn) {
     const hasPowerOff = state.connected && !state.demo && !state.rxOnly
       && (state.capabilities || []).includes('power_off');
@@ -613,7 +635,8 @@ function render(state) {
   // Diagnostics button — show when connected (any mode including demo)
   updateDiagButtonVisibility(state.connected);
 
-  // SDR mute button — show only when KiwiSDR is connected
+  // SDR mute button — show only when KiwiSDR is connected.
+
   if (dom.muteBtn) {
     if (state.rxOnly && state.connected) {
       dom.muteBtn.style.display = '';
@@ -638,7 +661,8 @@ function renderBandOverlay(state) {
     return;
   }
 
-  // Only rebuild if band changed
+  // Only rebuild if band changed.
+
   if (state.band !== lastBandOverlay) {
     lastBandOverlay = state.band;
     const segments = getBandSegments(state.band);
@@ -700,7 +724,7 @@ function populateProfiles() {
   demoOpt.dataset.profile = 'demo';
   select.appendChild(demoOpt);
 
-  // Set default based on configured connection type
+  // Set default based on configured connection type.
   select.value = state.radioConnectionType === 'demo' ? 'demo' : 'configured';
 }
 
@@ -732,18 +756,18 @@ function buildConnectConfig() {
 // --- Get a port (browser picker or pre-authorized) ---
 async function acquirePort(statusEl) {
   if (state.radioPortMode === 'manual') {
-    // Use a previously authorized port
+    // Use a previously authorized port.
     if (!navigator.serial || !navigator.serial.getPorts) return null;
     const ports = await navigator.serial.getPorts();
     if (ports.length === 0) {
-      statusEl.textContent = 'No authorized ports — change to Auto in Radio settings';
+      statusEl.textContent = 'No authorized ports — change to Auto in Radio settings.';
       return null;
     }
     // Use first port (or specific index if port list was used)
     return ports[0];
   }
 
-  // Auto mode: browser picker
+  // Auto mode: browser picker.
   statusEl.textContent = 'Select serial port...';
   try {
     return await navigator.serial.requestPort();
@@ -778,7 +802,8 @@ async function handleConnectClick() {
 
   connectBtn.disabled = true;
 
-  // Determine mode from widget dropdown or state
+  // Determine mode from widget dropdown or state.
+
   const widgetSelection = select ? select.value : '';
   const isDemo = widgetSelection === 'demo' || state.radioConnectionType === 'demo';
 
@@ -788,7 +813,7 @@ async function handleConnectClick() {
       const urlInput = $('rigSdrUrl');
       const rawUrl = urlInput ? urlInput.value.trim() : '';
       if (!rawUrl) {
-        statusEl.textContent = 'Enter a KiwiSDR host address';
+        statusEl.textContent = 'Enter a KiwiSDR host address.';
         connectBtn.disabled = false;
         return;
       }
@@ -835,13 +860,13 @@ async function handleConnectClick() {
         tciPort,
       });
       if (!success) {
-        // ws:// from https:// is blocked by browsers (mixed content) unless target is localhost/127.0.0.1
+        // ws:// from https:// is blocked by browsers (mixed content) unless target is localhost/127.0.0.1.
         const isSecure = location.protocol === 'https:';
         const isLoopback = tciHost === 'localhost' || tciHost === '127.0.0.1';
         if (isSecure && !isLoopback) {
-          statusEl.textContent = `TCI failed — ws:// blocked from HTTPS. Use Host: localhost or 127.0.0.1`;
+          statusEl.textContent = `TCI failed — ws:// blocked from HTTPS. Use Host: localhost or 127.0.0.1.`;
         } else {
-          statusEl.textContent = `TCI failed — check TCI is enabled on ${tciHost}:${tciPort}`;
+          statusEl.textContent = `TCI failed — check TCI is enabled on ${tciHost}:${tciPort}.`;
         }
       }
 
@@ -860,7 +885,7 @@ async function handleConnectClick() {
       }
 
       if (isAutoProtocol) {
-        // Auto-detect: probe port to identify protocol + radio
+        // Auto-detect: probe port to identify protocol + radio.
         statusEl.textContent = 'Detecting radio...';
         const success = await connectRig({
           ...config,
@@ -873,7 +898,7 @@ async function handleConnectClick() {
         if (!success) statusEl.textContent = 'No radio detected';
 
       } else if (modelPreset) {
-        // Specific model preset — use profileId for driver lookup
+        // Specific model preset — use profileId for driver lookup.
         statusEl.textContent = 'Connecting...';
         const success = await connectRig({
           ...config,
@@ -883,7 +908,7 @@ async function handleConnectClick() {
         if (!success) statusEl.textContent = 'Connection failed';
 
       } else {
-        // Protocol family set, no specific model — connect with protocol family + serial overrides
+        // Protocol family set, no specific model — connect with protocol family + serial overrides.
         statusEl.textContent = 'Connecting...';
         const success = await connectRig({
           ...config,
@@ -898,24 +923,25 @@ async function handleConnectClick() {
     statusEl.textContent = `Error: ${err.message}`;
   }
 
-  // Start scope if connection succeeded
+  // Start scope if connection succeeded.
+
   if (isRigConnected()) {
     const isSdr = widgetSelection === 'kiwisdr';
     if (isDemo) {
-      // Demo mode — always start synthetic scope
+      // Demo mode — always start synthetic scope.
       startScope({ longitude: state.myLon || 0, useAudio: false });
     } else if (isSdr) {
       // SDR — synthetic scope (no microphone — SDR audio is via its own player)
       startScope({ longitude: state.myLon || 0, useAudio: false });
     } else if (state.radioAudioScopeEnabled) {
-      // Real radio + audio enabled — start audio scope, hide on failure
+      // Real radio + audio enabled — start audio scope, hide on failure.
       startScope({
         longitude: state.myLon || 0,
         useAudio: true,
         hideOnAudioFail: true,
       });
     }
-    // Real radio + audio not enabled → no scope at all
+    // Real radio + audio not enabled → no scope at all.
   }
 
   connectBtn.disabled = false;
@@ -942,26 +968,26 @@ function updateSdrUrlVisibility() {
 
 // --- Frequency direct entry ---
 // Click the frequency display to type a frequency. Parses MHz format (e.g., "14.074.000")
-// and sends setFrequency to the radio.
-
+// And sends setFrequency to the radio.
 function parseFrequencyInput(input) {
-  // Strip spaces and dots used as group separators
+  // Strip spaces and dots used as group separators.
   let cleaned = input.trim().replace(/\s/g, '');
 
-  // Handle MHz.kHz.Hz format: "14.074.000" → 14074000
+  // Handle MHz.kHz.Hz format: "14.074.000" → 14074000.
+
   const dotParts = cleaned.split('.');
   if (dotParts.length === 3) {
-    // MHz.kHz.Hz — concatenate and parse
+    // MHz.kHz.Hz — concatenate and parse.
     const hz = parseInt(dotParts[0] + dotParts[1].padEnd(3, '0') + dotParts[2].padEnd(3, '0'), 10);
     return isNaN(hz) || hz <= 0 ? null : hz;
   }
   if (dotParts.length === 2) {
-    // Could be MHz.kHz (e.g., "14.074") — treat as MHz decimal
+    // Could be MHz.kHz (e.g., "14.074") — treat as MHz decimal.
     const mhz = parseFloat(cleaned);
     if (isNaN(mhz) || mhz <= 0) return null;
     return Math.round(mhz * 1_000_000);
   }
-  // Plain number — if > 100000 treat as Hz, if > 1000 treat as kHz, else MHz
+  // Plain number — if > 100000 treat as Hz, if > 1000 treat as kHz, else MHz.
   const val = parseFloat(cleaned);
   if (isNaN(val) || val <= 0) return null;
   if (val > 100_000) return Math.round(val);         // Hz
@@ -1004,8 +1030,7 @@ function commitFreqInput() {
 
 // --- Digital Setup Assistant ---
 // Manages enable/disable cycle: snapshot current rig state, apply digital config,
-// restore previous state on disable. Starts disabled every session.
-
+// Restore previous state on disable. Starts disabled every session.
 // --- Digital mode menu addresses (DX10 EX command) ---
 // Each entry: { p1, p2, p3, digits, digitalValue, label }
 // digitalValue = what we set for FT8/FT4 operation
@@ -1017,7 +1042,7 @@ const DIGITAL_MENU_SETTINGS = [
 ];
 
 // --- Persist/load restore snapshot to localStorage ---
-// Survives disconnect → WSJT-X session → reconnect cycle
+// Survives disconnect → WSJT-X session → reconnect cycle.
 const RESTORE_KEY = 'hamtab_digital_restore';
 
 function persistSnapshot(snapshot) {
@@ -1036,7 +1061,7 @@ function clearPersistedSnapshot() {
   localStorage.removeItem(RESTORE_KEY);
 }
 
-// Snapshot the current rig state before applying digital settings
+// Snapshot the current rig state before applying digital settings.
 function snapshotRigState() {
   const store = getRigStore();
   const s = store.get();
@@ -1076,7 +1101,7 @@ function captureMenuSnapshot() {
   persistSnapshot(state.digitalRestoreState);
 }
 
-// Apply digital mode settings to the radio
+// Apply digital mode settings to the radio.
 function applyDigitalSetup() {
   const mode = state.digitalSetupMode;
   const band = state.digitalSetupBand;
@@ -1090,7 +1115,8 @@ function applyDigitalSetup() {
   }
   sendRigCommand('setMode', 'DATA-U', 1); // all digital modes use DATA-U (upper sideband data)
 
-  // Set power if radio supports it
+  // Set power if radio supports it.
+
   const store = getRigStore();
   const caps = store.get().capabilities || [];
   if (caps.includes('rf_power') && power > 0) {
@@ -1108,7 +1134,7 @@ function applyDigitalSetup() {
   }
 }
 
-// Restore rig to pre-digital state
+// Restore rig to pre-digital state.
 function restoreRigState() {
   const snapshot = state.digitalRestoreState;
   if (!snapshot) return;
@@ -1153,12 +1179,12 @@ function handleDigitalToggle() {
   }
 
   if (toggle.checked) {
-    // Enable — read menu settings first, snapshot, then apply after a short delay
+    // Enable — read menu settings first, snapshot, then apply after a short delay.
     state.digitalSetupEnabled = true;
     state.digitalRestoreState = snapshotRigState();
     persistSnapshot(state.digitalRestoreState); // persist immediately (menu settings added later)
     readMenuSettings(); // fire EX read commands
-    // Wait 500ms for menu responses to arrive, then capture and apply
+    // Wait 500ms for menu responses to arrive, then capture and apply.
     setTimeout(() => {
       captureMenuSnapshot();
       applyDigitalSetup();
@@ -1166,20 +1192,20 @@ function handleDigitalToggle() {
     }, 500); // 500 ms — enough for 4 EX read round-trips at 38400 baud
     updateDigitalUI(); // show enabled state immediately
   } else {
-    // Disable — restore previous state
+    // Disable — restore previous state.
     state.digitalSetupEnabled = false;
     restoreRigState();
     updateDigitalUI();
   }
 }
 
-// Handle Apply button — re-apply current digital settings without toggling
+// Handle Apply button — re-apply current digital settings without toggling.
 function handleDigitalApply() {
   if (!state.digitalSetupEnabled || !isRigConnected()) return;
   applyDigitalSetup();
 }
 
-// Handle mode/band/power changes — persist and re-apply if enabled
+// Handle mode/band/power changes — persist and re-apply if enabled.
 function handleDigitalModeChange() {
   const modeSelect = $('rigDigitalMode');
   if (modeSelect) {
@@ -1209,7 +1235,8 @@ function handleDigitalPowerClick(e) {
   state.digitalSetupPower = watts;
   localStorage.setItem('hamtab_digital_power', String(watts));
 
-  // Update active chip highlight
+  // Update active chip highlight.
+
   const container = $('rigDigitalPowerChips');
   if (container) {
     for (const chip of container.querySelectorAll('.rig-digital-power-chip')) {
@@ -1226,7 +1253,7 @@ function handleDigitalPowerClick(e) {
   }
 }
 
-// Handle "Release for WSJT-X" — disconnect CAT so WSJT-X can claim the port
+// Handle "Release for WSJT-X" — disconnect CAT so WSJT-X can claim the port.
 async function handleReleaseForWSJTX() {
   if (!isRigConnected()) return;
   if (!confirm('Disconnect from the radio so WSJT-X can connect?\n\nYour digital settings have been applied. Reconnect when your WSJT-X session is over to restore your previous radio settings.')) return;
@@ -1234,19 +1261,20 @@ async function handleReleaseForWSJTX() {
   stopScope();
   try { await disconnectRig(); } catch (_) { /* ignore */ }
 
-  // Update status to show what happened
+  // Update status to show what happened.
+
   const statusEl = $('rigStatus');
-  if (statusEl) statusEl.textContent = 'Released for WSJT-X — reconnect when done';
+  if (statusEl) statusEl.textContent = 'Released for WSJT-X — reconnect when done.';
 }
 
-// Handle "Restore Settings" — reconnected after WSJT-X, restore pre-digital state
+// Handle "Restore Settings" — reconnected after WSJT-X, restore pre-digital state.
 function handleRestoreFromWSJTX() {
   if (!isRigConnected() || !state.digitalRestoreState) return;
   restoreRigState(); // sends commands + clears snapshot + removes from localStorage
   updateDigitalUI();
 }
 
-// Populate digital band dropdown based on selected mode
+// Populate digital band dropdown based on selected mode.
 function populateDigitalBands() {
   const bandSelect = $('rigDigitalBand');
   if (!bandSelect) return;
@@ -1257,7 +1285,7 @@ function populateDigitalBands() {
 
   bandSelect.innerHTML = '';
   for (const band of BAND_IDS) {
-    // For Custom mode, show all bands. For FT8/FT4, only show bands with defined frequencies
+    // For Custom mode, show all bands. For FT8/FT4, only show bands with defined frequencies.
     if (mode === 'Custom' || freqTable[band]) {
       const opt = document.createElement('option');
       opt.value = band;
@@ -1269,7 +1297,8 @@ function populateDigitalBands() {
     }
   }
 
-  // Restore selection if still valid, otherwise pick first
+  // Restore selection if still valid, otherwise pick first.
+
   if (bandSelect.querySelector(`option[value="${currentBand}"]`)) {
     bandSelect.value = currentBand;
   } else if (bandSelect.options.length > 0) {
@@ -1279,7 +1308,7 @@ function populateDigitalBands() {
   }
 }
 
-// Update digital setup UI visibility and state indicators
+// Update digital setup UI visibility and state indicators.
 function updateDigitalUI() {
   const section = $('rigDigitalSection');
   const toggle = $('rigDigitalToggle');
@@ -1293,16 +1322,18 @@ function updateDigitalUI() {
   const s = store.get();
   const isRealRadio = connected && !s.demo && !s.rxOnly;
 
-  // Show section only when connected to a real radio
+  // Show section only when connected to a real radio.
   section.style.display = isRealRadio ? '' : 'none';
 
-  // Auto-disable digital mode when rig disconnects — but keep snapshot for restore on reconnect
+  // Auto-disable digital mode when rig disconnects — but keep snapshot for restore on reconnect.
+
   if (!connected && state.digitalSetupEnabled) {
     state.digitalSetupEnabled = false;
-    // Don't null digitalRestoreState — it's persisted in localStorage for post-WSJT-X restore
+    // Don't null digitalRestoreState — it's persisted in localStorage for post-WSJT-X restore.
   }
 
-  // On reconnect, check for a persisted snapshot that needs restoring
+  // On reconnect, check for a persisted snapshot that needs restoring.
+
   const pendingRestore = connected && !state.digitalSetupEnabled && !state.digitalRestoreState && loadPersistedSnapshot();
   if (pendingRestore) {
     state.digitalRestoreState = pendingRestore;
@@ -1311,12 +1342,14 @@ function updateDigitalUI() {
   // Toggle state
   if (toggle) toggle.checked = state.digitalSetupEnabled;
 
-  // Hide controls until toggle is on — don't show options until user enables digital mode
+  // Hide controls until toggle is on — don't show options until user enables digital mode.
+
   if (controls) {
     controls.style.display = state.digitalSetupEnabled ? '' : 'none';
   }
 
-  // Release button visible only when enabled and connected
+  // Release button visible only when enabled and connected.
+
   if (releaseBtn) {
     releaseBtn.style.display = (state.digitalSetupEnabled && connected) ? '' : 'none';
   }
@@ -1345,7 +1378,7 @@ function updateDigitalUI() {
 
 // --- Radio Profile Save/Restore UI ---
 
-// Refresh the profile dropdown with saved profiles
+// Refresh the profile dropdown with saved profiles.
 function refreshProfileDropdown() {
   const select = $('rigProfileList');
   if (!select) return;
@@ -1369,7 +1402,7 @@ function refreshProfileDropdown() {
   }
 }
 
-// Update profile section visibility — show when connected to real radio with profile_save capability
+// Update profile section visibility — show when connected to real radio with profile_save capability.
 function updateProfileUI() {
   const section = $('rigProfileSection');
   if (!section) return;
@@ -1388,7 +1421,7 @@ function updateProfileUI() {
     const presets = getPresets(state.myCallsign, s.radioId);
     if (presets.length > 0) {
       presetRow.style.display = '';
-      // Only rebuild if radio changed
+      // Only rebuild if radio changed.
       const presetKey = `${state.myCallsign}_${s.radioId}`;
       if (presetRow.dataset.built !== presetKey) {
         presetRow.innerHTML = '<span class="rig-profile-preset-label">Presets</span>';
@@ -1429,7 +1462,7 @@ async function handleProfileSave() {
 
   const name = nameInput.value.trim();
   if (!name) {
-    if (statusEl) statusEl.textContent = 'Enter a profile name';
+    if (statusEl) statusEl.textContent = 'Enter a profile name.';
     return;
   }
 
@@ -1440,7 +1473,7 @@ async function handleProfileSave() {
     if (statusEl) statusEl.textContent = `Saved: ${profileSummary(profile)}`;
     nameInput.value = '';
     refreshProfileDropdown();
-    // Clear status after 3s
+    // Clear status after 3s.
     setTimeout(() => { if (statusEl) statusEl.textContent = ''; }, 3000);
   } catch (err) {
     if (statusEl) statusEl.textContent = `Error: ${err.message}`;
@@ -1495,7 +1528,8 @@ export function initOnAirRig() {
   // Initialize diagnostics panel
   initDiagPanel();
 
-  // Attach DOM listeners once — they persist across show/hide cycles
+  // Attach DOM listeners once — they persist across show/hide cycles.
+
   // (DOM elements stay in the page, just hidden via display:none)
   if (!listenersAttached) {
     populateProfiles();
@@ -1503,7 +1537,8 @@ export function initOnAirRig() {
     populateBandButtons();
     connectBtn.addEventListener('click', handleConnectClick);
 
-    // Frequency direct entry — click display to type, Enter to commit, Escape to cancel
+    // Frequency direct entry — click display to type, Enter to commit, Escape to cancel.
+
     const freqDisplay = $('rigFrequency');
     const freqInput = $('rigFreqInput');
     if (freqDisplay) freqDisplay.addEventListener('click', showFreqInput);
@@ -1515,7 +1550,8 @@ export function initOnAirRig() {
       freqInput.addEventListener('blur', hideFreqInput);
     }
 
-    // SDR URL row: toggle visibility on profile change, restore saved URL
+    // SDR URL row: toggle visibility on profile change, restore saved URL.
+
     const rigSelect = $('rigProfileSelect');
     if (rigSelect) {
       rigSelect.addEventListener('change', updateSdrUrlVisibility);
@@ -1537,7 +1573,8 @@ export function initOnAirRig() {
       });
     }
 
-    // Band + Mode selectors
+    // Band + Mode selectors.
+
     const bandSelect = $('rigBandSelect');
     const modeSelect = $('rigModeSelect');
     if (bandSelect) bandSelect.addEventListener('change', onBandModeChange);
@@ -1558,21 +1595,21 @@ export function initOnAirRig() {
         }
       });
     }
-    // VFO A ↔ B swap button
+    // VFO A ↔ B swap button.
     const vfoSwapBtn = $('rigVfoSwapBtn');
     if (vfoSwapBtn) {
       vfoSwapBtn.addEventListener('click', () => {
         if (isRigConnected()) sendRigCommand('swapVfo', null, 1);
       });
     }
-    // Power off button — sends powerOff command then disconnects
+    // Power off button — sends powerOff command then disconnects.
     const powerOffBtn = $('rigPowerOffBtn');
     if (powerOffBtn) {
       powerOffBtn.addEventListener('click', async () => {
         if (!isRigConnected()) return;
         if (!confirm('Power off the radio?')) return;
         sendRigCommand('powerOff', null, 1);
-        // Brief delay for command to reach radio, then disconnect CAT
+        // Brief delay for command to reach radio, then disconnect CAT.
         setTimeout(async () => {
           stopScope();
           try { await disconnectRig(); } catch (_) { /* ignore */ }
@@ -1605,7 +1642,7 @@ export function initOnAirRig() {
     const digitalRestoreBtn = $('rigDigitalRestore');
     if (digitalRestoreBtn) digitalRestoreBtn.addEventListener('click', handleRestoreFromWSJTX);
 
-    // Populate band dropdown and power chip active state
+    // Populate band dropdown and power chip active state.
     populateDigitalBands();
     const initPowerChips = $('rigDigitalPowerChips');
     if (initPowerChips) {
@@ -1624,13 +1661,14 @@ export function initOnAirRig() {
     const profileDeleteBtn = $('rigProfileDelete');
     if (profileDeleteBtn) profileDeleteBtn.addEventListener('click', handleProfileDelete);
 
-    // Populate profile dropdown on init
+    // Populate profile dropdown on init.
     refreshProfileDropdown();
 
     listenersAttached = true;
   }
 
-  // Subscribe to rig state — this is the active part we start/stop
+  // Subscribe to rig state — this is the active part we start/stop.
+
   const store = getRigStore();
   unsubscribe = store.subscribe(render);
 
@@ -1638,7 +1676,7 @@ export function initOnAirRig() {
   store.subscribe(updateDigitalUI);
   updateDigitalUI(); // initial state
 
-  // Update profile UI visibility based on connection + capabilities
+  // Update profile UI visibility based on connection + capabilities.
   store.subscribe(updateProfileUI);
   updateProfileUI(); // initial state
 
@@ -1649,7 +1687,7 @@ export function initOnAirRig() {
 export async function destroyOnAirRig() {
   if (!initialized) return;
 
-  // Stop scope before disconnecting
+  // Stop scope before disconnecting.
   stopScope();
 
   // Disconnect rig if connected (stops polling, safety modules, propagation engine)
@@ -1672,5 +1710,5 @@ export async function destroyOnAirRig() {
   initialized = false;
 }
 
-// Register close-button callback so hiding the widget via × also tears down CAT
+// Register close-button callback so hiding the widget via × also tears down CAT.
 onWidgetHide('widget-on-air-rig', destroyOnAirRig);

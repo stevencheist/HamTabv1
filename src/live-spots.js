@@ -1,6 +1,7 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Live Spots Module ---
-// Shows where YOUR signal is being received via PSKReporter
-
+// Shows where YOUR signal is being received via PSKReporter.
 import state from './state.js';
 import { $ } from './dom.js';
 import { geodesicPoints } from './geo.js';
@@ -23,7 +24,8 @@ export function initLiveSpotsListeners() {
     cfgOk.addEventListener('click', dismissLiveSpotsConfig);
   }
 
-  // Close config on overlay click
+  // Close config on overlay click.
+
   const splash = $('liveSpotsCfgSplash');
   if (splash) {
     splash.addEventListener('click', (e) => {
@@ -103,10 +105,11 @@ export function renderLiveSpots() {
 
   if (!summary) return;
 
-  // Show status if no callsign configured
+  // Show status if no callsign configured.
+
   if (!state.myCallsign) {
     if (status) {
-      status.textContent = 'Set your callsign in Config';
+      status.textContent = 'Set your callsign in Config.';
       status.classList.add('visible');
     }
     summary.innerHTML = '';
@@ -117,16 +120,16 @@ export function renderLiveSpots() {
   // Show status messages
   if (status) {
     if (state.liveSpots.error && !state.liveSpots.lastFetch) {
-      status.textContent = 'PSKReporter unavailable — retrying';
+      status.textContent = 'PSKReporter unavailable — retrying.';
       status.classList.add('visible');
     } else if (state.liveSpots.data.length === 0 && state.liveSpots.lastFetch) {
-      status.textContent = 'No spots in last hour';
+      status.textContent = 'No spots in last hour.';
       status.classList.add('visible');
     } else if (!state.liveSpots.lastFetch) {
       status.textContent = 'Loading...';
       status.classList.add('visible');
     } else if (state.liveSpots.stale) {
-      status.textContent = 'Showing cached data — PSKReporter slow';
+      status.textContent = 'Showing cached data — PSKReporter slow.';
       status.classList.add('visible');
     } else {
       status.textContent = '';
@@ -178,7 +181,8 @@ export function renderLiveSpots() {
 
   summary.innerHTML = html;
 
-  // Add click listeners to band cards
+  // Add click listeners to band cards.
+
   const cards = summary.querySelectorAll('.live-spots-band-card');
   cards.forEach(card => {
     card.addEventListener('click', () => {
@@ -188,7 +192,7 @@ export function renderLiveSpots() {
     });
   });
 
-  // Update Band Opportunity Score with fresh activity data
+  // Update Band Opportunity Score with fresh activity data.
   import('./band-score.js').then(m => m.renderBandScoreWidget()).catch(() => {});
 }
 
@@ -206,7 +210,7 @@ export function toggleBandOnMap(band) {
 export function renderLiveSpotsOnMap() {
   if (!state.map) return;
 
-  // Clear existing markers and lines
+  // Clear existing markers and lines.
   clearLiveSpotsFromMap();
 
   if (state.myLat == null || state.myLon == null) return;
@@ -214,7 +218,8 @@ export function renderLiveSpotsOnMap() {
 
   const L = window.L;
 
-  // Group spots by band
+  // Group spots by band.
+
   const spotsByBand = {};
   for (const spot of state.liveSpots.data) {
     if (!spot.band || !state.liveSpots.visibleBands.has(spot.band)) continue;
@@ -223,7 +228,8 @@ export function renderLiveSpotsOnMap() {
     spotsByBand[spot.band].push(spot);
   }
 
-  // Draw lines and markers for each band
+  // Draw lines and markers for each band.
+
   for (const band of Object.keys(spotsByBand)) {
     const color = getBandColor(band);
     const spots = spotsByBand[band];

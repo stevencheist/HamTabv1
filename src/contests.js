@@ -1,15 +1,16 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Contests Widget ---
 // Fetches contest calendar from /api/contests (WA7BNM RSS feed) and renders card list.
-// Client-side real-time status evaluation using startDate/endDate so contests
-// transition active→past without waiting for the 6-hour server cache to refresh.
-
+// Client-side real-time status evaluation using startDate/endDate so contests.
+// Transition active→past without waiting for the 6-hour server cache to refresh.
 import state from './state.js';
 import { $ } from './dom.js';
 
 export function initContestListeners() {
   const list = $('contestList');
   if (!list) return;
-  // Delegate click on cards to open contest detail page
+  // Delegate click on cards to open contest detail page.
   list.addEventListener('click', (e) => {
     const card = e.target.closest('.contest-card');
     if (!card) return;
@@ -29,7 +30,7 @@ export async function fetchContests() {
   }
 }
 
-// Format contest date range: "Sat Feb 8, 00:00z – Sun Feb 9, 23:59z"
+// Format contest date range: "Sat Feb 8, 00:00z – Sun Feb 9, 23:59z".
 const SHORT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const SHORT_DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function fmtContestRange(startISO, endISO) {
@@ -57,13 +58,14 @@ export function renderContests() {
     list.textContent = '';
     const empty = document.createElement('div');
     empty.className = 'contest-empty';
-    empty.textContent = 'No upcoming contests found';
+    empty.textContent = 'No upcoming contests found.';
     list.appendChild(empty);
     if (countEl) countEl.textContent = '';
     return;
   }
 
-  // Re-evaluate status client-side for real-time accuracy
+  // Re-evaluate status client-side for real-time accuracy.
+
   const now = Date.now();
   const visible = [];
   for (const c of data) {
@@ -78,13 +80,13 @@ export function renderContests() {
     list.textContent = '';
     const empty = document.createElement('div');
     empty.className = 'contest-empty';
-    empty.textContent = 'No upcoming contests found';
+    empty.textContent = 'No upcoming contests found.';
     list.appendChild(empty);
     if (countEl) countEl.textContent = '';
     return;
   }
 
-  // Sort: active first, then by start date ascending
+  // Sort: active first, then by start date ascending.
   visible.sort((a, b) => {
     if (a._active !== b._active) return a._active ? -1 : 1;
     const aDate = a.startDate ? new Date(a.startDate).getTime() : 0;
@@ -125,7 +127,8 @@ export function renderContests() {
 
     card.appendChild(header);
 
-    // Formatted date line — show start/end in compact readable format
+    // Formatted date line — show start/end in compact readable format.
+
     const detail = document.createElement('div');
     detail.className = 'contest-detail';
     if (c.startDate && c.endDate) {

@@ -1,9 +1,11 @@
-// Migration must run first, before state.js reads localStorage
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+// Migration must run first, before state.js reads localStorage.
 import { migrate, migrateV2 } from './migration.js';
 migrate();
 migrateV2();
 
-// Theme must apply before any rendering to avoid flash of unstyled content
+// Theme must apply before any rendering to avoid flash of unstyled content.
 import { initTheme } from './themes.js';
 initTheme();
 
@@ -21,7 +23,7 @@ state.lunarFieldVisibility = loadLunarFieldVisibility();
 state.widgetVisibility = loadWidgetVisibility();
 state.spotColumnVisibility = loadSpotColumnVisibility();
 
-// Cross-tab leader election — leader tab handles periodic fetches, followers skip
+// Cross-tab leader election — leader tab handles periodic fetches, followers skip.
 initCrossTab();
 
 import { initMap, centerMapOnUser, updateUserMarker, updateSunMarker, updateMoonMarker, updateBeaconMarkers } from './map-init.js';
@@ -71,7 +73,7 @@ import { initCrossTab, isLeaderTab } from './cross-tab.js';
 // Initialize map
 initMap();
 
-// Initialize gray line + sun marker
+// Initialize gray line + sun marker.
 updateGrayLine();
 updateSunMarker();
 setInterval(() => { if (document.hidden) return; updateGrayLine(); updateSunMarker(); }, 60000); // 60 s — gray line + sun marker refresh
@@ -81,7 +83,7 @@ initSatellites();
 setInterval(() => { if (document.hidden || !isWidgetVisible('widget-satellites') || !isLeaderTab()) return; fetchIssPosition(); }, 10000); // 10 s — ISS position refresh (free, no API key)
 setInterval(() => { if (document.hidden || !isWidgetVisible('widget-satellites') || !isLeaderTab()) return; fetchSatellitePositions(); }, 10000); // 10 s — other satellite position refresh (N2YO)
 
-// Clocks — purely visual, skip entirely when hidden
+// Clocks — purely visual, skip entirely when hidden.
 updateClocks();
 setInterval(() => { if (document.hidden) return; updateClocks(); updateBigClock(); updateAnalogClock(); }, 1000);
 setInterval(() => { if (document.hidden) return; updateSpotAges(); }, 30000); // 30 s — patch age cells in place (avoids full table rebuild)
@@ -91,7 +93,7 @@ function safeInit(name, fn) {
   try { fn(); } catch (err) { console.error(`[init] ${name} failed:`, err); }
 }
 
-// Set up all event listeners
+// Set up all event listeners.
 initSourceListeners();
 initFilterListeners();
 initTooltipListeners();
@@ -128,7 +130,7 @@ safeInit('pota-hunter', initPotaHunter);
 safeInit('band-score', initBandScore);
 
 // --- New widget notification popup ---
-// Listeners registered once to prevent accumulation on repeated calls
+// Listeners registered once to prevent accumulation on repeated calls.
 let newWidgetPopupListenersAttached = false;
 function showNewWidgetPopup(widgetNames) {
   const popup = $('newWidgetPopup');
@@ -158,7 +160,7 @@ function showNewWidgetPopup(widgetNames) {
   }
 }
 
-// Wire initApp into splash dismissal
+// Wire initApp into splash dismissal.
 function initApp() {
   if (state.appInitialized) return;
   state.appInitialized = true;
@@ -178,17 +180,19 @@ function initApp() {
   if (isWidgetVisible('widget-dedx')) startDedxTimer();
   if (isWidgetVisible('widget-beacons')) updateBeaconMarkers();
 
-  // Connect DXC/RBN live TCP SSE streams when feature-flagged
+  // Connect DXC/RBN live TCP SSE streams when feature-flagged.
+
   if (isFeatureVisible('dxc_live_tcp')) connectDxcSse();
   if (isFeatureVisible('rbn_source')) connectRbnSse();
 
-  // Notify returning users about newly added widgets
+  // Notify returning users about newly added widgets.
+
   const newWidgets = getPendingNewWidgets();
   if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
 }
 
-// Live Spots refresh (5 min + jitter — PSKReporter rate limit) — leader tab only
-// Jitter prevents synchronized bursts when multiple instances share the same server
+// Live Spots refresh (5 min + jitter — PSKReporter rate limit) — leader tab only.
+// Jitter prevents synchronized bursts when multiple instances share the same server.
 const PSK_REFRESH_BASE = 5 * 60 * 1000;   // 5 min base
 const PSK_REFRESH_JITTER = 30 * 1000;     // ±30s jitter
 function scheduleLiveSpotsRefresh() {
@@ -200,7 +204,7 @@ function scheduleLiveSpotsRefresh() {
 }
 scheduleLiveSpotsRefresh();
 
-// VOACAP matrix refresh — render every minute (for hour transitions), fetch leader-only
+// VOACAP matrix refresh — render every minute (for hour transitions), fetch leader-only.
 setInterval(() => { if (document.hidden) return; if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) renderVoacapMatrix(); }, 60 * 1000);
 setInterval(() => { if (document.hidden || !isLeaderTab()) return; if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) fetchVoacapMatrixThrottled(); }, 60 * 1000);
 
@@ -210,10 +214,10 @@ setInterval(() => { if (document.hidden || !isWidgetVisible('widget-beacons')) r
 // DE/DX Info refresh — timer managed internally by dedx-info.js (1s for live clocks)
 
 // --- Hidden-tab catch-up ---
-// When the tab returns to foreground, immediately refresh visual state that was skipped
+// When the tab returns to foreground, immediately refresh visual state that was skipped.
 document.addEventListener('visibilitychange', () => {
   if (document.hidden || !state.appInitialized) return;
-  // Catch up visual-only updates immediately
+  // Catch up visual-only updates immediately.
   updateClocks();
   updateBigClock();
   updateAnalogClock();
@@ -229,13 +233,13 @@ setInitApp(initApp);
 // Initialize widgets
 initWidgets();
 
-// Initialize layout profiles dropdown
+// Initialize layout profiles dropdown.
 initLayoutDropdown();
 
-// Restore saved source tab
+// Restore saved source tab.
 switchSource(state.currentSource);
 
-// Fix map size after layout settles
+// Fix map size after layout settles.
 if (state.map) setTimeout(() => state.map.invalidateSize(), 100);
 
 // Pull config from LAN sync server if enabled (async — reload if newer config found)
@@ -245,7 +249,7 @@ if (isSyncEnabled() && state.myCallsign) {
   }).catch(() => {});
 }
 
-// Show splash if no saved callsign, otherwise start immediately
+// Show splash if no saved callsign, otherwise start immediately.
 if (state.myCallsign) {
   $('splash').classList.add('hidden');
   updateOperatorDisplay();

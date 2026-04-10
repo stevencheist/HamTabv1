@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
@@ -90,11 +93,11 @@ export function isRbnSseActive() { return rbnSse !== null; }
 export async function fetchSourceData(source) {
   const def = SOURCE_DEFS[source];
   if (!def) return;
-  // Skip HTTP polling when SSE stream is active for this source
+  // Skip HTTP polling when SSE stream is active for this source.
   if (source === 'dxc' && isDxcSseActive()) return;
   if (source === 'rbn' && isRbnSseActive()) return;
   try {
-    // PSK and WSPR use server-side caching with appropriate TTLs — skip _t to allow edge cache hits
+    // PSK and WSPR use server-side caching with appropriate TTLs — skip _t to allow edge cache hits.
     const cacheable = source === 'psk' || source === 'wspr';
     const url = cacheable ? def.endpoint : def.endpoint + (def.endpoint.includes('?') ? '&' : '?') + '_t=' + Date.now();
     const resp = await fetch(url);
@@ -107,7 +110,7 @@ export async function fetchSourceData(source) {
       });
     }
     state.sourceData[source] = Array.isArray(data) ? data : [];
-    // Re-render WSPR heatmap when fresh WSPR data arrives
+    // Re-render WSPR heatmap when fresh WSPR data arrives.
     if (source === 'wspr' && state.mapOverlays.wsprHeatmap) {
       clearTimeout(state.wsprHeatmapRenderTimer);
       const { renderWsprHeatmapCanvas } = require('./wspr-heatmap.js');

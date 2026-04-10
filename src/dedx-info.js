@@ -1,9 +1,10 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- DE/DX Info Widget ---
 // Displays operator (DE) info and selected spot (DX) info side by side.
 // Shows large live clocks, callsign, grid, sunrise/sunset countdowns, bearing, distance.
 // All data is client-side — no server fetch needed.
 // Timer runs at 1 Hz for live clock updates; managed via startDedxTimer/stopDedxTimer.
-
 import state from './state.js';
 import { $ } from './dom.js';
 import { isWidgetVisible } from './widgets.js';
@@ -13,18 +14,18 @@ import { freqToBand } from './filters.js';
 
 let selectedSpot = null; // cached DX spot for re-render
 
-// Listen for spot selection changes
+// Listen for spot selection changes.
 export function initDedxListeners() {
   // No click handlers needed — we hook into selectSpot via setDedxSpot()
 }
 
-// Called by markers.js selectSpot when a spot is selected
+// Called by markers.js selectSpot when a spot is selected.
 export function setDedxSpot(spot) {
   selectedSpot = spot;
   renderDedxInfo();
 }
 
-// Clear the DX side when spot is deselected
+// Clear the DX side when spot is deselected.
 export function clearDedxSpot() {
   selectedSpot = null;
   renderDedxInfo();
@@ -66,7 +67,7 @@ function localTimeAtLonDate(lon) {
 }
 
 // --- Sun countdown formatter ---
-// Returns "R in H:MM" / "R H:MM ago" for sunrise, "S in H:MM" / "S H:MM ago" for sunset
+// Returns "R in H:MM" / "R H:MM ago" for sunrise, "S in H:MM" / "S H:MM ago" for sunset.
 function fmtSunCountdown(target, now, prefix) {
   if (!target) return null;
   const diffMs = target.getTime() - now.getTime();
@@ -80,7 +81,7 @@ function fmtSunCountdown(target, now, prefix) {
   return `${prefix} ${h}:${mm} ago`;
 }
 
-// Render both DE and DX panels
+// Render both DE and DX panels.
 export function renderDedxInfo() {
   if (!isWidgetVisible('widget-dedx')) return;
   renderDedxDe();
@@ -93,7 +94,8 @@ function renderDedxDe() {
   const el = $('dedxDeContent');
   if (!el) return;
 
-  // Large clock — browser local time
+  // Large clock — browser local time.
+
   const now = new Date();
   if (timeEl) timeEl.textContent = fmtTime(now, state.use24h);
 
@@ -133,7 +135,7 @@ function renderDedxDx() {
   if (!el) return;
 
   if (!selectedSpot) {
-    // No spot selected — show UTC on the clock
+    // No spot selected — show UTC on the clock.
     if (timeEl) {
       const now = new Date();
       const h = String(now.getUTCHours()).padStart(2, '0');
@@ -153,7 +155,8 @@ function renderDedxDx() {
   const lat = parseFloat(spot.latitude);
   const lon = parseFloat(spot.longitude);
 
-  // DX clock — approximate local time from longitude
+  // DX clock — approximate local time from longitude.
+
   if (timeEl) {
     if (!isNaN(lat) && !isNaN(lon)) {
       const dxLocal = localTimeAtLonDate(lon);
@@ -165,7 +168,8 @@ function renderDedxDx() {
 
   let rows = `<div class="dedx-row"><span class="dedx-callsign">${esc(call)}</span></div>`;
 
-  // Freq + band + mode on one line
+  // Freq + band + mode on one line.
+
   if (freq) {
     const parts = [freq];
     if (band) parts.push(`(${band})`);
@@ -182,7 +186,8 @@ function renderDedxDx() {
     const cardinal = latLonToCardinal(lat, lon);
     rows += `<div class="dedx-row"><span class="dedx-label-sm">Loc</span><span class="dedx-value">${cardinal}</span></div>`;
 
-    // Bearing & distance from DE — compact single line
+    // Bearing & distance from DE — compact single line.
+
     if (state.myLat !== null && state.myLon !== null) {
       const deg = bearingTo(state.myLat, state.myLon, lat, lon);
       const mi = distanceMi(state.myLat, state.myLon, lat, lon);

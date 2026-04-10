@@ -1,15 +1,16 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Smart Radio Detection ---
 // Probes a serial port with manufacturer-specific commands to identify the radio.
 // Returns { profileId, protocol, serialConfig } or null if no radio detected.
 // Probe order optimized: most common configs first, then fallbacks.
-
 import { WebSerialTransport } from './transports/web-serial.js';
 import profiles from './rig-profiles.json';
 
 // --- Probe definitions ---
 // Each probe: { name, serialConfig, send, parse(response) → { profileId, protocol } | null }
 const PROBES = [
-  // 1. Yaesu 38400/8N1 — newer radios: FT-DX10, FT-710, FT-DX101D/MP
+  // 1. Yaesu 38400/8N1 — newer radios: FT-DX10, FT-710, FT-DX101D/MP.
   {
     name: 'Yaesu 38400',
     serialConfig: { baudRate: 38400, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none' },
@@ -36,7 +37,7 @@ const PROBES = [
     terminator: ';',
     parse(resp) {
       if (!resp || !resp.startsWith('OM')) return null;
-      // Elecraft OM response contains option flags + product ID
+      // Elecraft OM response contains option flags + product ID.
       return matchElecraftOM(resp);
     },
   },
@@ -74,7 +75,7 @@ const PROBES = [
     terminator: ';',
     parse(resp) { return parseAsciiId(resp, 'yaesu_ascii'); },
   },
-  // 7. Kenwood 9600/8N1 — TS-480
+  // 7. Kenwood 9600/8N1 — TS-480.
   {
     name: 'Kenwood 9600',
     serialConfig: { baudRate: 9600, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none' },
@@ -110,6 +111,7 @@ function parseAsciiId(resp, protocolFamily) {
   if (!resp || typeof resp !== 'string') return null;
 
   // Yaesu format: ID####; (4-digit, zero-padded)
+
   // Kenwood format: ID###; (3-digit)
   const match = resp.match(/^ID(\d{3,4});?/);
   if (!match) return null;
@@ -125,12 +127,11 @@ function parseAsciiId(resp, protocolFamily) {
 
 // --- Match Elecraft OM; response to a specific model ---
 function matchElecraftOM(resp) {
-  // OM response format varies: K4 has different format, K3/KX3/KX2 share a format
-  // Common: OM AP----H$; where the product ID character identifies the model
-  // KX2 product ID: 01, KX3 product ID: 02
-  // K4: different OM format with "K4" in response
-  // K3S: contains "S" flag distinguishing from K3
-
+  // OM response format varies: K4 has different format, K3/KX3/KX2 share a format.
+  // Common: OM AP----H$; where the product ID character identifies the model.
+  // KX2 product ID: 01, KX3 product ID: 02.
+  // K4: different OM format with "K4" in response.
+  // K3S: contains "S" flag distinguishing from K3.
   if (resp.includes('K4')) {
     return matchProfile('elecraft_ascii', 'K4');
   }
@@ -138,7 +139,8 @@ function matchElecraftOM(resp) {
     return matchProfile('elecraft_ascii', 'K3S');
   }
 
-  // Parse product ID from option flags — look for 2-digit product ID
+  // Parse product ID from option flags — look for 2-digit product ID.
+
   const pidMatch = resp.match(/OM\s*AP.*?(\d{2})/);
   if (pidMatch) {
     const pid = pidMatch[1];
@@ -146,7 +148,8 @@ function matchElecraftOM(resp) {
     if (pid === '02') return matchProfile('elecraft_ascii', '017'); // KX3 uses modelId 017
   }
 
-  // Fallback: detected Elecraft but can't determine specific model
+  // Fallback: detected Elecraft but can't determine specific model.
+
   return matchProfile('elecraft_ascii', null);
 }
 
@@ -158,13 +161,14 @@ function matchProfile(protocolFamily, modelId) {
     if (modelId && profile.modelId && profile.modelId === modelId) {
       return { profileId: id, protocol: protocolFamily, serialConfig: profile.serial };
     }
-    // If no modelId to compare, return first profile with matching protocol
+    // If no modelId to compare, return first profile with matching protocol.
     if (!modelId) {
       return { profileId: id, protocol: protocolFamily, serialConfig: profile.serial };
     }
   }
 
-  // Partial match: right protocol family but unknown model — return first match
+  // Partial match: right protocol family but unknown model — return first match.
+
   if (modelId) {
     for (const [id, profile] of Object.entries(profiles.profiles)) {
       if (id === 'demo') continue;
@@ -193,7 +197,8 @@ function matchCivProfile(civAddr) {
     }
   }
 
-  // Unknown Icom radio — return generic icom match
+  // Unknown Icom radio — return generic icom match.
+
   for (const [id, profile] of Object.entries(profiles.profiles)) {
     if (id === 'demo') continue;
     if (profile.protocol.family === 'icom_civ') {
@@ -227,7 +232,7 @@ export async function smartDetect(port, onProgress) {
         return { ...result, transport };
       }
     } catch (err) {
-      // Probe failed — continue to next
+      // Probe failed — continue to next.
       console.warn(`[smart-detect] ${probe.name} failed:`, err.message);
     }
 
@@ -247,7 +252,7 @@ async function runProbe(port, probe) {
   try {
     await transport.connect(port);
     await transport.flush();
-    // Brief settle after flush before sending probe command
+    // Brief settle after flush before sending probe command.
     await new Promise(r => setTimeout(r, 50));
 
     let response;
@@ -265,7 +270,7 @@ async function runProbe(port, probe) {
         response = null;
       }
       if (!response) {
-        // Try reading separately if sendCommand returned empty
+        // Try reading separately if sendCommand returned empty.
         response = await readWithTimeout(transport, 'ascii', 1500);
       }
       console.debug(`[smart-detect] ${probe.name} → sent "${probe.send}", got "${response || '(empty)'}"`);

@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Scope Spectrum ---
 // Peak hold, avg smoothing, grid, VFO line, passband shading, freq labels.
 // Ported from VirtualHam spectrum.ts — adapted to Hz-based rig store state.
-
 import { DEFAULT_FLOOR_DB, DEFAULT_CEILING_DB } from './scope-color-map.js';
 
 // Filter width defaults by mode (Hz)
@@ -63,11 +64,11 @@ export function createSpectrum(canvas, getState, options) {
 
     ctx.clearRect(0, 0, width, height);
 
-    // Background — dark LCD panel
+    // Background — dark LCD panel.
     ctx.fillStyle = 'rgba(4, 8, 16, 0.9)';
     ctx.fillRect(0, 0, width, height);
 
-    // Grid lines — subtle navy
+    // Grid lines — subtle navy.
     ctx.strokeStyle = 'rgba(26, 42, 68, 0.5)';
     ctx.lineWidth = 1;
     const gridStepDb = 10;
@@ -79,8 +80,7 @@ export function createSpectrum(canvas, getState, options) {
       ctx.stroke();
     }
 
-    // dB labels — muted blue
-    ctx.fillStyle = '#4a5a7a';
+    // DB labels — muted blue    ctx.fillStyle = '#4a5a7a';
     ctx.font = '10px Consolas, monospace';
     ctx.textAlign = 'left';
     for (let db = floorDb; db <= ceilingDb; db += gridStepDb) {
@@ -90,7 +90,8 @@ export function createSpectrum(canvas, getState, options) {
 
     const binWidth = width / bins;
 
-    // VFO center line + passband shading — only in RF mode
+    // VFO center line + passband shading — only in RF mode.
+
     const state = getState();
     if (!afMode) {
       const centerX = width / 2;
@@ -101,7 +102,8 @@ export function createSpectrum(canvas, getState, options) {
       ctx.lineTo(centerX, height);
       ctx.stroke();
 
-      // Passband shading — cyan tint, width derived from mode
+      // Passband shading — cyan tint, width derived from mode.
+
       const mode = state.mode || 'USB';
       const filterHz = MODE_FILTER_WIDTH[mode] || 2400;
       const filterPx = (filterHz / spanHz) * width;
@@ -109,7 +111,7 @@ export function createSpectrum(canvas, getState, options) {
       ctx.fillRect(centerX - filterPx / 2, 0, filterPx, height);
     }
 
-    // Peak hold line — orange
+    // Peak hold line — orange.
     ctx.strokeStyle = 'rgba(255, 145, 0, 0.4)';
     ctx.lineWidth = 1;
     ctx.beginPath();
@@ -121,7 +123,7 @@ export function createSpectrum(canvas, getState, options) {
     }
     ctx.stroke();
 
-    // Spectrum fill — cyan gradient
+    // Spectrum fill — cyan gradient.
     ctx.beginPath();
     ctx.moveTo(0, height);
     for (let i = 0; i < bins; i++) {
@@ -137,7 +139,7 @@ export function createSpectrum(canvas, getState, options) {
     ctx.fillStyle = gradient;
     ctx.fill();
 
-    // Spectrum line — bright cyan with glow
+    // Spectrum line — bright cyan with glow.
     ctx.strokeStyle = '#00e5ff';
     ctx.lineWidth = 1.5;
     ctx.shadowColor = 'rgba(0, 229, 255, 0.4)';
@@ -152,7 +154,7 @@ export function createSpectrum(canvas, getState, options) {
     ctx.stroke();
     ctx.shadowBlur = 0;
 
-    // Frequency labels along bottom
+    // Frequency labels along bottom.
     drawFrequencyLabels(state);
   }
 
@@ -173,7 +175,7 @@ export function createSpectrum(canvas, getState, options) {
         ctx.fillText(label, x, height - 4);
       }
     } else {
-      // RF mode: MHz labels centered on VFO
+      // RF mode: MHz labels centered on VFO.
       const centerHz = state.frequency || 14175000;
       const startHz = centerHz - spanHz / 2;
       for (let i = 0; i <= labelCount; i++) {
@@ -190,7 +192,7 @@ export function createSpectrum(canvas, getState, options) {
   }
 
   function resize() {
-    // Use parent's width — canvas intrinsic size can fight CSS width:100%
+    // Use parent's width — canvas intrinsic size can fight CSS width:100%.
     const parent = canvas.parentElement;
     const parentW = parent ? parent.getBoundingClientRect().width : canvas.getBoundingClientRect().width;
     const dpr = window.devicePixelRatio || 1;

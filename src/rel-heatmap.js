@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- REL Heatmap Overlay ---
 // Renders a full-world propagation reliability heatmap on the Leaflet map.
 // Each pixel represents the predicted reliability of a path from DE (user QTH) to that DX point,
-// colored on a continuous HSL gradient (red→yellow→green).
-
+// Colored on a continuous HSL gradient (red→yellow→green).
 import state from './state.js';
 import { dayFraction, calculateMUF, VOACAP_BANDS, HF_BANDS } from './band-conditions.js';
 import { getVoacapOpts } from './voacap.js';
@@ -53,13 +54,11 @@ function distanceModifier(distKm) {
 
 // --- Per-cell reliability for heatmap ---
 // Uses a heatmap-specific model tuned for visual clarity on a dark basemap.
-// The widget model's LUF threshold (50% of MUF) is too aggressive — it blanks
-// everything below ~17 MHz during daytime, making 20m/40m/80m invisible.
-//
+// The widget model's LUF threshold (50% of MUF) is too aggressive — it blanks.
+// Everything below ~17 MHz during daytime, making 20m/40m/80m invisible.//.
 // Physical model: any frequency below MUF CAN be reflected by the ionosphere.
-// Optimal propagation occurs at 30-70% of MUF. Higher ratios approach MUF and
-// risk penetration; lower ratios suffer increasing D-layer absorption (daytime).
-// At night, D-layer recombines, so lower bands propagate much better.
+// Optimal propagation occurs at 30-70% of MUF. Higher ratios approach MUF and.
+// Risk penetration; lower ratios suffer increasing D-layer absorption (daytime).// At night, D-layer recombines, so lower bands propagate much better.
 function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex, aIndex, utcHour, opts) {
   const mid = greatCircleMidpoint(deLat, deLon, dxLat, dxLon);
   const df = dayFraction(mid.lat, mid.lon, utcHour);
@@ -70,10 +69,10 @@ function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex
   const ratio = freqMHz / muf; // freq-to-MUF ratio
 
   if (ratio > 1.0) {
-    // Above MUF — signal escapes ionosphere, rapid dropoff
+    // Above MUF — signal escapes ionosphere, rapid dropoff.
     rel = Math.max(0, 15 - (ratio - 1.0) * 150);
   } else if (ratio > 0.85) {
-    // Close to MUF — usable but risk of penetration increases
+    // Close to MUF — usable but risk of penetration increases.
     rel = 90 - (ratio - 0.85) * 300; // 90 at 0.85 → ~45 at 1.0
   } else if (ratio >= 0.25) {
     // Main propagation zone (25-85% of MUF) — this is where most HF bands live.
@@ -82,11 +81,11 @@ function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex
     const peak = 0.5;
     const distFromPeak = Math.abs(ratio - peak);
     const baseRel = 95 - distFromPeak * 60; // peaks at 95, tapers to edges
-    // D-layer absorption penalty — scales with daylight and how low the frequency is
+    // D-layer absorption penalty — scales with daylight and how low the frequency is.
     const dLayerPenalty = df * Math.max(0, (0.5 - ratio)) * 80; // 0 penalty above peak, up to ~20 below
     rel = baseRel - dLayerPenalty;
   } else {
-    // Very low ratio (<25% of MUF) — heavy absorption, marginal
+    // Very low ratio (<25% of MUF) — heavy absorption, marginal.
     const nightBoost = (1 - df) * 30; // nighttime helps a lot
     rel = 20 + nightBoost - (0.25 - ratio) * 100;
   }
@@ -108,6 +107,7 @@ function computeCellReliability(deLat, deLon, dxLat, dxLon, freqMHz, sfi, kIndex
   }
 
   // Sensitivity adjustment — maps 1-5 to a reliability shift.
+
   // 1 (optimistic) = +20%, 3 (normal) = 0%, 5 (strict) = -20%
   const sens = state.voacapSensitivity || 3;
   rel += (3 - sens) * 10; // +20, +10, 0, -10, -20
@@ -147,7 +147,8 @@ function hslToRgb(h, s, l) {
 function reliabilityToRGBA(rel) {
   if (rel < 3) return { r: 20, g: 0, b: 40, a: 60 }; // dark purple tint — band closed
 
-  // Higher constant alpha so the overlay pops against the dark basemap
+  // Higher constant alpha so the overlay pops against the dark basemap.
+
   const alpha = Math.min(210, 140 + (rel / 100) * 70); // 140–210 range
 
   if (state.grayscale) {
@@ -157,7 +158,8 @@ function reliabilityToRGBA(rel) {
   }
 
   // Bright, vivid gradient: red (0°) → yellow (60°) → green (120°)
-  // Map 3-100 → hue 0° to 120°
+
+  // Map 3-100 → hue 0° to 120°.
   const hue = (Math.min(rel, 100) - 3) / 97 * 120;
   const { r, g, b } = hslToRgb(hue, 1.0, 0.50); // full saturation, medium-bright lightness
   return { r, g, b, a: Math.round(alpha) };
@@ -217,7 +219,8 @@ export async function renderHeatmapCanvas(band) {
   const imageData = ctx.createImageData(cols, rows);
   const data = imageData.data;
 
-  // Compute reliability per cell
+  // Compute reliability per cell.
+
   for (let row = 0; row < rows; row++) {
     // Latitude goes from north (top) to south (bottom)
     const dxLat = north - (row + 0.5) * cellSize;
@@ -241,8 +244,9 @@ export async function renderHeatmapCanvas(band) {
 
   ctx.putImageData(imageData, 0, 0);
 
-  // Use toBlob + object URL instead of toDataURL — avoids large base64 string
-  // allocation and lets the browser GC the blob (CODEX-016 item #2)
+  // Use toBlob + object URL instead of toDataURL — avoids large base64 string.
+
+  // Allocation and lets the browser GC the blob (CODEX-016 item #2).
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
   const url = URL.createObjectURL(blob);
   const imageBounds = [[south, west], [north, east]];
@@ -266,7 +270,6 @@ export function clearHeatmap() {
 
 // --- Floating Heatmap Legend (Leaflet control) ---
 // Displays band name, gradient bar (red→yellow→green), and 0%/50%/100% labels.
-
 let heatmapLegendControl = null;
 
 export function renderHeatmapLegend(band) {
@@ -303,5 +306,5 @@ export function clearHeatmapLegend() {
 
 // --- Init (placeholder for future listeners) ---
 export function initHeatmapListeners() {
-  // Zoom/move re-render is handled in map-init.js
+  // Zoom/move re-render is handled in map-init.js.
 }

@@ -1,12 +1,13 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Driver: Elecraft ASCII ---
 // Covers: KX3, KX2, K3, K3S, K4, K4D
-// Protocol: ASCII commands terminated with ";"
+// Protocol: ASCII commands terminated with ";".
 // Elecraft commands are very close to Kenwood but with Elecraft-specific extensions.
 // Key differences: 2-letter commands, mode codes differ slightly, BW command.
-// Reference: Elecraft K3/KX3 Programmer's Reference
-
+// Reference: Elecraft K3/KX3 Programmer's Reference.
 // --- Mode code mapping ---
-// Elecraft uses Kenwood-style MD command with slight differences
+// Elecraft uses Kenwood-style MD command with slight differences.
 const MODE_CODES = {
   '1': 'LSB',
   '2': 'USB',
@@ -100,7 +101,8 @@ export const elecraftAscii = {
   },
 
   // --- Command encoding ---
-  // Elecraft uses 11-digit frequency fields like Kenwood
+
+  // Elecraft uses 11-digit frequency fields like Kenwood.
   encode(command, params) {
     switch (command) {
       case 'getFrequency':  return 'FA;';

@@ -1,9 +1,10 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Safety: Band Plan Validator ---
 // Validates a frequency against the US amateur band plan.
 // Returns warnings (not blocks) — "warn but never block" philosophy.
-
 // --- US amateur bands (Hz) ---
-// Source: ARRL band plan, FCC Part 97
+// Source: ARRL band plan, FCC Part 97.
 const US_BANDS = [
   { name: '160m', min: 1_800_000,  max: 2_000_000 },
   { name: '80m',  min: 3_500_000,  max: 4_000_000 },
@@ -21,7 +22,7 @@ const US_BANDS = [
 ];
 
 // --- Mode sub-bands (common conventions, not regulatory limits) ---
-// These are advisory — used for gentle warnings like "14.074 is typically DATA"
+// These are advisory — used for gentle warnings like "14.074 is typically DATA".
 const MODE_ZONES = {
   '160m': [
     { min: 1_800_000, max: 1_810_000, zone: 'CW' },
@@ -52,8 +53,8 @@ const MODE_ZONES = {
 
 // --- Validate frequency ---
 // Returns { valid, band, zone, warning }
-// valid: true if frequency is within a US amateur band
-// warning: string if there's something to warn about (null if clean)
+// Valid: true if frequency is within a US amateur band.
+// Warning: string if there's something to warn about (null if clean).
 export function validateFrequency(freqHz) {
   if (!freqHz || freqHz <= 0) {
     return { valid: false, band: null, zone: null, warning: 'Invalid frequency' };

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { US_PRIVILEGES } from './constants.js';
@@ -5,7 +8,7 @@ import { freqToBand, isUSCallsign } from './filters.js';
 
 // --- Band Reference Tab (inside Reference widget) ---
 
-// Renders US band privilege tables into #referenceContent
+// Renders US band privilege tables into #referenceContent.
 export function renderBandRefTab() {
   const hasClass = isUSCallsign(state.myCallsign) && !!state.licenseClass;
   const savedPref = localStorage.getItem('hamtab_bandref_mypriv');
@@ -37,7 +40,8 @@ export function renderBandRefTab() {
 
   $('referenceContent').innerHTML = html;
 
-  // Attach checkbox listener after rendering
+  // Attach checkbox listener after rendering.
+
   const checkbox = document.getElementById('bandRefMyPriv');
   if (checkbox) {
     checkbox.addEventListener('change', () => {

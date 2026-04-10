@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { latLonToGrid } from './geo.js';
 import { esc } from './utils.js';
@@ -25,7 +28,7 @@ export function initMap() {
       zoomControl: false, // added manually for position control
     }).setView([39.8, -98.5], 4);
 
-    // Zoom control: bottom-right on mobile for thumb reach, top-left on desktop
+    // Zoom control: bottom-right on mobile for thumb reach, top-left on desktop.
     L.control.zoom({ position: isMobile ? 'bottomright' : 'topleft' }).addTo(state.map);
 
     state.tileLayer = L.tileLayer(TILE_DARK, {
@@ -67,13 +70,14 @@ export function initMap() {
     state.map.getPane('mapOverlays').style.pointerEvents = 'none';
 
     // --- Unified map view-change handler ---
+
     // Leaflet fires both zoomend and moveend on zoom, causing duplicate renders.
     // Debounce into a single handler and skip no-op redraws via view-state memoization.
     let lastViewKey = '';
     let viewChangeTimer = null;
 
     function onMapViewChange() {
-      // Memoize: skip if zoom bucket + rounded bounds haven't changed
+      // Memoize: skip if zoom bucket + rounded bounds haven't changed.
       const z = state.map.getZoom();
       const b = state.map.getBounds();
       const key = `${z}|${Math.round(b.getSouth())}|${Math.round(b.getWest())}|${Math.round(b.getNorth())}|${Math.round(b.getEast())}`;
@@ -200,7 +204,7 @@ export function updateSunMarker() {
 }
 
 // --- Moon marker ---
-// GMST calculation — Meeus, Astronomical Algorithms, Ch. 12
+// GMST calculation — Meeus, Astronomical Algorithms, Ch. 12.
 function gmstDegrees(date) {
   const JD = date.getTime() / 86400000 + 2440587.5; // Julian Date from Unix ms
   const T = (JD - 2451545.0) / 36525; // Julian centuries from J2000.0
@@ -243,7 +247,7 @@ export function updateMoonMarker() {
 }
 
 // --- NCDXF Beacon markers ---
-// Band → color mapping for the 5 beacon frequencies
+// Band → color mapping for the 5 beacon frequencies.
 const BEACON_COLORS = {
   14100: '#ff4444', // 20m — red
   18110: '#ff8800', // 17m — orange
@@ -256,13 +260,15 @@ export function updateBeaconMarkers() {
   if (!state.map) return;
   const active = getActiveBeacons();
 
-  // Remove old markers that are no longer active
+  // Remove old markers that are no longer active.
+
   for (const key of Object.keys(state.beaconMarkers)) {
     state.map.removeLayer(state.beaconMarkers[key]);
     delete state.beaconMarkers[key];
   }
 
-  // Add current active beacons
+  // Add current active beacons.
+
   for (const entry of active) {
     const { freq, beacon } = entry;
     const color = BEACON_COLORS[freq] || '#ffffff';

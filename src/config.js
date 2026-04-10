@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOLAR_FIELD_DEFS, LUNAR_FIELD_DEFS, SOURCE_DEFS } from './constants.js';
@@ -156,7 +159,7 @@ export function initConfigListeners() {
     renderSpots();
   });
 
-  // Escape to close whichever sub-config modal is visible
+  // Escape to close whichever sub-config modal is visible.
   document.addEventListener('keydown', (e) => {
     if (e.key !== 'Escape') return;
     if (!state.a11yEscapeClose) return;

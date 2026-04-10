@@ -5,141 +5,32 @@ const express = require('express');
 const fs = require('fs');
 const path = require('path');
 const { URL } = require('url');
-const helmet = require('helmet');
-const rateLimit = require('express-rate-limit');
-const { XMLParser } = require('fast-xml-parser');
-const dns = require('dns');
 const https = require('https');
-const cors = require('cors');
+const { XMLParser } = require('fast-xml-parser');
 const mqtt = require('mqtt');
 const net = require('net');
 const voacap = require('./voacap-bridge.js');
 const satellite = require('satellite.js');
-const swaggerUi = require('swagger-ui-express');
-const YAML = require('js-yaml');
 const { getConfig } = require('./server-config.js');
 const { startListeners } = require('./server-startup.js');
+
+// --- Extracted modules ---
+const { isPrivateIP, resolveHost, secureFetch, fetchJSON, fetchText, MAX_REDIRECTS, MAX_RESPONSE_BYTES } = require('./server/services/http-fetch');
+const { registerCache, startEviction, stopEviction } = require('./server/services/cache-store');
+const cacheControlMiddleware = require('./server/middleware/cache-control');
+const { setupSecurity, setupDocs, feedbackLimiter } = require('./server/middleware/security');
 
 const app = express();
 const config = getConfig();
 
-if (config.trustProxy) app.set('trust proxy', 1);
-
-// --- Security middleware ---
-
-// CSP relaxed for /api/docs (Swagger UI needs inline scripts)
-app.use((req, res, next) => {
-  if (req.path.startsWith('/api/docs') || req.path.startsWith('/api-docs')) {
-    // Swagger UI needs relaxed CSP
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:");
-    return next();
-  }
-  next();
-});
-
-app.use(helmet(config.helmetOptions));
-
-// CORS — lanmode only (restrict to same-origin, localhost, and RFC 1918 private ranges)
-// Hostedmode is same-origin behind Cloudflare — no CORS needed
-if (!config.isHostedmode) {
-  app.use(cors({
-    origin(origin, callback) {
-      // Allow requests with no Origin header (same-origin, curl, etc.)
-      if (!origin) return callback(null, true);
-
-      try {
-        const { hostname } = new URL(origin);
-        if (hostname === 'localhost' || isPrivateIP(hostname)) {
-          return callback(null, true);
-        }
-        callback(new Error('CORS not allowed'));
-      } catch {
-        callback(new Error('CORS not allowed'));
-      }
-    },
-  }));
-}
-
-// Health check — before rate limiter so probes aren't counted
-app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, uptime: process.uptime() });
-});
-
-// Rate limiting — /api/ routes only; generous in LAN mode, stricter when hosted
-const apiLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: process.env.HOSTED_MODE === '1' ? 60 : 300,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many requests, please try again later.' },
-});
-app.use('/api/', apiLimiter);
-
-// Rate limit for feedback endpoint (10 submissions per day per IP)
-const feedbackLimiter = rateLimit({
-  windowMs: 24 * 60 * 60 * 1000, // 24 hours
-  max: 10,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { error: 'Too many feedback submissions. Please try again tomorrow.' },
-});
-
-app.use(express.json({ limit: '100kb' }));
+// --- Security, rate limiting, body parsing ---
+setupSecurity(app, config);
 
 // --- Cache-Control headers ---
-// Browser + CDN cache hints for globally-shared API data.
-// Edge caching (Cloudflare) requires additional Worker-side config (hostedmode only).
-// max-age = browser TTL, s-maxage = shared/CDN TTL
-const CACHE_RULES = [
-  // Tier 1 — globally-shared, slow-changing data
-  { prefix: '/api/solar/frames',        cc: 'public, max-age=300, s-maxage=3600' },    // SDO hourly; browser 5m, edge 1h
-  { prefix: '/api/solar',               cc: 'public, max-age=300, s-maxage=3600' },    // upstream ~hourly; browser 5m, edge 1h
-  { prefix: '/api/spacewx/history',     cc: 'public, max-age=300, s-maxage=900' },     // upstream 15m; browser 5m, edge 15m
-  { prefix: '/api/satellites/positions', cc: 'public, max-age=5, s-maxage=15' },       // real-time; client polls 10s
-  { prefix: '/api/satellites/passes',   cc: 'public, max-age=120, s-maxage=300' },     // server caches 5m; browser 2m, edge 5m
-  { prefix: '/api/satellites/list',     cc: 'public, max-age=3600, s-maxage=86400' },  // upstream daily; browser 1h, edge 24h
-  { prefix: '/api/satellites/tle',      cc: 'public, max-age=3600, s-maxage=21600' },  // Celestrak ~12h; browser 1h, edge 6h
-  { prefix: '/api/lunar',              cc: 'public, max-age=3600, s-maxage=21600' },   // computed; browser 1h, edge 6h
-  { prefix: '/api/dxpeditions',        cc: 'public, max-age=1800, s-maxage=86400' },   // NG3K ~daily; browser 30m, edge 24h
-  { prefix: '/api/contests',           cc: 'public, max-age=1800, s-maxage=21600' },   // schedules; browser 30m, edge 6h
-  { prefix: '/api/propagation',        cc: 'public, max-age=300, s-maxage=3600' },     // upstream ~hourly; browser 5m, edge 1h
-  { prefix: '/api/voacap/ssn',         cc: 'public, max-age=86400, s-maxage=604800' }, // NOAA monthly; browser 1d, edge 7d
-  // Tier 2 — per-endpoint, faster-changing data
-  { prefix: '/api/spots/psk/heard',    cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
-  { prefix: '/api/spots/psk',          cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
-  { prefix: '/api/spots/wspr',         cc: 'public, max-age=120, s-maxage=300' },      // server caches 5m; browser 2m, edge 5m
-  { prefix: '/api/spots/dxc',          cc: 'public, max-age=15, s-maxage=30' },        // server caches 10s; browser 15s, edge 30s
-  { prefix: '/api/spots/wwff',          cc: 'public, max-age=30, s-maxage=60' },        // no server cache; browser 30s, edge 60s
-  { prefix: '/api/spots/sota',         cc: 'public, max-age=30, s-maxage=60' },        // no server cache; browser 30s, edge 60s
-  { prefix: '/api/spots',              cc: 'public, max-age=30, s-maxage=60' },        // POTA; client polls 60s
-  { prefix: '/api/iss/position',       cc: 'public, max-age=5, s-maxage=10' },         // real-time; client polls 10s
-  { prefix: '/api/weather/clouds',     cc: 'public, max-age=1800, s-maxage=3600' },     // OWM cloud tiles; browser 30m, edge 1h
-  { prefix: '/api/weather/radar',      cc: 'public, max-age=120, s-maxage=300' },      // RainViewer; browser 2m, edge 5m
-  { prefix: '/api/weather/owm',        cc: 'public, max-age=300, s-maxage=900' },      // OWM 15m refresh; browser 5m, edge 15m
-  { prefix: '/api/weather/conditions', cc: 'public, max-age=300, s-maxage=900' },      // NWS 15m refresh; browser 5m, edge 15m
-  { prefix: '/api/weather/alerts',     cc: 'public, max-age=120, s-maxage=300' },      // safety-critical; browser 2m, edge 5m
-  { prefix: '/api/weather',            cc: 'public, max-age=120, s-maxage=300' },      // WU data; browser 2m, edge 5m
-  { prefix: '/api/callsign/',          cc: 'public, max-age=3600, s-maxage=86400' },   // immutable lookups; browser 1h, edge 24h
-  { prefix: '/api/voacap',             cc: 'public, max-age=300, s-maxage=1800' },     // heavy computation; browser 5m, edge 30m
-];
+app.use(cacheControlMiddleware);
 
-app.use((req, res, next) => {
-  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
-  const rule = CACHE_RULES.find(r => req.path === r.prefix || req.path.startsWith(r.prefix + '/'));
-  if (rule) res.set('Cache-Control', rule.cc);
-  next();
-});
-
-app.use(express.static('public'));
-
-// --- API Documentation (Swagger UI) ---
-const openapiSpec = YAML.load(fs.readFileSync(path.join(__dirname, 'openapi.yaml'), 'utf8'));
-app.use('/api/docs', swaggerUi.serve, swaggerUi.setup(openapiSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'HamTab API Documentation',
-}));
-// Redirect /api to /api/docs for convenience
-app.get('/api', (req, res) => res.redirect('/api/docs'));
+// --- Static files & API docs ---
+setupDocs(app, __dirname);
 
 // Proxy POTA spots API
 app.get('/api/spots', async (req, res) => {
@@ -4109,124 +4000,7 @@ function moonPhaseName(elongation) {
   return 'New Moon';
 }
 
-// --- Hardened fetch ---
-
-const MAX_REDIRECTS = 5;
-const MAX_RESPONSE_BYTES = 5 * 1024 * 1024; // 5 MB
-const REQUEST_TIMEOUT_MS = 10000; // 10 seconds
-
-// SSRF guard: rejects all non-routable IPs (loopback, link-local, IPv6 ULA, etc.).
-// Broader than isRFC1918() below, which only checks LAN-routable ranges for TLS cert SANs.
-function isPrivateIP(ip) {
-  // IPv6 loopback and private
-  if (ip === '::1') return true;
-  if (ip.startsWith('fc') || ip.startsWith('fd')) return true; // unique local
-  if (ip.startsWith('fe80')) return true; // link-local
-  if (ip === '::') return true; // unspecified address
-  if (ip.startsWith('::ffff:')) {
-    // IPv4-mapped IPv6 — extract and check the IPv4 part
-    return isPrivateIP(ip.substring(7));
-  }
-
-  // IPv4
-  const parts = ip.split('.').map(Number);
-  if (parts.length === 4 && parts.every(p => !isNaN(p) && p >= 0 && p <= 255)) {
-    const [a, b] = parts;
-    if (a === 0) return true;                         // 0.0.0.0/8 — current network
-    if (a === 10) return true;                        // 10.0.0.0/8 — RFC 1918
-    if (a === 127) return true;                       // 127.0.0.0/8 — loopback
-    if (a === 169 && b === 254) return true;          // 169.254.0.0/16 — link-local
-    if (a === 172 && b >= 16 && b <= 31) return true; // 172.16.0.0/12 — RFC 1918
-    if (a === 192 && b === 168) return true;          // 192.168.0.0/16 — RFC 1918
-    if (a === 100 && b >= 64 && b <= 127) return true; // 100.64.0.0/10 — CGNAT (RFC 6598)
-    if (a === 198 && (b === 18 || b === 19)) return true; // 198.18.0.0/15 — benchmark testing
-    if (a >= 224 && a <= 239) return true;            // 224.0.0.0/4 — multicast
-    if (a >= 240) return true;                        // 240.0.0.0/4 — reserved + broadcast
-  }
-  return false;
-}
-
-async function resolveHost(hostname) {
-  // If it's already an IP literal, return it directly
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname.includes(':')) {
-    return hostname;
-  }
-  const { address } = await dns.promises.lookup(hostname);
-  return address;
-}
-
-function secureFetch(url, redirectCount = 0) {
-  return new Promise((resolve, reject) => {
-    if (redirectCount > MAX_REDIRECTS) {
-      return reject(new Error('Too many redirects'));
-    }
-
-    const parsed = new URL(url);
-
-    // SSRF guard: HTTPS-only for external requests
-    if (parsed.protocol !== 'https:') {
-      return reject(new Error('Only HTTPS URLs are allowed'));
-    }
-
-    // Resolve DNS and check the actual IP before connecting
-    resolveHost(parsed.hostname).then((resolvedIP) => {
-      if (isPrivateIP(resolvedIP)) {
-        return reject(new Error('Requests to private addresses are blocked'));
-      }
-
-      // Pin the resolved IP to prevent TOCTOU / DNS rebinding
-      const options = {
-        hostname: resolvedIP,
-        path: parsed.pathname + parsed.search,
-        port: parsed.port || 443,
-        headers: {
-          'User-Agent': 'HamTab/1.0',
-          'Host': parsed.hostname,
-        },
-        servername: parsed.hostname, // for TLS SNI
-      };
-
-      const req = https.get(options, (resp) => {
-        if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
-          resp.resume();
-          return secureFetch(resp.headers.location, redirectCount + 1).then(resolve).catch(reject);
-        }
-        if (resp.statusCode < 200 || resp.statusCode >= 300) {
-          resp.resume();
-          return reject(new Error(`HTTP ${resp.statusCode}`));
-        }
-
-        let data = '';
-        let bytes = 0;
-        resp.on('data', (chunk) => {
-          bytes += chunk.length;
-          if (bytes > MAX_RESPONSE_BYTES) {
-            resp.destroy();
-            return reject(new Error('Response too large'));
-          }
-          data += chunk;
-        });
-        resp.on('end', () => resolve(data));
-        resp.on('error', reject);
-      });
-
-      req.on('error', reject);
-      req.setTimeout(REQUEST_TIMEOUT_MS, () => {
-        req.destroy();
-        reject(new Error('Request timed out'));
-      });
-    }).catch(reject);
-  });
-}
-
-async function fetchJSON(url) {
-  const data = await secureFetch(url);
-  return JSON.parse(data);
-}
-
-async function fetchText(url) {
-  return secureFetch(url);
-}
+// (Hardened fetch helpers moved to server/services/http-fetch.js)
 
 // --- SOTA summit coordinate cache (TTL-based) ---
 
@@ -4321,18 +4095,9 @@ function parseSolarXML(xml) {
   return { indices, bands, vhf };
 }
 
-// --- Cache eviction (runs every 30 minutes, removes expired entries) ---
-const allCaches = [dxcCallCache, pskHeardCache, satPassCache, satTleCache, nwsGridCache, sdoDirCache, sotaSummitCache, voacapCache, dxpeditionCache, contestCache];
-const cacheEvictionTimer = setInterval(() => {
-  const now = Date.now();
-  for (const cache of allCaches) {
-    for (const key of Object.keys(cache)) {
-      if (cache[key] && cache[key].expires && now > cache[key].expires) {
-        delete cache[key];
-      }
-    }
-  }
-}, 30 * 60 * 1000); // 30 minutes
+// --- Cache eviction (register all caches with the shared eviction service) ---
+[dxcCallCache, pskHeardCache, satPassCache, satTleCache, nwsGridCache, sdoDirCache, sotaSummitCache, voacapCache, dxpeditionCache, contestCache].forEach(registerCache);
+startEviction();
 
 // --- Server startup ---
 
@@ -4386,7 +4151,7 @@ function gracefulShutdown(signal) {
 
 function finishShutdown() {
   voacap.shutdown(); // sends stdin.end(), 1s grace, then force kill
-  clearInterval(cacheEvictionTimer);
+  stopEviction();
   try { fs.unlinkSync(PID_FILE); } catch {}
   console.log('[shutdown] Clean exit');
   process.exit(0);

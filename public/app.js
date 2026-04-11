@@ -15799,54 +15799,82 @@ ${beacon.location}`);
   function isRbnSseActive() {
     return rbnSse !== null;
   }
-  async function fetchSourceData(source) {
-    const def = SOURCE_DEFS[source];
-    if (!def) return;
-    if (source === "dxc" && isDxcSseActive()) return;
-    if (source === "rbn" && isRbnSseActive()) return;
+  var SOURCE_JOBS = [
+    {
+      id: "source-pota",
+      source: "pota",
+      cacheable: false,
+      transform: (data) => (Array.isArray(data) ? data : []).map((s) => {
+        if (!s.callsign && s.activator) s.callsign = s.activator;
+        return s;
+      })
+    },
+    { id: "source-sota", source: "sota", cacheable: false },
+    {
+      id: "source-dxc",
+      source: "dxc",
+      cacheable: false,
+      shortCircuit: () => isDxcSseActive()
+    },
+    { id: "source-wwff", source: "wwff", cacheable: false },
+    { id: "source-psk", source: "psk", cacheable: true },
+    { id: "source-wspr", source: "wspr", cacheable: true },
+    {
+      id: "source-rbn",
+      source: "rbn",
+      cacheable: false,
+      featureFlag: "rbn_source",
+      shortCircuit: () => isRbnSseActive()
+    }
+  ];
+  async function fetchSourceRaw(job) {
+    const def = SOURCE_DEFS[job.source];
+    if (!def) throw new Error(`Unknown source: ${job.source}`);
+    if (job.shortCircuit && job.shortCircuit()) return null;
+    const url = job.cacheable ? def.endpoint : def.endpoint + (def.endpoint.includes("?") ? "&" : "?") + "_t=" + Date.now();
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+  }
+  function applySourceData(job, rawData) {
+    const transformed = job.transform ? job.transform(rawData) : rawData;
+    state_default.sourceData[job.source] = Array.isArray(transformed) ? transformed : [];
+    if (job.source === "wspr" && state_default.mapOverlays.wsprHeatmap) {
+      clearTimeout(state_default.wsprHeatmapRenderTimer);
+      const { renderWsprHeatmapCanvas: renderWsprHeatmapCanvas2 } = (init_wspr_heatmap(), __toCommonJS(wspr_heatmap_exports));
+      state_default.wsprHeatmapRenderTimer = setTimeout(
+        () => renderWsprHeatmapCanvas2(state_default.wsprHeatmapBand),
+        200
+      );
+    }
+    if (job.source === state_default.currentSource) {
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+      updateBandFilterButtons();
+      updateModeFilterButtons();
+      updateCountryFilter();
+      updateStateFilter();
+      updateGridFilter();
+      updateContinentFilter();
+    }
+  }
+  async function runSourceJob(job) {
+    if (job.featureFlag && !isFeatureVisible(job.featureFlag)) return;
     try {
-      const cacheable = source === "psk" || source === "wspr";
-      const url = cacheable ? def.endpoint : def.endpoint + (def.endpoint.includes("?") ? "&" : "?") + "_t=" + Date.now();
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      let data = await resp.json();
-      if (source === "pota") {
-        data = (Array.isArray(data) ? data : []).map((s) => {
-          if (!s.callsign && s.activator) s.callsign = s.activator;
-          return s;
-        });
-      }
-      state_default.sourceData[source] = Array.isArray(data) ? data : [];
-      if (source === "wspr" && state_default.mapOverlays.wsprHeatmap) {
-        clearTimeout(state_default.wsprHeatmapRenderTimer);
-        const { renderWsprHeatmapCanvas: renderWsprHeatmapCanvas2 } = (init_wspr_heatmap(), __toCommonJS(wspr_heatmap_exports));
-        state_default.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas2(state_default.wsprHeatmapBand), 200);
-      }
-      if (source === state_default.currentSource) {
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-        updateBandFilterButtons();
-        updateModeFilterButtons();
-        updateCountryFilter();
-        updateStateFilter();
-        updateGridFilter();
-        updateContinentFilter();
-      }
+      const data = await fetchSourceRaw(job);
+      if (data === null) return;
+      applySourceData(job, data);
     } catch (err2) {
-      console.error(`Failed to fetch ${source} spots:`, err2);
+      console.error(`Failed to fetch ${job.source} spots:`, err2);
     }
   }
   function refreshAll() {
     const btn = $("refreshBtn");
     if (btn) btn.textContent = "Refreshing...";
-    fetchSourceData("pota");
-    fetchSourceData("sota");
-    fetchSourceData("dxc");
-    fetchSourceData("wwff");
-    fetchSourceData("psk");
-    fetchSourceData("wspr");
-    if (isFeatureVisible("rbn_source")) fetchSourceData("rbn");
+    for (const job of SOURCE_JOBS) {
+      runSourceJob(job);
+    }
     if (isWidgetVisible("widget-solar") || isWidgetVisible("widget-propagation") || isWidgetVisible("widget-voacap")) fetchSolar();
     if (isWidgetVisible("widget-lunar")) fetchLunar();
     fetchPropagation();

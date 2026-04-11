@@ -263,20 +263,9 @@ registerJob({
 
 // DE/DX Info refresh — timer managed internally by dedx-info.js (1s for live clocks)
 
-// --- Hidden-tab catch-up ---
-// When the tab returns to foreground, immediately refresh visual state that was skipped.
-document.addEventListener('visibilitychange', () => {
-  if (document.hidden || !state.appInitialized) return;
-  // Catch up visual-only updates immediately.
-  updateClocks();
-  updateBigClock();
-  updateAnalogClock();
-  updateSpotAges();
-  updateGrayLine();
-  updateSunMarker();
-  if (isWidgetVisible('widget-beacons')) updateBeaconMarkers();
-  if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) renderVoacapMatrix();
-});
+// Hidden-tab catch-up is owned by the fetch-scheduler — it listens for
+// visibilitychange and re-fires render-kind jobs immediately on return.
+// See src/fetch-scheduler.js → catchUpRenderJobs().
 
 setInitApp(initApp);
 

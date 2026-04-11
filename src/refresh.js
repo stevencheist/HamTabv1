@@ -16,7 +16,7 @@ import { fetchContests } from './contests.js';
 import { isWidgetVisible } from './widgets.js';
 import { isLeaderTab } from './cross-tab.js';
 import { isFeatureVisible } from './feature-flags.js';
-import { register as registerJob, unregister as unregisterJob, has as hasJob } from './fetch-scheduler.js';
+import { register as registerJob, unregister as unregisterJob, has as hasJob, runNow as runNowJob, getJobState } from './fetch-scheduler.js';
 
 const AUTO_REFRESH_JOB_ID = 'auto-refresh-countdown';
 
@@ -194,25 +194,49 @@ function applySourceData(job, rawData) {
 }
 
 // --- Job runner: orchestrates fetch + apply with feature-flag gate ---
+//
+// runSourceJob throws on fetch errors so the scheduler's executeJob can
+// record the failure (lastFailedAt, consecutiveFailures, lastError).
+// Callers that don't want exceptions (e.g., direct invocations from
+// source-tab switching) should go through fetchSourceData() instead.
 
 async function runSourceJob(job) {
   if (job.featureFlag && !isFeatureVisible(job.featureFlag)) return;
-  try {
-    const data = await fetchSourceRaw(job);
-    if (data === null) return; // short-circuited
-    applySourceData(job, data);
-  } catch (err) {
-    console.error(`Failed to fetch ${job.source} spots:`, err);
-  }
+  const data = await fetchSourceRaw(job);
+  if (data === null) return; // short-circuited
+  applySourceData(job, data);
 }
 
+// Register each source job with the scheduler in manual mode. They
+// don't auto-fire — they're invoked via runNow() from refreshAll() or
+// fetchSourceData(). Manual mode gives us per-job state tracking
+// (lastSucceededAt, consecutiveFailures, etc.) without changing trigger
+// semantics.
+SOURCE_JOBS.forEach(job => {
+  registerJob({
+    id: job.id,
+    run: () => runSourceJob(job),
+    manual: true,
+    kind: 'fetch',
+  });
+});
+
 // Backward-compatible API: callers (e.g., source.js when switching tabs)
-// invoke fetchSourceData(source) by name. Looks up the descriptor and
-// runs the same code path as the orchestrator.
+// invoke fetchSourceData(source) by name. Routes through the scheduler's
+// runNow() so success/failure are tracked. Catches errors so callers
+// don't need to handle them.
 export async function fetchSourceData(source) {
   const job = getSourceJob(source);
   if (!job) return;
-  return runSourceJob(job);
+  await runNowJob(job.id);
+}
+
+// Get tracking state for a source job (for widget freshness display).
+// Returns null if the source isn't registered.
+export function getSourceJobState(source) {
+  const job = getSourceJob(source);
+  if (!job) return null;
+  return getJobState(job.id);
 }
 
 // --- Manual override / orchestrator ---
@@ -226,9 +250,10 @@ export function refreshAll() {
   const btn = $('refreshBtn');
   if (btn) btn.textContent = 'Refreshing...';
 
-  // Fan out to all registered source jobs.
+  // Fan out to all registered source jobs via the scheduler so
+  // success/failure are tracked uniformly.
   for (const job of SOURCE_JOBS) {
-    runSourceJob(job);
+    runNowJob(job.id);
   }
 
   // Auxiliary widget fetches — not yet modeled as source jobs because

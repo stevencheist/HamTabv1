@@ -6,9 +6,9 @@
 // in main.js and refresh.js. Each job is declared with its cadence, jitter,
 // and gating policy (visibility, leader-tab, widget visibility, feature flag).
 //
-// PR 6 scope is behavior-preserving migration: same cadences, same gates.
-// Backoff and freshness metadata land in PR 8; visibility/multi-tab policy
-// consolidation lands in PR 9.
+// PR 8 added per-job state tracking and exponential backoff: when a job
+// throws repeatedly, the next attempt is delayed exponentially (capped),
+// so a flapping upstream doesn't cause synchronized retry storms.
 //
 // Pure policy helpers live in fetch-scheduler-policy.js so they can be
 // unit-tested in Node without a DOM shim.
@@ -16,23 +16,44 @@
 import { isWidgetVisible } from './widgets.js';
 import { isLeaderTab } from './cross-tab.js';
 import { isFeatureVisible } from './feature-flags.js';
-import { validateSpec, shouldRun, nextDelay } from './fetch-scheduler-policy.js';
+import {
+  validateSpec,
+  shouldRun,
+  nextDelay,
+  nextBackoffDelay,
+  isStale,
+  newJobState,
+} from './fetch-scheduler-policy.js';
 
 // Job spec shape:
 // {
 //   id: string,                  // unique identifier
 //   run: () => any,              // function to invoke (sync or async)
-//   intervalMs: number,          // base cadence in ms
+//   intervalMs: number,          // base cadence in ms (required unless manual)
 //   jitterMs?: number,           // ± random jitter in ms (default 0)
+//   maxBackoffMs?: number,       // cap for exponential backoff (default 30m)
+//   staleAfterMs?: number,       // when to consider data stale (default 2x interval)
+//   manual?: boolean,            // if true, never auto-fires; only via runNow()
 //   requiresLeader?: boolean,    // gate on isLeaderTab() (default false)
 //   requiresVisible?: boolean,   // gate on !document.hidden (default true)
 //   widgetGate?: string,         // gate on isWidgetVisible(widgetGate)
 //   widgetGateOr?: () => boolean, // alternative gate (e.g., overlay band set)
 //   featureFlag?: string,        // gate on isFeatureVisible(featureFlag)
-//   kind?: 'fetch' | 'render',   // metadata for backoff (PR 8) and tooling
+//   kind?: 'fetch' | 'render',   // metadata for tooling
+// }
+//
+// Per-job state (read via getJobState):
+// {
+//   lastStartedAt: number | null,   // epoch ms of last invocation start
+//   lastSucceededAt: number | null, // epoch ms of last success
+//   lastFailedAt: number | null,    // epoch ms of last failure
+//   consecutiveFailures: number,    // resets to 0 on success
+//   nextEligibleAt: number | null,  // when the next auto-scheduled run will fire
+//   stale: boolean,                 // computed via isStale() at read time
+//   lastError: string | null,       // most recent error message
 // }
 
-const jobs = new Map(); // id -> { spec, timer }
+const jobs = new Map(); // id -> { spec, timer, state }
 
 function buildContext(spec) {
   return {
@@ -44,31 +65,61 @@ function buildContext(spec) {
   };
 }
 
+// Run a job's `run` function, handling both sync and async failures.
+// Updates per-job state with start/success/failure timestamps.
+// Resolves to true on success, false on failure. Never throws.
+async function executeJob(id) {
+  const entry = jobs.get(id);
+  if (!entry) return false;
+  const { spec, state: jobState } = entry;
+
+  jobState.lastStartedAt = Date.now();
+  try {
+    const result = spec.run();
+    // Await if it returned a Promise so we can capture async failures.
+    if (result && typeof result.then === 'function') {
+      await result;
+    }
+    jobState.lastSucceededAt = Date.now();
+    jobState.consecutiveFailures = 0;
+    jobState.lastError = null;
+    return true;
+  } catch (err) {
+    jobState.lastFailedAt = Date.now();
+    jobState.consecutiveFailures++;
+    jobState.lastError = err && err.message ? err.message : String(err);
+    console.error(`[scheduler:${id}]`, err);
+    return false;
+  }
+}
+
 function scheduleNext(id) {
   const entry = jobs.get(id);
-  if (!entry) return;
-  entry.timer = setTimeout(() => {
+  if (!entry || entry.spec.manual === true) return;
+  const delay = nextBackoffDelay(entry.spec, entry.state.consecutiveFailures);
+  entry.state.nextEligibleAt = Date.now() + delay;
+  entry.timer = setTimeout(async () => {
     // Re-check entry — may have been unregistered while timer was pending.
     if (!jobs.has(id)) return;
     if (shouldRun(entry.spec, buildContext(entry.spec))) {
-      try {
-        entry.spec.run();
-      } catch (err) {
-        console.error(`[scheduler:${id}]`, err);
-      }
+      await executeJob(id);
     }
     scheduleNext(id);
-  }, nextDelay(entry.spec));
+  }, delay);
 }
 
-// Register a job and start its timer immediately.
+// Register a job. Auto-scheduled jobs (default) start their timer
+// immediately. Manual jobs (spec.manual === true) are tracked but
+// never auto-fire — they only run when invoked via runNow().
 export function register(spec) {
   validateSpec(spec);
   if (jobs.has(spec.id)) {
     throw new Error(`scheduler.register: duplicate id "${spec.id}"`);
   }
-  jobs.set(spec.id, { spec, timer: null });
-  scheduleNext(spec.id);
+  jobs.set(spec.id, { spec, timer: null, state: newJobState() });
+  if (spec.manual !== true) {
+    scheduleNext(spec.id);
+  }
 }
 
 // Stop and remove a job.
@@ -95,15 +146,48 @@ export function jobCount() {
   return jobs.size;
 }
 
-// Run a job immediately (without changing its scheduled cadence).
-// Returns false if the job is not registered.
-export function runNow(id) {
+// Get a snapshot of a job's tracking state. Returns null if the job
+// is not registered. The `stale` field is computed at read time so
+// callers always see the freshest assessment.
+export function getJobState(id) {
   const entry = jobs.get(id);
-  if (!entry) return false;
-  try {
-    entry.spec.run();
-  } catch (err) {
-    console.error(`[scheduler:${id}]`, err);
+  if (!entry) return null;
+  return {
+    ...entry.state,
+    stale: isStale(entry.spec, entry.state),
+  };
+}
+
+// Get tracking state snapshots for all registered jobs.
+// Returns an object: { [id]: jobState }.
+export function getAllJobStates() {
+  const result = {};
+  for (const [id, entry] of jobs) {
+    result[id] = {
+      ...entry.state,
+      stale: isStale(entry.spec, entry.state),
+    };
   }
+  return result;
+}
+
+// Run a job immediately, bypassing all gates (visibility, leader, etc.).
+// Used by manual override paths like the Refresh button. Updates the
+// job's tracking state. Returns false if the job is not registered.
+export async function runNow(id) {
+  if (!jobs.has(id)) return false;
+  await executeJob(id);
   return true;
+}
+
+// Dev/debug helper: expose scheduler introspection on window so it's
+// reachable from the browser console as `__hamtabScheduler`.
+if (typeof window !== 'undefined') {
+  window.__hamtabScheduler = {
+    list: listJobs,
+    state: getJobState,
+    all: getAllJobStates,
+    runNow,
+    has,
+  };
 }

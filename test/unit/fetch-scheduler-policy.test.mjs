@@ -4,7 +4,14 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { validateSpec, shouldRun, nextDelay } from '../../src/fetch-scheduler-policy.js';
+import {
+  validateSpec,
+  shouldRun,
+  nextDelay,
+  nextBackoffDelay,
+  isStale,
+  newJobState,
+} from '../../src/fetch-scheduler-policy.js';
 
 const noop = () => {};
 const validSpec = { id: 'test', run: noop, intervalMs: 1000 };
@@ -164,5 +171,145 @@ describe('nextDelay', () => {
       const d = nextDelay(spec);
       assert.ok(d >= 4500 && d <= 5500, `delay ${d} out of range`);
     }
+  });
+});
+
+describe('validateSpec — manual mode', () => {
+  test('accepts manual job without intervalMs', () => {
+    assert.doesNotThrow(() => validateSpec({ id: 'm', run: noop, manual: true }));
+  });
+
+  test('accepts manual job with intervalMs (ignored but allowed)', () => {
+    assert.doesNotThrow(() => validateSpec({ id: 'm', run: noop, manual: true, intervalMs: 1000 }));
+  });
+
+  test('still rejects invalid intervalMs on auto-scheduled jobs', () => {
+    assert.throws(() => validateSpec({ id: 'a', run: noop }), /intervalMs/);
+    assert.throws(() => validateSpec({ id: 'a', run: noop, intervalMs: 0 }), /intervalMs/);
+  });
+
+  test('rejects invalid maxBackoffMs', () => {
+    assert.throws(() => validateSpec({ id: 'x', run: noop, intervalMs: 1000, maxBackoffMs: 0 }), /maxBackoffMs/);
+    assert.throws(() => validateSpec({ id: 'x', run: noop, intervalMs: 1000, maxBackoffMs: -1 }), /maxBackoffMs/);
+  });
+
+  test('rejects invalid staleAfterMs', () => {
+    assert.throws(() => validateSpec({ id: 'x', run: noop, intervalMs: 1000, staleAfterMs: 0 }), /staleAfterMs/);
+  });
+});
+
+describe('nextBackoffDelay', () => {
+  const spec = { id: 'x', run: noop, intervalMs: 1000 };
+
+  test('returns normal delay when no failures', () => {
+    assert.equal(nextBackoffDelay(spec, 0), 1000);
+  });
+
+  test('doubles each consecutive failure', () => {
+    assert.equal(nextBackoffDelay(spec, 1), 2000);   // 2^1
+    assert.equal(nextBackoffDelay(spec, 2), 4000);   // 2^2
+    assert.equal(nextBackoffDelay(spec, 3), 8000);   // 2^3
+    assert.equal(nextBackoffDelay(spec, 4), 16000);  // 2^4
+  });
+
+  test('caps at default maxBackoffMs (30 minutes) when interval is large enough', () => {
+    // With intervalMs = 1 hour, even one failure (2^1 = 2x = 2 hours) exceeds 30 min cap.
+    const bigSpec = { id: 'big', run: noop, intervalMs: 60 * 60 * 1000 };
+    assert.equal(nextBackoffDelay(bigSpec, 1), 30 * 60 * 1000);
+    assert.equal(nextBackoffDelay(bigSpec, 5), 30 * 60 * 1000);
+  });
+
+  test('exponent is capped at 10 (so 1000ms base never exceeds ~17 min)', () => {
+    // 1000 * 2^10 = 1,024,000ms ≈ 17 min — that's the effective ceiling for
+    // small intervals because the exponent cap kicks in before the time cap.
+    assert.equal(nextBackoffDelay(spec, 10), 1024000);
+    assert.equal(nextBackoffDelay(spec, 100), 1024000); // exponent capped at 10
+  });
+
+  test('respects custom maxBackoffMs', () => {
+    const custom = { ...spec, maxBackoffMs: 5000 };
+    assert.equal(nextBackoffDelay(custom, 1), 2000);
+    assert.equal(nextBackoffDelay(custom, 2), 4000);
+    assert.equal(nextBackoffDelay(custom, 3), 5000); // capped
+    assert.equal(nextBackoffDelay(custom, 99), 5000);
+  });
+
+  test('very high failure counts produce a finite delay (no Math.pow overflow)', () => {
+    // The exponent is internally capped at 10, so even with 1000 failures
+    // the math doesn't blow up. With intervalMs=1000 we hit the exponent cap.
+    const result = nextBackoffDelay(spec, 1000);
+    assert.equal(typeof result, 'number');
+    assert.ok(Number.isFinite(result));
+    assert.ok(result > 0);
+  });
+
+  test('applies symmetric jitter on top of backoff', () => {
+    const jittery = { ...spec, jitterMs: 100 };
+    // failures=1, base = 1000 * 2^1 = 2000, jitter ∈ [-100, +100]
+    assert.equal(nextBackoffDelay(jittery, 1, () => 0), 1900);
+    assert.equal(nextBackoffDelay(jittery, 1, () => 0.5), 2000);
+    assert.ok(nextBackoffDelay(jittery, 1, () => 0.999) >= 2099);
+  });
+
+  test('clamps to non-negative even with destructive jitter', () => {
+    const tiny = { id: 'x', run: noop, intervalMs: 50, jitterMs: 5000 };
+    // 50 * 2^1 = 100, jitter -5000 → clamp to 0
+    assert.equal(nextBackoffDelay(tiny, 1, () => 0), 0);
+  });
+});
+
+describe('isStale', () => {
+  const spec = { id: 'x', run: noop, intervalMs: 1000 };
+
+  test('returns true when never succeeded', () => {
+    assert.equal(isStale(spec, newJobState()), true);
+  });
+
+  test('returns false when last success was recent', () => {
+    const now = 10_000;
+    const state = { ...newJobState(), lastSucceededAt: now - 500 };
+    assert.equal(isStale(spec, state, now), false);
+  });
+
+  test('returns true when last success was past staleAfterMs', () => {
+    // default staleAfter = max(intervalMs * 2, 60s) = 60_000
+    const now = 100_000;
+    const state = { ...newJobState(), lastSucceededAt: now - 70_000 };
+    assert.equal(isStale(spec, state, now), true);
+  });
+
+  test('respects custom staleAfterMs', () => {
+    const customSpec = { ...spec, staleAfterMs: 5000 };
+    const now = 100_000;
+    const state = { ...newJobState(), lastSucceededAt: now - 6000 };
+    assert.equal(isStale(customSpec, state, now), true);
+  });
+
+  test('boundary: exactly staleAfterMs ago is NOT stale', () => {
+    const customSpec = { ...spec, staleAfterMs: 5000 };
+    const now = 100_000;
+    const state = { ...newJobState(), lastSucceededAt: now - 5000 };
+    // (now - lastSucceededAt) > staleAfterMs → 5000 > 5000 → false
+    assert.equal(isStale(customSpec, state, now), false);
+  });
+});
+
+describe('newJobState', () => {
+  test('returns a fresh state with all fields zeroed', () => {
+    const s = newJobState();
+    assert.equal(s.lastStartedAt, null);
+    assert.equal(s.lastSucceededAt, null);
+    assert.equal(s.lastFailedAt, null);
+    assert.equal(s.consecutiveFailures, 0);
+    assert.equal(s.nextEligibleAt, null);
+    assert.equal(s.stale, true);
+    assert.equal(s.lastError, null);
+  });
+
+  test('returns a new object each call (no shared mutation)', () => {
+    const a = newJobState();
+    const b = newJobState();
+    a.consecutiveFailures = 5;
+    assert.equal(b.consecutiveFailures, 0);
   });
 });

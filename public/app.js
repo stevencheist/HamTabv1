@@ -15667,11 +15667,19 @@ ${beacon.location}`);
     if (typeof spec.run !== "function") {
       throw new Error(`scheduler: ${spec.id}: spec.run must be a function`);
     }
-    if (typeof spec.intervalMs !== "number" || spec.intervalMs <= 0 || !Number.isFinite(spec.intervalMs)) {
-      throw new Error(`scheduler: ${spec.id}: spec.intervalMs must be a positive finite number`);
+    if (spec.manual !== true) {
+      if (typeof spec.intervalMs !== "number" || spec.intervalMs <= 0 || !Number.isFinite(spec.intervalMs)) {
+        throw new Error(`scheduler: ${spec.id}: spec.intervalMs must be a positive finite number`);
+      }
     }
     if (spec.jitterMs != null && (typeof spec.jitterMs !== "number" || spec.jitterMs < 0)) {
       throw new Error(`scheduler: ${spec.id}: spec.jitterMs must be a non-negative number`);
+    }
+    if (spec.maxBackoffMs != null && (typeof spec.maxBackoffMs !== "number" || spec.maxBackoffMs <= 0)) {
+      throw new Error(`scheduler: ${spec.id}: spec.maxBackoffMs must be a positive number`);
+    }
+    if (spec.staleAfterMs != null && (typeof spec.staleAfterMs !== "number" || spec.staleAfterMs <= 0)) {
+      throw new Error(`scheduler: ${spec.id}: spec.staleAfterMs must be a positive number`);
     }
   }
   function shouldRun(spec, ctx) {
@@ -15688,6 +15696,36 @@ ${beacon.location}`);
     const jitter = Math.floor(random() * spec.jitterMs * 2) - spec.jitterMs;
     return Math.max(0, spec.intervalMs + jitter);
   }
+  var DEFAULT_MAX_BACKOFF_MS = 30 * 60 * 1e3;
+  var MAX_BACKOFF_EXPONENT = 10;
+  function nextBackoffDelay(spec, consecutiveFailures, random = Math.random) {
+    if (consecutiveFailures <= 0) return nextDelay(spec, random);
+    const cap = spec.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
+    const exp = Math.min(consecutiveFailures, MAX_BACKOFF_EXPONENT);
+    const backoff = Math.min(spec.intervalMs * Math.pow(2, exp), cap);
+    if (spec.jitterMs) {
+      const jitter = Math.floor(random() * spec.jitterMs * 2) - spec.jitterMs;
+      return Math.max(0, backoff + jitter);
+    }
+    return backoff;
+  }
+  function isStale(spec, jobState, now = Date.now()) {
+    if (!jobState || !jobState.lastSucceededAt) return true;
+    const defaultStale = spec.intervalMs ? Math.max(spec.intervalMs * 2, 6e4) : 6e4;
+    const staleAfter = spec.staleAfterMs ?? defaultStale;
+    return now - jobState.lastSucceededAt > staleAfter;
+  }
+  function newJobState() {
+    return {
+      lastStartedAt: null,
+      lastSucceededAt: null,
+      lastFailedAt: null,
+      consecutiveFailures: 0,
+      nextEligibleAt: null,
+      stale: true,
+      lastError: null
+    };
+  }
 
   // src/fetch-scheduler.js
   var jobs = /* @__PURE__ */ new Map();
@@ -15700,28 +15738,50 @@ ${beacon.location}`);
       featureVisible: spec.featureFlag ? isFeatureVisible(spec.featureFlag) : void 0
     };
   }
+  async function executeJob(id) {
+    const entry = jobs.get(id);
+    if (!entry) return false;
+    const { spec, state: jobState } = entry;
+    jobState.lastStartedAt = Date.now();
+    try {
+      const result = spec.run();
+      if (result && typeof result.then === "function") {
+        await result;
+      }
+      jobState.lastSucceededAt = Date.now();
+      jobState.consecutiveFailures = 0;
+      jobState.lastError = null;
+      return true;
+    } catch (err2) {
+      jobState.lastFailedAt = Date.now();
+      jobState.consecutiveFailures++;
+      jobState.lastError = err2 && err2.message ? err2.message : String(err2);
+      console.error(`[scheduler:${id}]`, err2);
+      return false;
+    }
+  }
   function scheduleNext(id) {
     const entry = jobs.get(id);
-    if (!entry) return;
-    entry.timer = setTimeout(() => {
+    if (!entry || entry.spec.manual === true) return;
+    const delay = nextBackoffDelay(entry.spec, entry.state.consecutiveFailures);
+    entry.state.nextEligibleAt = Date.now() + delay;
+    entry.timer = setTimeout(async () => {
       if (!jobs.has(id)) return;
       if (shouldRun(entry.spec, buildContext(entry.spec))) {
-        try {
-          entry.spec.run();
-        } catch (err2) {
-          console.error(`[scheduler:${id}]`, err2);
-        }
+        await executeJob(id);
       }
       scheduleNext(id);
-    }, nextDelay(entry.spec));
+    }, delay);
   }
   function register(spec) {
     validateSpec(spec);
     if (jobs.has(spec.id)) {
       throw new Error(`scheduler.register: duplicate id "${spec.id}"`);
     }
-    jobs.set(spec.id, { spec, timer: null });
-    scheduleNext(spec.id);
+    jobs.set(spec.id, { spec, timer: null, state: newJobState() });
+    if (spec.manual !== true) {
+      scheduleNext(spec.id);
+    }
   }
   function unregister(id) {
     const entry = jobs.get(id);
@@ -15732,6 +15792,41 @@ ${beacon.location}`);
   }
   function has(id) {
     return jobs.has(id);
+  }
+  function listJobs() {
+    return Array.from(jobs.keys());
+  }
+  function getJobState(id) {
+    const entry = jobs.get(id);
+    if (!entry) return null;
+    return {
+      ...entry.state,
+      stale: isStale(entry.spec, entry.state)
+    };
+  }
+  function getAllJobStates() {
+    const result = {};
+    for (const [id, entry] of jobs) {
+      result[id] = {
+        ...entry.state,
+        stale: isStale(entry.spec, entry.state)
+      };
+    }
+    return result;
+  }
+  async function runNow(id) {
+    if (!jobs.has(id)) return false;
+    await executeJob(id);
+    return true;
+  }
+  if (typeof window !== "undefined") {
+    window.__hamtabScheduler = {
+      list: listJobs,
+      state: getJobState,
+      all: getAllJobStates,
+      runNow,
+      has
+    };
   }
 
   // src/refresh.js
@@ -15861,19 +15956,23 @@ ${beacon.location}`);
   }
   async function runSourceJob(job) {
     if (job.featureFlag && !isFeatureVisible(job.featureFlag)) return;
-    try {
-      const data = await fetchSourceRaw(job);
-      if (data === null) return;
-      applySourceData(job, data);
-    } catch (err2) {
-      console.error(`Failed to fetch ${job.source} spots:`, err2);
-    }
+    const data = await fetchSourceRaw(job);
+    if (data === null) return;
+    applySourceData(job, data);
   }
+  SOURCE_JOBS.forEach((job) => {
+    register({
+      id: job.id,
+      run: () => runSourceJob(job),
+      manual: true,
+      kind: "fetch"
+    });
+  });
   function refreshAll() {
     const btn = $("refreshBtn");
     if (btn) btn.textContent = "Refreshing...";
     for (const job of SOURCE_JOBS) {
-      runSourceJob(job);
+      runNow(job.id);
     }
     if (isWidgetVisible("widget-solar") || isWidgetVisible("widget-propagation") || isWidgetVisible("widget-voacap")) fetchSolar();
     if (isWidgetVisible("widget-lunar")) fetchLunar();

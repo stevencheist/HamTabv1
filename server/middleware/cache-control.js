@@ -32,7 +32,7 @@ const CACHE_RULES = [
   { prefix: '/api/weather/conditions', cc: 'public, max-age=300, s-maxage=900' },      // NWS 15m refresh; browser 5m, edge 15m
   { prefix: '/api/weather/alerts',     cc: 'public, max-age=120, s-maxage=300' },      // safety-critical; browser 2m, edge 5m
   { prefix: '/api/weather',            cc: 'public, max-age=120, s-maxage=300' },      // WU data; browser 2m, edge 5m
-  { prefix: '/api/callsign/',          cc: 'public, max-age=3600, s-maxage=86400' },   // immutable lookups; browser 1h, edge 24h
+  { prefix: '/api/callsign',           cc: 'public, max-age=3600, s-maxage=86400' },   // immutable lookups; browser 1h, edge 24h
   { prefix: '/api/voacap',             cc: 'public, max-age=300, s-maxage=1800' },     // heavy computation; browser 5m, edge 30m
 ];
 

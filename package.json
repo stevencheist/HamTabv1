@@ -27,7 +27,8 @@
     "build:docs": "node docs/user-guide/build.mjs",
     "dev": "node esbuild.mjs --watch",
     "start": "node esbuild.mjs && node server.js",
-    "start:direct": "node server.js"
+    "start:direct": "node server.js",
+    "test": "node --test test/unit/ test/smoke/"
   },
   "dependencies": {
     "cors": "^2.8.6",
@@ -46,6 +47,7 @@
   },
   "devDependencies": {
     "marked": "^15.0.0",
-    "puppeteer": "^24.0.0"
+    "puppeteer": "^24.0.0",
+    "supertest": "^7.2.2"
   }
 }

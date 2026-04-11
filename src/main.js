@@ -68,7 +68,8 @@ import { initLogbook, renderLogbookOnMap } from './logbook.js';
 import { initPotaHunter, renderWorkedFilterToggle } from './pota-hunter.js';
 import { initBandScore } from './band-score.js';
 import { isFeatureVisible } from './feature-flags.js';
-import { initCrossTab, isLeaderTab } from './cross-tab.js';
+import { initCrossTab } from './cross-tab.js';
+import { register as registerJob } from './fetch-scheduler.js';
 
 // Initialize map
 initMap();
@@ -76,17 +77,46 @@ initMap();
 // Initialize gray line + sun marker.
 updateGrayLine();
 updateSunMarker();
-setInterval(() => { if (document.hidden) return; updateGrayLine(); updateSunMarker(); }, 60000); // 60 s — gray line + sun marker refresh
+registerJob({
+  id: 'gray-line',
+  intervalMs: 60_000,
+  run: () => { updateGrayLine(); updateSunMarker(); },
+  kind: 'render',
+});
 
 // Satellite tracking (multi-satellite via N2YO)
 initSatellites();
-setInterval(() => { if (document.hidden || !isWidgetVisible('widget-satellites') || !isLeaderTab()) return; fetchIssPosition(); }, 10000); // 10 s — ISS position refresh (free, no API key)
-setInterval(() => { if (document.hidden || !isWidgetVisible('widget-satellites') || !isLeaderTab()) return; fetchSatellitePositions(); }, 10000); // 10 s — other satellite position refresh (N2YO)
+registerJob({
+  id: 'iss-position',
+  intervalMs: 10_000,
+  run: fetchIssPosition,
+  requiresLeader: true,
+  widgetGate: 'widget-satellites',
+  kind: 'fetch',
+});
+registerJob({
+  id: 'satellite-positions',
+  intervalMs: 10_000,
+  run: fetchSatellitePositions,
+  requiresLeader: true,
+  widgetGate: 'widget-satellites',
+  kind: 'fetch',
+});
 
 // Clocks — purely visual, skip entirely when hidden.
 updateClocks();
-setInterval(() => { if (document.hidden) return; updateClocks(); updateBigClock(); updateAnalogClock(); }, 1000);
-setInterval(() => { if (document.hidden) return; updateSpotAges(); }, 30000); // 30 s — patch age cells in place (avoids full table rebuild)
+registerJob({
+  id: 'clocks',
+  intervalMs: 1000,
+  run: () => { updateClocks(); updateBigClock(); updateAnalogClock(); },
+  kind: 'render',
+});
+registerJob({
+  id: 'spot-ages',
+  intervalMs: 30_000,
+  run: updateSpotAges,
+  kind: 'render',
+});
 
 // --- Safe widget init — isolates crashes so one widget can't break the rest ---
 function safeInit(name, fn) {
@@ -191,25 +221,45 @@ function initApp() {
   if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
 }
 
-// Live Spots refresh (5 min + jitter — PSKReporter rate limit) — leader tab only.
+// Live Spots refresh (5 min ± 30s jitter — PSKReporter rate limit) — leader tab only.
 // Jitter prevents synchronized bursts when multiple instances share the same server.
-const PSK_REFRESH_BASE = 5 * 60 * 1000;   // 5 min base
-const PSK_REFRESH_JITTER = 30 * 1000;     // ±30s jitter
-function scheduleLiveSpotsRefresh() {
-  const delay = PSK_REFRESH_BASE + Math.floor(Math.random() * PSK_REFRESH_JITTER * 2) - PSK_REFRESH_JITTER;
-  setTimeout(() => {
-    if (!document.hidden && isWidgetVisible('widget-live-spots') && isLeaderTab()) fetchLiveSpots();
-    scheduleLiveSpotsRefresh();
-  }, delay);
-}
-scheduleLiveSpotsRefresh();
+registerJob({
+  id: 'psk-live-spots',
+  intervalMs: 5 * 60 * 1000,
+  jitterMs: 30 * 1000,
+  run: fetchLiveSpots,
+  requiresLeader: true,
+  widgetGate: 'widget-live-spots',
+  kind: 'fetch',
+});
 
 // VOACAP matrix refresh — render every minute (for hour transitions), fetch leader-only.
-setInterval(() => { if (document.hidden) return; if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) renderVoacapMatrix(); }, 60 * 1000);
-setInterval(() => { if (document.hidden || !isLeaderTab()) return; if (isWidgetVisible('widget-voacap') || state.hfPropOverlayBand) fetchVoacapMatrixThrottled(); }, 60 * 1000);
+registerJob({
+  id: 'voacap-render',
+  intervalMs: 60 * 1000,
+  run: renderVoacapMatrix,
+  widgetGate: 'widget-voacap',
+  widgetGateOr: () => !!state.hfPropOverlayBand,
+  kind: 'render',
+});
+registerJob({
+  id: 'voacap-fetch',
+  intervalMs: 60 * 1000,
+  run: fetchVoacapMatrixThrottled,
+  requiresLeader: true,
+  widgetGate: 'widget-voacap',
+  widgetGateOr: () => !!state.hfPropOverlayBand,
+  kind: 'fetch',
+});
 
 // Beacon map markers — refresh every 10s (same as beacon rotation)
-setInterval(() => { if (document.hidden || !isWidgetVisible('widget-beacons')) return; updateBeaconMarkers(); }, 10000);
+registerJob({
+  id: 'beacon-markers',
+  intervalMs: 10_000,
+  run: updateBeaconMarkers,
+  widgetGate: 'widget-beacons',
+  kind: 'render',
+});
 
 // DE/DX Info refresh — timer managed internally by dedx-info.js (1s for live clocks)
 

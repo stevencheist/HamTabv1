@@ -93,60 +93,146 @@ export function disconnectRbnSse() {
 export function isDxcSseActive() { return dxcSse !== null; }
 export function isRbnSseActive() { return rbnSse !== null; }
 
-export async function fetchSourceData(source) {
-  const def = SOURCE_DEFS[source];
-  if (!def) return;
-  // Skip HTTP polling when SSE stream is active for this source.
-  if (source === 'dxc' && isDxcSseActive()) return;
-  if (source === 'rbn' && isRbnSseActive()) return;
-  try {
-    // PSK and WSPR use server-side caching with appropriate TTLs — skip _t to allow edge cache hits.
-    const cacheable = source === 'psk' || source === 'wspr';
-    const url = cacheable ? def.endpoint : def.endpoint + (def.endpoint.includes('?') ? '&' : '?') + '_t=' + Date.now();
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    let data = await resp.json();
-    if (source === 'pota') {
-      data = (Array.isArray(data) ? data : []).map(s => {
-        if (!s.callsign && s.activator) s.callsign = s.activator;
-        return s;
-      });
-    }
-    state.sourceData[source] = Array.isArray(data) ? data : [];
-    // Re-render WSPR heatmap when fresh WSPR data arrives.
-    if (source === 'wspr' && state.mapOverlays.wsprHeatmap) {
-      clearTimeout(state.wsprHeatmapRenderTimer);
-      const { renderWsprHeatmapCanvas } = require('./wspr-heatmap.js');
-      state.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas(state.wsprHeatmapBand), 200);
-    }
-    if (source === state.currentSource) {
-      applyFilter();
-      renderSpots();
-      renderMarkers();
-      updateBandFilterButtons();
-      updateModeFilterButtons();
-      updateCountryFilter();
-      updateStateFilter();
-      updateGridFilter();
-      updateContinentFilter();
-    }
-  } catch (err) {
-    console.error(`Failed to fetch ${source} spots:`, err);
+// --- Source job descriptors ---
+//
+// Each spot source is described declaratively. The list replaces the
+// hardcoded fan-out in refreshAll(). Adding a new source = appending an
+// entry here, no orchestrator changes required.
+//
+// Fields:
+//   id          — scheduler-compatible job id (unique)
+//   source      — key into SOURCE_DEFS / state.sourceData
+//   featureFlag — optional feature flag gate
+//   shortCircuit — optional () => boolean. When it returns true, the fetch
+//                  is skipped (used to defer to an active SSE stream).
+//   transform   — optional (data) => data, applied to the raw response
+//                 before storing in state.sourceData
+//   cacheable   — true if the endpoint is server-side cached and we can
+//                 rely on edge cache hits (skip the _t cache-buster).
+//
+// Each entry has the same SHAPE as a fetch-scheduler job spec (id +
+// gating fields), so PR 8 can register them with the scheduler when
+// per-source backoff and freshness metadata are added.
+
+const SOURCE_JOBS = [
+  { id: 'source-pota', source: 'pota', cacheable: false,
+    transform: (data) => (Array.isArray(data) ? data : []).map(s => {
+      if (!s.callsign && s.activator) s.callsign = s.activator;
+      return s;
+    }),
+  },
+  { id: 'source-sota', source: 'sota', cacheable: false },
+  { id: 'source-dxc',  source: 'dxc',  cacheable: false,
+    shortCircuit: () => isDxcSseActive(),
+  },
+  { id: 'source-wwff', source: 'wwff', cacheable: false },
+  { id: 'source-psk',  source: 'psk',  cacheable: true },
+  { id: 'source-wspr', source: 'wspr', cacheable: true },
+  { id: 'source-rbn',  source: 'rbn',  cacheable: false,
+    featureFlag: 'rbn_source',
+    shortCircuit: () => isRbnSseActive(),
+  },
+];
+
+// --- Layer 1: source descriptor lookup ---
+
+export function getSourceJob(source) {
+  return SOURCE_JOBS.find(j => j.source === source) || null;
+}
+
+export function listSourceJobs() {
+  return SOURCE_JOBS.slice();
+}
+
+// --- Layer 2: fetch execution ---
+// Pure: builds the URL, hits the endpoint, returns parsed JSON.
+// No state mutation, no DOM, no rendering. Returns null if the source
+// short-circuits (e.g., SSE stream active).
+
+async function fetchSourceRaw(job) {
+  const def = SOURCE_DEFS[job.source];
+  if (!def) throw new Error(`Unknown source: ${job.source}`);
+  if (job.shortCircuit && job.shortCircuit()) return null;
+  const url = job.cacheable
+    ? def.endpoint
+    : def.endpoint + (def.endpoint.includes('?') ? '&' : '?') + '_t=' + Date.now();
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.json();
+}
+
+// --- Layer 3: UI/state application ---
+// Takes already-parsed data and updates state.sourceData + re-renders if
+// this source is currently visible. Pure-ish: only side effects are state
+// mutation and DOM updates via the existing render functions.
+
+function applySourceData(job, rawData) {
+  const transformed = job.transform ? job.transform(rawData) : rawData;
+  state.sourceData[job.source] = Array.isArray(transformed) ? transformed : [];
+
+  // Re-render WSPR heatmap when fresh WSPR data arrives.
+  if (job.source === 'wspr' && state.mapOverlays.wsprHeatmap) {
+    clearTimeout(state.wsprHeatmapRenderTimer);
+    const { renderWsprHeatmapCanvas } = require('./wspr-heatmap.js');
+    state.wsprHeatmapRenderTimer = setTimeout(
+      () => renderWsprHeatmapCanvas(state.wsprHeatmapBand),
+      200
+    );
+  }
+
+  if (job.source === state.currentSource) {
+    applyFilter();
+    renderSpots();
+    renderMarkers();
+    updateBandFilterButtons();
+    updateModeFilterButtons();
+    updateCountryFilter();
+    updateStateFilter();
+    updateGridFilter();
+    updateContinentFilter();
   }
 }
+
+// --- Job runner: orchestrates fetch + apply with feature-flag gate ---
+
+async function runSourceJob(job) {
+  if (job.featureFlag && !isFeatureVisible(job.featureFlag)) return;
+  try {
+    const data = await fetchSourceRaw(job);
+    if (data === null) return; // short-circuited
+    applySourceData(job, data);
+  } catch (err) {
+    console.error(`Failed to fetch ${job.source} spots:`, err);
+  }
+}
+
+// Backward-compatible API: callers (e.g., source.js when switching tabs)
+// invoke fetchSourceData(source) by name. Looks up the descriptor and
+// runs the same code path as the orchestrator.
+export async function fetchSourceData(source) {
+  const job = getSourceJob(source);
+  if (!job) return;
+  return runSourceJob(job);
+}
+
+// --- Manual override / orchestrator ---
+// refreshAll iterates the registered source jobs (no more hardcoded
+// fan-out) and also kicks the auxiliary widget fetches that aren't yet
+// modeled as source jobs. Same trigger semantics as before — fired by
+// the auto-refresh countdown and the manual refresh button.
 
 export function refreshAll() {
   // Brief "Refreshing..." feedback
   const btn = $('refreshBtn');
   if (btn) btn.textContent = 'Refreshing...';
 
-  fetchSourceData('pota');
-  fetchSourceData('sota');
-  fetchSourceData('dxc');
-  fetchSourceData('wwff');
-  fetchSourceData('psk');
-  fetchSourceData('wspr');
-  if (isFeatureVisible('rbn_source')) fetchSourceData('rbn');
+  // Fan out to all registered source jobs.
+  for (const job of SOURCE_JOBS) {
+    runSourceJob(job);
+  }
+
+  // Auxiliary widget fetches — not yet modeled as source jobs because
+  // they don't share the SOURCE_DEFS shape and have widget-specific gates.
   if (isWidgetVisible('widget-solar') || isWidgetVisible('widget-propagation') || isWidgetVisible('widget-voacap')) fetchSolar();
   if (isWidgetVisible('widget-lunar')) fetchLunar();
   fetchPropagation(); // map overlay, always useful

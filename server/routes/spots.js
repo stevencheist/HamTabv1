@@ -8,6 +8,7 @@ const net = require('net');
 const { XMLParser } = require('fast-xml-parser');
 const { secureFetch, fetchJSON, fetchText } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
+const { setFreshnessHeaders } = require('../services/freshness-headers');
 const { isUSCallsign, lookupHamqth, gridToLatLon } = require('./callsign');
 
 const router = express.Router();
@@ -784,6 +785,7 @@ router.get('/spots/dxc', async (req, res) => {
   try {
     // Return cached data if fresh
     if (dxcCache.data && Date.now() < dxcCache.expires) {
+      setFreshnessHeaders(res, { fetchedAt: dxcCache.fetchedAt, expires: dxcCache.expires, cacheHit: true });
       return res.json(dxcCache.data);
     }
 
@@ -848,8 +850,9 @@ router.get('/spots/dxc', async (req, res) => {
     }
 
     // Cache the result
-    dxcCache = { data: spots, expires: Date.now() + DXC_CACHE_TTL };
-
+    const now = Date.now();
+    dxcCache = { data: spots, fetchedAt: now, expires: now + DXC_CACHE_TTL };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: dxcCache.expires, cacheHit: false });
     res.json(spots);
   } catch (err) {
     console.error('Error fetching DXC spots:', err.message);
@@ -862,19 +865,26 @@ router.get('/spots/psk', async (req, res) => {
   try {
     // Return cached data if fresh
     if (pskCache.data && Date.now() < pskCache.expires) {
+      setFreshnessHeaders(res, { fetchedAt: pskCache.fetchedAt, expires: pskCache.expires, cacheHit: true });
       return res.json(pskCache.data);
     }
 
     // Circuit breaker check — serve stale if breaker is open
     // Global PSK returns a plain array (consumed by source tab), so no _meta wrapper
     if (!pskCbAllowRequest()) {
-      if (pskCache.data) return res.json(pskCache.data);
+      if (pskCache.data) {
+        setFreshnessHeaders(res, { fetchedAt: pskCache.fetchedAt, expires: pskCache.expires, cacheHit: true });
+        return res.json(pskCache.data);
+      }
       return res.status(503).json({ error: 'PSKReporter circuit breaker open — try again shortly' });
     }
 
     // Rate limit check — serve stale data if throttled
     if (!pskAcquireToken(pskGlobalBucket)) {
-      if (pskCache.data) return res.json(pskCache.data); // stale-while-revalidate
+      if (pskCache.data) {
+        setFreshnessHeaders(res, { fetchedAt: pskCache.fetchedAt, expires: pskCache.expires, cacheHit: true });
+        return res.json(pskCache.data);
+      }
       return res.status(429).json({ error: 'PSKReporter rate limit — try again shortly' });
     }
 
@@ -901,7 +911,9 @@ router.get('/spots/psk', async (req, res) => {
     // Extract reception reports array
     const reports = doc.receptionReports?.receptionReport;
     if (!reports) {
-      pskCache = { data: [], expires: Date.now() + PSK_CACHE_TTL };
+      const now = Date.now();
+      pskCache = { data: [], fetchedAt: now, expires: now + PSK_CACHE_TTL };
+      setFreshnessHeaders(res, { fetchedAt: now, expires: pskCache.expires, cacheHit: false });
       return res.json([]);
     }
 
@@ -942,13 +954,18 @@ router.get('/spots/psk', async (req, res) => {
     // Filter out spots with no valid transmitter coordinates
     const validSpots = spots.filter(s => s.latitude !== null && s.longitude !== null);
 
-    pskCache = { data: validSpots, expires: Date.now() + PSK_CACHE_TTL };
+    const now = Date.now();
+    pskCache = { data: validSpots, fetchedAt: now, expires: now + PSK_CACHE_TTL };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: pskCache.expires, cacheHit: false });
     res.json(validSpots);
   } catch (err) {
     console.error('Error fetching PSKReporter spots:', err.message);
     pskCbRecordFailure(); // track consecutive failures
     // Stale-while-revalidate — serve old data if available
-    if (pskCache.data) return res.json(pskCache.data);
+    if (pskCache.data) {
+      setFreshnessHeaders(res, { fetchedAt: pskCache.fetchedAt, expires: pskCache.expires, cacheHit: true });
+      return res.json(pskCache.data);
+    }
     res.status(502).json({ error: 'PSKReporter is unavailable — try again shortly' });
   }
 });
@@ -976,26 +993,35 @@ router.get('/spots/psk/heard', async (req, res) => {
     if (mqttConnected && mqttCallsigns[callsign]?.spots.size > 0) {
       const result = mqttBuildHeardResponse(callsign);
       // Also update the HTTP cache so stale fallback has fresh data
-      pskHeardCache[callsign] = { data: result, expires: Date.now() + PSK_HEARD_CACHE_TTL };
+      const now = Date.now();
+      pskHeardCache[callsign] = { data: result, fetchedAt: now, expires: now + PSK_HEARD_CACHE_TTL };
+      setFreshnessHeaders(res, { fetchedAt: now, expires: pskHeardCache[callsign].expires, cacheHit: false });
       return res.json(result);
     }
 
     // Check cache
     const cached = pskHeardCache[callsign];
     if (cached && Date.now() < cached.expires) {
+      setFreshnessHeaders(res, { fetchedAt: cached.fetchedAt, expires: cached.expires, cacheHit: true });
       return res.json(cached.data);
     }
 
     // Circuit breaker check — serve stale if breaker is open
     if (!pskCbAllowRequest()) {
       const meta = pskMeta(cached);
-      if (cached?.data) return res.json({ ...cached.data, _meta: meta });
+      if (cached?.data) {
+        setFreshnessHeaders(res, { fetchedAt: cached.fetchedAt, expires: cached.expires, cacheHit: true });
+        return res.json({ ...cached.data, _meta: meta });
+      }
       return res.status(503).json({ error: 'PSKReporter circuit breaker open — try again shortly' });
     }
 
     // Rate limit check — serve stale data if throttled
     if (!pskAcquireToken(pskHeardBucket)) {
-      if (cached?.data) return res.json(cached.data); // stale-while-revalidate
+      if (cached?.data) {
+        setFreshnessHeaders(res, { fetchedAt: cached.fetchedAt, expires: cached.expires, cacheHit: true });
+        return res.json(cached.data);
+      }
       return res.status(429).json({ error: 'PSKReporter rate limit — try again shortly' });
     }
 
@@ -1023,7 +1049,9 @@ router.get('/spots/psk/heard', async (req, res) => {
     const reports = doc.receptionReports?.receptionReport;
     if (!reports) {
       const result = { spots: [], summary: {} };
-      pskHeardCache[callsign] = { data: result, expires: Date.now() + PSK_HEARD_CACHE_TTL };
+      const now = Date.now();
+      pskHeardCache[callsign] = { data: result, fetchedAt: now, expires: now + PSK_HEARD_CACHE_TTL };
+      setFreshnessHeaders(res, { fetchedAt: now, expires: pskHeardCache[callsign].expires, cacheHit: false });
       return res.json(result);
     }
 
@@ -1087,14 +1115,19 @@ router.get('/spots/psk/heard', async (req, res) => {
     }
 
     const result = { spots: validSpots, summary };
-    pskHeardCache[callsign] = { data: result, expires: Date.now() + PSK_HEARD_CACHE_TTL };
+    const now = Date.now();
+    pskHeardCache[callsign] = { data: result, fetchedAt: now, expires: now + PSK_HEARD_CACHE_TTL };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: pskHeardCache[callsign].expires, cacheHit: false });
     res.json(result);
   } catch (err) {
     console.error('Error fetching PSKReporter heard spots:', err.message);
     pskCbRecordFailure(); // track consecutive failures
     // Stale-while-revalidate — serve old data if available
     const stale = pskHeardCache[callsign];
-    if (stale?.data) return res.json(stale.data);
+    if (stale?.data) {
+      setFreshnessHeaders(res, { fetchedAt: stale.fetchedAt, expires: stale.expires, cacheHit: true });
+      return res.json(stale.data);
+    }
     res.status(502).json({ error: 'PSKReporter is unavailable — try again shortly' });
   }
 });
@@ -1182,7 +1215,9 @@ router.post('/internal/psk-parse', express.text({ type: '*/*', limit: '5mb' }), 
     const reports = parsePskSpots(req.body);
     const spots = reports.map(transformPskSpot);
     const validSpots = spots.filter(s => s.latitude !== null && s.longitude !== null);
-    pskCache = { data: validSpots, expires: Date.now() + PSK_CACHE_TTL };
+    const now = Date.now();
+    pskCache = { data: validSpots, fetchedAt: now, expires: now + PSK_CACHE_TTL };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: pskCache.expires, cacheHit: false });
     res.json(validSpots);
   } catch (err) {
     console.error('[internal/psk-parse] Error:', err.message);
@@ -1210,7 +1245,9 @@ router.post('/internal/psk-heard-parse', express.text({ type: '*/*', limit: '5mb
       }
     }
     const result = { spots: validSpots, summary };
-    if (callsign) pskHeardCache[callsign] = { data: result, expires: Date.now() + PSK_HEARD_CACHE_TTL };
+    const now = Date.now();
+    if (callsign) pskHeardCache[callsign] = { data: result, fetchedAt: now, expires: now + PSK_HEARD_CACHE_TTL };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: now + PSK_HEARD_CACHE_TTL, cacheHit: false });
     res.json(result);
   } catch (err) {
     console.error('[internal/psk-heard-parse] Error:', err.message);
@@ -1225,6 +1262,7 @@ const WSPR_CACHE_TTL = 5 * 60 * 1000; // 5 min — WSPR 2-min cycle; 20 req/min 
 router.get('/spots/wspr', async (req, res) => {
   try {
     if (wsprCache.data && Date.now() < wsprCache.expires) {
+      setFreshnessHeaders(res, { fetchedAt: wsprCache.fetchedAt, expires: wsprCache.expires, cacheHit: true });
       return res.json(wsprCache.data);
     }
 
@@ -1267,7 +1305,9 @@ router.get('/spots/wspr', async (req, res) => {
     // Filter out spots with no valid transmitter coordinates
     const validSpots = spots.filter(s => s.latitude !== null && s.longitude !== null);
 
-    wsprCache = { data: validSpots, expires: Date.now() + WSPR_CACHE_TTL };
+    const now = Date.now();
+    wsprCache = { data: validSpots, fetchedAt: now, expires: now + WSPR_CACHE_TTL };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: wsprCache.expires, cacheHit: false });
     res.json(validSpots);
   } catch (err) {
     console.error('Error fetching WSPR spots:', err.message);

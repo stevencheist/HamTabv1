@@ -4,6 +4,9 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { fmtTime } from './utils.js';
+import { register as registerJob, has as hasJob, unregister as unregisterJob } from './fetch-scheduler.js';
+
+const UPDATE_STATUS_JOB_ID = 'update-status-poll';
 
 export async function checkUpdateStatus() {
   try {
@@ -30,9 +33,34 @@ export async function checkUpdateStatus() {
 }
 
 export function startUpdateStatusPolling() {
-  if (state.updateStatusPolling) clearInterval(state.updateStatusPolling);
+  // Clean up any legacy timer in case of hot reload.
+  if (state.updateStatusPolling) {
+    clearInterval(state.updateStatusPolling);
+    state.updateStatusPolling = null;
+  }
+  // Fire once immediately so the indicator updates without waiting 30s.
   checkUpdateStatus();
-  state.updateStatusPolling = setInterval(checkUpdateStatus, 30000);
+  // Register with the scheduler for the recurring poll. Leader-only so
+  // follower tabs don't independently poll the update endpoint.
+  if (!hasJob(UPDATE_STATUS_JOB_ID)) {
+    registerJob({
+      id: UPDATE_STATUS_JOB_ID,
+      intervalMs: 30000,
+      run: checkUpdateStatus,
+      requiresLeader: true,
+      kind: 'fetch',
+    });
+  }
+}
+
+export function stopUpdateStatusPolling() {
+  if (state.updateStatusPolling) {
+    clearInterval(state.updateStatusPolling);
+    state.updateStatusPolling = null;
+  }
+  if (hasJob(UPDATE_STATUS_JOB_ID)) {
+    unregisterJob(UPDATE_STATUS_JOB_ID);
+  }
 }
 
 function pollForServer(attempts) {

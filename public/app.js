@@ -15819,14 +15819,35 @@ ${beacon.location}`);
     await executeJob(id);
     return true;
   }
+  function catchUpRenderJobs() {
+    for (const [id, entry] of jobs) {
+      if (entry.spec.manual) continue;
+      if (entry.spec.kind !== "render") continue;
+      if (!shouldRun(entry.spec, buildContext(entry.spec))) continue;
+      const sinceLastStart = Date.now() - (entry.state.lastStartedAt || 0);
+      if (sinceLastStart < 250) continue;
+      if (entry.timer) {
+        clearTimeout(entry.timer);
+        entry.timer = null;
+      }
+      executeJob(id).then(() => scheduleNext(id));
+    }
+  }
   if (typeof window !== "undefined") {
     window.__hamtabScheduler = {
       list: listJobs,
       state: getJobState,
       all: getAllJobStates,
       runNow,
-      has
+      has,
+      catchUp: catchUpRenderJobs
     };
+  }
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) return;
+      catchUpRenderJobs();
+    });
   }
 
   // src/refresh.js
@@ -25692,6 +25713,7 @@ ${beacon.location}`);
   init_state();
   init_dom();
   init_utils();
+  var UPDATE_STATUS_JOB_ID = "update-status-poll";
   async function checkUpdateStatus() {
     try {
       const resp = await fetch("/api/update/status");
@@ -25710,9 +25732,20 @@ ${beacon.location}`);
     }
   }
   function startUpdateStatusPolling() {
-    if (state_default.updateStatusPolling) clearInterval(state_default.updateStatusPolling);
+    if (state_default.updateStatusPolling) {
+      clearInterval(state_default.updateStatusPolling);
+      state_default.updateStatusPolling = null;
+    }
     checkUpdateStatus();
-    state_default.updateStatusPolling = setInterval(checkUpdateStatus, 3e4);
+    if (!has(UPDATE_STATUS_JOB_ID)) {
+      register({
+        id: UPDATE_STATUS_JOB_ID,
+        intervalMs: 3e4,
+        run: checkUpdateStatus,
+        requiresLeader: true,
+        kind: "fetch"
+      });
+    }
   }
   function pollForServer(attempts) {
     if (attempts <= 0) {
@@ -27572,17 +27605,6 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     run: updateBeaconMarkers,
     widgetGate: "widget-beacons",
     kind: "render"
-  });
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden || !state_default.appInitialized) return;
-    updateClocks();
-    updateBigClock();
-    updateAnalogClock();
-    updateSpotAges();
-    updateGrayLine();
-    updateSunMarker();
-    if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
-    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) renderVoacapMatrix();
   });
   setInitApp(initApp);
   initWidgets();

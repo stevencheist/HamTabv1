@@ -180,6 +180,39 @@ export async function runNow(id) {
   return true;
 }
 
+// Catch-up on tab visibility return.
+//
+// Browsers throttle setTimeout/setInterval in background tabs, so when
+// a tab returns to the foreground there can be up to `intervalMs` of
+// staleness before the next scheduled tick fires. This walks all
+// auto-scheduled render-kind jobs, runs the eligible ones immediately,
+// and reschedules the regular cadence.
+//
+// Only `kind: 'render'` jobs are caught up — fetch-kind jobs are
+// deliberately NOT caught up to avoid synchronized network bursts on
+// tab return. They tick on their normal cadence after visibility
+// returns; freshness comes from the next scheduled run, not catch-up.
+export function catchUpRenderJobs() {
+  for (const [id, entry] of jobs) {
+    if (entry.spec.manual) continue;
+    if (entry.spec.kind !== 'render') continue;
+    if (!shouldRun(entry.spec, buildContext(entry.spec))) continue;
+    // Skip jobs that started running very recently (avoid double-fire
+    // when a visibility event lands right next to a scheduled tick).
+    const sinceLastStart = Date.now() - (entry.state.lastStartedAt || 0);
+    if (sinceLastStart < 250) continue;
+    // Cancel any pending tick — we're firing immediately and will
+    // reschedule a fresh interval afterwards.
+    if (entry.timer) {
+      clearTimeout(entry.timer);
+      entry.timer = null;
+    }
+    // Fire-and-reschedule. executeJob is async but we don't need to
+    // await — we just want each job to start its own promise chain.
+    executeJob(id).then(() => scheduleNext(id));
+  }
+}
+
 // Dev/debug helper: expose scheduler introspection on window so it's
 // reachable from the browser console as `__hamtabScheduler`.
 if (typeof window !== 'undefined') {
@@ -189,5 +222,16 @@ if (typeof window !== 'undefined') {
     all: getAllJobStates,
     runNow,
     has,
+    catchUp: catchUpRenderJobs,
   };
+}
+
+// Attach the visibility catch-up listener once at module load.
+// Browser-only — guarded by typeof checks so the module still loads
+// cleanly under Node test runtime.
+if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) return;
+    catchUpRenderJobs();
+  });
 }

@@ -6,6 +6,7 @@ const express = require('express');
 const satellite = require('satellite.js');
 const { fetchJSON, fetchText } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
+const { setFreshnessHeaders } = require('../services/freshness-headers');
 
 const router = express.Router();
 
@@ -39,6 +40,7 @@ router.get('/satellites/list', async (req, res) => {
   try {
     // Return cached data if fresh
     if (satListCache.data && Date.now() < satListCache.expires) {
+      setFreshnessHeaders(res, { fetchedAt: satListCache.fetchedAt, expires: satListCache.expires, cacheHit: true });
       return res.json(satListCache.data);
     }
 
@@ -52,7 +54,9 @@ router.get('/satellites/list', async (req, res) => {
       intDesignator: s.intDesignator,
     }));
 
-    satListCache = { data: satellites, expires: Date.now() + SAT_LIST_TTL };
+    const now = Date.now();
+    satListCache = { data: satellites, fetchedAt: now, expires: now + SAT_LIST_TTL };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: satListCache.expires, cacheHit: false });
     res.json(satellites);
   } catch (err) {
     console.error('Error fetching satellite list:', err.message);
@@ -90,6 +94,7 @@ router.get('/satellites/positions', async (req, res) => {
   // Cache key includes IDs + rounded observer coords (~1.1 km granularity)
   const cacheKey = `${satIds.sort().join(',')}:${obsLat.toFixed(2)}:${obsLon.toFixed(2)}`;
   if (satPosCache.key === cacheKey && satPosCache.data && Date.now() < satPosCache.expires) {
+    setFreshnessHeaders(res, { fetchedAt: satPosCache.fetchedAt, expires: satPosCache.expires, cacheHit: true });
     return res.json(satPosCache.data);
   }
 
@@ -121,7 +126,9 @@ router.get('/satellites/positions', async (req, res) => {
       }
     }));
 
-    satPosCache = { data: positions, expires: Date.now() + SAT_POS_TTL, key: cacheKey };
+    const now = Date.now();
+    satPosCache = { data: positions, fetchedAt: now, expires: now + SAT_POS_TTL, key: cacheKey };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: satPosCache.expires, cacheHit: false });
     res.json(positions);
   } catch (err) {
     console.error('Error fetching satellite positions:', err.message);
@@ -154,6 +161,7 @@ router.get('/satellites/passes', async (req, res) => {
   const cacheKey = `${id}:${obsLat.toFixed(2)}:${obsLon.toFixed(2)}`;
   const cached = satPassCache[cacheKey];
   if (cached && Date.now() < cached.expires) {
+    setFreshnessHeaders(res, { fetchedAt: cached.fetchedAt, expires: cached.expires, cacheHit: true });
     return res.json(cached.data);
   }
 
@@ -182,12 +190,14 @@ router.get('/satellites/passes', async (req, res) => {
     };
 
     if (Object.keys(satPassCache).length >= SAT_PASS_MAX) {
-      const now = Date.now();
+      const evictNow = Date.now();
       for (const k of Object.keys(satPassCache)) {
-        if (satPassCache[k].expires < now) delete satPassCache[k];
+        if (satPassCache[k].expires < evictNow) delete satPassCache[k];
       }
     }
-    satPassCache[cacheKey] = { data: result, expires: Date.now() + SAT_PASS_TTL };
+    const now = Date.now();
+    satPassCache[cacheKey] = { data: result, fetchedAt: now, expires: now + SAT_PASS_TTL };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: satPassCache[cacheKey].expires, cacheHit: false });
     res.json(result);
   } catch (err) {
     console.error('Error fetching satellite passes:', err.message);
@@ -210,6 +220,7 @@ router.get('/satellites/tle', async (req, res) => {
   // Check cache
   const cached = satTleCache[id];
   if (cached && Date.now() < cached.expires) {
+    setFreshnessHeaders(res, { fetchedAt: cached.fetchedAt, expires: cached.expires, cacheHit: true });
     return res.json(cached.data);
   }
 
@@ -224,12 +235,14 @@ router.get('/satellites/tle', async (req, res) => {
     };
 
     if (Object.keys(satTleCache).length >= SAT_TLE_MAX) {
-      const now = Date.now();
+      const evictNow = Date.now();
       for (const k of Object.keys(satTleCache)) {
-        if (satTleCache[k].expires < now) delete satTleCache[k];
+        if (satTleCache[k].expires < evictNow) delete satTleCache[k];
       }
     }
-    satTleCache[id] = { data: result, expires: Date.now() + SAT_TLE_TTL };
+    const now = Date.now();
+    satTleCache[id] = { data: result, fetchedAt: now, expires: now + SAT_TLE_TTL };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: satTleCache[id].expires, cacheHit: false });
     res.json(result);
   } catch (err) {
     console.error('Error fetching satellite TLE:', err.message);
@@ -305,6 +318,7 @@ router.get('/iss/position', async (req, res) => {
 
   // Return cached data if fresh and same observer
   if (issComputedCache.data && Date.now() < issComputedCache.expires && issComputedCache.obsKey === obsKey) {
+    setFreshnessHeaders(res, { fetchedAt: issComputedCache.fetchedAt, expires: issComputedCache.expires, cacheHit: true });
     return res.json(issComputedCache.data);
   }
 
@@ -366,7 +380,9 @@ router.get('/iss/position', async (req, res) => {
       orbitPath,
     };
 
-    issComputedCache = { data: result, expires: Date.now() + ISS_COMPUTED_TTL, obsKey };
+    const cacheNow = Date.now();
+    issComputedCache = { data: result, fetchedAt: cacheNow, expires: cacheNow + ISS_COMPUTED_TTL, obsKey };
+    setFreshnessHeaders(res, { fetchedAt: cacheNow, expires: issComputedCache.expires, cacheHit: false });
     res.json(result);
   } catch (err) {
     console.error('Error computing ISS position:', err.message);

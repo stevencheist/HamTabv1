@@ -6,13 +6,14 @@ const express = require('express');
 const { XMLParser } = require('fast-xml-parser');
 const { fetchJSON, fetchText } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
+const { setFreshnessHeaders } = require('../services/freshness-headers');
 const voacap = require('../../voacap-bridge.js');
 
 const router = express.Router();
 
 // --- SSN cache ---
 
-const ssnCache = { data: null, expires: 0 };
+const ssnCache = { data: null, fetchedAt: 0, expires: 0 };
 const SSN_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 async function getCurrentSSN() {
@@ -57,6 +58,7 @@ async function getCurrentSSN() {
       };
     }
 
+    ssnCache.fetchedAt = Date.now();
     ssnCache.expires = Date.now() + SSN_TTL;
     return ssnCache.data;
   } catch (err) {
@@ -398,7 +400,14 @@ function parseSolarXML(xml) {
 // Return SSN data
 router.get('/voacap/ssn', async (req, res) => {
   try {
+    // Snapshot cache state before getCurrentSSN may overwrite it.
+    const wasCached = ssnCache.data && Date.now() < ssnCache.expires;
     const ssn = await getCurrentSSN();
+    setFreshnessHeaders(res, {
+      fetchedAt: ssnCache.fetchedAt || Date.now(),
+      expires: ssnCache.expires,
+      cacheHit: wasCached,
+    });
     res.json(ssn);
   } catch (err) {
     console.error('Error fetching SSN:', err.message);
@@ -487,6 +496,7 @@ router.get('/voacap', async (req, res) => {
 
     const cached = voacapCache[cacheKey];
     if (cached && Date.now() < cached.expires) {
+      setFreshnessHeaders(res, { fetchedAt: cached.fetchedAt, expires: cached.expires, cacheHit: true });
       return res.json(cached.data);
     }
 
@@ -584,7 +594,7 @@ router.get('/voacap', async (req, res) => {
                 month,
                 matrix: result.matrix,
               };
-              voacapCache[cacheKey] = { data: bgResponse, expires: Date.now() + VOACAP_TTL };
+              voacapCache[cacheKey] = { data: bgResponse, fetchedAt: Date.now(), expires: Date.now() + VOACAP_TTL };
             }
           }).catch(bgErr => {
             console.error(`[VOACAP] Background prediction error: ${bgErr.message}`);
@@ -613,8 +623,9 @@ router.get('/voacap', async (req, res) => {
     if (fallbackReason) response.fallbackReason = fallbackReason;
 
     const ttl = engine === 'dvoacap' ? VOACAP_TTL : 30 * 1000; // 1h vs 30s
-    voacapCache[cacheKey] = { data: response, expires: Date.now() + ttl };
-
+    const now = Date.now();
+    voacapCache[cacheKey] = { data: response, fetchedAt: now, expires: now + ttl };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: voacapCache[cacheKey].expires, cacheHit: false });
     res.json(response);
   } catch (err) {
     console.error('Error in /api/voacap:', err.message);

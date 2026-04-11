@@ -7,6 +7,7 @@ const express = require('express');
 const { XMLParser } = require('fast-xml-parser');
 const { fetchJSON, fetchText, isPrivateIP, resolveHost, secureFetch } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
+const { setFreshnessHeaders } = require('../services/freshness-headers');
 
 const router = express.Router();
 
@@ -190,13 +191,16 @@ router.get('/spacewx/history', async (req, res) => {
     // Return cached data if fresh
     const cached = spacewxCache[type];
     if (cached && Date.now() < cached.expires) {
+      setFreshnessHeaders(res, { fetchedAt: cached.fetchedAt, expires: cached.expires, cacheHit: true });
       return res.json(cached.data);
     }
 
     const raw = await fetchJSON(SPACEWX_URLS[type]);
     const data = normalizeSpacewx(type, raw);
 
-    spacewxCache[type] = { data, expires: Date.now() + SPACEWX_TTL };
+    const now = Date.now();
+    spacewxCache[type] = { data, fetchedAt: now, expires: now + SPACEWX_TTL };
+    setFreshnessHeaders(res, { fetchedAt: now, expires: spacewxCache[type].expires, cacheHit: false });
     res.json(data);
   } catch (err) {
     console.error(`Error fetching spacewx ${type}:`, err.message);
@@ -830,6 +834,7 @@ function parseDatePart(monthStr, day, year) {
 router.get('/dxpeditions', async (req, res) => {
   try {
     if (dxpeditionCache.data && Date.now() < dxpeditionCache.expires) {
+      setFreshnessHeaders(res, { fetchedAt: dxpeditionCache.fetchedAt, expires: dxpeditionCache.expires, cacheHit: true });
       return res.json(dxpeditionCache.data);
     }
 
@@ -853,8 +858,11 @@ router.get('/dxpeditions', async (req, res) => {
         return aDate - bDate;
       });
 
+    const now = Date.now();
     dxpeditionCache.data = results;
-    dxpeditionCache.expires = Date.now() + DXPEDITION_TTL;
+    dxpeditionCache.fetchedAt = now;
+    dxpeditionCache.expires = now + DXPEDITION_TTL;
+    setFreshnessHeaders(res, { fetchedAt: now, expires: dxpeditionCache.expires, cacheHit: false });
     res.json(results);
   } catch (err) {
     console.error('Error fetching DXpeditions:', err.message);
@@ -931,6 +939,7 @@ function parseContestItem(item) {
 router.get('/contests', async (req, res) => {
   try {
     if (contestCache.data && Date.now() < contestCache.expires) {
+      setFreshnessHeaders(res, { fetchedAt: contestCache.fetchedAt, expires: contestCache.expires, cacheHit: true });
       return res.json(contestCache.data);
     }
 
@@ -957,8 +966,11 @@ router.get('/contests', async (req, res) => {
         return aDate - bDate;
       });
 
+    const now = Date.now();
     contestCache.data = results;
-    contestCache.expires = Date.now() + CONTEST_TTL;
+    contestCache.fetchedAt = now;
+    contestCache.expires = now + CONTEST_TTL;
+    setFreshnessHeaders(res, { fetchedAt: now, expires: contestCache.expires, cacheHit: false });
     res.json(results);
   } catch (err) {
     console.error('Error fetching contests:', err.message);
@@ -1067,6 +1079,7 @@ const DRAP_TTL = 5 * 60 * 1000; // 5 min — SWPC updates ~every 1-2 min but dat
 router.get('/drap/data', async (req, res) => {
   try {
     if (drapDataCache.data && Date.now() < drapDataCache.expires) {
+      setFreshnessHeaders(res, { fetchedAt: drapDataCache.fetchedAt, expires: drapDataCache.expires, cacheHit: true });
       return res.json(drapDataCache.data);
     }
     const url = 'https://services.swpc.noaa.gov/text/drap_global_frequencies.txt';
@@ -1097,8 +1110,11 @@ router.get('/drap/data', async (req, res) => {
     }
 
     const result = { lons, rows };
+    const now = Date.now();
     drapDataCache.data = result;
-    drapDataCache.expires = Date.now() + DRAP_TTL;
+    drapDataCache.fetchedAt = now;
+    drapDataCache.expires = now + DRAP_TTL;
+    setFreshnessHeaders(res, { fetchedAt: now, expires: drapDataCache.expires, cacheHit: false });
     res.json(result);
   } catch (err) {
     console.error('Error fetching D-RAP data:', err.message);

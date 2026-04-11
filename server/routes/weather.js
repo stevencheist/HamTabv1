@@ -7,6 +7,7 @@ const { URL } = require('url');
 const express = require('express');
 const { isPrivateIP, resolveHost, fetchJSON, fetchText, MAX_REDIRECTS, MAX_RESPONSE_BYTES } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
+const { setFreshnessHeaders } = require('../services/freshness-headers');
 
 const router = express.Router();
 
@@ -278,6 +279,7 @@ router.get('/owm', async (req, res) => {
 router.get('/radar', async (req, res) => {
   try {
     if (radarCache.data && Date.now() < radarCache.expires) {
+      setFreshnessHeaders(res, { fetchedAt: radarCache.fetchedAt, expires: radarCache.expires, cacheHit: true });
       return res.json(radarCache.data);
     }
     const json = await fetchJSON('https://api.rainviewer.com/public/weather-maps.json');
@@ -288,8 +290,11 @@ router.get('/radar', async (req, res) => {
     }
     const latest = radar.past[radar.past.length - 1];
     const result = { host: json.host, path: latest.path, time: latest.time };
+    const now = Date.now();
     radarCache.data = result;
-    radarCache.expires = Date.now() + RADAR_TTL;
+    radarCache.fetchedAt = now;
+    radarCache.expires = now + RADAR_TTL;
+    setFreshnessHeaders(res, { fetchedAt: now, expires: radarCache.expires, cacheHit: false });
     res.json(result);
   } catch (err) {
     console.error('Error fetching weather radar:', err.message);

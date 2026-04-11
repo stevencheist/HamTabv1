@@ -16,6 +16,9 @@ import { fetchContests } from './contests.js';
 import { isWidgetVisible } from './widgets.js';
 import { isLeaderTab } from './cross-tab.js';
 import { isFeatureVisible } from './feature-flags.js';
+import { register as registerJob, unregister as unregisterJob, has as hasJob } from './fetch-scheduler.js';
+
+const AUTO_REFRESH_JOB_ID = 'auto-refresh-countdown';
 
 // --- DXC/RBN SSE Live Connections ---
 
@@ -169,30 +172,43 @@ function updateCountdownDisplay() {
   }
 }
 
+// Auto-refresh countdown — ticks once per second when visible. Followers
+// tick the countdown for display parity but defer the actual refreshAll()
+// to the leader tab. The leader-tab gate stays inside the run function
+// (not on the scheduler job) so that follower tabs still update the
+// visible "Refresh (Ns)" button.
+function autoRefreshTick() {
+  state.countdownSeconds--;
+  if (state.countdownSeconds <= 0) {
+    if (isLeaderTab()) {
+      refreshAll();
+    } else {
+      resetCountdown(); // restart countdown without fetching
+    }
+  }
+  updateCountdownDisplay();
+}
+
 export function startAutoRefresh() {
   stopAutoRefresh();
   state.autoRefreshEnabled = true;
   localStorage.setItem('hamtab_auto_refresh', 'true');
   resetCountdown();
-  state.countdownTimer = setInterval(() => {
-    if (document.hidden) return; // skip countdown ticks while hidden
-    state.countdownSeconds--;
-    if (state.countdownSeconds <= 0) {
-      // Follower tabs skip auto-refresh — leader/solo tabs fetch for everyone.
-      // Followers still show countdown and catch up on manual refresh or tab focus.
-      if (isLeaderTab()) {
-        refreshAll();
-      } else {
-        resetCountdown(); // restart countdown without fetching
-      }
-    }
-    updateCountdownDisplay();
-  }, 1000);
+  registerJob({
+    id: AUTO_REFRESH_JOB_ID,
+    intervalMs: 1000,
+    run: autoRefreshTick,
+    kind: 'render',
+  });
 }
 
 export function stopAutoRefresh() {
   state.autoRefreshEnabled = false;
   localStorage.setItem('hamtab_auto_refresh', 'false');
+  if (hasJob(AUTO_REFRESH_JOB_ID)) {
+    unregisterJob(AUTO_REFRESH_JOB_ID);
+  }
+  // Clean up legacy state.countdownTimer in case it lingers across hot reloads.
   if (state.countdownTimer) {
     clearInterval(state.countdownTimer);
     state.countdownTimer = null;

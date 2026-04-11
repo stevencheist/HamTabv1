@@ -15653,6 +15653,89 @@ ${beacon.location}`);
   init_widgets();
   init_cross_tab();
   init_feature_flags();
+
+  // src/fetch-scheduler.js
+  init_widgets();
+  init_cross_tab();
+  init_feature_flags();
+
+  // src/fetch-scheduler-policy.js
+  function validateSpec(spec) {
+    if (!spec || typeof spec.id !== "string" || !spec.id) {
+      throw new Error("scheduler: spec.id is required");
+    }
+    if (typeof spec.run !== "function") {
+      throw new Error(`scheduler: ${spec.id}: spec.run must be a function`);
+    }
+    if (typeof spec.intervalMs !== "number" || spec.intervalMs <= 0 || !Number.isFinite(spec.intervalMs)) {
+      throw new Error(`scheduler: ${spec.id}: spec.intervalMs must be a positive finite number`);
+    }
+    if (spec.jitterMs != null && (typeof spec.jitterMs !== "number" || spec.jitterMs < 0)) {
+      throw new Error(`scheduler: ${spec.id}: spec.jitterMs must be a non-negative number`);
+    }
+  }
+  function shouldRun(spec, ctx) {
+    if (spec.requiresVisible !== false && ctx.hidden) return false;
+    if (spec.requiresLeader && !ctx.isLeader) return false;
+    if (spec.featureFlag && !ctx.featureVisible) return false;
+    if (spec.widgetGate) {
+      if (!ctx.widgetVisible && !ctx.widgetGateOrResult) return false;
+    }
+    return true;
+  }
+  function nextDelay(spec, random = Math.random) {
+    if (!spec.jitterMs) return spec.intervalMs;
+    const jitter = Math.floor(random() * spec.jitterMs * 2) - spec.jitterMs;
+    return Math.max(0, spec.intervalMs + jitter);
+  }
+
+  // src/fetch-scheduler.js
+  var jobs = /* @__PURE__ */ new Map();
+  function buildContext(spec) {
+    return {
+      hidden: typeof document !== "undefined" ? document.hidden : false,
+      isLeader: isLeaderTab(),
+      widgetVisible: spec.widgetGate ? isWidgetVisible(spec.widgetGate) : void 0,
+      widgetGateOrResult: spec.widgetGateOr ? !!spec.widgetGateOr() : void 0,
+      featureVisible: spec.featureFlag ? isFeatureVisible(spec.featureFlag) : void 0
+    };
+  }
+  function scheduleNext(id) {
+    const entry = jobs.get(id);
+    if (!entry) return;
+    entry.timer = setTimeout(() => {
+      if (!jobs.has(id)) return;
+      if (shouldRun(entry.spec, buildContext(entry.spec))) {
+        try {
+          entry.spec.run();
+        } catch (err2) {
+          console.error(`[scheduler:${id}]`, err2);
+        }
+      }
+      scheduleNext(id);
+    }, nextDelay(entry.spec));
+  }
+  function register(spec) {
+    validateSpec(spec);
+    if (jobs.has(spec.id)) {
+      throw new Error(`scheduler.register: duplicate id "${spec.id}"`);
+    }
+    jobs.set(spec.id, { spec, timer: null });
+    scheduleNext(spec.id);
+  }
+  function unregister(id) {
+    const entry = jobs.get(id);
+    if (!entry) return false;
+    if (entry.timer) clearTimeout(entry.timer);
+    jobs.delete(id);
+    return true;
+  }
+  function has(id) {
+    return jobs.has(id);
+  }
+
+  // src/refresh.js
+  var AUTO_REFRESH_JOB_ID = "auto-refresh-countdown";
   var dxcSse = null;
   var rbnSse = null;
   function handleSseEvents(source, eventSource, sourceName) {
@@ -15786,27 +15869,35 @@ ${beacon.location}`);
       btn.textContent = "Refresh";
     }
   }
+  function autoRefreshTick() {
+    state_default.countdownSeconds--;
+    if (state_default.countdownSeconds <= 0) {
+      if (isLeaderTab()) {
+        refreshAll();
+      } else {
+        resetCountdown();
+      }
+    }
+    updateCountdownDisplay();
+  }
   function startAutoRefresh() {
     stopAutoRefresh();
     state_default.autoRefreshEnabled = true;
     localStorage.setItem("hamtab_auto_refresh", "true");
     resetCountdown();
-    state_default.countdownTimer = setInterval(() => {
-      if (document.hidden) return;
-      state_default.countdownSeconds--;
-      if (state_default.countdownSeconds <= 0) {
-        if (isLeaderTab()) {
-          refreshAll();
-        } else {
-          resetCountdown();
-        }
-      }
-      updateCountdownDisplay();
-    }, 1e3);
+    register({
+      id: AUTO_REFRESH_JOB_ID,
+      intervalMs: 1e3,
+      run: autoRefreshTick,
+      kind: "render"
+    });
   }
   function stopAutoRefresh() {
     state_default.autoRefreshEnabled = false;
     localStorage.setItem("hamtab_auto_refresh", "false");
+    if (has(AUTO_REFRESH_JOB_ID)) {
+      unregister(AUTO_REFRESH_JOB_ID);
+    }
     if (state_default.countdownTimer) {
       clearInterval(state_default.countdownTimer);
       state_default.countdownTimer = null;
@@ -27187,31 +27278,49 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initMap();
   updateGrayLine();
   updateSunMarker();
-  setInterval(() => {
-    if (document.hidden) return;
-    updateGrayLine();
-    updateSunMarker();
-  }, 6e4);
+  register({
+    id: "gray-line",
+    intervalMs: 6e4,
+    run: () => {
+      updateGrayLine();
+      updateSunMarker();
+    },
+    kind: "render"
+  });
   initSatellites();
-  setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-satellites") || !isLeaderTab()) return;
-    fetchIssPosition();
-  }, 1e4);
-  setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-satellites") || !isLeaderTab()) return;
-    fetchSatellitePositions();
-  }, 1e4);
+  register({
+    id: "iss-position",
+    intervalMs: 1e4,
+    run: fetchIssPosition,
+    requiresLeader: true,
+    widgetGate: "widget-satellites",
+    kind: "fetch"
+  });
+  register({
+    id: "satellite-positions",
+    intervalMs: 1e4,
+    run: fetchSatellitePositions,
+    requiresLeader: true,
+    widgetGate: "widget-satellites",
+    kind: "fetch"
+  });
   updateClocks();
-  setInterval(() => {
-    if (document.hidden) return;
-    updateClocks();
-    updateBigClock();
-    updateAnalogClock();
-  }, 1e3);
-  setInterval(() => {
-    if (document.hidden) return;
-    updateSpotAges();
-  }, 3e4);
+  register({
+    id: "clocks",
+    intervalMs: 1e3,
+    run: () => {
+      updateClocks();
+      updateBigClock();
+      updateAnalogClock();
+    },
+    kind: "render"
+  });
+  register({
+    id: "spot-ages",
+    intervalMs: 3e4,
+    run: updateSpotAges,
+    kind: "render"
+  });
   function safeInit(name, fn) {
     try {
       fn();
@@ -27304,28 +27413,39 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     const newWidgets = getPendingNewWidgets();
     if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
   }
-  var PSK_REFRESH_BASE = 5 * 60 * 1e3;
-  var PSK_REFRESH_JITTER = 30 * 1e3;
-  function scheduleLiveSpotsRefresh() {
-    const delay = PSK_REFRESH_BASE + Math.floor(Math.random() * PSK_REFRESH_JITTER * 2) - PSK_REFRESH_JITTER;
-    setTimeout(() => {
-      if (!document.hidden && isWidgetVisible("widget-live-spots") && isLeaderTab()) fetchLiveSpots();
-      scheduleLiveSpotsRefresh();
-    }, delay);
-  }
-  scheduleLiveSpotsRefresh();
-  setInterval(() => {
-    if (document.hidden) return;
-    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) renderVoacapMatrix();
-  }, 60 * 1e3);
-  setInterval(() => {
-    if (document.hidden || !isLeaderTab()) return;
-    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) fetchVoacapMatrixThrottled();
-  }, 60 * 1e3);
-  setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-beacons")) return;
-    updateBeaconMarkers();
-  }, 1e4);
+  register({
+    id: "psk-live-spots",
+    intervalMs: 5 * 60 * 1e3,
+    jitterMs: 30 * 1e3,
+    run: fetchLiveSpots,
+    requiresLeader: true,
+    widgetGate: "widget-live-spots",
+    kind: "fetch"
+  });
+  register({
+    id: "voacap-render",
+    intervalMs: 60 * 1e3,
+    run: renderVoacapMatrix,
+    widgetGate: "widget-voacap",
+    widgetGateOr: () => !!state_default.hfPropOverlayBand,
+    kind: "render"
+  });
+  register({
+    id: "voacap-fetch",
+    intervalMs: 60 * 1e3,
+    run: fetchVoacapMatrixThrottled,
+    requiresLeader: true,
+    widgetGate: "widget-voacap",
+    widgetGateOr: () => !!state_default.hfPropOverlayBand,
+    kind: "fetch"
+  });
+  register({
+    id: "beacon-markers",
+    intervalMs: 1e4,
+    run: updateBeaconMarkers,
+    widgetGate: "widget-beacons",
+    kind: "render"
+  });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden || !state_default.appInitialized) return;
     updateClocks();

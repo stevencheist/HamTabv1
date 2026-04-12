@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0.0",
+  "identity": {
+    "org": "stevencheist",
+    "name": "HamTabv1",
+    "description": "POTA/SOTA amateur radio dashboard — Node.js/Express backend, vanilla JS frontend, Leaflet maps, esbuild bundling",
+    "type": "app",
+    "language": "JavaScript (Node.js)",
+    "framework": "Express, esbuild, Leaflet, Chart.js",
+    "default_branch": "main"
+  },
+  "purpose": "Two-deployment-mode amateur radio dashboard: hostedmode (hamtab.net via Cloudflare Containers) and lanmode (self-hosted on Windows/Linux/Raspberry Pi). DX cluster, propagation, satellite tracking, space weather, POTA/SOTA parks and summits.",
+  "status": {
+    "phase": "Active development",
+    "health": "green",
+    "summary": "Feature-rich dashboard with two deployment modes. Automated CI/CD for hostedmode. Feature flag system for dev/test/release gating."
+  },
+  "owners": {
+    "product": ["Francisco Peebles (KG5DPV)", "Steven (KJ5MMO)"],
+    "technical": ["Francisco Peebles (KG5DPV)", "Steven (KJ5MMO)"]
+  },
+  "structure": {
+    "server.js": "Express server, API proxy endpoints",
+    "server-config.js": "Deployment mode detection, port/CORS/helmet config",
+    "server-startup.js": "HTTP/HTTPS listener startup (mode-aware)",
+    "server-tls.js": "Self-signed TLS cert generation (lanmode)",
+    "src/": "ES modules bundled to IIFE via esbuild",
+    "src/state.js": "Application state object",
+    "src/feature-flags.js": "Feature visibility gates (dev/test/release)",
+    "public/index.html": "Semantic HTML structure",
+    "public/style.css": "Dark theme, CSS custom properties",
+    "public/app.js": "Bundled client output — don't edit directly",
+    "esbuild.mjs": "Build config (ES modules -> IIFE bundle)",
+    "docs/user-guide/": "PDF user guide content and build",
+    "Dockerfile": "Docker image for self-hosted deployment"
+  },
+  "build": {
+    "runtime": ["Node.js 22+"],
+    "commands": {
+      "start": "npm start",
+      "build": "npm run build",
+      "build_docs": "npm run build:docs"
+    },
+    "artifacts": {
+      "public/app.js": "Bundled client IIFE",
+      "public/HamTab-User-Guide.pdf": "Generated user guide"
+    }
+  },
+  "deployment": {
+    "hostedmode": {
+      "url": "https://hamtab.net",
+      "notes": "Cloudflare Containers + Worker + KV. Auto-deploy on push to hostedmode branch via GitHub Actions."
+    },
+    "lanmode": {
+      "port": 3443,
+      "notes": "Self-hosted HTTPS with self-signed certs. systemd or NSSM service. Auto-update via GitHub Releases."
+    },
+    "docker": {
+      "notes": "Docker image published to Docker Hub on GitHub Release. Multi-stage build."
+    }
+  },
+  "interfaces": [
+    { "type": "http", "name": "HamTab API", "summary": "GET /api/spots, /api/pota, /api/sota, /api/propagation, /api/solar, /api/satellite, /api/sdo, /api/weather, /api/config, /api/health; POST /api/feedback" }
+  ],
+  "security": {
+    "auth_model": "Lanmode: RFC 1918 CORS lock. Hostedmode: Cloudflare Access. Feedback emails RSA-2048 encrypted.",
+    "sensitive_paths": [".env", "certs/", "feedback-private-key.pem", "wrangler secrets"],
+    "trust_boundaries": [
+      "ALL outbound HTTP via secureFetch() — DNS pinning, SSRF prevention, timeouts, size limits",
+      "ALL user/API data rendered as HTML via esc() — XSS prevention",
+      "Never commit .env, TLS certs, or wrangler secrets"
+    ]
+  },
+  "conventions": [
+    "Vanilla JavaScript, no frameworks",
+    "ES modules in src/, bundled to IIFE via esbuild",
+    "localStorage keys use hamtab_ prefix",
+    "Server is stateless — no database, no sessions",
+    "Feature flags mandatory for all new user-facing features",
+    "Version lives in package.json — bump BEFORE commit",
+    "Imperative mood commit messages with mode indicator"
+  ],
+  "relationships": {
+    "sffoundry/hamtab-planning": "Planning and roadmap",
+    "sffoundry/hamtab-mobile": "Future mobile app",
+    "fpeebles/pi-ops": "Deployed to shack Pi"
+  },
+  "hard_rules": [
+    "Bump package.json version BEFORE commit — patch for fixes, minor for features",
+    "NEVER edit shared files directly on deployment branches — make changes on main and merge down",
+    "Pre-commit branch check MANDATORY — verify correct branch before every commit",
+    "Post-merge validation MANDATORY — node -c, duplicate detection, Dockerfile COPY check",
+    "ALL outbound HTTP must use secureFetch() — never raw fetch/https.get",
+    "ALL user/API data rendered as HTML must use esc()",
+    "No feature is complete without README, user guide, and widget help text updates",
+    "Wiki Release Notes entry required on every version bump",
+    "Feature flags required for all new user-facing features"
+  ],
+  "last_verified": {
+    "at": "2026-04-11T23:30:00Z",
+    "by": "claude"
+  }
+}

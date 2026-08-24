@@ -8326,6 +8326,50 @@ body.grayscale {
   opacity: 0.4;
   pointer-events: none;
 }
+/* POTA self-spot row */
+.rig-selfspot-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+.rig-selfspot-park {
+  width: 90px;
+  background: var(--bg);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 6px;
+  font-size: 0.65rem;
+  font-family: inherit;
+  text-transform: uppercase;
+}
+.rig-selfspot-park.rig-input-invalid {
+  border-color: var(--danger, #e05a5a);
+}
+.rig-selfspot-btn {
+  padding: 4px 10px;
+  font-size: 0.6rem;
+  font-family: inherit;
+  font-weight: 700;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.rig-selfspot-btn:hover { filter: brightness(1.15); }
+.rig-selfspot-btn:disabled { opacity: 0.6; cursor: default; }
+.rig-selfspot-status {
+  flex-basis: 100%;
+  font-size: 0.58rem;
+  color: var(--dim);
+  min-height: 0.7rem;
+}
+.rig-selfspot-status.rig-selfspot-ok { color: var(--good, #4caf50); }
+.rig-selfspot-status.rig-selfspot-err { color: var(--danger, #e05a5a); }
+
 .rig-digital-row {
   display: flex;
   align-items: center;

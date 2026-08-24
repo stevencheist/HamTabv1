@@ -315,6 +315,8 @@
         // POTA Hunter — worked callsign tracking + spotter location.
         spotterLocation: localStorage.getItem("hamtab_spotter_location") || "",
         // free text for spot comments (e.g. "Dallas, TX")
+        myPark: localStorage.getItem("hamtab_my_park") || "",
+        // your POTA park reference for self-spotting (e.g. "US-1234")
         hideWorked: localStorage.getItem("hamtab_hide_worked") === "true",
         // filter toggle
         workedList: (() => {
@@ -1391,8 +1393,10 @@
       FEATURE_FLAGS = {
         preset_profiles: "test",
         // callsign-gated SSB presets (v0.68.0)
-        pota_hunter: "dev:KG5DPV",
+        pota_hunter: "test",
         // POTA hunting helper — confirm QSO + spot reporter (v0.68.7)
+        pota_self_spot: "dev:KJ5MMO",
+        // POTA activator self-spot from On-Air widget — one-click (v0.70.3)
         band_score: "dev:KG5DPV",
         // Band Opportunity Score widget (v0.69.0)
         rbn_source: "dev:KG5DPV",
@@ -22120,6 +22124,128 @@ ${beacon.location}`);
     if (btn) btn.style.display = connected ? "" : "none";
   }
 
+  // src/pota-selfspot.js
+  init_state();
+  init_dom();
+  init_feature_flags();
+  init_cat();
+  var PARK_RE = /^[A-Z0-9]+-\d{4,}$/;
+  var statusTimer = null;
+  function catModeToPotaMode(catMode) {
+    if (!catMode) return "";
+    const m = catMode.toUpperCase();
+    if (m.startsWith("CW")) return "CW";
+    if (m === "USB" || m === "LSB" || m === "SSB") return "SSB";
+    if (m.startsWith("FM")) return "FM";
+    if (m.startsWith("AM")) return "AM";
+    if (m.startsWith("DATA") || m.startsWith("DIG") || m.startsWith("PKT") || m === "RTTY" || m === "RTTY-R" || m === "PSK") return "DATA";
+    return m;
+  }
+  function setStatus(text, kind) {
+    const el2 = $("rigSelfSpotStatus");
+    if (!el2) return;
+    el2.textContent = text;
+    el2.className = "rig-selfspot-status" + (kind ? ` rig-selfspot-${kind}` : "");
+    if (statusTimer) clearTimeout(statusTimer);
+    if (text) {
+      statusTimer = setTimeout(() => {
+        if (el2.textContent === text) {
+          el2.textContent = "";
+          el2.className = "rig-selfspot-status";
+        }
+      }, kind === "err" ? 6e3 : 4e3);
+    }
+  }
+  function handleParkInput() {
+    const input = $("rigMyPark");
+    if (!input) return;
+    const val = input.value.trim().toUpperCase();
+    input.value = val;
+    state_default.myPark = val;
+    localStorage.setItem("hamtab_my_park", val);
+    input.classList.toggle("rig-input-invalid", val !== "" && !PARK_RE.test(val));
+  }
+  function handleSelfSpot() {
+    const btn = $("rigSelfSpotBtn");
+    if (!isRigConnected()) {
+      setStatus("Connect a radio first.", "err");
+      return;
+    }
+    const callsign = (state_default.myCallsign || "").trim().toUpperCase();
+    if (!callsign) {
+      setStatus("Set your callsign in config first.", "err");
+      return;
+    }
+    const park = (state_default.myPark || "").trim().toUpperCase();
+    if (!PARK_RE.test(park)) {
+      setStatus("Enter your park (e.g. US-1234).", "err");
+      $("rigMyPark")?.focus();
+      return;
+    }
+    const rig = getRigStore().get();
+    const freqHz = rig.frequency;
+    if (!freqHz || freqHz <= 0) {
+      setStatus("No frequency from the radio yet.", "err");
+      return;
+    }
+    const freqKhz = String(Math.round(freqHz / 1e3));
+    const mode2 = catModeToPotaMode(rig.mode);
+    const body = {
+      activator: callsign,
+      spotter: callsign,
+      // self-spot: you are your own spotter
+      frequency: freqKhz,
+      reference: park,
+      mode: mode2,
+      comments: state_default.spotterLocation ? `QRV from ${state_default.spotterLocation}` : "QRV"
+    };
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Spotting\u2026";
+    }
+    setStatus("", "");
+    fetch("/api/pota/spot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then((resp) => {
+      if (resp.ok) {
+        const mhz = (freqHz / 1e6).toFixed(3);
+        setStatus(`Spotted ${callsign} on ${mhz} ${mode2} @ ${park}`, "ok");
+      } else {
+        return resp.json().then((data) => {
+          throw new Error(data.error || `HTTP ${resp.status}`);
+        }).catch(() => {
+          throw new Error(`HTTP ${resp.status}`);
+        });
+      }
+    }).catch((err2) => setStatus(`Spot failed: ${err2.message}`, "err")).finally(() => {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Spot to POTA";
+      }
+    });
+  }
+  function initSelfSpot() {
+    const row = $("rigSelfSpotRow");
+    if (!row) return;
+    if (!isFeatureVisible("pota_self_spot")) {
+      row.classList.add("hidden");
+      return;
+    }
+    row.classList.remove("hidden");
+    const parkInput = $("rigMyPark");
+    if (parkInput) {
+      parkInput.value = state_default.myPark || "";
+      parkInput.classList.toggle(
+        "rig-input-invalid",
+        parkInput.value !== "" && !PARK_RE.test(parkInput.value)
+      );
+      parkInput.addEventListener("input", handleParkInput);
+    }
+    $("rigSelfSpotBtn")?.addEventListener("click", handleSelfSpot);
+  }
+
   // src/on-air-rig.js
   init_map_overlays();
   init_voacap();
@@ -23409,6 +23535,7 @@ ${beacon.location}`);
       const profileDeleteBtn = $("rigProfileDelete");
       if (profileDeleteBtn) profileDeleteBtn.addEventListener("click", handleProfileDelete);
       refreshProfileDropdown();
+      initSelfSpot();
       listenersAttached = true;
     }
     const store = getRigStore();
@@ -23811,8 +23938,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.70.2";
-    $("aboutVersion").textContent = "0.70.2";
+    $("splashVersion").textContent = "0.70.3";
+    $("aboutVersion").textContent = "0.70.3";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

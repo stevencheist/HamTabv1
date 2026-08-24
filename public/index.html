@@ -1256,6 +1256,14 @@
               <option value="">Mode</option>
             </select>
           </div>
+          <!-- POTA self-spot — one-click activator spotting (feature-gated) -->
+          <div class="rig-selfspot-row hidden" id="rigSelfSpotRow">
+            <input type="text" id="rigMyPark" class="rig-selfspot-park" placeholder="US-1234"
+                   spellcheck="false" autocomplete="off" maxlength="12"
+                   title="Your POTA park reference — spotted with your current frequency and mode">
+            <button id="rigSelfSpotBtn" class="rig-selfspot-btn" title="Spot yourself to POTA at your current frequency/mode">Spot to POTA</button>
+            <span class="rig-selfspot-status" id="rigSelfSpotStatus"></span>
+          </div>
           <!-- Digital Setup Assistant — shown when connected to a real radio -->
           <div class="rig-digital-section" id="rigDigitalSection" style="display:none">
             <div class="rig-digital-header">

@@ -25,6 +25,7 @@ import {
 import { BAND_SEGMENTS, getBandSegments, getBandEdges, getPositionInBand } from './cat/profiles/band-overlay-engine.js';
 import { startScope, stopScope } from './scope/scope-renderer.js';
 import { initDiagPanel, updateDiagButtonVisibility } from './cat/diagnostics/diag-panel.js';
+import { initSelfSpot } from './pota-selfspot.js';
 import { renderPropagationHeatmapOverlay, renderWsprHeatmapOverlay } from './map-overlays.js';
 import { toggleBandOverlay } from './voacap.js';
 
@@ -1663,6 +1664,9 @@ export function initOnAirRig() {
 
     // Populate profile dropdown on init.
     refreshProfileDropdown();
+
+    // POTA self-spot row (feature-gated, one-click).
+    initSelfSpot();
 
     listenersAttached = true;
   }

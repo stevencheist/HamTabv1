@@ -248,6 +248,7 @@ const state = {
 
   // POTA Hunter — worked callsign tracking + spotter location.
   spotterLocation: localStorage.getItem('hamtab_spotter_location') || '', // free text for spot comments (e.g. "Dallas, TX")
+  myPark: localStorage.getItem('hamtab_my_park') || '', // your POTA park reference for self-spotting (e.g. "US-1234")
   hideWorked: localStorage.getItem('hamtab_hide_worked') === 'true', // filter toggle
   workedList: (() => {
     try {

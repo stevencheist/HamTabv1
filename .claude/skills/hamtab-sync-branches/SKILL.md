@@ -78,8 +78,16 @@ git merge main -m "Merge main into <branch>"
 ```bash
 bash .claude/skills/hamtab-sync-branches/validate.sh <branch>
 ```
-It checks: `node -c server.js` (syntax), duplicate `// ---` section headers, and (on `hostedmode`)
-that `@cloudflare/containers` survived the merge and every root `*.js` is in the Dockerfile COPY list.
+It checks: `node -c server.js` (syntax), duplicate `// --- X ---` section headers (same grep as
+deploy.yml — a repeat fails the hostedmode deploy), that the Dockerfile COPY list includes the
+`server/` and `public/` directories, and (on `hostedmode`) that `@cloudflare/containers` survived
+the merge and every root `*.js` is in the Dockerfile COPY list.
+
+Beyond the script, before pushing `hostedmode` after a large gap: `docker build .` on the branch
+and run the image with `-e HOSTED_MODE=1 -p 127.0.0.1:18081:8080`, then curl `/api/health` and
+`/download`. It is the same artifact Cloudflare builds and is the only check that catches a
+runtime file missing from the COPY list. `npm test` as written fails on Node 22 (directory args
+with trailing slashes) — run `node --test test/unit/*.js test/smoke/*.js` instead.
 
 If validation fails → fix on the branch, re-run `validate.sh`, only then continue.
 
@@ -101,3 +109,17 @@ git pull origin main
 
 Tell the user, per branch: merged ✅, validation result, pushed ✅ (or **blocked** + why).
 Remind them `hostedmode` auto-deploys to production on push.
+
+### 4. Watch the hostedmode deploy
+```bash
+gh run list --repo stevencheist/HamTabv1 --workflow deploy.yml --limit 1
+gh run watch <run-id> --repo stevencheist/HamTabv1 --exit-status
+```
+A green run is not the end: for ~30–60 s after the container swap, hamtab.net answers with
+Worker 500s ("The container is not running, consider calling start()") even though the workflow's
+health check passed. Poll `https://hamtab.net/api/health` until it returns 200 with a small
+`uptime`, then sample it again ~45 s later — a climbing uptime means no crash loop. Only then
+probe real routes (`/download`, `/api/spots/dxc`, `/api/solar`) and report the deploy as live.
+
+Rollback if the new container never comes up: `git push --force origin <previous-sha>:hostedmode`
+(the pipeline redeploys the old image in a few minutes).

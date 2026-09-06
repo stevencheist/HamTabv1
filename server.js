@@ -23,7 +23,7 @@ const { startEviction, stopEviction } = require('./server/services/cache-store')
 const cacheControlMiddleware = require('./server/middleware/cache-control');
 const { setupSecurity } = require('./server/middleware/security');
 
-// --- Routers ---
+// --- Router imports ---
 const metaRouter = require('./server/routes/meta');
 const { setupDocs } = require('./server/routes/meta');
 const callsignRouter = require('./server/routes/callsign');

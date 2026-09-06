@@ -1,9 +1,10 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Country Bounding Boxes ---
 // Static dataset of ~250 country bounding boxes for zoom-to-country.
 // Format: [name, south, west, north, east]
 // Large countries split into sub-regions so smallest-area heuristic picks the right one.
 // Sources: Natural Earth, OpenStreetMap, manual adjustments for antimeridian cases.
-
 export const COUNTRY_BOUNDS = [
   // North America
   ['United States', 24.52, -124.73, 49.38, -66.95],           // contiguous 48
@@ -101,7 +102,7 @@ export const COUNTRY_BOUNDS = [
   ['Monaco', 43.72, 7.41, 43.75, 7.44],
   ['Liechtenstein', 47.05, 9.47, 47.27, 9.64],
 
-  // Russia — split into European and Asian
+  // Russia — split into European and Asian.
   ['Russia (European)', 41.19, 27.33, 69.95, 60.00],
   ['Russia (Asian)', 42.30, 60.00, 81.86, 179.99],
 
@@ -236,7 +237,7 @@ export const COUNTRY_BOUNDS = [
   ['Guam', 13.24, 144.62, 13.65, 144.96],
   ['American Samoa', -14.38, -170.83, -14.16, -169.42],
 
-  // North Asia / other
+  // North Asia / other.
   ['Georgia', 41.05, 40.01, 43.59, 46.72],
   ['Armenia', 38.84, 43.45, 41.30, 46.63],
   ['Azerbaijan', 38.39, 44.79, 41.91, 50.37],
@@ -255,7 +256,8 @@ export function findCountryBounds(lat, lon) {
     // Latitude check
     if (lat < south || lat > north) continue;
 
-    // Longitude check — handle antimeridian wrap
+    // Longitude check — handle antimeridian wrap.
+
     let lonInside;
     if (west <= east) {
       lonInside = lon >= west && lon <= east;

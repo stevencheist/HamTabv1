@@ -1,9 +1,10 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Simulator: Fake Radio Engine ---
 // Stateful radio simulator. Responds to CAT commands like a real radio.
 // Simulates: frequency, mode, PTT, S-meter, SWR, power.
 // Signal fluctuates realistically. SWR spikes on band changes.
 // Optional propagation engine for band-realistic signals.
-
 import { createPropagationEngine } from './propagation-signal-engine.js';
 
 export function createFakeRadioEngine(options = {}) {
@@ -22,8 +23,9 @@ export function createFakeRadioEngine(options = {}) {
   let lastBand = '20m';
 
   // --- Propagation engine (optional) ---
+
   // options.propagation: 'off' | 'basic' | 'location'
-  // options.latitude, options.longitude: for location-aware mode
+  // options.latitude, options.longitude: for location-aware mode.
   let propEngine = null;
   const propMode = options.propagation || 'off';
   if (propMode === 'basic') {
@@ -47,12 +49,13 @@ export function createFakeRadioEngine(options = {}) {
       // Simulate high SWR on band change (antenna not tuned)
       swr = 2.5 + Math.random() * 3.0;
       lastBand = newBand;
-      // SWR settles after a few seconds
+      // SWR settles after a few seconds.
       setTimeout(() => { swr = 1.1 + Math.random() * 0.5; }, 3000);
     }
   }
 
   // --- Handle CAT commands ---
+
   // Returns ASCII response string (same format as real radio)
   function processCommand(cmd) {
     if (!cmd) return null;

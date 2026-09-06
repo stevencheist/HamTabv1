@@ -1,13 +1,11 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Transport: Web Serial API ---
 // Adapted from sffoundry/gmrsprogramming SerialConnection (MIT)
 // Changes from GMRS: ASCII line-oriented reads, configurable serial params,
-// continuous polling instead of bulk read/write, no programming mode state
-//
+// Continuous polling instead of bulk read/write, no programming mode state//.
 // Architecture: persistent reader loop fills an internal buffer.
-// readUntil / readUntilByte consume from the buffer without ever calling
-// reader.cancel(), which in Chrome WebSerial permanently closes the
-// ReadableStream and breaks all subsequent reads.
-
+// ReadUntil / readUntilByte consume from the buffer without ever calling// Reader.cancel(), which in Chrome WebSerial permanently closes the// ReadableStream and breaks all subsequent reads.
 // --- Connection States ---
 export const ConnectionState = {
   DISCONNECTED: 'disconnected',
@@ -32,7 +30,7 @@ export class WebSerialTransport {
     this._onStateChange = null;
     this._hwFlowControl = false;
 
-    // Serial config — defaults for FT-DX10
+    // Serial config — defaults for FT-DX10.
     this.config = {
       baudRate: config.baudRate || 38400,
       dataBits: config.dataBits || 8,
@@ -65,8 +63,9 @@ export class WebSerialTransport {
   }
 
   // --- Start persistent reader loop ---
-  // Runs in the background, continuously reads from the serial port into
-  // _rawBuffer. Never calls reader.cancel() — the loop ends only when
+
+  // Runs in the background, continuously reads from the serial port into.
+  // _rawBuffer. Never calls reader.cancel() — the loop ends only when.
   // disconnect() cancels the reader.
   _startReadLoop() {
     if (this._readLoopRunning) {
@@ -113,18 +112,17 @@ export class WebSerialTransport {
         if (!this._readLoopRunning) exitReason = 'stopped';
       } catch (err) {
         exitReason = err.name || err.message;
-        // Stream closed or cancelled — expected during disconnect
+        // Stream closed or cancelled — expected during disconnect.
         if (err.name !== 'AbortError' && this._readLoopRunning) {
           console.warn('[cat] Read loop error:', err.message);
         }
       } finally {
         console.warn('[cat] Read loop ended — reason:', exitReason);
         this._readLoopRunning = false;
-        // Release the reader lock. Do NOT call reader.cancel() here —
+        // Release the reader lock. Do NOT call reader.cancel() here —.
         // Chrome WebSerial permanently destroys the ReadableStream on cancel,
-        // breaking all future reads on this port. releaseLock() alone is
-        // sufficient when the loop has already exited (no pending read()).
-        // If releaseLock() fails (edge case), the close/reopen fallback in
+        // Breaking all future reads on this port. releaseLock() alone is
+        // Sufficient when the loop has already exited (no pending read()).        // If releaseLock() fails (edge case), the close/reopen fallback in.
         // connect() handles the stale lock.
         if (this._reader) {
           try { this._reader.releaseLock(); } catch { /* ignore */ }
@@ -148,8 +146,9 @@ export class WebSerialTransport {
   }
 
   // --- Wait for NEW data with timeout ---
-  // Always waits for the read loop to deliver new bytes — never returns
-  // early based on existing buffer content (the caller already checked).
+
+  // Always waits for the read loop to deliver new bytes — never returns.
+  // Early based on existing buffer content (the caller already checked).
   // This prevents busy-looping when the buffer has partial data without
   // the expected terminator.
   _waitForData(timeoutMs) {
@@ -167,10 +166,11 @@ export class WebSerialTransport {
   }
 
   // --- Connect ---
+
   // Opens the browser serial port picker, then opens with configured params.
   // Asserts DTR after open. Falls back to no flow control if HW not supported.
-  // If the port is already open (reused from smart-detect), skips open and
-  // just adopts the port reference.
+  // If the port is already open (reused from smart-detect), skips open and.
+  // Just adopts the port reference.
   async connect(existingPort) {
     if (!WebSerialTransport.isSupported()) {
       throw new Error('Web Serial API not supported in this browser');
@@ -179,29 +179,30 @@ export class WebSerialTransport {
     try {
       this._setState(ConnectionState.CONNECTING);
 
-      // Use existing port or prompt user to pick one
+      // Use existing port or prompt user to pick one.
       this.port = existingPort || await navigator.serial.requestPort();
 
       console.warn('[cat] connect() — port state:',
         { existingPort: !!existingPort, readable: !!this.port.readable,
           writable: !!this.port.writable, readLoopRunning: this._readLoopRunning });
 
-      // If port is already open (reused transport from smart-detect), skip open
+      // If port is already open (reused transport from smart-detect), skip open.
+
       if (this.port.readable && this.port.writable) {
         console.warn('[cat] Port already open — reusing connection',
           { readLoopRunning: this._readLoopRunning, hasReader: !!this._reader });
         // Restart read loop if not already running (e.g. when rig-manager
-        // calls connect on the transport that smart-detect returned)
+        // calls connect on the transport that smart-detect returned).
         if (!this._readLoopRunning) {
           this._startReadLoop();
           // If read loop failed to start (stream locked by stale reader),
-          // close and reopen the port to get fresh readable/writable streams.
-          // reader.cancel() in Chrome WebSerial can permanently close the
+          // Close and reopen the port to get fresh readable/writable streams.
+          // Reader.cancel() in Chrome WebSerial can permanently close the
           // ReadableStream, so we can't just release — must reopen.
           if (!this._readLoopRunning) {
             console.warn('[cat] Stream locked — closing and reopening port');
             try { await this.port.close(); } catch { /* ignore */ }
-            // Settle delay — USB-serial adapters need time after close before reopen
+            // Settle delay — USB-serial adapters need time after close before reopen.
             await new Promise(r => setTimeout(r, 500));
             await this.port.open(this.config);
             if (this._hwFlowControl) {
@@ -216,7 +217,7 @@ export class WebSerialTransport {
         return true;
       }
 
-      // Try with configured flow control
+      // Try with configured flow control.
       this._hwFlowControl = false;
       try {
         await this.port.open(this.config);
@@ -224,7 +225,7 @@ export class WebSerialTransport {
           this._hwFlowControl = true;
         }
       } catch (openErr) {
-        // Fallback: some USB adapters don't support hardware flow control
+        // Fallback: some USB adapters don't support hardware flow control.
         if (openErr.message && openErr.message.includes('flowControl')) {
           console.warn('[cat] HW flow control not supported, falling back');
           await this.port.open({ ...this.config, flowControl: 'none' });
@@ -240,14 +241,14 @@ export class WebSerialTransport {
         await this.port.setSignals({ dataTerminalReady: true, requestToSend: true });
       }
 
-      // Start persistent reader loop
+      // Start persistent reader loop.
       this._startReadLoop();
 
       this._setState(ConnectionState.CONNECTED);
       return true;
     } catch (err) {
       if (err.name === 'NotFoundError') {
-        // User cancelled port picker — not an error
+        // User cancelled port picker — not an error.
         this._setState(ConnectionState.DISCONNECTED);
         return false;
       }
@@ -257,6 +258,7 @@ export class WebSerialTransport {
   }
 
   // --- Disconnect ---
+
   // Stops read loop, deasserts DTR/RTS, closes port.
   async disconnect() {
     // Stop read loop first (cancels the reader — only place cancel is called)
@@ -282,6 +284,7 @@ export class WebSerialTransport {
   }
 
   // --- Write ASCII command ---
+
   // Sends a string command (e.g., "FA;" or "MD02;")
   async writeCommand(cmd) {
     if (!this.port || !this.port.writable) {
@@ -310,9 +313,10 @@ export class WebSerialTransport {
   }
 
   // --- Read until terminator ---
-  // Reads ASCII data from the internal buffer until the terminator character
-  // (default ";") is found. Returns the complete response string including
-  // terminator. Used for Yaesu/Kenwood/Elecraft ASCII protocols.
+
+  // Reads ASCII data from the internal buffer until the terminator character.
+  // (default ";") is found. Returns the complete response string including.
+  // Terminator. Used for Yaesu/Kenwood/Elecraft ASCII protocols.
   async readUntil(terminator = ';', timeoutMs = 2000) {
     if (!this.port) {
       throw new Error('Serial port not open');
@@ -322,10 +326,10 @@ export class WebSerialTransport {
     const termByte = terminator.charCodeAt(0);
 
     while (Date.now() < deadline) {
-      // Check buffer for terminator byte
+      // Check buffer for terminator byte.
       const idx = this._rawBuffer.indexOf(termByte);
       if (idx >= 0) {
-        // Extract up to and including the terminator
+        // Extract up to and including the terminator.
         const result = decoder.decode(this._rawBuffer.slice(0, idx + 1));
         this._rawBuffer = this._rawBuffer.slice(idx + 1);
         return result;
@@ -337,12 +341,14 @@ export class WebSerialTransport {
       await this._waitForData(remaining);
     }
 
-    // Timeout — dump whatever we have for debugging
+    // Timeout — dump whatever we have for debugging.
+
     const partial = decoder.decode(this._rawBuffer);
     throw new Error(`Read timeout (readLoop=${this._readLoopRunning}): no terminator in response ("${partial}")`);
   }
 
   // --- Read until sentinel byte ---
+
   // For binary protocols (Icom CI-V). Reads until a specific byte is found.
   // Returns the complete frame including the sentinel.
   async readUntilByte(sentinel, timeoutMs = 2000) {
@@ -353,16 +359,17 @@ export class WebSerialTransport {
     const deadline = Date.now() + timeoutMs;
 
     while (Date.now() < deadline) {
-      // Check buffer for sentinel byte
+      // Check buffer for sentinel byte.
       const idx = this._rawBuffer.indexOf(sentinel);
       if (idx >= 0) {
-        // Extract up to and including the sentinel
+        // Extract up to and including the sentinel.
         const result = this._rawBuffer.slice(0, idx + 1);
         this._rawBuffer = this._rawBuffer.slice(idx + 1);
         return result;
       }
 
-      // Wait for more data
+      // Wait for more data.
+
       const remaining = deadline - Date.now();
       if (remaining <= 0) break;
       await this._waitForData(remaining);
@@ -372,6 +379,7 @@ export class WebSerialTransport {
   }
 
   // --- Send binary command and read until sentinel ---
+
   // For CI-V: sends raw bytes and reads until EOM (0xFD).
   async sendBinaryCommand(data, sentinel = 0xFD, timeoutMs = 2000) {
     await this.writeRaw(data);
@@ -379,6 +387,7 @@ export class WebSerialTransport {
   }
 
   // --- Read exact bytes ---
+
   // For binary protocols (Icom CI-V). Reads exactly N bytes.
   async readBytes(length, timeoutMs = 2000) {
     if (!this.port) {
@@ -403,6 +412,7 @@ export class WebSerialTransport {
   }
 
   // --- Send command and read response ---
+
   // Writes an ASCII command and reads until terminator.
   async sendCommand(cmd, timeoutMs = 2000) {
     await this.writeCommand(cmd);
@@ -410,10 +420,11 @@ export class WebSerialTransport {
   }
 
   // --- Flush ---
+
   // Clear stale data from the internal buffer.
   async flush() {
     this._rawBuffer = new Uint8Array(0);
-    // Brief wait for any in-flight serial data to arrive, then clear again
+    // Brief wait for any in-flight serial data to arrive, then clear again.
     await new Promise(r => setTimeout(r, 200));
     this._rawBuffer = new Uint8Array(0);
   }

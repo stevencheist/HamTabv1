@@ -1,6 +1,7 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Per-Band Propagation Predictions ---
-// Calculate band-specific propagation reliability based on solar indices
-
+// Calculate band-specific propagation reliability based on solar indices.
 import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
@@ -34,12 +35,14 @@ export function calculateSolarZenith(lat, lon, utcHour) {
   const dayOfYear = Math.floor((now - start) / 86400000) + 1; // ms per day
 
   // Solar declination (simplified, accurate to ~1°)
-  // Meeus Ch. 25 — axial tilt ≈ 23.44°
+
+  // Meeus Ch. 25 — axial tilt ≈ 23.44°.
   const declRad = Math.asin(
     Math.sin(23.44 * Math.PI / 180) * Math.sin((360 / 365) * (dayOfYear - 81) * Math.PI / 180)
   );
 
-  // Hour angle: how far the sun is from local solar noon
+  // Hour angle: how far the sun is from local solar noon.
+
   const solarNoonOffset = lon / 15; // hours — longitude offset from UTC
   const hourAngle = (utcHour - 12 + solarNoonOffset) * 15; // degrees
   const haRad = hourAngle * Math.PI / 180;
@@ -81,17 +84,19 @@ export function dayFraction(lat, lon, utcHour) {
  * @returns {number} - Estimated MUF in MHz
  */
 export function calculateMUF(sfi, dayFrac) {
-  // Backward compat: boolean callers pass true/false → map to 1.0/0.0
+  // Backward compat: boolean callers pass true/false → map to 1.0/0.0.
   if (dayFrac === true) dayFrac = 1.0;
   else if (dayFrac === false) dayFrac = 0.0;
 
-  // foF2 correlation with SFI (empirical)
+  // FoF2 correlation with SFI (empirical)
+
   // Blend foF2 factor smoothly between night (0.6) and day (0.9)
   const foF2Factor = 0.6 + 0.3 * dayFrac;
   const foF2 = foF2Factor * Math.sqrt(Math.max(sfi, 50)); // MHz
 
   // Obliquity factor for mid-range DX paths (1000-3000 km)
-  // Typical range 3-4; use 3.5 as average
+
+  // Typical range 3-4; use 3.5 as average.
   const obliquityFactor = 3.5;
 
   return foF2 * obliquityFactor;
@@ -116,37 +121,38 @@ export function calculateMUF(sfi, dayFrac) {
  * @returns {number} - Reliability percentage (0-100)
  */
 export function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay, opts) {
-  // Usable frequency range is typically 50-90% of MUF
+  // Usable frequency range is typically 50-90% of MUF.
   const mufLower = muf * 0.5;  // 50% of MUF (minimum usable)
   const mufOptimal = muf * 0.85; // 85% of MUF (optimal)
 
   let baseReliability = 0;
 
   if (bandFreqMHz < mufLower) {
-    // Below LUF: heavy D-layer absorption during day, better at night
+    // Below LUF: heavy D-layer absorption during day, better at night.
     if (isDay) {
       baseReliability = Math.max(0, 10 - (mufLower - bandFreqMHz) * 3);
     } else {
       baseReliability = Math.min(70, 40 + (mufLower - bandFreqMHz) * 1.0);
     }
   } else if (bandFreqMHz <= mufOptimal) {
-    // Between LUF and optimal: good propagation zone
+    // Between LUF and optimal: good propagation zone.
     const position = (bandFreqMHz - mufLower) / (mufOptimal - mufLower);
     baseReliability = 50 + (35 * Math.sin(position * Math.PI));
   } else if (bandFreqMHz <= muf) {
-    // Between optimal and MUF: still usable but degrading
+    // Between optimal and MUF: still usable but degrading.
     const position = (bandFreqMHz - mufOptimal) / (muf - mufOptimal);
     baseReliability = 75 - (position * 35); // 75% down to 40% at MUF
   } else {
-    // Above MUF: rapid dropoff — signals won't reflect
+    // Above MUF: rapid dropoff — signals won't reflect.
     const excess = bandFreqMHz - muf;
     baseReliability = Math.max(0, 15 - excess * 5);
   }
 
-  // Apply geomagnetic disturbance penalty
-  // K-index 0-2: no penalty
-  // K-index 3-5: moderate penalty
-  // K-index 6-9: severe penalty
+  // Apply geomagnetic disturbance penalty.
+
+  // K-index 0-2: no penalty.
+  // K-index 3-5: moderate penalty.
+  // K-index 6-9: severe penalty.
   let geomagPenalty = 0;
   if (kIndex >= 6) {
     geomagPenalty = (kIndex - 5) * 12; // -12% to -48%
@@ -155,9 +161,10 @@ export function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay
   }
 
   // A-index penalty (planetary disturbance)
-  // A < 10: quiet
+
+  // A < 10: quiet.
   // A 10-30: unsettled
-  // A > 30: disturbed
+  // A > 30: disturbed.
   let aIndexPenalty = 0;
   if (aIndex > 30) {
     aIndexPenalty = Math.min(20, (aIndex - 30) / 2);
@@ -169,7 +176,7 @@ export function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay
 
   // --- VOACAP parameter adjustments (when opts provided) ---
   if (opts) {
-    // Mode adjustments — FT8 helps but isn't magic
+    // Mode adjustments — FT8 helps but isn't magic.
     if (opts.mode === 'CW') adjusted += 8;
     else if (opts.mode === 'FT8') adjusted += 15;
 
@@ -179,7 +186,8 @@ export function calculateBandReliability(bandFreqMHz, muf, kIndex, aIndex, isDay
       adjusted += dBdiff * 1.5; // ~1.5% per dB
     }
 
-    // TOA adjustment — higher angles slightly better for skip
+    // TOA adjustment — higher angles slightly better for skip.
+
     if (opts.toaDeg != null) {
       adjusted += (opts.toaDeg - 5) * 0.5;
     }
@@ -222,7 +230,8 @@ function getSporadicEBoost() {
   const vhfData = state.lastSolarData?.vhf;
   if (!vhfData || vhfData.length === 0) return 0;
 
-  // Find the highest E-Skip condition across all regions
+  // Find the highest E-Skip condition across all regions.
+
   let maxBoost = 0;
   for (const item of vhfData) {
     if (item.name !== 'E-Skip') continue;
@@ -262,7 +271,8 @@ export function calculateBandConditions(timeOfDay = null) {
   const aIndex = parseInt(indices.aindex) || 5;
 
   // Determine if daytime
-  // If timeOfDay is specified (from toggle), use that; otherwise auto-detect
+
+  // If timeOfDay is specified (from toggle), use that; otherwise auto-detect.
   let isDay;
   if (timeOfDay === 'day') {
     isDay = true;
@@ -277,10 +287,12 @@ export function calculateBandConditions(timeOfDay = null) {
   // Calculate MUF
   const muf = calculateMUF(sfi, isDay);
 
-  // Sporadic E boost for 6m — Es openings aren't predicted by MUF model
+  // Sporadic E boost for 6m — Es openings aren't predicted by MUF model.
+
   const esBoost = getSporadicEBoost();
 
-  // Calculate reliability for each band
+  // Calculate reliability for each band.
+
   return HF_BANDS.map(band => {
     let reliability = calculateBandReliability(
       band.freqMHz,
@@ -290,7 +302,8 @@ export function calculateBandConditions(timeOfDay = null) {
       isDay
     );
 
-    // Apply sporadic E boost to 6m based on live HamQSL E-Skip data
+    // Apply sporadic E boost to 6m based on live HamQSL E-Skip data.
+
     if (band.name === '6m' && esBoost > 0) {
       reliability = Math.min(100, reliability + esBoost);
     }
@@ -370,7 +383,7 @@ export function getReliabilityColor(rel) {
  */
 export function calculate24HourMatrix(opts) {
   if (!state.lastSolarData || !state.lastSolarData.indices) {
-    // Return placeholder data if no solar data available
+    // Return placeholder data if no solar data available.
     return Array.from({ length: 24 }, (_, i) => ({
       hour: i,
       bands: {},
@@ -383,21 +396,24 @@ export function calculate24HourMatrix(opts) {
   const kIndex = parseInt(indices.kindex) || 2;
   const aIndex = parseInt(indices.aindex) || 5;
 
-  // Use location-aware day fraction when lat/lon provided in opts
+  // Use location-aware day fraction when lat/lon provided in opts.
+
   const lat = opts && opts.lat != null ? opts.lat : null;
   const lon = opts && opts.lon != null ? opts.lon : null;
 
-  // Choose which bands to compute — VOACAP_BANDS when opts given, else all HF_BANDS
+  // Choose which bands to compute — VOACAP_BANDS when opts given, else all HF_BANDS.
+
   const bandList = opts ? VOACAP_BANDS : HF_BANDS;
 
   const matrix = [];
 
   for (let hour = 0; hour < 24; hour++) {
-    // Use solar zenith–based day fraction when location available
+    // Use solar zenith–based day fraction when location available.
     const df = dayFraction(lat, lon, hour);
     const muf = calculateMUF(sfi, df);
 
-    // Calculate reliability for each band at this hour
+    // Calculate reliability for each band at this hour.
+
     const bands = {};
     for (const band of bandList) {
       const reliability = calculateBandReliability(
@@ -510,7 +526,8 @@ export function renderPropagationWidget() {
 
   if (!grid) return;
 
-  // Calculate both day and night conditions
+  // Calculate both day and night conditions.
+
   const dayConditions = calculateBandConditions('day');
   const nightConditions = calculateBandConditions('night');
 

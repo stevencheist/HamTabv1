@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Band Opportunity Score Widget ---
 // Answers "what band should I be on right now?" by combining propagation,
-// activity density, and space weather into a single 0-100 score per band.
-
+// Activity density, and space weather into a single 0-100 score per band.
 import state from './state.js';
 import { $ } from './dom.js';
 import { HF_BANDS, calculateBandReliability, calculateMUF, dayFraction, getReliabilityColor } from './band-conditions.js';
@@ -28,7 +29,8 @@ export function calculateBandScores() {
   const kIndex = parseInt(indices?.kindex) || 2;
   const aIndex = parseInt(indices?.aindex) || 5;
 
-  // Day fraction at operator's location
+  // Day fraction at operator's location.
+
   const utcHour = new Date().getUTCHours() + new Date().getUTCMinutes() / 60;
   const df = dayFraction(state.myLat, state.myLon, utcHour);
   const muf = calculateMUF(sfi, df);
@@ -44,7 +46,8 @@ export function calculateBandScores() {
   const spacewxRaw = 50 + sfiBonus - kPenalty;
   const spacewx = Math.max(0, Math.min(100, spacewxRaw));
 
-  // Activity counts per band from PSK + WSPR
+  // Activity counts per band from PSK + WSPR.
+
   const activityByBand = {};
   const pskSummary = state.liveSpots?.summary || {};
   const wsprSpots = state.sourceData?.wspr || [];
@@ -54,7 +57,8 @@ export function calculateBandScores() {
     activityByBand[band] = (activityByBand[band] || 0) + (info.count || 0);
   }
 
-  // WSPR spot counts by band
+  // WSPR spot counts by band.
+
   for (const spot of wsprSpots) {
     const band = spot.band || spot.Band;
     if (band) {
@@ -87,7 +91,7 @@ export function calculateBandScores() {
     };
   });
 
-  // Sort descending by score
+  // Sort descending by score.
   scores.sort((a, b) => b.score - a.score);
 
   return scores;

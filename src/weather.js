@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
@@ -7,7 +10,7 @@ const wxBgClasses = ['wx-clear-day','wx-clear-night','wx-partly-cloudy-day','wx-
 
 function useWU() { return state.wxStation && state.wxApiKey; }
 
-// NWS API only covers the US and territories
+// NWS API only covers the US and territories.
 function isNwsCoverage(lat, lon) {
   return lat >= 17.5 && lat <= 72 && lon >= -180 && lon <= -64;
 }
@@ -66,7 +69,7 @@ function displayConditions(data, source) {
     if (data.temperature != null) {
       const apiUnit = data.temperatureUnit || 'F';
       let temp = data.temperature;
-      // Convert to user's preferred unit if different from API
+      // Convert to user's preferred unit if different from API.
       if (apiUnit !== state.temperatureUnit) {
         temp = apiUnit === 'F' ? Math.round((temp - 32) * 5 / 9) : Math.round(temp * 9 / 5 + 32);
       }
@@ -96,7 +99,7 @@ export function fetchOwmConditions() {
 export function fetchNwsConditions() {
   if (state.myLat === null || state.myLon === null) return;
   if (!isNwsCoverage(state.myLat, state.myLon)) {
-    // Outside US — try OWM as global fallback
+    // Outside US — try OWM as global fallback.
     fetchOwmConditions();
     return;
   }
@@ -105,12 +108,12 @@ export function fetchNwsConditions() {
     displayConditions(data, 'nws');
   }).catch(err => {
     console.warn('NWS conditions fetch failed:', err);
-    // NWS failed — fall back to OWM
+    // NWS failed — fall back to OWM.
     fetchOwmConditions();
   });
 }
 
-// Weather icon mapping for graphical display
+// Weather icon mapping for graphical display.
 const wxIcons = {
   'wx-clear-day': '☀️',
   'wx-clear-night': '🌙',

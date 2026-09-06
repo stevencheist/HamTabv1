@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Space Weather History Graphs ---
 // Canvas 2D graphs for Kp, X-Ray, SFI, Solar Wind, Bz
-// Data from NOAA SWPC via /api/spacewx/history
-
+// Data from NOAA SWPC via /api/spacewx/history.
 import state from './state.js';
 
 // --- Tab switching ---
@@ -17,7 +18,8 @@ export function initSpaceWxListeners() {
     });
   });
 
-  // Redraw on widget resize
+  // Redraw on widget resize.
+
   const widget = document.getElementById('widget-spacewx');
   if (widget && window.ResizeObserver) {
     new ResizeObserver(() => renderSpaceWxGraph()).observe(widget);
@@ -55,7 +57,8 @@ export function renderSpaceWxGraph() {
   const body = canvas.parentElement;
   if (!body) return;
 
-  // Size canvas to fit widget body
+  // Size canvas to fit widget body.
+
   const w = body.clientWidth;
   const h = body.clientHeight;
   if (w < 10 || h < 10) return;
@@ -151,7 +154,8 @@ function drawTimeAxis(ctx, bounds, data) {
   const range = tMax - tMin;
   if (range <= 0) return;
 
-  // Decide label count based on width
+  // Decide label count based on width.
+
   const maxLabels = Math.max(3, Math.floor(bounds.w / 60));
   const step = Math.ceil(data.length / maxLabels);
 
@@ -164,7 +168,8 @@ function drawTimeAxis(ctx, bounds, data) {
     const t = new Date(data[i].time_tag + (data[i].time_tag.includes('Z') ? '' : 'Z'));
     const x = bounds.x + ((times[i] - tMin) / range) * bounds.w;
 
-    // Format: "Feb 1" for multi-day, "12:00" for short spans
+    // Format: "Feb 1" for multi-day, "12:00" for short spans.
+
     let label;
     if (range > 3 * 24 * 60 * 60 * 1000) { // > 3 days
       const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -305,13 +310,14 @@ function drawXrayGraph(ctx, bounds, data) {
   drawYLabels(ctx, bounds, logMin, logMax, ticks, v => '1e' + v);
   drawTimeAxis(ctx, bounds, data);
 
-  // Class labels as thresholds
+  // Class labels as thresholds.
+
   for (const cls of classes) {
     const logVal = Math.log10(cls.val);
     drawThreshold(ctx, bounds, logMin, logMax, logVal, cls.label, colorDim());
   }
 
-  // Line — map values through log10
+  // Line — map values through log10.
   drawLine(ctx, bounds, data, logMin, logMax, '#00e5ff', d => {
     const v = d.value;
     if (v <= 0) return null;
@@ -365,7 +371,8 @@ function drawWindGraph(ctx, bounds, data) {
   drawThreshold(ctx, bounds, yMin, yMax, 400, '400 km/s', colorYellow());
   drawThreshold(ctx, bounds, yMin, yMax, 600, '600 km/s', colorRed());
 
-  // Color-segmented line: green < 400, yellow 400-600, red > 600
+  // Color-segmented line: green < 400, yellow 400-600, red > 600.
+
   if (data.length >= 2) {
     const times = data.map(d => new Date(d.time_tag + (d.time_tag.includes('Z') ? '' : 'Z')).getTime());
     const tMin = times[0];
@@ -421,7 +428,8 @@ function drawBzGraph(ctx, bounds, data) {
     });
   }
 
-  // Bz line: green positive, red negative — draw as segmented
+  // Bz line: green positive, red negative — draw as segmented.
+
   if (data.length >= 2) {
     const times = data.map(d => new Date(d.time_tag + (d.time_tag.includes('Z') ? '' : 'Z')).getTime());
     const tMin = times[0];

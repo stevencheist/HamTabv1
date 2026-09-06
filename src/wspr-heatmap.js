@@ -1,9 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- WSPR QTH-Relative Propagation Heatmap ---
 // Renders a canvas heatmap overlay showing measured propagation from real WSPR beacon data.
-// Filters spots where TX or RX is within 500km of the user's QTH, then paints the
-// distant end on the map colored by SNR. Shows "what bands are open for me right now"
-// based on actual beacon reports — not predictions.
-
+// Filters spots where TX or RX is within 500km of the user's QTH, then paints the.
+// Distant end on the map colored by SNR. Shows "what bands are open for me right now"// Based on actual beacon reports — not predictions.
 import state from './state.js';
 import { findCountryBounds } from './country-bounds.js';
 
@@ -60,7 +60,7 @@ function snrToRGBA(snr) {
   // Map [-30, +10] → hue 0° (red) to 120° (green)
   const hue = ((clamped - SNR_MIN) / (SNR_MAX - SNR_MIN)) * 120;
   const { r, g, b } = hslToRgb(hue, 1.0, 0.50);
-  // Alpha: brighter for stronger signals
+  // Alpha: brighter for stronger signals.
   const alpha = Math.min(210, 140 + ((clamped - SNR_MIN) / (SNR_MAX - SNR_MIN)) * 70);
   return { r, g, b, a: Math.round(alpha) };
 }
@@ -88,13 +88,15 @@ export async function renderWsprHeatmapCanvas(band) {
   // Remove previous overlay
   clearWsprHeatmap();
 
-  // Filter spots by band
+  // Filter spots by band.
+
   const bandSpots = wspr.filter(s => s.band === band);
   if (bandSpots.length === 0) return;
 
   const scope = state.wsprHeatmapScope || 'qth';
 
-  // Resolve country bounds once for CTY scope
+  // Resolve country bounds once for CTY scope.
+
   let ctyBounds = null;
   if (scope === 'cty') {
     ctyBounds = findCountryBounds(state.myLat, state.myLon);
@@ -102,8 +104,9 @@ export async function renderWsprHeatmapCanvas(band) {
   }
 
   // Collect endpoints based on scope:
-  // QTH: TX or RX within 500km of QTH → paint distant end
-  // CTY: TX or RX within country bounds → paint distant end
+
+  // QTH: TX or RX within 500km of QTH → paint distant end.
+  // CTY: TX or RX within country bounds → paint distant end.
   // World: paint both TX and RX for every spot (no filtering)
   const endpoints = []; // { lat, lon, snr }
 
@@ -118,7 +121,7 @@ export async function renderWsprHeatmapCanvas(band) {
     if (txLat == null || txLon == null || rxLat == null || rxLon == null) continue;
 
     if (scope === 'world') {
-      // Show all endpoints — maximum data density
+      // Show all endpoints — maximum data density.
       endpoints.push({ lat: txLat, lon: txLon, snr });
       endpoints.push({ lat: rxLat, lon: rxLon, snr });
     } else if (scope === 'cty') {
@@ -127,7 +130,7 @@ export async function renderWsprHeatmapCanvas(band) {
       if (txInCty) endpoints.push({ lat: rxLat, lon: rxLon, snr });
       if (rxInCty) endpoints.push({ lat: txLat, lon: txLon, snr });
     } else {
-      // QTH scope — 500km radius
+      // QTH scope — 500km radius.
       const txDist = distanceKm(state.myLat, state.myLon, txLat, txLon);
       const rxDist = distanceKm(state.myLat, state.myLon, rxLat, rxLon);
       if (txDist <= QTH_RADIUS_KM) endpoints.push({ lat: rxLat, lon: rxLon, snr });
@@ -153,7 +156,8 @@ export async function renderWsprHeatmapCanvas(band) {
 
   if (cols <= 0 || rows <= 0) return;
 
-  // Bucket endpoints into grid cells — accumulate SNR values for averaging
+  // Bucket endpoints into grid cells — accumulate SNR values for averaging.
+
   const grid = {}; // key: "row,col" → { sum, count }
 
   for (const ep of endpoints) {
@@ -174,7 +178,8 @@ export async function renderWsprHeatmapCanvas(band) {
   const imageData = ctx.createImageData(cols, rows);
   const data = imageData.data;
 
-  // Paint cells with averaged SNR
+  // Paint cells with averaged SNR.
+
   for (const keyStr of Object.keys(grid)) {
     const key = parseInt(keyStr, 10);
     const cell = grid[key];
@@ -189,8 +194,9 @@ export async function renderWsprHeatmapCanvas(band) {
 
   ctx.putImageData(imageData, 0, 0);
 
-  // Use toBlob + object URL instead of toDataURL — avoids large base64 string
-  // allocation and lets the browser GC the blob (CODEX-016 item #2)
+  // Use toBlob + object URL instead of toDataURL — avoids large base64 string.
+
+  // Allocation and lets the browser GC the blob (CODEX-016 item #2).
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
   const url = URL.createObjectURL(blob);
   const imageBounds = [[south, west], [north, east]];
@@ -214,7 +220,6 @@ export function clearWsprHeatmap() {
 
 // --- Floating WSPR Heatmap Legend (Leaflet control) ---
 // Displays band name, gradient bar (red→yellow→green), and SNR labels.
-
 let wsprHeatmapLegendControl = null;
 
 export function renderWsprHeatmapLegend(band) {

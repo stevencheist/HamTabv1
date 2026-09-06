@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Cross-Tab Communication (Phase 0) ---
 // Leader election via BroadcastChannel + localStorage lease.
-// Phase 0: scaffolding only — exchanges heartbeats and widget-interest
-// announcements between tabs. No fetch behavior changes yet.
-
+// Phase 0: scaffolding only — exchanges heartbeats and widget-interest.
+// Announcements between tabs. No fetch behavior changes yet.
 import state from './state.js';
 import { isWidgetVisible } from './widgets.js';
 import {
@@ -28,7 +29,7 @@ function log(...args) {
 }
 
 function generateTabId() {
-  // crypto.randomUUID() with manual UUID v4 fallback
+  // Crypto.randomUUID() with manual UUID v4 fallback.
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
   }
@@ -120,21 +121,23 @@ function attemptElection() {
   const ct = state.crossTab;
   const existing = readLease();
 
-  // If valid lease held by another tab → become follower
+  // If valid lease held by another tab → become follower.
+
   if (existing && isLeaseValid(existing) && existing.tabId !== ct.tabId) {
     becomeFollower(existing.tabId);
     return;
   }
 
-  // Try to claim: write lease then read back to verify no race
+  // Try to claim: write lease then read back to verify no race.
   writeLease(ct.tabId);
 
-  // Small synchronous read-back to detect simultaneous writers
+  // Small synchronous read-back to detect simultaneous writers.
+
   const verify = readLease();
   if (verify && verify.tabId === ct.tabId) {
     becomeLeader();
   } else {
-    // Another tab won the race
+    // Another tab won the race.
     becomeFollower(verify ? verify.tabId : null);
   }
 }
@@ -159,11 +162,11 @@ function becomeLeader() {
   ct.leaderId = ct.tabId;
   log(`Role: ${prev} -> leader`);
 
-  // Clear any follower miss-detection
+  // Clear any follower miss-detection.
   clearInterval(ct.heartbeatTimer);
   clearTimeout(ct.electionTimer);
 
-  // Start heartbeat — fire immediately, then on interval
+  // Start heartbeat — fire immediately, then on interval.
   leaderHeartbeatTick();
   ct.heartbeatTimer = setInterval(leaderHeartbeatTick, XTAB_HEARTBEAT_MS);
 }
@@ -176,14 +179,14 @@ function becomeFollower(leaderId) {
   ct.lastHeartbeat = Date.now();
   log(`Role: ${prev} -> follower (leader: ${leaderId ? leaderId.slice(0, 8) : '?'})`);
 
-  // Clear any leader heartbeat
+  // Clear any leader heartbeat.
   clearInterval(ct.heartbeatTimer);
   clearTimeout(ct.electionTimer);
 
-  // Start miss-detection interval — checks whether leader heartbeats have stopped
+  // Start miss-detection interval — checks whether leader heartbeats have stopped.
   ct.heartbeatTimer = setInterval(followerMissDetectionTick, XTAB_HEARTBEAT_MS);
 
-  // Announce our interests to the new leader
+  // Announce our interests to the new leader.
   scheduleBroadcastInterests();
 }
 
@@ -204,7 +207,7 @@ function becomeSolo(reason) {
 }
 
 // ---------------------------------------------------------------------------
-// Heartbeat / miss detection
+// Heartbeat / miss detection.
 // ---------------------------------------------------------------------------
 
 function leaderHeartbeatTick() {
@@ -213,7 +216,7 @@ function leaderHeartbeatTick() {
   writeLease(ct.tabId);
   ct.leaseUntil = Date.now() + XTAB_LEASE_MS;
 
-  // Broadcast heartbeat with aggregated interests
+  // Broadcast heartbeat with aggregated interests.
   broadcast({
     type: 'leader-heartbeat',
     interests: serializeInterests(),
@@ -225,7 +228,8 @@ function followerMissDetectionTick() {
   const ct = state.crossTab;
   const elapsed = Date.now() - ct.lastHeartbeat;
 
-  // Also check localStorage lease as backup
+  // Also check localStorage lease as backup.
+
   const lease = readLease();
   const leaseStale = !lease || !isLeaseValid(lease);
 
@@ -257,7 +261,7 @@ function handleMessage(event) {
         if (ct.role === 'solo') {
           becomeFollower(msg.senderId);
         }
-        // Update aggregated interests from leader
+        // Update aggregated interests from leader.
         if (msg.interests) {
           deserializeInterests(msg.interests);
         }
@@ -286,7 +290,7 @@ function handleMessage(event) {
       break;
 
     case 'tab-closing':
-      // Remove departing tab's interests
+      // Remove departing tab's interests.
       delete ct.interests[msg.senderId];
       if (ct.role === 'follower' && msg.senderId === ct.leaderId) {
         log(`Leader tab closing — scheduling election`);
@@ -305,7 +309,8 @@ function handleStorageEvent(event) {
   if (event.key !== XTAB_LEADER_KEY) return;
   const ct = state.crossTab;
 
-  // Backup lease-change detection for tabs that missed a BC message
+  // Backup lease-change detection for tabs that missed a BC message.
+
   if (ct.role === 'follower') {
     const lease = readLease();
     if (!lease || !isLeaseValid(lease)) {
@@ -324,10 +329,11 @@ function handleVisibilityChange() {
   const ct = state.crossTab;
   if (document.visibilityState !== 'visible') return;
 
-  // Tab woke up — re-announce interests
+  // Tab woke up — re-announce interests.
   scheduleBroadcastInterests();
 
-  // Follower: verify lease is still valid
+  // Follower: verify lease is still valid.
+
   if (ct.role === 'follower') {
     const lease = readLease();
     if (!lease || !isLeaseValid(lease)) {
@@ -351,7 +357,7 @@ function broadcastInterests() {
   const ct = state.crossTab;
   const widgets = getVisibleWidgetIds();
 
-  // Store our own interests
+  // Store our own interests.
   ct.interests[ct.tabId] = new Set(widgets);
 
   broadcast({
@@ -409,7 +415,8 @@ export function initCrossTab() {
   ct.tabId = generateTabId();
   log(`Initializing tab ${ct.tabId.slice(0, 8)}`);
 
-  // Open BroadcastChannel — if unavailable, stay solo
+  // Open BroadcastChannel — if unavailable, stay solo.
+
   if (!openChannel()) {
     becomeSolo('BroadcastChannel unavailable');
     return;
@@ -456,7 +463,7 @@ export function destroyCrossTab() {
   becomeSolo('destroyed');
 }
 
-// Broadcast spot selection to other tabs. Pass the full spot object
+// Broadcast spot selection to other tabs. Pass the full spot object.
 // (other tabs may not have it in their local sourceFiltered), or null to deselect.
 // Spot is sanitized to plain JSON to avoid structured-clone failures.
 export function broadcastSpotSelection(spot) {
@@ -478,9 +485,8 @@ function sanitizeSpot(spot) {
 }
 
 // --- Should this tab perform periodic network fetches? ---
-// Leader and solo tabs fetch normally. Follower tabs skip periodic fetches
-// to avoid duplicate network requests across tabs hitting the same server cache.
-// Followers catch up on visibility change (tab foreground) or manual refresh.
+// Leader and solo tabs fetch normally. Follower tabs skip periodic fetches.
+// To avoid duplicate network requests across tabs hitting the same server cache.// Followers catch up on visibility change (tab foreground) or manual refresh.
 export function isLeaderTab() {
   const role = state.crossTab.role;
   return role === 'leader' || role === 'solo';

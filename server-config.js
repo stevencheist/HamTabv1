@@ -1,3 +1,5 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Deployment mode configuration ---
 // Detects deployment mode from environment and returns config.
 // Hostedmode: PORT=8080 (set by Cloudflare Container runtime)
@@ -15,7 +17,7 @@ function getConfig() {
     host: process.env.HOST || '0.0.0.0',
     isHostedmode,
 
-    // Hostedmode sits behind Cloudflare Worker proxy
+    // Hostedmode sits behind Cloudflare Worker proxy.
     trustProxy: isHostedmode,
 
     // Helmet options differ: lanmode uses self-signed certs (no HSTS, no upgrade)

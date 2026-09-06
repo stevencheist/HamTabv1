@@ -1,12 +1,13 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Driver: TCI (Network) ---
 // Covers: Thetis, ExpertSDR2/3, SunSDR2 — any app exposing a TCI WebSocket server.
 // Protocol: ASCII commands terminated with ";" over WebSocket.
 // TCI pushes state changes — GET commands read from transport cache.
 // Reference: https://github.com/ExpertElectronics/TCI
-
 // --- TCI mode names → HamTab normalized mode names ---
 // TCI uses standard mode names (USB, LSB, CW, AM, FM, etc.)
-// Map non-standard variants to HamTab conventions
+// Map non-standard variants to HamTab conventions.
 const TCI_MODE_MAP = {
   'USB':    'USB',
   'LSB':    'LSB',
@@ -25,7 +26,7 @@ const TCI_MODE_MAP = {
   'SPEC':   'USB',
 };
 
-// Reverse: HamTab mode → TCI mode name
+// Reverse: HamTab mode → TCI mode name.
 const MODE_TO_TCI = {
   'USB':    'USB',
   'LSB':    'LSB',
@@ -45,7 +46,7 @@ const MODE_TO_TCI = {
 // S9 = -73 dBm, each S-unit = 6 dB
 function dbmToSUnits(dbm) {
   if (dbm >= -73) {
-    // S9 and above — report as S9 + dB over
+    // S9 and above — report as S9 + dB over.
     return 9 + (dbm + 73) / 6;
   }
   // Below S9 — S1 = -121 dBm
@@ -61,7 +62,8 @@ export const tciDriver = {
   binary: false,
 
   // --- Initialization commands ---
-  // After WebSocket connects, subscribe to TCI push notifications
+
+  // After WebSocket connects, subscribe to TCI push notifications.
   init() {
     return [
       'VFO:0,0;',          // Request initial VFO A frequency
@@ -87,7 +89,8 @@ export const tciDriver = {
   },
 
   // --- Polling commands ---
-  // These read from the TCI transport's cache — effectively free
+
+  // These read from the TCI transport's cache — effectively free.
   pollCommands() {
     return [
       'getFrequency',
@@ -106,7 +109,8 @@ export const tciDriver = {
   },
 
   // --- Command encoding ---
-  // Converts HamTab logical commands → TCI wire format
+
+  // Converts HamTab logical commands → TCI wire format.
   encode(command, params) {
     switch (command) {
       case 'getFrequency':  return 'GET_VFO:0,0;';
@@ -131,7 +135,8 @@ export const tciDriver = {
   },
 
   // --- Response parsing ---
-  // Parses TCI response strings into {type, value} events for RigStateStore
+
+  // Parses TCI response strings into {type, value} events for RigStateStore.
   parse(response) {
     if (!response) return null;
 
@@ -177,7 +182,7 @@ export const tciDriver = {
         const dbm = parseFloat(parts[1]);
         if (isNaN(dbm)) return null;
         const sUnits = dbmToSUnits(dbm);
-        // Map to raw 0-255 scale (same as Yaesu SM0) for UI compatibility
+        // Map to raw 0-255 scale (same as Yaesu SM0) for UI compatibility.
         const raw = Math.round(Math.min(255, Math.max(0, sUnits * 17)));
         return { type: 'signal', value: raw, sUnits };
       }
@@ -207,7 +212,8 @@ export const tciDriver = {
       return null;
     }
 
-    // TX_POWER / TX_SWR — synthetic split messages from TCI transport cache reads
+    // TX_POWER / TX_SWR — synthetic split messages from TCI transport cache reads.
+
     if (resp.startsWith('TX_POWER:')) {
       const parts = resp.slice(9).split(',');
       if (parts.length >= 2) {

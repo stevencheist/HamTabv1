@@ -1,8 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Rig Manager ---
 // Orchestrator: wires a driver to a transport, runs the polling loop,
-// dispatches parsed events to RigStateStore.
-// UI never talks to this — it subscribes to RigStateStore.
-
+// Dispatches parsed events to RigStateStore.// UI never talks to this — it subscribes to RigStateStore.
 import { createCommandQueue } from './command-queue.js';
 import { getTraceBus } from './diagnostics/trace-bus.js';
 
@@ -19,6 +19,7 @@ export function createRigManager(transport, driver, store, options = {}) {
   const isBinary = !!driver.binary;
 
   // --- Binary CI-V helpers ---
+
   // CI-V drivers encode as "CIV:fefe..." hex strings.
   // We convert to/from raw bytes for binary transport.
   function hexToBytes(hex) {
@@ -41,16 +42,16 @@ export function createRigManager(transport, driver, store, options = {}) {
       try {
         let response;
         if (isBinary && encoded.startsWith('CIV:')) {
-          // Binary protocol: decode hex → raw bytes → sendBinaryCommand → hex encode response
+          // Binary protocol: decode hex → raw bytes → sendBinaryCommand → hex encode response.
           const bytes = hexToBytes(encoded.slice(4));
           const rawBytes = await transport.sendBinaryCommand(bytes, 0xFD);
           const elapsedMs = Date.now() - sendTs;
           trace.record('transport', 'received', { command, elapsedMs, bytes: rawBytes.length });
-          // Skip the echo frame (radio echoes our command) — find the response frame
+          // Skip the echo frame (radio echoes our command) — find the response frame.
           // CI-V echo: FE FE <from> <to> ..., response: FE FE <to> <from> ...
           const frames = splitCivFrames(rawBytes);
           for (const frame of frames) {
-            // Parse each frame — the echo will return null (ACK), response has data
+            // Parse each frame — the echo will return null (ACK), response has data.
             const hexResp = 'CIV:' + bytesToHex(frame);
             const event = driver.parse(hexResp);
             if (event) {
@@ -61,13 +62,12 @@ export function createRigManager(transport, driver, store, options = {}) {
           return; // already parsed above
         } else if (command.startsWith('set')) {
           // Set commands (setFrequency, setMode, setPTT, etc.) don't get a
-          // response from Yaesu radios — write without waiting for reply.
-          // Queue rate-limiting (60ms) prevents buffer sync issues.
+          // Response from Yaesu radios — write without waiting for reply.          // Queue rate-limiting (60ms) prevents buffer sync issues.
           console.debug('[cat] SET →', command, encoded);
           await transport.writeCommand(encoded);
           return; // no response to parse
         } else {
-          // Meter reads get a shorter timeout — don't stall queue on missed responses
+          // Meter reads get a shorter timeout — don't stall queue on missed responses.
           const isMeter = command === 'getSignal' || command === 'getSWR' || command === 'getPower';
           response = await transport.sendCommand(encoded, isMeter ? 500 : 2000);
           const elapsedMs = Date.now() - sendTs;
@@ -76,7 +76,7 @@ export function createRigManager(transport, driver, store, options = {}) {
         handleResponse(response, command);
       } catch (err) {
         const elapsedMs = Date.now() - sendTs;
-        // Timeout or read error — log but don't crash the polling loop
+        // Timeout or read error — log but don't crash the polling loop.
         if (err.message && err.message.includes('timeout')) {
           console.warn('[cat] Command timeout:', command);
           trace.record('error', 'timeout', { command, elapsedMs, message: err.message });
@@ -90,7 +90,8 @@ export function createRigManager(transport, driver, store, options = {}) {
   );
 
   // --- Split concatenated CI-V frames ---
-  // A single read may contain echo + response: FE FE ... FD FE FE ... FD
+
+  // A single read may contain echo + response: FE FE ... FD FE FE ... FD.
   function splitCivFrames(bytes) {
     const frames = [];
     let start = -1;
@@ -143,12 +144,12 @@ export function createRigManager(transport, driver, store, options = {}) {
             }
           }
         } else {
-          // Short timeout for init — set commands like AI0; may not respond
+          // Short timeout for init — set commands like AI0; may not respond.
           const response = await transport.sendCommand(cmd, 800);
           handleResponse(response);
         }
       } catch (err) {
-        // Expected for write-only commands (AI0;) — not a real error
+        // Expected for write-only commands (AI0;) — not a real error.
         if (err.message && err.message.includes('Read timeout')) {
           console.debug('[cat] Init command no response (expected for set commands):', cmd);
         } else {
@@ -157,7 +158,7 @@ export function createRigManager(transport, driver, store, options = {}) {
       }
     }
 
-    // Flush any stale data after init, then settle before polling starts
+    // Flush any stale data after init, then settle before polling starts.
     await transport.flush();
     await new Promise(r => setTimeout(r, 200));
   }
@@ -182,9 +183,10 @@ export function createRigManager(transport, driver, store, options = {}) {
   }
 
   // --- Meter streaming: adaptive rate reads for S-meter, SWR ---
+
   // S-meter (getSignal) polls always; SWR/power only poll during TX.
   // Yaesu RM commands (SWR/power meters) return nothing in RX mode,
-  // causing 2s timeouts that stall the entire command queue.
+  // Causing 2s timeouts that stall the entire command queue.
   function startMeters() {
     if (meterTimer) return;
     if (!driver.meterCommands) return; // driver doesn't support meters
@@ -192,7 +194,7 @@ export function createRigManager(transport, driver, store, options = {}) {
     meterTimer = setInterval(() => {
       if (!connected) return;
       queue.push('getSignal', null, 0);
-      // SWR/power meters only respond during TX — skip in RX to avoid timeouts
+      // SWR/power meters only respond during TX — skip in RX to avoid timeouts.
       const rigState = store.get();
       if (rigState.ptt) {
         queue.push('getSWR', null, 0);
@@ -219,12 +221,13 @@ export function createRigManager(transport, driver, store, options = {}) {
       return false;
     }
 
-    // Flush stale data before init
+    // Flush stale data before init.
     console.warn('[cat] rig-manager.connect — flushing');
     await transport.flush();
 
-    // Settle delay — USB serial needs time after open before the radio
-    // is ready to accept commands (especially FTDI/CP210x adapters)
+    // Settle delay — USB serial needs time after open before the radio.
+
+    // is ready to accept commands (especially FTDI/CP210x adapters).
     await new Promise(r => setTimeout(r, 500));
 
     connected = true;

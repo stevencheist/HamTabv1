@@ -1,13 +1,14 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Accessibility Utilities ---
 // Focus trap, modal lifecycle, and shared a11y helpers.
-
 import state from './state.js';
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
 
 // --- Focus Trap ---
 
-// trapFocus(container) — constrains Tab/Shift+Tab within container.
+// TrapFocus(container) — constrains Tab/Shift+Tab within container.
 // Returns a cleanup function that removes the listener.
 export function trapFocus(container) {
   function handler(e) {
@@ -34,12 +35,11 @@ export function trapFocus(container) {
 
 // --- Modal Stack ---
 // Supports nested modals (e.g. config → sub-config).
-
 const modalStack = []; // { overlay, cleanup, previousFocus }
 
-// openModal(overlayEl, options?)
+// OpenModal(overlayEl, options?)
 // Shows overlay, saves activeElement, traps focus, sets initial focus.
-// options.focusEl — element to focus on open (defaults to first focusable)
+// options.focusEl — element to focus on open (defaults to first focusable).
 export function openModal(overlayEl, options) {
   if (!overlayEl) return;
   const previousFocus = document.activeElement;
@@ -53,18 +53,19 @@ export function openModal(overlayEl, options) {
   // Set initial focus
   const focusTarget = (options && options.focusEl) || (inner && inner.querySelector(FOCUSABLE));
   if (focusTarget) {
-    // Defer focus to next frame so the overlay is visible
+    // Defer focus to next frame so the overlay is visible.
     requestAnimationFrame(() => focusTarget.focus());
   }
 }
 
-// closeModal(overlayEl)
+// CloseModal(overlayEl)
 // Hides overlay, releases trap, restores previous focus.
 export function closeModal(overlayEl) {
   if (!overlayEl) return;
   overlayEl.classList.add('hidden');
 
-  // Find and remove from stack
+  // Find and remove from stack.
+
   const idx = modalStack.findIndex(m => m.overlay === overlayEl);
   if (idx !== -1) {
     const entry = modalStack.splice(idx, 1)[0];

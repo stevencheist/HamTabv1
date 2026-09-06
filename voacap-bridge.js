@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- VOACAP Bridge ---
 // Manages a Python child process (voacap-worker.py) for VOACAP predictions.
 // Falls back gracefully when Python or dvoacap-python is not available.
-
 const { spawn } = require('child_process');
 const path = require('path');
 
@@ -27,8 +28,8 @@ let spawnAttempts = 0;        // number of spawn attempts for diagnostics
 // --- Python executable detection ---
 
 function findPython() {
-  // dvoacap-python requires Python 3.11+, so try versioned executables first.
-  // On Linux/Mac: try python3.13 → python3.12 → python3.11 → python3 → python
+  // Dvoacap-python requires Python 3.11+, so try versioned executables first.
+  // On Linux/Mac: try python3.13 → python3.12 → python3.11 → python3 → python.
   // On Windows: try python → python3 (py launcher typically finds newest)
   return process.platform === 'win32'
     ? ['python', 'python3']
@@ -64,7 +65,7 @@ function spawnWorker() {
 
   function tryCandidate(idx) {
     if (idx >= pythonCandidates.length) {
-      // All candidates exhausted for this spawn attempt
+      // All candidates exhausted for this spawn attempt.
       if (!fullyInitialized && !shuttingDown) {
         const elapsed = Date.now() - firstSpawnTime;
         if (elapsed < RESPAWN_WINDOW_MS) {
@@ -108,16 +109,17 @@ function spawnWorker() {
 
     proc.on('close', (code) => {
       if (!settled) {
-        // Process exited before we confirmed it works — try next candidate
+        // Process exited before we confirmed it works — try next candidate.
         settled = true;
         return tryCandidate(idx + 1);
       }
 
       // Only clean up if this proc is still the active child.
+
       // Failed candidates (python3.13, etc.) may close after we've moved on.
       if (child !== proc) return;
 
-      // Post-init crash — clean up and maybe respawn
+      // Post-init crash — clean up and maybe respawn.
       available = false;
       child = null;
       rejectAllPending('Worker process exited');
@@ -128,13 +130,14 @@ function spawnWorker() {
       }
     });
 
-    // Buffer stderr — log on process end for diagnostics
+    // Buffer stderr — log on process end for diagnostics.
+
     let stderrBuf = '';
     proc.stderr.on('data', (data) => { stderrBuf += data.toString(); });
     proc.stderr.on('end', () => {
       const msg = stderrBuf.trim();
       if (msg) {
-        // Always log stderr so we can diagnose container startup failures
+        // Always log stderr so we can diagnose container startup failures.
         console.error(`[VOACAP] Worker stderr (${pythonCmd}): ${msg}`);
         lastError = msg;
       }
@@ -152,10 +155,11 @@ function spawnWorker() {
 
     child = proc;
 
-    // Suppress EPIPE errors on stdin when the child dies before we stop writing
+    // Suppress EPIPE errors on stdin when the child dies before we stop writing.
     proc.stdin.on('error', () => {});
 
     // Retry pings until the worker responds or we hit the startup timeout.
+
     // Python + numpy + dvoacap PredictionEngine() can take 10-20s in a container.
     const startupDeadline = Date.now() + STARTUP_TIMEOUT_MS;
 
@@ -188,12 +192,12 @@ function spawnWorker() {
         })
         .catch((err) => {
           if (settled) return;
-          // Ping failed (timeout or write error) — retry after interval
+          // Ping failed (timeout or write error) — retry after interval.
           setTimeout(attemptPing, STARTUP_PING_INTERVAL);
         });
     }
 
-    // First ping after a brief delay for the process to start
+    // First ping after a brief delay for the process to start.
     setTimeout(attemptPing, 500);
   }
 }
@@ -214,7 +218,7 @@ function handleResponse(line) {
     pending.delete(id);
     resolve(resp);
   } else if (resp.ok === false && resp.error) {
-    // Unsolicited error (e.g. import failure during init_engine) — capture for diagnostics
+    // Unsolicited error (e.g. import failure during init_engine) — capture for diagnostics.
     console.error(`[VOACAP] Worker error: ${resp.error}`);
     lastError = resp.error;
   }
@@ -287,7 +291,7 @@ function shutdown() {
 
   if (child) {
     child.stdin.end();
-    // Give it a moment to exit cleanly, then force kill
+    // Give it a moment to exit cleanly, then force kill.
     setTimeout(() => {
       if (child) {
         try { child.kill(); } catch {}
@@ -296,7 +300,7 @@ function shutdown() {
   }
 }
 
-// Kill the stuck worker and respawn — used when a prediction hangs
+// Kill the stuck worker and respawn — used when a prediction hangs.
 function killAndRespawn(reason) {
   console.log(`[VOACAP] Killing worker: ${reason}`);
   available = false;
@@ -308,7 +312,8 @@ function killAndRespawn(reason) {
     child = null;
   }
 
-  // Respawn after a short delay — the worker may work on the next attempt
+  // Respawn after a short delay — the worker may work on the next attempt.
+
   if (!shuttingDown && fullyInitialized) {
     console.log(`[VOACAP] Respawning worker in ${RESPAWN_DELAY_MS / 1000}s...`);
     if (respawnTimer) clearTimeout(respawnTimer);

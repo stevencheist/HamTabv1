@@ -3,10 +3,10 @@ node_modules/
 certs/
 tools/
 logs/
-.claude/
-!.claude/settings.json
+.claude/*
 !.claude/settings.json.example
 !.claude/hooks/
+!.claude/skills/
 .wrangler/
 feedback-private-key.pem
 FEEDBACK_DECRYPTION_GUIDE.md
@@ -18,3 +18,4 @@ __pycache__/
 ESPHamClock/
 data/
 research/
+.aiw/

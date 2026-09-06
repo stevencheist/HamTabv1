@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
@@ -12,7 +15,7 @@ export function loadSpotColumnVisibility() {
     const saved = JSON.parse(localStorage.getItem(SPOT_COL_VIS_KEY));
     if (saved && typeof saved === 'object') return saved;
   } catch (e) {}
-  // Default: all columns visible
+  // Default: all columns visible.
   const vis = {};
   SOURCE_DEFS.pota.columns.forEach(c => vis[c.key] = true);
   return vis;
@@ -22,13 +25,13 @@ export function saveSpotColumnVisibility() {
   localStorage.setItem(SPOT_COL_VIS_KEY, JSON.stringify(state.spotColumnVisibility));
 }
 
-// Toggle sort column/direction when clicking a header
+// Toggle sort column/direction when clicking a header.
 function toggleSort(colKey) {
   if (state.spotSortColumn === colKey) {
     // Toggle direction
     state.spotSortDirection = state.spotSortDirection === 'asc' ? 'desc' : 'asc';
   } else {
-    // New column — default to desc for time/age, asc for others
+    // New column — default to desc for time/age, asc for others.
     state.spotSortColumn = colKey;
     state.spotSortDirection = (colKey === 'spotTime' || colKey === 'age') ? 'desc' : 'asc';
   }
@@ -36,7 +39,7 @@ function toggleSort(colKey) {
   renderSpots();
 }
 
-// Render table headers with sort indicators
+// Render table headers with sort indicators.
 export function renderSpotsHeader() {
   const cols = SOURCE_DEFS[state.currentSource].columns
     .filter(c => state.spotColumnVisibility[c.key] !== false);
@@ -74,23 +77,24 @@ export function renderSpots() {
   spotsBody.innerHTML = '';
   $('spotCount').textContent = `(${filtered.length})`;
 
-  // Render headers with sort indicators
+  // Render headers with sort indicators.
   renderSpotsHeader();
 
   const cols = SOURCE_DEFS[state.currentSource].columns
     .filter(c => state.spotColumnVisibility[c.key] !== false);
 
-  // Determine sort column and direction
+  // Determine sort column and direction.
+
   const sortCol = state.spotSortColumn || SOURCE_DEFS[state.currentSource].sortKey;
   const dir = state.spotSortDirection === 'asc' ? 1 : -1;
 
   const sorted = [...filtered].sort((a, b) => {
-    // Handle different column types
+    // Handle different column types.
     if (sortCol === 'spotTime' || sortCol === 'age') {
-      // Sort by actual spotTime for both time and age columns
+      // Sort by actual spotTime for both time and age columns.
       return dir * (new Date(a.spotTime) - new Date(b.spotTime));
     } else if (sortCol === 'frequency') {
-      // Numeric sort for frequency
+      // Numeric sort for frequency.
       return dir * ((parseFloat(a.frequency) || 0) - (parseFloat(b.frequency) || 0));
     } else {
       // String comparison for callsign, mode, etc.
@@ -105,12 +109,12 @@ export function renderSpots() {
     const sid = spotId(spot);
     tr.dataset.spotId = sid;
     if (sid === state.selectedSpotId) tr.classList.add('selected');
-    // Highlight spots where user's callsign is the activator
+    // Highlight spots where user's callsign is the activator.
     const spotCall = (spot.activator || spot.callsign || '').toUpperCase();
     if (state.myCallsign && spotCall === state.myCallsign.toUpperCase()) {
       tr.classList.add('my-spot');
     }
-    // Watch list red highlight
+    // Watch list red highlight.
     if (state.watchRedSpotIds.has(sid)) {
       tr.classList.add('spot-watch-red');
     }

@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Scope Color Map ---
 // 256-entry RGBA lookup table for waterfall coloring.
 // Ported from VirtualHam color-map.ts — zero dependencies.
-
 export const DEFAULT_FLOOR_DB = -120;
 export const DEFAULT_CEILING_DB = -40;
 

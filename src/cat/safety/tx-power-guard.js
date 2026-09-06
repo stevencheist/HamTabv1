@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Safety: TX Power Guard ---
 // Auto-reduces power when SWR is dangerously high.
 // Configurable SWR limit and safe power level.
 // Only acts during TX — doesn't change power while in RX.
-
 export function createTxPowerGuard(store, sendCommandFn, options = {}) {
   const swrLimit = options.swrLimit || 3.0;       // SWR above this triggers guard
   const safePower = options.safePower || 20;       // watts — reduced power level
@@ -15,9 +16,9 @@ export function createTxPowerGuard(store, sendCommandFn, options = {}) {
 
   function start() {
     unsubscribe = store.subscribe(state => {
-      // Only act during TX
+      // Only act during TX.
       if (!state.ptt) {
-        // If we reduced power and TX stopped, restore after delay
+        // If we reduced power and TX stopped, restore after delay.
         if (reduced && !restoreTimer) {
           restoreTimer = setTimeout(() => {
             if (originalPower !== null) {
@@ -31,9 +32,10 @@ export function createTxPowerGuard(store, sendCommandFn, options = {}) {
         return;
       }
 
-      // TX is active — check SWR
+      // TX is active — check SWR.
+
       if (state.swr > swrLimit && !reduced) {
-        // Save original power and reduce
+        // Save original power and reduce.
         originalPower = state.rfPower || state.txPower;
         if (originalPower && originalPower > safePower) {
           sendCommandFn('setRFPower', safePower, 2); // urgent priority

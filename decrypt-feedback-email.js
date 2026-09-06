@@ -1,5 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 #!/usr/bin/env node
-// Decrypt feedback email from GitHub issue
+// Decrypt feedback email from GitHub issue.
 // Usage: node decrypt-feedback-email.js <encrypted-base64-string>
 //
 // Example from GitHub issue:
@@ -14,7 +17,7 @@ const PRIVATE_KEY_PATH = path.join(__dirname, 'feedback-private-key.pem');
 
 function decryptEmail(encryptedBase64) {
   try {
-    // Check if private key exists
+    // Check if private key exists.
     if (!fs.existsSync(PRIVATE_KEY_PATH)) {
       console.error('❌ Error: feedback-private-key.pem not found');
       console.error('   Ask Steven or Francisco for a copy of the private key');

@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Analog Clock Widget (Orchestrator) ---
 // Delegates face rendering to clock-faces.js and complication sub-dials to clock-complications.js.
 // Manages hand rotation, date text, sunrise/sunset arc, and the 1-second update loop.
-
 import state from './state.js';
 import { isWidgetVisible } from './widgets.js';
 import { getSunTimes } from './geo.js';
@@ -21,7 +22,7 @@ let lastFaceId = null; // detect config changes and auto-rebuild
 // SVG element refs (populated in buildSvg)
 const el = {};
 
-// Complication refs keyed by complication ID
+// Complication refs keyed by complication ID.
 let compRefs = {};
 
 // --- SVG Helper ---
@@ -55,7 +56,8 @@ function buildSvg() {
     }
   }
 
-  // Get face config for hand dimensions
+  // Get face config for hand dimensions.
+
   const face = CLOCK_FACES[faceId] || CLOCK_FACES.classic;
   const hc = face.hands;
 
@@ -105,7 +107,8 @@ function updateArc(now) {
     return;
   }
 
-  // Only recompute once per day
+  // Only recompute once per day.
+
   const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000);
   if (dayOfYear === lastArcDay) return;
   lastArcDay = dayOfYear;
@@ -116,11 +119,13 @@ function updateArc(now) {
     return;
   }
 
-  // Convert sunrise/sunset to angles on 12-hour clock face
+  // Convert sunrise/sunset to angles on 12-hour clock face.
+
   const riseAngle = timeToAngle(times.sunrise);
   const setAngle = timeToAngle(times.sunset);
 
-  // Draw arc wedge from center to sunrise arc to sunset back to center
+  // Draw arc wedge from center to sunrise arc to sunset back to center.
+
   const arcR = R - 12; // slightly inside the numbers
   const riseRad = (riseAngle - 90) * Math.PI / 180;
   const setRad = (setAngle - 90) * Math.PI / 180;
@@ -162,7 +167,8 @@ export function updateAnalogClock() {
   if (!svgBuilt) return;
   if (!isWidgetVisible('widget-analog-clock')) return;
 
-  // Auto-rebuild if face config changed
+  // Auto-rebuild if face config changed.
+
   const currentFace = state.clockFace || 'classic';
   if (currentFace !== lastFaceId) {
     rebuildClock();

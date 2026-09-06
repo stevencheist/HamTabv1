@@ -1,12 +1,13 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Config Sync ---
 // Export/import config as compressed text codes, plus LAN sync push/pull.
 // Export/import works everywhere. Push/pull gracefully 404 on hostedmode.
-
 import pako from 'pako';
 
 const CONFIG_VERSION = 1;
 
-// Keys excluded from sync — device-specific, migration flags, or server-managed API keys
+// Keys excluded from sync — device-specific, migration flags, or server-managed API keys.
 const EXCLUDE_KEYS = new Set([
   'hamtab_migrated',
   'hamtab_migration_v2',
@@ -140,7 +141,8 @@ export async function pullConfig(callsign) {
     const envelope = await resp.json();
     if (!envelope || envelope.version !== CONFIG_VERSION || !envelope.config) return false;
 
-    // Only apply if server version is newer than our last pull
+    // Only apply if server version is newer than our last pull.
+
     const serverTime = envelope.updatedAt || envelope.exportedAt;
     const lastPull = localStorage.getItem('hamtab_sync_last_pull');
     if (lastPull && serverTime && new Date(serverTime) <= new Date(lastPull)) {

@@ -1,13 +1,14 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Safety: License Class Validator ---
 // Validates frequency against US amateur license class privileges.
 // Warn only — never blocks transmission.
-
 // --- US license class frequency privileges (Hz) ---
-// Source: ARRL, FCC Part 97.301-303
-// Segments where each class has transmit privileges
+// Source: ARRL, FCC Part 97.301-303.
+// Segments where each class has transmit privileges.
 const LICENSE_PRIVILEGES = {
   extra: [
-    // Extra has all amateur frequencies — no restrictions within bands
+    // Extra has all amateur frequencies — no restrictions within bands.
     { min: 1_800_000, max: 2_000_000 },
     { min: 3_500_000, max: 4_000_000 },
     { min: 5_330_500, max: 5_406_400 },
@@ -42,7 +43,7 @@ const LICENSE_PRIVILEGES = {
     { min: 420_000_000, max: 450_000_000 },
   ],
   technician: [
-    // HF: limited CW privileges
+    // HF: limited CW privileges.
     { min: 3_525_000, max: 3_600_000 },   // 80m CW only
     { min: 7_025_000, max: 7_125_000 },   // 40m CW only
     { min: 21_025_000, max: 21_200_000 },  // 15m CW only
@@ -56,8 +57,8 @@ const LICENSE_PRIVILEGES = {
 
 // --- Validate frequency against license class ---
 // Returns { allowed, warning }
-// allowed: true if frequency is within license privileges
-// warning: string if outside privileges (null if clean)
+// Allowed: true if frequency is within license privileges.
+// Warning: string if outside privileges (null if clean).
 export function validateLicense(freqHz, licenseClass) {
   if (!freqHz || !licenseClass) return { allowed: true, warning: null };
 

@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Simulator: Demo Profile ---
 // Pre-configured profile for the demo/simulator radio.
 // Uses yaesu_ascii driver with InMemoryTransport.
-
 export const DEMO_PROFILE = {
   id: 'demo',
   manufacturer: 'HamTab',

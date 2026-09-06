@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import { $ } from './dom.js';
 import { WIDGET_HELP } from './constants.js';
 import { esc } from './utils.js';
@@ -6,9 +9,9 @@ import { openModal, closeModal } from './a11y.js';
 
 // --- Help Modal Rendering ---
 
-// Renders help content for a given widget ID
+// Renders help content for a given widget ID.
 function renderHelp(widgetId) {
-  // For the reference widget, show help for the active tab
+  // For the reference widget, show help for the active tab.
   let helpKey = widgetId;
   if (widgetId === 'widget-rst' && state.currentReferenceTab && state.currentReferenceTab !== 'rst') {
     const tabKey = `widget-rst:${state.currentReferenceTab}`;
@@ -53,7 +56,7 @@ function renderHelp(widgetId) {
 // --- Event Listeners ---
 
 export function initHelpListeners() {
-  // Attach help button handlers to all widgets
+  // Attach help button handlers to all widgets.
   document.querySelectorAll('.widget-help-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       e.stopPropagation(); // prevent widget drag
@@ -67,7 +70,7 @@ export function initHelpListeners() {
     closeModal($('helpSplash'));
   });
 
-  // Close on overlay click
+  // Close on overlay click.
   $('helpSplash').addEventListener('click', (e) => {
     if (e.target.id === 'helpSplash') {
       closeModal($('helpSplash'));

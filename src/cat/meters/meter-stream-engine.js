@@ -1,10 +1,11 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Meter Stream Engine ---
 // Adaptive polling for S-meter, SWR, and power readings.
 // Rates adjust based on TX/RX state:
-//   Idle (no signal): 600ms — save serial bandwidth
-//   RX (signal present): 250ms — responsive S-meter
-//   TX: 120ms — fast SWR/power feedback
-
+//   Idle (no signal): 600ms — save serial bandwidth.
+//   RX (signal present): 250ms — responsive S-meter.
+//   TX: 120ms — fast SWR/power feedback.
 export function createMeterStreamEngine(sendCommandFn, store, options = {}) {
   const idleInterval = options.idleInterval || 600;
   const rxInterval = options.rxInterval || 250;
@@ -54,7 +55,7 @@ export function createMeterStreamEngine(sendCommandFn, store, options = {}) {
     currentInterval = idleInterval;
     timer = setInterval(poll, currentInterval);
 
-    // Subscribe to state changes for adaptive rate
+    // Subscribe to state changes for adaptive rate.
     store.subscribe(adapt);
   }
 

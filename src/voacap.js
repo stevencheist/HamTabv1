@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- VOACAP DE→DX Module ---
 // 24-hour x band reliability matrix with interactive parameters and map overlays.
 // Fetches predictions from /api/voacap (real VOACAP engine or simplified fallback).
-
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
@@ -9,10 +10,10 @@ import { calculate24HourMatrix, getReliabilityColor, VOACAP_BANDS, HF_BANDS } fr
 import { renderHeatmapCanvas, clearHeatmap } from './rel-heatmap.js';
 import { renderPropagationHeatmapOverlay } from './map-overlays.js';
 
-// Store overlay circles on map
+// Store overlay circles on map.
 let bandOverlayCircles = [];
 
-// Abort controller — cancel in-flight fetch when a new one starts
+// Abort controller — cancel in-flight fetch when a new one starts.
 let activeFetchController = null;
 
 // Retry state for transient server errors (500, network hiccups, cold starts)
@@ -20,7 +21,7 @@ let retryTimer = null;
 let retryCount = 0;
 const MAX_RETRIES = 3;
 
-// Minimum interval between server fetches
+// Minimum interval between server fetches.
 const FETCH_THROTTLE_MS = 5 * 60 * 1000;      // 5 min when we have real VOACAP data
 const FETCH_RETRY_MS = 30 * 1000;              // 30s retry when server returned simplified or error
 
@@ -52,7 +53,7 @@ export function initVoacapListeners() {
   const matrix = $('voacapMatrix');
   if (!matrix) return;
 
-  // Delegated click handler for band rows and parameter bar
+  // Delegated click handler for band rows and parameter bar.
   matrix.addEventListener('click', (e) => {
     // Parameter cycling (shift+click on sensitivity = reset)
     const param = e.target.closest('.voacap-param');
@@ -65,7 +66,8 @@ export function initVoacapListeners() {
       return;
     }
 
-    // Band row click → toggle map overlay
+    // Band row click → toggle map overlay.
+
     const row = e.target.closest('.voacap-row');
     if (row && row.dataset.band) {
       toggleBandOverlay(row.dataset.band);
@@ -83,7 +85,8 @@ function cycleParam(name) {
     localStorage.setItem('hamtab_heatmap_mode', next);
     renderVoacapMatrix();
 
-    // Re-draw in the new mode if an overlay is active
+    // Re-draw in the new mode if an overlay is active.
+
     if (state.hfPropOverlayBand) {
       clearBandOverlay();
       clearHeatmap();
@@ -162,7 +165,8 @@ function cycleParam(name) {
   clearTimeout(state.voacapParamTimer);
   state.voacapParamTimer = setTimeout(() => fetchVoacapMatrix(), 300);
 
-  // Re-draw map overlay if one is active
+  // Re-draw map overlay if one is active.
+
   if (state.hfPropOverlayBand) {
     clearBandOverlay();
     clearHeatmap();
@@ -176,7 +180,7 @@ function cycleParam(name) {
   }
 }
 
-// Build opts object from current VOACAP state for calculation functions
+// Build opts object from current VOACAP state for calculation functions.
 export function getVoacapOpts() {
   return {
     lat: state.myLat,
@@ -192,20 +196,22 @@ export function getVoacapOpts() {
 
 export async function fetchVoacapMatrix() {
   if (state.myLat == null || state.myLon == null) {
-    // No location — render from client-side model
+    // No location — render from client-side model.
     renderVoacapMatrix();
     return;
   }
 
   console.log(`[VOACAP] fetchVoacapMatrix called, target=${state.voacapTarget}, selectedSpot=${state.selectedSpotId}, sensitivity=${state.voacapSensitivity}`);
 
-  // Cancel any in-flight fetch to prevent stale responses overwriting newer data
+  // Cancel any in-flight fetch to prevent stale responses overwriting newer data.
+
   if (activeFetchController) activeFetchController.abort();
   if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
   const controller = new AbortController();
   activeFetchController = controller;
 
-  // Compute the required SNR for the current mode and sensitivity level
+  // Compute the required SNR for the current mode and sensitivity level.
+
   const sensLevel = SENSITIVITY_LEVELS[state.voacapSensitivity] || SENSITIVITY_LEVELS[DEFAULT_SENSITIVITY];
   const currentSnr = sensLevel[state.voacapMode] ?? sensLevel.SSB;
 
@@ -219,7 +225,8 @@ export async function fetchVoacapMatrix() {
     snr: currentSnr,
   });
 
-  // If in "spot" mode and a spot is selected, add RX coordinates
+  // If in "spot" mode and a spot is selected, add RX coordinates.
+
   if (state.voacapTarget === 'spot' && state.selectedSpotId) {
     try {
       const spot = findSelectedSpot();
@@ -249,7 +256,8 @@ export async function fetchVoacapMatrix() {
       state.voacapLastFetch = Date.now();
       retryCount = 0; // reset on success
 
-      // Diagnostic: log what the server returned for spot mode debugging
+      // Diagnostic: log what the server returned for spot mode debugging.
+
       if (state.voacapTarget === 'spot') {
         const hasSignal = matrixHasSignal(data.matrix);
         const peakRel = Math.max(...data.matrix.flatMap(e =>
@@ -259,7 +267,7 @@ export async function fetchVoacapMatrix() {
       }
     }
   } catch (err) {
-    // Ignore aborts from superseded requests
+    // Ignore aborts from superseded requests.
     if (err.name === 'AbortError') { console.log('[VOACAP] Fetch aborted (superseded)'); return; }
     console.warn(`[VOACAP] Fetch error: ${err.message}`);
 
@@ -272,7 +280,7 @@ export async function fetchVoacapMatrix() {
         fetchVoacapMatrix();
       }, FETCH_RETRY_MS);
     }
-    // Keep existing data or fall back to client-side model
+    // Keep existing data or fall back to client-side model.
   }
 
   renderVoacapMatrix();
@@ -285,7 +293,7 @@ export function fetchVoacapMatrixThrottled() {
   fetchVoacapMatrix();
 }
 
-// Find the currently selected spot for DX target mode
+// Find the currently selected spot for DX target mode.
 function findSelectedSpot() {
   if (!state.selectedSpotId) return null;
   const source = state.currentSource;
@@ -308,15 +316,15 @@ function matrixHasSignal(matrix) {
   return false;
 }
 
-// Get the active matrix — prefer server data, fall back to client-side model
+// Get the active matrix — prefer server data, fall back to client-side model.
 function getActiveMatrix() {
-  // If we have recent server data, use it
+  // If we have recent server data, use it.
   if (state.voacapServerData && state.voacapServerData.matrix) {
     const serverMatrix = state.voacapServerData.matrix;
 
     // In SPOT mode, if dvoacap returned all-zero for this path (skip zone,
-    // dead path, etc.), fall back to overview band conditions so the widget
-    // stays useful. The "no-prop" badge will indicate the specific path is dead.
+
+    // Dead path, etc.), fall back to overview band conditions so the widget    // Stays useful. The "no-prop" badge will indicate the specific path is dead.
     if (state.voacapTarget === 'spot' && !matrixHasSignal(serverMatrix)) {
       const opts = getVoacapOpts();
       return calculate24HourMatrix(opts);
@@ -325,12 +333,13 @@ function getActiveMatrix() {
     return serverMatrix;
   }
 
-  // Fall back to client-side simplified model
+  // Fall back to client-side simplified model.
+
   const opts = getVoacapOpts();
   return calculate24HourMatrix(opts);
 }
 
-// Extract reliability from a matrix entry's band data
+// Extract reliability from a matrix entry's band data.
 // Server format: { rel, snr, mode }; client format: number (plain reliability)
 function getBandReliability(hourData, bandName) {
   const bandVal = hourData.bands[bandName];
@@ -345,7 +354,8 @@ export function renderVoacapMatrix() {
 
   const matrix = getActiveMatrix();
 
-  // Check if we have valid data
+  // Check if we have valid data.
+
   const hasData = matrix.some(entry => Object.keys(entry.bands).length > 0);
 
   if (!hasData) {
@@ -354,8 +364,8 @@ export function renderVoacapMatrix() {
   }
 
   // In SPOT mode, check if the server returned all-zero for this path (skip zone, dead path).
-  // getActiveMatrix() already falls back to overview data in that case, so the table renders
-  // useful band conditions — but we flag it so the user knows the specific path is dead.
+
+  // GetActiveMatrix() already falls back to overview data in that case, so the table renders  // Useful band conditions — but we flag it so the user knows the specific path is dead.
   const spotPathDead = state.voacapTarget === 'spot'
     && state.voacapServerData?.matrix
     && !matrixHasSignal(state.voacapServerData.matrix);
@@ -369,7 +379,8 @@ export function renderVoacapMatrix() {
     hourOrder.push((nowHour + i) % 24);
   }
 
-  // Bands reversed: 10m at top, 80m at bottom
+  // Bands reversed: 10m at top, 80m at bottom.
+
   const bandsReversed = [...VOACAP_BANDS].reverse();
 
   // Build table
@@ -424,7 +435,8 @@ export function renderVoacapMatrix() {
     ? 'Showing prediction to selected spot (click for overview)'
     : 'Showing average worldwide prediction (click for spot mode)';
 
-  // SSN display — prefer server data, show K-index degradation warning
+  // SSN display — prefer server data, show K-index degradation warning.
+
   const serverData = state.voacapServerData;
   const effectiveSSN = serverData?.ssn ? Math.round(serverData.ssn) : null;
   const baseSSN = serverData?.ssnBase ? Math.round(serverData.ssnBase) : null;
@@ -437,7 +449,8 @@ export function renderVoacapMatrix() {
   const ssnWarningClass = isStorm ? ' voacap-k-warning' : '';
   const ssnWarningIndicator = isStorm ? '!' : '';
 
-  // Build tooltip explaining SSN and K-index correction
+  // Build tooltip explaining SSN and K-index correction.
+
   let ssnTitle = 'Smoothed sunspot number';
   if (kIndex !== null && baseSSN !== null) {
     if (kDegradation > 0) {
@@ -505,7 +518,8 @@ export function toggleBandOverlay(band) {
   clearBandOverlay();
   clearHeatmap();
 
-  // If clicking the same band, just clear — restore standalone heatmap if enabled
+  // If clicking the same band, just clear — restore standalone heatmap if enabled.
+
   if (state.hfPropOverlayBand === band) {
     state.hfPropOverlayBand = null;
     renderVoacapMatrix();
@@ -513,11 +527,12 @@ export function toggleBandOverlay(band) {
     return;
   }
 
-  // Set new active band
+  // Set new active band.
   state.hfPropOverlayBand = band;
   renderVoacapMatrix();
 
-  // Dispatch to correct overlay mode
+  // Dispatch to correct overlay mode.
+
   if (state.heatmapOverlayMode === 'heatmap') {
     renderHeatmapCanvas(band);
   } else {
@@ -547,15 +562,17 @@ function drawBandOverlay(band) {
   const bandDef = VOACAP_BANDS.find(b => b.name === band) || HF_BANDS.find(b => b.name === band);
   if (!bandDef) return;
 
-  // Draw concentric circles representing propagation reach
+  // Draw concentric circles representing propagation reach.
+
   const baseRadius = 500; // km — minimum radius
   const maxRadius = 15000; // km — roughly half Earth circumference
 
-  // Scale radius by reliability percentage
+  // Scale radius by reliability percentage.
+
   const radius = baseRadius + (maxRadius - baseRadius) * (reliability / 100);
 
   if (reliability < 10) {
-    // Band is closed — draw small red circle
+    // Band is closed — draw small red circle.
     const circle = L.circle([state.myLat, state.myLon], {
       radius: 500 * 1000, // 500 km in meters
       color: '#c0392b',
@@ -588,7 +605,8 @@ function drawBandOverlay(band) {
     bandOverlayCircles.push(circle);
   }
 
-  // Center marker with band info
+  // Center marker with band info.
+
   const marker = L.marker([state.myLat, state.myLon], {
     icon: L.divIcon({
       className: 'voacap-center-marker',
@@ -601,7 +619,7 @@ function drawBandOverlay(band) {
   bandOverlayCircles.push(marker);
 }
 
-// Export for cleanup on source change — restores standalone heatmap if enabled
+// Export for cleanup on source change — restores standalone heatmap if enabled.
 export function clearVoacapOverlay() {
   clearBandOverlay();
   clearHeatmap();
@@ -609,7 +627,7 @@ export function clearVoacapOverlay() {
   renderPropagationHeatmapOverlay();
 }
 
-// Called by markers.js when a spot is selected — auto-switch to SPOT mode if enabled
+// Called by markers.js when a spot is selected — auto-switch to SPOT mode if enabled.
 export function onSpotSelected() {
   if (!state.voacapAutoSpot) return;
   if (state.voacapTarget !== 'spot') {
@@ -619,7 +637,7 @@ export function onSpotSelected() {
   fetchVoacapMatrix();
 }
 
-// Called by markers.js when a spot is deselected — revert to overview mode
+// Called by markers.js when a spot is deselected — revert to overview mode.
 export function onSpotDeselected() {
   if (!state.voacapAutoSpot) return;
   if (state.voacapTarget === 'spot') {

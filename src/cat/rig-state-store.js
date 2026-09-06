@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Reactive Rig State Store ---
 // Holds current rig state and notifies subscribers on change.
 // Widgets subscribe here — never talk to drivers directly.
-
 export function createRigStateStore() {
   const state = {
     connected: false,
@@ -36,7 +37,8 @@ export function createRigStateStore() {
     txLockReason: '',
 
     // Menu responses — keyed by address string (e.g. "010416" for P1=01 P2=04 P3=16)
-    // Populated by EX command responses, used by digital setup to read/restore settings
+
+    // Populated by EX command responses, used by digital setup to read/restore settings.
     menuResponses: {},
 
     // --- Radio settings (populated by profile read commands) ---
@@ -62,7 +64,7 @@ export function createRigStateStore() {
   function subscribe(callback) {
     subscribers.push(callback);
     // Immediately call with current state — wrapped so a bad subscriber
-    // doesn't crash the caller (e.g. initOnAirRig)
+    // doesn't crash the caller (e.g. initOnAirRig).
     try { callback({ ...state }); } catch (err) {
       console.error('[rig-store] subscriber threw on initial call:', err);
     }
@@ -82,7 +84,8 @@ export function createRigStateStore() {
     }
   }
 
-  // Apply a parsed driver event to the store
+  // Apply a parsed driver event to the store.
+
   function applyEvent(event) {
     if (!event || !event.type) return;
 
@@ -99,7 +102,7 @@ export function createRigStateStore() {
         break;
       case 'ptt':
         state.ptt = event.value;
-        // Clear TX-only meters when returning to RX — SWR/power are only valid during TX
+        // Clear TX-only meters when returning to RX — SWR/power are only valid during TX.
         if (!event.value) {
           state.swr = 0;
           state.swrRaw = 0;
@@ -192,7 +195,7 @@ export function createRigStateStore() {
         }
         break;
       case 'error':
-        // Log but don't crash
+        // Log but don't crash.
         break;
       default:
         break;

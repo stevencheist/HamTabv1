@@ -1,6 +1,7 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Logbook Widget (ADIF Import) ---
 // Parses ADIF files, stores QSOs in IndexedDB, renders sortable table + map markers.
-
 import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
@@ -16,12 +17,13 @@ function parseADIF(text) {
   const headerEnd = text.search(/<eoh>/i);
   const body = headerEnd >= 0 ? text.substring(headerEnd + 5) : text;
 
-  // Split on <eor> to get individual records
+  // Split on <eor> to get individual records.
+
   const rawRecords = body.split(/<eor>/i);
 
   for (const raw of rawRecords) {
     const record = {};
-    // Match field tags: <FIELD_NAME:LENGTH[:TYPE]>value
+    // Match field tags: <FIELD_NAME:LENGTH[:TYPE]>value.
     const fieldRe = /<([A-Za-z_][A-Za-z0-9_]*):(\d+)(?::[A-Za-z])?>/gi;
     let m;
     while ((m = fieldRe.exec(raw)) !== null) {
@@ -150,7 +152,7 @@ function sortData(data) {
       return dir * ((parseFloat(aVal) || 0) - (parseFloat(bVal) || 0));
     }
     if (col === 'QSO_DATE') {
-      // Sort by date + time combined
+      // Sort by date + time combined.
       const aKey = (a.QSO_DATE || '') + (a.TIME_ON || '');
       const bKey = (b.QSO_DATE || '') + (b.TIME_ON || '');
       return dir * aKey.localeCompare(bKey);
@@ -274,7 +276,8 @@ function populateFilterDropdowns() {
   });
   const sortedModes = [...modes].sort();
 
-  // Only rebuild if options changed
+  // Only rebuild if options changed.
+
   const bandKey = sortedBands.join(',');
   const modeKey = sortedModes.join(',');
   if (bandSel.dataset.keys !== bandKey) {
@@ -321,7 +324,8 @@ export function renderLogbookOnMap() {
     const band = q.BAND || freqToBand(q.FREQ || '') || '';
     const color = getBandColor(band) || '#888';
 
-    // Geodesic path from QTH to contact
+    // Geodesic path from QTH to contact.
+
     if (state.myLat !== null && state.myLon !== null) {
       const pts = geodesicPoints(state.myLat, state.myLon, ll.lat, ll.lon, 32);
       const line = L.polyline(pts, { color, weight: 1.2, opacity: 0.3, interactive: false });
@@ -371,9 +375,10 @@ async function handleFile(file) {
     renderLogbook();
     renderLogbookOnMap();
 
-    // Show table, hide import zone
+    // Show table, hide import zone.
+
     const zone = $('logbookImportZone');
-    const content = $('logbookContent');
+    const content = $('logbook-content');
     if (zone) zone.classList.add('hidden');
     if (content) content.classList.remove('hidden');
   } catch (err) {
@@ -385,19 +390,20 @@ async function handleFile(file) {
 // --- Init ---
 
 export async function initLogbook() {
-  // Load saved data from IndexedDB
+  // Load saved data from IndexedDB.
   const saved = await loadQSOs();
   if (saved.length > 0) {
     state.logbookData = saved;
     const zone = $('logbookImportZone');
-    const content = $('logbookContent');
+    const content = $('logbook-content');
     if (zone) zone.classList.add('hidden');
     if (content) content.classList.remove('hidden');
     renderLogbook();
     renderLogbookOnMap();
   }
 
-  // Import zone — drag and drop
+  // Import zone — drag and drop.
+
   const zone = $('logbookImportZone');
   if (zone) {
     zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.classList.add('drag-over'); });
@@ -441,7 +447,7 @@ export async function initLogbook() {
       clearLogbookFromMap();
       renderLogbook();
       const zn = $('logbookImportZone');
-      const ct = $('logbookContent');
+      const ct = $('logbook-content');
       if (zn) zn.classList.remove('hidden');
       if (ct) ct.classList.add('hidden');
     });

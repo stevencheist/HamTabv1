@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import { aColor, kColor, solarWindColor, bzColor, auroraColor, geomagColor, aLabel, kLabel, solarWindLabel, bzLabel, auroraLabel, geomagLabel } from './solar.js';
 import { lunarDecColor, lunarPlColor, lunarElColor } from './lunar.js';
 
@@ -26,7 +29,7 @@ export const WIDGET_DEFS = [
 ];
 
 // Amateur radio satellite frequencies (NORAD ID → frequencies)
-// Sources: AMSAT, ARISS, JE9PEL satellite list
+// Sources: AMSAT, ARISS, JE9PEL satellite list.
 export const SAT_FREQUENCIES = {
   25544: {
     name: 'ISS (ZARYA)',
@@ -196,14 +199,14 @@ export function parseFrequencyMHz(freqStr) {
   return freq > 1000 ? freq / 1000 : freq;
 }
 
-// Get sub-band definitions for a region and band
+// Get sub-band definitions for a region and band.
 export function getSubBandDefinitions(region, band) {
   const regionDefs = SUB_BAND_PLANS[region];
   if (!regionDefs) return null;
   return regionDefs[band] || null;
 }
 
-// Get the narrowest sub-band for a frequency within a band
+// Get the narrowest sub-band for a frequency within a band.
 export function getNarrowestSubBand(region, band, freqMHz) {
   const defs = getSubBandDefinitions(region, band);
   if (!defs) return null;
@@ -419,7 +422,7 @@ export const US_PRIVILEGES = {
   ],
 };
 
-// Help content for all widgets
+// Help content for all widgets.
 export const WIDGET_HELP = {
   'widget-filters': {
     title: 'Filters',
@@ -842,7 +845,7 @@ export const SCALE_REFERENCE_WIDTH = 1200; // px — viewport width where scale 
 export const SCALE_MIN_FACTOR = 0.55;      // minimum scale factor (unused — Zone B eliminated)
 export const SCALE_REFLOW_WIDTH = 1200;    // px — below this, switch to mobile layout (stacked widgets)
 
-// Priority order for reflow layout — most important widgets first
+// Priority order for reflow layout — most important widgets first.
 export const REFLOW_WIDGET_ORDER = [
   'widget-map',
   'widget-activations',
@@ -871,7 +874,7 @@ export function getLayoutMode() {
 }
 
 // --- Band Colors ---
-// Default color per amateur band — used for Live Spots cards, map lines, and markers
+// Default color per amateur band — used for Live Spots cards, map lines, and markers.
 export const DEFAULT_BAND_COLORS = {
   '160m': '#9c27b0',
   '80m': '#673ab7',
@@ -888,7 +891,7 @@ export const DEFAULT_BAND_COLORS = {
   '70cm': '#e91e63',
 };
 
-// User overrides loaded from localStorage
+// User overrides loaded from localStorage.
 let bandColorOverrides = {};
 try {
   const saved = JSON.parse(localStorage.getItem('hamtab_band_colors'));
@@ -900,7 +903,7 @@ export function getBandColor(band) {
   return bandColorOverrides[band] || DEFAULT_BAND_COLORS[band] || '#888';
 }
 
-// Save user band color overrides to localStorage
+// Save user band color overrides to localStorage.
 export function saveBandColors(overrides) {
   bandColorOverrides = overrides;
   localStorage.setItem('hamtab_band_colors', JSON.stringify(overrides));
@@ -945,7 +948,7 @@ export const GRID_PERMUTATIONS = [
     columns: '1fr 2fr 1fr',
     rows: '1fr 1fr',
     cellNames: ['L1', 'L2', 'R1', 'R2'],
-    // Flex-column hybrid fields — used by grid-layout.js at runtime
+    // Flex-column hybrid fields — used by grid-layout.js at runtime.
     left: ['L1', 'L2'],
     right: ['R1', 'R2'],
     top: [],
@@ -1069,7 +1072,7 @@ export const GRID_DEFAULT_ASSIGNMENTS = {
   },
 };
 
-// Default spans applied for new users and "Reset to Default"
+// Default spans applied for new users and "Reset to Default".
 export const GRID_DEFAULT_SPANS = {
   '2T-3L-3R-2B': { L1: 3 }, // On-Air Rig spans all 3 left rows
 };

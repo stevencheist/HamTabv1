@@ -1,11 +1,12 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Driver: Kenwood ASCII ---
 // Covers: TS-890S, TS-590SG, TS-480, TS-2000, TS-990S, etc.
-// Protocol: ASCII commands terminated with ";"
+// Protocol: ASCII commands terminated with ";".
 // Very similar to Yaesu NewCAT — Kenwood originated this style.
-// Reference: Kenwood TS-890S CAT Command Reference
-
+// Reference: Kenwood TS-890S CAT Command Reference.
 // --- Mode code mapping ---
-// Kenwood uses numeric mode codes in MD command
+// Kenwood uses numeric mode codes in MD command.
 const MODE_CODES = {
   '1': 'LSB',
   '2': 'USB',
@@ -37,7 +38,7 @@ MODE_TO_CODE['CW-U'] = '3';
 MODE_TO_CODE['CW-L'] = '7';
 
 // --- S-Meter calibration (raw 0-30 → S-units) ---
-// Kenwood SM command returns 0000-0030
+// Kenwood SM command returns 0000-0030.
 const SMETER_CAL = [
   [0, 0], [3, 1], [6, 3], [9, 5], [12, 7],
   [15, 9], [20, 10], [25, 13], [30, 15],
@@ -102,6 +103,7 @@ export const kenwoodAscii = {
   },
 
   // --- Command encoding ---
+
   // Kenwood uses 11-digit frequency fields (vs Yaesu's 9)
   encode(command, params) {
     switch (command) {
@@ -187,7 +189,8 @@ export const kenwoodAscii = {
     }
 
     // --- Information (IF...) ---
-    // Kenwood IF response: 37 chars of packed data
+
+    // Kenwood IF response: 37 chars of packed data.
     if (resp.startsWith('IF')) {
       const data = resp.slice(2);
       return {

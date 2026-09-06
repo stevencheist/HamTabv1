@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Band Overlay Engine ---
 // Provides CW/DIGI/PHONE zone data for each amateur band.
 // Used by the widget to show a visual band segment indicator behind the frequency.
 // Zones are US band plan conventions (not regulatory boundaries).
-
 // --- Band segment data (Hz) ---
 // Each band has ordered segments with zone type and color hint.
 const BAND_SEGMENTS = {
@@ -63,7 +64,7 @@ export function getBandSegments(bandName) {
 }
 
 // --- Get the zone for a frequency ---
-// Returns { zone, color } or null if not in a defined zone
+// Returns { zone, color } or null if not in a defined zone.
 export function getFrequencyZone(freqHz, bandName) {
   const segments = BAND_SEGMENTS[bandName];
   if (!segments) return null;

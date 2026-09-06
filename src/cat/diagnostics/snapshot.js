@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Debug Snapshot Generator ---
 // Captures a JSON bundle of connection metadata, rig state, trace events,
-// and error counters. Designed for: (1) user bug reports, (2) AI diagnostics.
-
+// And error counters. Designed for: (1) user bug reports, (2) AI diagnostics.
 import { getTraceBus } from './trace-bus.js';
 import { getRigStore } from '../connection-orchestrator.js';
 
@@ -13,7 +14,8 @@ export function captureSnapshot(extras = {}) {
   const counters = traceBus.getCounters();
   const traceEvents = traceBus.getEvents();
 
-  // Connection metadata from localStorage
+  // Connection metadata from localStorage.
+
   const connectionMeta = {
     profileId: localStorage.getItem('hamtab_radio_profile') || null,
     protocol: localStorage.getItem('hamtab_radio_protocol') || null,
@@ -27,7 +29,8 @@ export function captureSnapshot(extras = {}) {
     pollingInterval: localStorage.getItem('hamtab_radio_polling') || null,
   };
 
-  // Sanitize rig state — remove internal/sensitive fields
+  // Sanitize rig state — remove internal/sensitive fields.
+
   const safeState = { ...rigState };
   delete safeState._subscribers; // internal
 

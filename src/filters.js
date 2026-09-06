@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS, US_PRIVILEGES, parseFrequencyMHz, getSubBandDefinitions, getNarrowestSubBand, SUB_BAND_MODE_LABELS } from './constants.js';
@@ -63,7 +66,7 @@ export function filterByPrivileges(spot) {
   return false;
 }
 
-// Frequency range filter — inclusive bounds
+// Frequency range filter — inclusive bounds.
 export function filterByFrequencyRange(spot) {
   if (state.activeMinFreqMHz === null && state.activeMaxFreqMHz === null) return true;
   const freqMHz = parseFrequencyMHz(spot.frequency);
@@ -73,7 +76,7 @@ export function filterByFrequencyRange(spot) {
   return true;
 }
 
-// Sub-band mode filter — frequency-zone classifier, not reported-mode
+// Sub-band mode filter — frequency-zone classifier, not reported-mode.
 export function filterBySubBandMode(spot) {
   if (!state.activeSubBandBand || state.activeSubBandModes.size === 0) return true;
   const freqMHz = parseFrequencyMHz(spot.frequency);
@@ -92,14 +95,14 @@ export function filterByDistance(spot) {
   if (spot.latitude == null || spot.longitude == null) return true;
 
   const dist = distanceMi(state.myLat, state.myLon, spot.latitude, spot.longitude);
-  // Convert threshold if user selected km
+  // Convert threshold if user selected km.
   const thresholdMi = state.distanceUnit === 'km'
     ? state.activeMaxDistance * 0.621371
     : state.activeMaxDistance;
   return dist <= thresholdMi;
 }
 
-// Age filter — spots without spotTime pass through
+// Age filter — spots without spotTime pass through.
 export function filterByAge(spot) {
   if (state.activeMaxAge === null) return true;
   if (!spot.spotTime) return true;
@@ -108,7 +111,7 @@ export function filterByAge(spot) {
   return ageMin <= state.activeMaxAge;
 }
 
-// Propagation filter — hide spots on bands with predicted reliability < 30%
+// Propagation filter — hide spots on bands with predicted reliability < 30%.
 export function filterByPropagation(spot) {
   if (!state.propagationFilterEnabled) return true;
   if (!state.lastSolarData?.indices) return true; // no solar data yet — pass through
@@ -153,7 +156,7 @@ function normalizeCallsign(raw) {
   return slash > 0 ? call.substring(0, slash) : call;
 }
 
-// Pure matcher — returns true if the spot satisfies the rule
+// Pure matcher — returns true if the spot satisfies the rule.
 function matchWatchRule(rule, spot) {
   const val = (rule.value || '').toUpperCase();
   if (!val) return false;
@@ -175,7 +178,7 @@ function matchWatchRule(rule, spot) {
       return grid.startsWith(val);
     }
     case 'ref': {
-      // Exact case-insensitive match on park/summit reference
+      // Exact case-insensitive match on park/summit reference.
       const ref = (spot.reference || '').toUpperCase();
       return ref === val;
     }
@@ -308,7 +311,7 @@ export function renderWatchListEditor() {
 export function applyFilter() {
   state.watchRedSpotIds = new Set();
   const allowed = SOURCE_DEFS[state.currentSource].filters;
-  // Pre-split watch rules by mode to avoid per-spot array allocations
+  // Pre-split watch rules by mode to avoid per-spot array allocations.
   const wlRules = state.watchLists[state.currentSource] || [];
   const onlyRules = wlRules.filter(r => r.mode === 'only');
   const notRules = wlRules.filter(r => r.mode === 'not');
@@ -347,11 +350,12 @@ export function applyFilter() {
       if (call && isWorked(call)) return false;
     }
 
-    // Watch list — applied after all standard filters
+    // Watch list — applied after all standard filters.
+
     if (wlRules.length > 0) {
       // 1. Only rules: spot must match at least one (if any exist)
       if (onlyRules.length > 0 && !onlyRules.some(r => matchWatchRule(r, s))) return false;
-      // 2. Not rules: discard if any match
+      // 2. Not rules: discard if any match.
       if (notRules.some(r => matchWatchRule(r, s))) return false;
       // 3. Red rules: flag for highlight (never filters)
       if (redRules.length > 0 && redRules.some(r => matchWatchRule(r, s))) {
@@ -397,7 +401,7 @@ export function updateBandFilterButtons() {
     btn.textContent = band;
     btn.className = state.activeBands.has(band) ? 'active' : '';
     btn.addEventListener('click', () => {
-      // Toggle band in Set
+      // Toggle band in Set.
       if (state.activeBands.has(band)) {
         state.activeBands.delete(band);
       } else {
@@ -445,7 +449,7 @@ export function updateModeFilterButtons() {
     btn.textContent = mode;
     btn.className = state.activeModes.has(mode) ? 'active' : '';
     btn.addEventListener('click', () => {
-      // Toggle mode in Set
+      // Toggle mode in Set.
       if (state.activeModes.has(mode)) {
         state.activeModes.delete(mode);
       } else {
@@ -534,7 +538,7 @@ export function getAvailableContinents() {
   (state.sourceData[state.currentSource] || []).forEach(s => {
     if (s.continent) contSet.add(s.continent);
   });
-  // Sort by standard continent code order
+  // Sort by standard continent code order.
   const order = ['AF', 'AN', 'AS', 'EU', 'NA', 'OC', 'SA'];
   return order.filter(c => contSet.has(c));
 }
@@ -588,15 +592,15 @@ export async function fetchLicenseClass(callsign) {
       localStorage.removeItem('hamtab_license_class');
     }
   } catch (e) {
-    // keep existing value
+    // Keep existing value.
   }
   updatePrivFilterVisibility();
   updateOperatorDisplay();
 }
 
-// Import lazily to avoid circular dep at module level
+// Import lazily to avoid circular dep at module level.
 function updateOperatorDisplay() {
-  // Inline the display logic to avoid circular imports
+  // Inline the display logic to avoid circular imports.
   const { esc } = require('./utils.js');
   const opCall = $('opCall');
   const opLoc = $('opLoc');
@@ -754,7 +758,8 @@ export function initFilterListeners() {
     });
   }
 
-  // Clear all filters button
+  // Clear all filters button.
+
   const clearBtn = $('clearFiltersBtn');
   if (clearBtn) {
     clearBtn.addEventListener('click', () => {
@@ -793,7 +798,8 @@ export function initFilterListeners() {
     fetchLicenseClass(state.myCallsign);
   }
 
-  // Watch list accordion toggle
+  // Watch list accordion toggle.
+
   const wlToggle = document.getElementById('wlAccordionToggle');
   if (wlToggle) {
     wlToggle.addEventListener('click', () => {
@@ -814,15 +820,16 @@ export function renderSubBandChips() {
   const container = document.getElementById('subBandFilters');
   if (!container) return;
 
-  // Only enable when exactly one band is selected
+  // Only enable when exactly one band is selected.
+
   const singleBand = state.activeBands.size === 1 ? [...state.activeBands][0] : null;
   const defs = singleBand ? getSubBandDefinitions(state.activeBandPlanRegion, singleBand) : null;
 
   if (!defs) {
     wrap.classList.add('subband-disabled');
-    if (meta) meta.textContent = 'Select one band to filter by sub-band';
+    if (meta) meta.textContent = 'Select one band to filter by sub-band.';
     container.innerHTML = '';
-    // Auto-clear sub-band state when bands change away
+    // Auto-clear sub-band state when bands change away.
     if (state.activeSubBandBand) {
       state.activeSubBandBand = null;
       state.activeSubBandModes.clear();
@@ -863,7 +870,7 @@ export function spotId(spot) {
 
 // --- Filter Persistence ---
 
-// Save current filter state for the active source to localStorage
+// Save current filter state for the active source to localStorage.
 export function saveCurrentFilters() {
   const source = state.currentSource;
   const filterState = {
@@ -890,7 +897,7 @@ export function saveCurrentFilters() {
   updateFilterIndicator();
 }
 
-// Load persisted filters for a source and apply to state
+// Load persisted filters for a source and apply to state.
 export function loadFiltersForSource(source) {
   try {
     const saved = JSON.parse(localStorage.getItem(`hamtab_filter_${source}`));
@@ -915,7 +922,7 @@ export function loadFiltersForSource(source) {
       return;
     }
   } catch (e) {}
-  // No saved filters — reset to defaults
+  // No saved filters — reset to defaults.
   state.activeBands = new Set();
   state.activeModes = new Set();
   state.activeMaxDistance = null;
@@ -935,7 +942,7 @@ export function loadFiltersForSource(source) {
   state.spotSortDirection = 'desc';
 }
 
-// Check whether any filter is set to a non-default value
+// Check whether any filter is set to a non-default value.
 export function hasActiveFilters() {
   return state.activeBands.size > 0
     || state.activeModes.size > 0
@@ -952,7 +959,7 @@ export function hasActiveFilters() {
     || state.propagationFilterEnabled;
 }
 
-// Update the active-filter indicator on the Filters header and Clear All button
+// Update the active-filter indicator on the Filters header and Clear All button.
 function updateFilterIndicator() {
   const active = hasActiveFilters();
   const header = document.querySelector('#widget-filters .widget-header');
@@ -975,7 +982,7 @@ function updateFilterIndicator() {
   }
 }
 
-// Update all filter UI elements to match current state
+// Update all filter UI elements to match current state.
 export function updateAllFilterUI() {
   updateBandFilterButtons();
   updateModeFilterButtons();
@@ -1024,7 +1031,7 @@ export function updateAllFilterUI() {
   updateFilterIndicator();
 }
 
-// Clear all filters and update UI
+// Clear all filters and update UI.
 export function clearAllFilters() {
   state.activeBands.clear();
   state.activeModes.clear();
@@ -1050,7 +1057,7 @@ export function clearAllFilters() {
 
 // --- Filter Presets ---
 
-// Update the preset dropdown to show available presets for current source
+// Update the preset dropdown to show available presets for current source.
 export function updatePresetDropdown() {
   const presetSelect = $('presetFilter');
   if (!presetSelect) return;
@@ -1068,7 +1075,7 @@ export function updatePresetDropdown() {
   });
 }
 
-// Save current filters as a named preset
+// Save current filters as a named preset.
 export function savePreset(name) {
   const source = state.currentSource;
   const preset = {
@@ -1097,7 +1104,7 @@ export function savePreset(name) {
   updatePresetDropdown();
 }
 
-// Load a named preset and apply it
+// Load a named preset and apply it.
 export function loadPreset(name) {
   const source = state.currentSource;
   const preset = state.filterPresets[source]?.[name];
@@ -1128,7 +1135,7 @@ export function loadPreset(name) {
   updateAllFilterUI();
 }
 
-// Delete a named preset
+// Delete a named preset.
 export function deletePreset(name) {
   const source = state.currentSource;
   if (state.filterPresets[source]?.[name]) {
@@ -1138,7 +1145,7 @@ export function deletePreset(name) {
   }
 }
 
-// Update visibility of distance/age filter controls based on source
+// Update visibility of distance/age filter controls based on source.
 export function updateDistanceAgeVisibility() {
   const allowed = SOURCE_DEFS[state.currentSource].filters;
   const distWrap = $('distanceFilterWrap');

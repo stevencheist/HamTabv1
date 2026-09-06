@@ -1,10 +1,11 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Scope Audio Data Source ---
-// Captures USB audio from a radio via getUserMedia and provides real-time
+// Captures USB audio from a radio via getUserMedia and provides real-time.
 // AF (audio-frequency) FFT data. Same generateFrame() API as scope-signal-gen.
 //
 // LIMITATION: This shows post-demodulation audio (0–6 kHz passband), NOT RF bandwidth.
 // Only signals within the radio's current filter/demod window appear.
-
 import { blendFrames } from './scope-signal-gen.js';
 
 const BINS = 512;
@@ -40,7 +41,8 @@ export function createAudioDataSource(opts) {
     onStateChange(s);
   }
 
-  // Start audio capture asynchronously
+  // Start audio capture asynchronously.
+
   async function init() {
     if (destroyed) return;
     setState('requesting');
@@ -60,7 +62,7 @@ export function createAudioDataSource(opts) {
       stream = await navigator.mediaDevices.getUserMedia(constraints);
 
       if (destroyed) {
-        // Destroyed while awaiting permission
+        // Destroyed while awaiting permission.
         stopTracks();
         return;
       }
@@ -75,7 +77,7 @@ export function createAudioDataSource(opts) {
       analyser.smoothingTimeConstant = 0.6;
 
       sourceNode.connect(analyser);
-      // Do NOT connect to audioCtx.destination — no speaker playback
+      // Do NOT connect to audioCtx.destination — no speaker playback.
 
       fftBuffer = new Float32Array(analyser.frequencyBinCount);
       active = true;
@@ -110,11 +112,13 @@ export function createAudioDataSource(opts) {
 
     analyser.getFloatFrequencyData(fftBuffer);
 
-    // How many FFT bins cover 0–AF_DISPLAY_HZ at current sample rate
+    // How many FFT bins cover 0–AF_DISPLAY_HZ at current sample rate.
+
     const nyquist = sampleRate / 2;
     const srcBins = Math.min(fftBuffer.length, Math.round((AF_DISPLAY_HZ / nyquist) * fftBuffer.length));
 
-    // Resample srcBins → BINS output bins via linear interpolation
+    // Resample srcBins → BINS output bins via linear interpolation.
+
     const output = new Float32Array(BINS);
     for (let i = 0; i < BINS; i++) {
       const srcPos = (i / BINS) * srcBins;
@@ -122,7 +126,7 @@ export function createAudioDataSource(opts) {
       const hi = Math.min(lo + 1, srcBins - 1);
       const frac = srcPos - lo;
       let val = fftBuffer[lo] * (1 - frac) + fftBuffer[hi] * frac;
-      // Clamp -Infinity / NaN to floor
+      // Clamp -Infinity / NaN to floor.
       if (val === -Infinity || isNaN(val)) val = FLOOR_DB;
       output[i] = val;
     }

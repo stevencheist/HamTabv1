@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Clock Face Definitions & SVG Builder ---
 // Data-driven face configs consumed by a generic SVG builder.
 // Each face is a plain object describing ticks, labels, hands, and extras.
-
 const NS = 'http://www.w3.org/2000/svg';
 const CX = 100;
 const CY = 100;
@@ -192,7 +193,8 @@ export function buildFaceSvg(svg, faceId, complications) {
     }
   }
 
-  // Extras: pilot triangle at 12
+  // Extras: pilot triangle at 12.
+
   if (face.extras === 'pilotTriangle') {
     const triSize = 8;
     const triY = CY - R + 6;
@@ -206,7 +208,7 @@ export function buildFaceSvg(svg, faceId, complications) {
   // Digital readout placeholder (for digitalHybrid)
   let digitalText = null;
   if (face.extras === 'digitalReadout') {
-    // Shift down if 6 o'clock complication active
+    // Shift down if 6 o'clock complication active.
     const hasBottomComp = complications && complications.stopwatch;
     const dY = hasBottomComp ? 118 : 125;
     digitalText = makeSvg('text', {
@@ -238,8 +240,8 @@ export function buildFaceSvg(svg, faceId, complications) {
   }
 
   // Note: hands and center dot are appended by the caller (analog-clock.js)
-  // so they stay on top of complications
 
+  // So they stay on top of complications.
   return { arc, dateText, digitalText, face };
 }
 
@@ -261,7 +263,8 @@ export function buildFacePreview(faceId) {
     svg.appendChild(makeSvg('circle', { cx: CX, cy: CY, r: R - 12, fill: 'none', stroke: 'var(--text-dim)', 'stroke-width': 1 }));
   }
 
-  // Major ticks only for preview
+  // Major ticks only for preview.
+
   if (face.ticks.major) {
     for (let i = 0; i < 12; i++) {
       const angle = (i * 30 - 90) * Math.PI / 180;
@@ -278,7 +281,8 @@ export function buildFacePreview(faceId) {
     }
   }
 
-  // Index bars for minimal/pilot
+  // Index bars for minimal/pilot.
+
   if (face.labels.type === 'indices') {
     for (const a of [-90, 0, 90, 180]) {
       const rad = a * Math.PI / 180;

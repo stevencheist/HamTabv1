@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Scope Signal Generator ---
 // Synthetic spectrum data source for demo mode panadapter.
 // Noise generator ported from VirtualHam noise-generator.ts.
-// createSpectrumDataSource uses BAND_PROPS/getDayFactor from propagation engine.
-
+// CreateSpectrumDataSource uses BAND_PROPS/getDayFactor from propagation engine.
 import { BAND_PROPS, getDayFactor } from '../cat/simulator/propagation-signal-engine.js';
 
 // --- Ported noise-generator primitives ---
@@ -29,7 +30,7 @@ export function generateNoiseFloor(bins, floorDb, varianceDb) {
 export function addSignal(buffer, centerBin, widthBins, peakDb) {
   const sigma = widthBins / 2.355; // FWHM to sigma
   const sigmaSq2 = 2 * sigma * sigma;
-  // Convert peak to linear once, then apply Gaussian envelope in linear domain
+  // Convert peak to linear once, then apply Gaussian envelope in linear domain.
   const peakLinear = Math.pow(10, peakDb / 10);
 
   const start = Math.max(0, Math.floor(centerBin - widthBins * 2));
@@ -39,7 +40,7 @@ export function addSignal(buffer, centerBin, widthBins, peakDb) {
     const d = i - centerBin;
     const gaussianFactor = Math.exp(-(d * d) / sigmaSq2);
     const signalLinear = peakLinear * gaussianFactor;
-    // Power sum in linear domain, then back to dB
+    // Power sum in linear domain, then back to dB.
     const existing = Math.pow(10, buffer[i] / 10);
     buffer[i] = 10 * Math.log10(existing + signalLinear);
   }
@@ -62,7 +63,7 @@ const FT8_FREQS = [
   14_074_000, 18_100_000, 21_074_000, 24_915_000, 28_074_000, 50_313_000,
 ];
 
-// Deterministic seed from band name
+// Deterministic seed from band name.
 function hashSeed(str) {
   let h = 0;
   for (let i = 0; i < str.length; i++) {
@@ -97,7 +98,8 @@ export function createSpectrumDataSource(opts) {
   let signalCache = null; // cached persistent signals per band
   let cachedBand = null;
 
-  // Detect band from frequency
+  // Detect band from frequency.
+
   function detectBand(freq) {
     for (const [band, props] of Object.entries(BAND_PROPS)) {
       if (freq >= props.min && freq <= props.max) return band;
@@ -105,8 +107,9 @@ export function createSpectrumDataSource(opts) {
     return null;
   }
 
-  // Map propagation engine noiseFloor (0-30 scale) to dB
-  // noiseFloor 6 → -112 dB, noiseFloor 30 → -80 dB
+  // Map propagation engine noiseFloor (0-30 scale) to dB.
+
+  // NoiseFloor 6 → -112 dB, noiseFloor 30 → -80 dB.
   function noiseFloorToDb(nf) {
     return -112 + ((nf - 6) / 24) * 32;
   }
@@ -120,7 +123,8 @@ export function createSpectrumDataSource(opts) {
     const signals = [];
     const hzPerBin = spanHz / bins;
 
-    // FT8 frequencies that fall within the visible span
+    // FT8 frequencies that fall within the visible span.
+
     const startHz = centerHz - spanHz / 2;
     const endHz = centerHz + spanHz / 2;
 
@@ -138,7 +142,8 @@ export function createSpectrumDataSource(opts) {
       }
     }
 
-    // CW signals — clustered in lower portion of band
+    // CW signals — clustered in lower portion of band.
+
     const cwZoneStart = props.min;
     const cwZoneEnd = props.min + (props.max - props.min) * 0.15;
     const cwCount = 2 + Math.floor(rng() * 4);
@@ -183,36 +188,41 @@ export function createSpectrumDataSource(opts) {
     if (!band) band = detectBand(centerHz);
     const props = band ? BAND_PROPS[band] : null;
 
-    // Noise floor from band props
+    // Noise floor from band props.
+
     const baseNoiseDb = props ? noiseFloorToDb(props.noiseFloor) : -100;
     const dayFactor = getDayFactor(longitude);
 
-    // Day/night noise modulation: low bands noisier at night, high bands quieter at night
+    // Day/night noise modulation: low bands noisier at night, high bands quieter at night.
+
     let noiseMod = 0;
     if (props) {
       if (props.nightBonus > 0) {
-        // Low bands: more noise at night
+        // Low bands: more noise at night.
         noiseMod = (1 - dayFactor) * 8;
       } else {
-        // High bands: slightly less noise at night
+        // High bands: slightly less noise at night.
         noiseMod = dayFactor * 3;
       }
     }
 
     const frame = generateNoiseFloor(bins, baseNoiseDb + noiseMod, 3);
 
-    // Rebuild signal cache if band changed
+    // Rebuild signal cache if band changed.
+
     if (band !== cachedBand) {
       signalCache = buildSignals(band || '20m', centerHz);
       cachedBand = band;
     }
 
-    // Inject persistent signals with QSB fading
+    // Inject persistent signals with QSB fading.
+
     const now = Date.now();
     for (const sig of signalCache) {
       const qsb = Math.sin(now / sig.qsbPeriod + sig.seed) * sig.qsbDepth;
 
-      // Day/night strength modulation for signals
+      // Day/night strength modulation for signals.
+
       let dayMod = 0;
       if (props) {
         dayMod = (props.dayPenalty * dayFactor + props.nightBonus * (1 - dayFactor)) * 0.15;
@@ -221,7 +231,8 @@ export function createSpectrumDataSource(opts) {
       addSignal(frame, sig.bin, sig.widthBins, sig.basePeakDb + qsb + dayMod);
     }
 
-    // Temporal smoothing for coherent waterfall
+    // Temporal smoothing for coherent waterfall.
+
     const blended = blendFrames(prevFrame, frame, 0.4);
     prevFrame = blended;
 

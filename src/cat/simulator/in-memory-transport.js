@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Simulator: In-Memory Transport ---
 // Browser-only transport that wraps FakeRadioEngine.
 // Implements the same interface as WebSerialTransport.
 // No serial port needed — commands route to the simulator.
-
 import { ConnectionState } from '../transports/web-serial.js';
 import { createFakeRadioEngine } from './fake-radio-engine.js';
 

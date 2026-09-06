@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { renderHeatmapCanvas, clearHeatmap, renderHeatmapLegend, clearHeatmapLegend } from './rel-heatmap.js';
 import { renderWsprHeatmapCanvas, clearWsprHeatmap, renderWsprHeatmapLegend, clearWsprHeatmapLegend } from './wspr-heatmap.js';
@@ -185,19 +188,18 @@ export function renderMufImageOverlay() {
 }
 
 // --- D-RAP (D Region Absorption Prediction) Overlay ---
-// NOAA SWPC global absorption map — shows where HF signals are being absorbed
-
+// NOAA SWPC global absorption map — shows where HF signals are being absorbed.
 let drapImageLayer = null;
 let drapImageRefreshTimer = null;
 
-// D-RAP color scale — maps normalized value (0–1) to RGBA
-// NOAA gradient: purple → blue → cyan → green → yellow → red
-// Scale adapts to actual data range so quiet conditions are still visible
+// D-RAP color scale — maps normalized value (0–1) to RGBA.
+// NOAA gradient: purple → blue → cyan → green → yellow → red.
+// Scale adapts to actual data range so quiet conditions are still visible.
 function drapColor(mhz, maxVal) {
   if (mhz <= 0) return { r: 0, g: 0, b: 0, a: 0 }; // transparent for no absorption
-  // Use the larger of actual max or 5 MHz as the scale ceiling —
-  // ensures quiet-time data (0–2 MHz) uses the full color range,
-  // but severe events (30+ MHz) still scale correctly
+  // Use the larger of actual max or 5 MHz as the scale ceiling —.
+  // Ensures quiet-time data (0–2 MHz) uses the full color range,
+  // but severe events (30+ MHz) still scale correctly.
   const ceil = Math.max(maxVal, 5);
   const t = Math.min(mhz / ceil, 1); // normalize to 0–1 against dynamic ceiling
   let r, g, b;
@@ -247,7 +249,8 @@ export function renderDrapOverlay() {
       const cols = lons.length;    // 90 longitude columns
       const numRows = rows.length; // ~90 latitude rows (89 to -89, step -2)
 
-      // Find max value for dynamic color scaling
+      // Find max value for dynamic color scaling.
+
       let maxVal = 0;
       for (let r = 0; r < numRows; r++) {
         for (let c = 0; c < cols; c++) {
@@ -278,16 +281,18 @@ export function renderDrapOverlay() {
       ctx.putImageData(imageData, 0, 0);
 
       // Grid centers are at (lat, lon) but each cell spans 2° lat × 4° lon,
-      // so the full grid covers -90 to 90 lat, -180 to 180 lon
+
+      // so the full grid covers -90 to 90 lat, -180 to 180 lon.
       const bounds = [[-90, -180], [90, 180]];
 
-      // Use toBlob + object URL instead of toDataURL — avoids large base64 string
-      // allocation (~30% smaller in memory) and lets the browser GC the blob
+      // Use toBlob + object URL instead of toDataURL — avoids large base64 string.
+
+      // Allocation (~30% smaller in memory) and lets the browser GC the blob.
       const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
       const url = URL.createObjectURL(blob);
 
       if (drapImageLayer) {
-        // Revoke old object URL before replacing
+        // Revoke old object URL before replacing.
         const oldUrl = drapImageLayer._url;
         state.map.removeLayer(drapImageLayer);
         if (oldUrl && oldUrl.startsWith('blob:')) URL.revokeObjectURL(oldUrl);
@@ -340,7 +345,8 @@ export function renderTropicsLines() {
     };
     L.polyline([[ln.lat, -180], [ln.lat, 180]], style).addTo(tropicsLayer);
 
-    // Label at left edge of viewport
+    // Label at left edge of viewport.
+
     if (ln.lat >= bounds.getSouth() && ln.lat <= bounds.getNorth()) {
       const isArctic = Math.abs(ln.lat) > 60;
       L.marker([ln.lat, labelLon], {
@@ -378,7 +384,8 @@ async function fetchRadarAndShow() {
 
     const tileUrl = `${data.host}${data.path}/256/{z}/{x}/{y}/2/1_1.png`;
 
-    // Remove old layer before adding new one
+    // Remove old layer before adding new one.
+
     if (weatherRadarLayer) state.map.removeLayer(weatherRadarLayer);
 
     weatherRadarLayer = L.tileLayer(tileUrl, {

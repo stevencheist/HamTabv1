@@ -1,10 +1,10 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Transport: KiwiSDR WebSocket ---
 // Connects to a KiwiSDR receiver via WebSocket.
-// Maintains a cached state (frequency, mode, S-meter) updated by incoming
-// WebSocket messages. When RigManager polls via sendCommand(), the transport
-// returns cached state instantly — no round-trip needed.
-// This mirrors the InMemoryTransport + FakeRadioEngine pattern for demo mode.
-
+// Maintains a cached state (frequency, mode, S-meter) updated by incoming.
+// WebSocket messages. When RigManager polls via sendCommand(), the transport.
+// Returns cached state instantly — no round-trip needed.// This mirrors the InMemoryTransport + FakeRadioEngine pattern for demo mode.
 import { ConnectionState } from './web-serial.js';
 
 // --- KiwiSDR mode strings → HamTab CAT mode strings ---
@@ -43,7 +43,7 @@ export class KiwiSdrSocketTransport {
     this._keepaliveTimer = null;
     this._connectTimeout = null;
 
-    // Cached receiver state — updated by incoming messages
+    // Cached receiver state — updated by incoming messages.
     this._frequency = 14074000; // Hz — default 20m FT8
     this._mode = 'USB';
     this._smeter = 0;           // raw 0-255 scale
@@ -78,7 +78,7 @@ export class KiwiSdrSocketTransport {
     this._setState(ConnectionState.CONNECTING);
 
     return new Promise((resolve, reject) => {
-      // KiwiSDR SND endpoint — NNNN is a random 4-digit session ID
+      // KiwiSDR SND endpoint — NNNN is a random 4-digit session ID.
       const session = Math.floor(1000 + Math.random() * 9000);
       const url = `ws://${this.host}:${this.port}/kiwi/${session}/SND`;
 
@@ -103,10 +103,10 @@ export class KiwiSdrSocketTransport {
       this._ws.onopen = () => {
         clearTimeout(this._connectTimeout);
         // Only send auth on open — remaining setup (AR OK, tune, compression)
-        // is deferred until the server sends audio_init (see _handleTextMsg)
+        // is deferred until the server sends audio_init (see _handleTextMsg).
         this._send(`SET auth t=kiwi p=${this.password}`);
 
-        // 30s keepalive to prevent server disconnect
+        // 30s keepalive to prevent server disconnect.
         this._keepaliveTimer = setInterval(() => {
           this._send('SET keepalive');
         }, 30000);
@@ -148,6 +148,7 @@ export class KiwiSdrSocketTransport {
   }
 
   // --- Send command (cached-state model) ---
+
   // GET commands return cached state immediately.
   // SET commands forward to WebSocket.
   async sendCommand(cmd) {
@@ -179,7 +180,7 @@ export class KiwiSdrSocketTransport {
       const mode = cmd.slice(14);
       const kiwiMode = CAT_TO_KIWI_MODE[mode] || 'usb';
       const khz = this._frequency / 1000;
-      // Adjust passband for mode
+      // Adjust passband for mode.
       const passband = this._getPassband(kiwiMode);
       this._send(`SET mod=${kiwiMode} low_cut=${passband.low} high_cut=${passband.high} freq=${khz.toFixed(3)}`);
       this._mode = mode;
@@ -191,7 +192,7 @@ export class KiwiSdrSocketTransport {
 
   // --- Write command (no response) ---
   async writeCommand(cmd) {
-    // SET commands that don't expect a response
+    // SET commands that don't expect a response.
     if (cmd && cmd.startsWith('KIWI:SET_')) {
       await this.sendCommand(cmd);
     }
@@ -206,8 +207,9 @@ export class KiwiSdrSocketTransport {
   async flush() {}
 
   // --- Internal: handle incoming WebSocket message ---
+
   // KiwiSDR sends ALL frames as binary ArrayBuffers with a 3-byte ASCII tag:
-  //   "SND" — audio + S-meter data
+  //   "SND" — audio + S-meter data.
   //   "MSG" — text key=value protocol messages (sent as binary, not WS text)
   _handleMessage(event) {
     if (event.data instanceof ArrayBuffer) {
@@ -218,6 +220,7 @@ export class KiwiSdrSocketTransport {
       const t0 = view.getUint8(0), t1 = view.getUint8(1), t2 = view.getUint8(2);
 
       // --- SND frame: audio + S-meter ---
+
       // Layout: "SND"(3) + flags(1) + seq(4 LE) + smeter(2 BE) + PCM(rest)
       if (t0 === 0x53 && t1 === 0x4E && t2 === 0x44) { // "SND"
         if (len < 10) return;
@@ -228,7 +231,8 @@ export class KiwiSdrSocketTransport {
           this._smeter = this._dbToRaw(dbm);
         } catch { /* ignore malformed frames */ }
 
-        // Extract PCM audio samples after 10-byte header
+        // Extract PCM audio samples after 10-byte header.
+
         if (len > 10 && this._onAudioData) {
           try {
             const flags = view.getUint8(3);
@@ -247,7 +251,7 @@ export class KiwiSdrSocketTransport {
 
       // --- MSG frame: text protocol messages sent as binary ---
       if (t0 === 0x4D && t1 === 0x53 && t2 === 0x47) { // "MSG"
-        // Decode bytes after "MSG " (4 bytes) as UTF-8 text
+        // Decode bytes after "MSG " (4 bytes) as UTF-8 text.
         if (len <= 4) return;
         const textBytes = new Uint8Array(event.data, 4);
         const msg = new TextDecoder().decode(textBytes);
@@ -255,7 +259,7 @@ export class KiwiSdrSocketTransport {
         return;
       }
 
-      // Other binary tags (e.g. W/F waterfall) — ignore
+      // Other binary tags (e.g. W/F waterfall) — ignore.
       return;
     }
 
@@ -268,8 +272,8 @@ export class KiwiSdrSocketTransport {
   // --- Process a text protocol message (from MSG binary frame or text WS frame) ---
   _handleTextMsg(msg) {
     // Server audio_init — respond with full config to start audio stream.
-    // KiwiSDR requires AR OK + AGC + mod + gen + squelch + compression
-    // before cmd_recv_ok is set and SND frames begin.
+    // KiwiSDR requires AR OK + AGC + mod + gen + squelch + compression.
+    // Before cmd_recv_ok is set and SND frames begin.
     if (msg.includes('audio_init=')) {
       if (!this._audioInitDone) {
         this._audioInitDone = true;
@@ -293,7 +297,8 @@ export class KiwiSdrSocketTransport {
       if (match) this._serverName = match[1].trim();
     }
 
-    // Frequency update from server
+    // Frequency update from server.
+
     if (msg.includes('freq=')) {
       const match = msg.match(/freq=([\d.]+)/);
       if (match) {
@@ -304,7 +309,8 @@ export class KiwiSdrSocketTransport {
       }
     }
 
-    // Mode update from server
+    // Mode update from server.
+
     if (msg.includes('mode=')) {
       const match = msg.match(/mode=(\w+)/);
       if (match && KIWI_MODE_MAP[match[1]]) {
@@ -314,8 +320,9 @@ export class KiwiSdrSocketTransport {
   }
 
   // --- Convert dBm to raw 0-255 scale for S-meter compatibility ---
+
   // KiwiSDR range: roughly -130 dBm (noise floor) to -10 dBm (strong)
-  // Maps linearly: -130 → 0, -10 → 255
+  // Maps linearly: -130 → 0, -10 → 255.
   _dbToRaw(dbm) {
     const clamped = Math.max(-130, Math.min(-10, dbm));
     return Math.round(((clamped + 130) / 120) * 255);

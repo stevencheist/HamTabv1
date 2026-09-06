@@ -1,10 +1,10 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Radio Profile Manager ---
 // Save/restore radio settings to localStorage as named profiles.
 // Reads current state from the radio via CAT commands, stores as a snapshot,
-// and can restore by sending all settings back.
-// Use case: save your SSB settings before WSJT-X changes everything,
-// restore when you come back.
-
+// And can restore by sending all settings back.// Use case: save your SSB settings before WSJT-X changes everything,
+// Restore when you come back.
 import { getRigStore, sendRigCommand } from './connection-orchestrator.js';
 import { isFeatureVisible } from '../feature-flags.js';
 
@@ -37,7 +37,7 @@ const PROFILE_SETTINGS = [
 ];
 
 // --- Key EX menu settings to include in profiles ---
-// These are the digital-related settings that WSJT-X changes
+// These are the digital-related settings that WSJT-X changes.
 const PROFILE_MENU_ADDRESSES = [
   { p1: 1, p2: 4, p3: 15, digits: 1, label: 'DATA MOD SOURCE' },
   { p1: 1, p2: 4, p3: 16, digits: 1, label: 'REAR SELECT' },
@@ -52,12 +52,14 @@ export async function saveProfile(name) {
   const store = getRigStore();
   const caps = store.get().capabilities || [];
 
-  // Send all read commands
+  // Send all read commands.
+
   for (const s of PROFILE_SETTINGS) {
     sendRigCommand(s.command, null, 1);
   }
 
-  // Read menu settings if supported
+  // Read menu settings if supported.
+
   if (caps.includes('menu_read')) {
     for (const m of PROFILE_MENU_ADDRESSES) {
       sendRigCommand('getMenu', { p1: m.p1, p2: m.p2, p3: m.p3 }, 1);
@@ -192,11 +194,10 @@ export function profileSummary(profile) {
 // Gated by callsign — only shown for KG5DPV (Francisco) and KJ5MMO (Steven).
 // Each preset is keyed by radio modelId from the CAT ID command.
 // =====================================================================
-
 // Visibility gating moved to feature-flags.js ('preset_profiles' flag)
 
 // --- FT-DX10 SSB Ragchew (community-recommended baseline) ---
-// Sources: WirelessGirl FTDX101D guide, VK4DX review, groups.io ftdx-10
+// Sources: WirelessGirl FTDX101D guide, VK4DX review, groups.io ftdx-10.
 const FTDX10_SSB_RAGCHEW = {
   name: 'SSB Ragchew (DX10)',
   description: 'Casual QSOs: Processor OFF, wide 200-2800 Hz TX BPF, low mic gain (25), AGC MID. EQ cuts 300 Hz mud and boosts 2400 Hz for clarity. Natural, full-range voice.',
@@ -232,8 +233,8 @@ const FTDX10_SSB_RAGCHEW = {
 };
 
 // --- FT-DX10 SSB POTA (balanced — processor moderate, medium bandwidth) ---
-// POTA activators call CQ and work short pileups. Needs more punch than ragchew
-// but less aggressive than full contest. Processor at moderate level for
+// POTA activators call CQ and work short pileups. Needs more punch than ragchew.
+// But less aggressive than full contest. Processor at moderate level for
 // readability without over-compression.
 const FTDX10_SSB_POTA = {
   name: 'SSB POTA (DX10)',
@@ -333,7 +334,8 @@ export function applyPreset(preset) {
   const store = getRigStore();
   const caps = store.get().capabilities || [];
 
-  // Apply direct CAT settings
+  // Apply direct CAT settings.
+
   if (preset.settings) {
     for (const s of PROFILE_SETTINGS) {
       const val = preset.settings[s.stateField];
@@ -343,7 +345,8 @@ export function applyPreset(preset) {
     }
   }
 
-  // Apply EX menu commands
+  // Apply EX menu commands.
+
   if (caps.includes('menu_set') && preset.menuCommands) {
     for (const m of preset.menuCommands) {
       sendRigCommand('setMenu', {

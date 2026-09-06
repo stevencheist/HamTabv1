@@ -1,3 +1,5 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT: Rate-Limited Command Queue ---
 // All CAT commands go through this queue. Features:
 // - Rate limiting (min interval between commands, default 60ms)
@@ -16,11 +18,10 @@ export function createCommandQueue(sendFn, options = {}) {
   let lastSendTime = 0;
 
   // --- Push a command onto the queue ---
-  // command: string command name (e.g., 'setFrequency')
-  // params: command parameters (e.g., 14074000)
-  // priority: 0 = normal, 1 = high, 2 = urgent
+
+  // Command: string command name (e.g., 'setFrequency')  // Params: command parameters (e.g., 14074000)  // priority: 0 = normal, 1 = high, 2 = urgent
   function push(command, params = null, priority = 0) {
-    // Frequency coalescing: if there's already a setFrequency in queue, replace it
+    // Frequency coalescing: if there's already a setFrequency in queue, replace it.
     if (command === 'setFrequency' || command === 'setFrequencyB') {
       const existing = queue.findIndex(item => item.command === command);
       if (existing >= 0) {
@@ -42,7 +43,7 @@ export function createCommandQueue(sendFn, options = {}) {
     }
 
     if (queue.length >= maxQueueSize) {
-      // Drop lowest priority items
+      // Drop lowest priority items.
       queue.sort((a, b) => b.priority - a.priority);
       const dropped = queue.slice(maxQueueSize - 1);
       queue = queue.slice(0, maxQueueSize - 1);
@@ -85,7 +86,7 @@ export function createCommandQueue(sendFn, options = {}) {
       console.error('[cat] Queue send error:', err);
     } finally {
       processing = false;
-      // Continue processing if more items
+      // Continue processing if more items.
       if (queue.length > 0) {
         processNext();
       }

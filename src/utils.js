@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 
 export function esc(str) {
@@ -16,7 +19,7 @@ const CALLSIGN_CACHE_MAX = 500;
 export function cacheCallsign(key, value) {
   const keys = Object.keys(state.callsignCache);
   if (keys.length >= CALLSIGN_CACHE_MAX) {
-    // Evict oldest half to avoid thrashing
+    // Evict oldest half to avoid thrashing.
     const toRemove = keys.slice(0, Math.floor(keys.length / 2));
     toRemove.forEach(k => delete state.callsignCache[k]);
   }

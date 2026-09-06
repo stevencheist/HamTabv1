@@ -1,6 +1,7 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Clock Face Config Panel ---
 // Gear icon opens overlay with face thumbnails and complication checkboxes.
-
 import state from './state.js';
 import { $ } from './dom.js';
 import { buildFacePreview, CLOCK_FACES } from './clock-faces.js';
@@ -12,7 +13,7 @@ export function initClockConfigListeners() {
   const btn = $('clockCfgBtn');
   if (!btn) return;
 
-  // Prevent drag when clicking gear
+  // Prevent drag when clicking gear.
   btn.addEventListener('mousedown', (e) => { e.stopPropagation(); });
 
   btn.addEventListener('click', () => {

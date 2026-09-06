@@ -1,3 +1,5 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Feedback Modal ---
 
 import state from './state.js';
@@ -7,7 +9,7 @@ import { openModal, closeModal } from './a11y.js';
 let formOpenTime = 0; // track when form was opened (for time-based spam check)
 
 // RSA public key for email encryption (GDPR compliance)
-// Only Steven and Francisco have the private key to decrypt
+// Only Steven and Francisco have the private key to decrypt.
 const EMAIL_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsMluvnUJ2MW0r2KQIqZF
 MjdGDYqGib2b4eUcoLZjaRCfTr6gPZBFEAgb5o9xWrJ/eoAMUbNU3DY+iu0OhmIH
@@ -47,7 +49,8 @@ async function encryptEmail(email) {
       emailData
     );
 
-    // Convert to base64 for transmission
+    // Convert to base64 for transmission.
+
     const encryptedArray = new Uint8Array(encryptedBuffer);
     return btoa(String.fromCharCode(...encryptedArray));
   } catch (err) {
@@ -86,7 +89,7 @@ function showStatus(message, type) {
   status.className = 'feedback-status ' + type;
 }
 
-// Show status message with a clickable link
+// Show status message with a clickable link.
 function showStatusWithLink(message, url, linkText) {
   const status = $('feedbackStatus');
   status.innerHTML = '';
@@ -124,19 +127,19 @@ async function submitFeedback(e) {
 
   // Client-side validation
   if (data.feedback.length < 10) {
-    showStatus('Feedback must be at least 10 characters', 'error');
+    showStatus('Feedback must be at least 10 characters.', 'error');
     return;
   }
 
   if (data.feedback.length > 5000) {
-    showStatus('Feedback must be less than 5000 characters', 'error');
+    showStatus('Feedback must be less than 5000 characters.', 'error');
     return;
   }
 
   // Time-based check (must take at least 3 seconds to fill form)
   const timeSinceOpen = Date.now() - formOpenTime;
   if (timeSinceOpen < 3000) {
-    showStatus('Please take a moment to review your feedback', 'error');
+    showStatus('Please take a moment to review your feedback.', 'error');
     return;
   }
 
@@ -158,10 +161,10 @@ async function submitFeedback(e) {
       showStatus('Thank you! Your feedback has been submitted successfully.', 'success');
       form.reset();
       updateCharCount();
-      // Close modal after 2 seconds
+      // Close modal after 2 seconds.
       setTimeout(closeFeedback, 2000);
     } else if (response.status === 503) {
-      // Relay unavailable — show GitHub link
+      // Relay unavailable — show GitHub link.
       showStatusWithLink(
         'Feedback system temporarily unavailable. Please submit directly: ',
         'https://github.com/stevencheist/HamTabv1/issues/new',
@@ -199,7 +202,7 @@ export function initFeedbackListeners() {
     if (e.target === feedbackSplash) closeFeedback();
   });
 
-  // ESC key to close
+  // ESC key to close.
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !feedbackSplash.classList.contains('hidden')) {
       if (!state.a11yEscapeClose) return;

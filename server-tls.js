@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- TLS certificate management (lanmode only) ---
 // Generates self-signed certs for HTTPS on local networks.
 // In hostedmode, Cloudflare handles TLS — this module is a no-op.
-
 const fs = require('fs');
 const path = require('path');
 
@@ -23,7 +24,8 @@ function getLocalIPs() {
   const { execSync } = require('child_process');
   const ips = new Set();
 
-  // Collect non-internal IPv4 addresses from local interfaces
+  // Collect non-internal IPv4 addresses from local interfaces.
+
   const ifaces = os.networkInterfaces();
   for (const addrs of Object.values(ifaces)) {
     for (const addr of addrs) {
@@ -33,8 +35,9 @@ function getLocalIPs() {
     }
   }
 
-  // In WSL, also discover Windows host IPs so the cert covers addresses
-  // that LAN clients actually connect to via portproxy
+  // In WSL, also discover Windows host IPs so the cert covers addresses.
+
+  // That LAN clients actually connect to via portproxy.
   try {
     const result = execSync(
       'powershell.exe -NoProfile -Command "Get-NetIPAddress -AddressFamily IPv4 | Select-Object -ExpandProperty IPAddress"',
@@ -47,7 +50,7 @@ function getLocalIPs() {
       }
     }
   } catch {
-    // Not running in WSL or powershell.exe not available
+    // Not running in WSL or powershell.exe not available.
   }
 
   return [...ips].sort();
@@ -62,7 +65,8 @@ function ensureCerts() {
   const currentIPs = getLocalIPs();
   const allSANs = ['localhost', '127.0.0.1', '::1', ...currentIPs].sort().join(',');
 
-  // Reuse existing cert if SANs still match current network addresses
+  // Reuse existing cert if SANs still match current network addresses.
+
   if (fs.existsSync(KEY_PATH) && fs.existsSync(CERT_PATH) && fs.existsSync(SANS_PATH)) {
     const savedSANs = fs.readFileSync(SANS_PATH, 'utf-8').trim();
     if (savedSANs === allSANs) {

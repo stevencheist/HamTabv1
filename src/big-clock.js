@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Big Clock Mode ---
 // Fullscreen clock overlay showing UTC and local time in large font.
 // Toggle by clicking the header clock group.
-
 import state from './state.js';
 import { $ } from './dom.js';
 import { fmtTime } from './utils.js';
@@ -48,17 +49,18 @@ export function toggleBigClock() {
 }
 
 export function initBigClock() {
-  // Toggle on header clock click
+  // Toggle on header clock click.
   const clockGroup = $('headerClockLocal');
   const clockUtc = $('headerClockUtc');
   if (clockGroup) clockGroup.addEventListener('click', toggleBigClock);
   if (clockUtc) clockUtc.addEventListener('click', toggleBigClock);
 
-  // Close on overlay click or Escape
+  // Close on overlay click or Escape.
+
   const overlay = $('bigClockOverlay');
   if (overlay) {
     overlay.addEventListener('click', hide);
-    // Prevent clicks on inner content from closing
+    // Prevent clicks on inner content from closing.
     const inner = overlay.querySelector('.big-clock-inner');
     if (inner) inner.addEventListener('click', (e) => e.stopPropagation());
   }

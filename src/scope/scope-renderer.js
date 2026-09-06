@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Scope Renderer ---
 // Render loop orchestrator for panadapter (spectrum + waterfall).
 // Creates canvases, manages requestAnimationFrame, interfaces with rig store.
-// startScope() / stopScope() API for on-air-rig.js lifecycle.
-
+// StartScope() / stopScope() API for on-air-rig.js lifecycle.
 import { createSpectrum } from './scope-spectrum.js';
 import { createWaterfall } from './scope-waterfall.js';
 import { createSpectrumDataSource } from './scope-signal-gen.js';
@@ -36,13 +37,15 @@ function renderLoop(timestamp) {
   const centerHz = state.frequency || 14175000;
   const band = state.band || null;
 
-  // Generate synthetic spectrum frame
+  // Generate synthetic spectrum frame.
+
   const frame = dataSource.generateFrame(centerHz, band);
 
   // Spectrum draws every frame (~60fps)
   spectrum.draw(frame);
 
-  // Waterfall pushes at ~30fps
+  // Waterfall pushes at ~30fps.
+
   if (timestamp - lastWaterfallTime >= WATERFALL_INTERVAL) {
     waterfall.pushRow(frame);
     lastWaterfallTime = timestamp;
@@ -74,7 +77,8 @@ export function startScope(opts) {
   // Show scope section
   section.style.display = '';
 
-  // Determine if we should use live audio capture
+  // Determine if we should use live audio capture.
+
   const canAudio = opts.useAudio
     && state.radioAudioScopeEnabled
     && typeof navigator !== 'undefined'
@@ -84,7 +88,7 @@ export function startScope(opts) {
   audioMode = canAudio;
   hideOnFail = !!opts.hideOnAudioFail;
 
-  // Create spectrum renderer with AF mode if using audio
+  // Create spectrum renderer with AF mode if using audio.
   spectrum = createSpectrum(specCanvas, getState, {
     spanHz: canAudio ? state.radioAudioSampleRate : SPAN_HZ,
     afMode: canAudio,
@@ -95,18 +99,18 @@ export function startScope(opts) {
   });
 
   if (canAudio) {
-    // Live audio FFT source
+    // Live audio FFT source.
     dataSource = createAudioDataSource({
       deviceId: state.radioAudioDeviceId,
       sampleRate: state.radioAudioSampleRate,
       onError: () => {
         if (hideOnFail) {
-          // Real radio — hide scope entirely instead of showing synthetic
+          // Real radio — hide scope entirely instead of showing synthetic.
           console.warn('[scope] Audio capture failed — hiding scope');
           stopScope();
           return;
         }
-        // Fallback to synthetic on error/denial
+        // Fallback to synthetic on error/denial.
         console.warn('[scope] Audio capture failed — falling back to synthetic scope');
         fallbackToSynthetic(opts);
       },
@@ -125,7 +129,8 @@ export function startScope(opts) {
     updateScopeLabel(null);
   }
 
-  // ResizeObserver — matches spacewx-graphs.js pattern
+  // ResizeObserver — matches spacewx-graphs.js pattern.
+
   const container = document.getElementById('widget-on-air-rig');
   if (container && window.ResizeObserver) {
     resizeObserver = new ResizeObserver(handleResize);
@@ -154,7 +159,8 @@ function fallbackToSynthetic(opts) {
     longitude: (opts && opts.longitude) || 0,
   });
 
-  // Switch spectrum back to RF labels
+  // Switch spectrum back to RF labels.
+
   if (spectrum) spectrum.setAFMode(false);
   updateScopeLabel(null);
 }

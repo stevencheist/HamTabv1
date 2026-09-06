@@ -1,9 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Driver: KiwiSDR WebSocket ---
 // RX-only driver for KiwiSDR online receivers.
 // Uses KIWI: marker protocol — transport maintains cached state,
-// driver encodes/parses the marker strings.
-// No init commands needed — transport handles WebSocket handshake.
-
+// Driver encodes/parses the marker strings.// No init commands needed — transport handles WebSocket handshake.
 // --- Mode mapping: internal CAT → display ---
 const MODE_MAP = {
   'AM':     'AM',
@@ -20,12 +20,12 @@ export const kiwisdrWs = {
   name: 'kiwisdr_ws',
   label: 'KiwiSDR (WebSocket)',
 
-  // No init commands — transport handles WebSocket handshake + auth
+  // No init commands — transport handles WebSocket handshake + auth.
   init() {
     return [];
   },
 
-  // RX-only capabilities — no PTT, no SWR, no power
+  // RX-only capabilities — no PTT, no SWR, no power.
   capabilities() {
     return [
       'frequency_read',
@@ -36,7 +36,7 @@ export const kiwisdrWs = {
     ];
   },
 
-  // Encode logical command → KIWI: marker string
+  // Encode logical command → KIWI: marker string.
   encode(command, params) {
     switch (command) {
       case 'getFrequency':  return 'KIWI:FREQ';
@@ -48,7 +48,7 @@ export const kiwisdrWs = {
     }
   },
 
-  // Parse KIWI response → event object for RigStateStore
+  // Parse KIWI response → event object for RigStateStore.
   parse(response) {
     if (!response) return null;
 
@@ -73,7 +73,7 @@ export const kiwisdrWs = {
     return null;
   },
 
-  // Commands sent each polling cycle
+  // Commands sent each polling cycle.
   pollCommands() {
     return [
       'getFrequency',
@@ -82,6 +82,7 @@ export const kiwisdrWs = {
     ];
   },
 
-  // No meter commands — S-meter handled via pollCommands
+  // No meter commands — S-meter handled via pollCommands.
+
   // (KiwiSDR pushes S-meter in binary frames; no separate meter cycle needed)
 };

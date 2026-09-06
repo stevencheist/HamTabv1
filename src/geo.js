@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 export function latLonToGrid(lat, lon) {
   lon += 180;
   lat += 90;
@@ -41,7 +44,7 @@ export function distanceMi(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-// Spherical linear interpolation (Slerp) — returns n+1 [lat, lon] points along the great circle
+// Spherical linear interpolation (Slerp) — returns n+1 [lat, lon] points along the great circle.
 export function geodesicPoints(lat1, lon1, lat2, lon2, n) {
   const r = Math.PI / 180;
   const p1 = [lat1 * r, lon1 * r];
@@ -111,7 +114,7 @@ export function isDaytime(lat, lon, date) {
   return diff < 6;
 }
 
-// Convert decimal lat/lon to cardinal format: "33N 98W"
+// Convert decimal lat/lon to cardinal format: "33N 98W".
 export function latLonToCardinal(lat, lon) {
   const ns = lat >= 0 ? 'N' : 'S';
   const ew = lon >= 0 ? 'E' : 'W';

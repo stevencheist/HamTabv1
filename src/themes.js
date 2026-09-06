@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Theme Engine ---
 // Manages color themes and CSS class overrides.
-// Each theme is a named object with CSS custom property values and an optional
-// bodyClass for shape/font overrides (e.g. LCARS pill shapes).
-
+// Each theme is a named object with CSS custom property values and an optional.
+// BodyClass for shape/font overrides (e.g. LCARS pill shapes).
 const STORAGE_KEY = 'hamtab_theme';
 
 // --- Built-in Theme Definitions ---
@@ -191,12 +192,14 @@ export function applyTheme(themeId) {
 
   const root = document.documentElement;
 
-  // Set all CSS custom properties
+  // Set all CSS custom properties.
+
   for (const [prop, value] of Object.entries(theme.vars)) {
     root.style.setProperty(prop, value);
   }
 
-  // Remove all theme body classes, then apply the new one
+  // Remove all theme body classes, then apply the new one.
+
   for (const t of Object.values(THEMES)) {
     if (t.bodyClass) document.body.classList.remove(t.bodyClass);
   }
@@ -212,21 +215,24 @@ export function applyTheme(themeId) {
 /** Initialize theme on app startup — apply saved theme or default */
 export function initTheme() {
   const savedId = localStorage.getItem(STORAGE_KEY) || 'default';
-  // Validate saved theme still exists
+  // Validate saved theme still exists.
   const themeId = THEMES[savedId] ? savedId : 'default';
   applyTheme(themeId);
 
-  // Apply slim header class early to prevent flash of full header
+  // Apply slim header class early to prevent flash of full header.
+
   if (localStorage.getItem('hamtab_slim_header') === 'true') {
     document.body.classList.add('slim-header');
   }
 
-  // Apply grayscale mode early to prevent flash of color
+  // Apply grayscale mode early to prevent flash of color.
+
   if (localStorage.getItem('hamtab_grayscale') === 'true') {
     document.body.classList.add('grayscale');
   }
 
-  // Apply text scale early to prevent flash of default size
+  // Apply text scale early to prevent flash of default size.
+
   const savedScale = parseFloat(localStorage.getItem('hamtab_text_scale'));
   if (savedScale && savedScale !== 1.0) {
     document.documentElement.style.fontSize = (16 * savedScale) + 'px';

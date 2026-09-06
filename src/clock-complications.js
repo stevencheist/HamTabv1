@@ -1,7 +1,8 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- Clock Complications ---
 // 4 optional sub-dials that mount into the analog clock SVG.
 // Each complication renders a <g> group and exposes an update function.
-
 import state from './state.js';
 import { getSunTimes } from './geo.js';
 import { getStopwatchElapsed, getStopwatchRunning, getStopwatchMode } from './stopwatch.js';
@@ -41,7 +42,7 @@ export function mountComplication(svg, compId) {
   const refs = { g, def };
 
   if (compId === 'utc') {
-    // 4 index marks at 0/6/12/18
+    // 4 index marks at 0/6/12/18.
     for (let i = 0; i < 4; i++) {
       const angle = (i * 90 - 90) * Math.PI / 180;
       const outerR = def.radius - 1;
@@ -163,7 +164,7 @@ export function updateComplication(compId, refs) {
     const now = new Date();
     const h = now.getUTCHours();
     const m = now.getUTCMinutes();
-    // 360 degrees per 24 hours
+    // 360 degrees per 24 hours.
     const angle = ((h + m / 60) / 24) * 360;
     refs.hand.setAttribute('transform', `rotate(${angle} ${refs.def.cx} ${refs.def.cy})`);
 
@@ -186,18 +187,20 @@ export function updateComplication(compId, refs) {
     if (data && data.sfi != null) {
       const sfi = parseInt(data.sfi, 10);
       if (!isNaN(sfi)) {
-        // Map SFI 50-200 to gauge angle -135 to +135
+        // Map SFI 50-200 to gauge angle -135 to +135.
         const clamped = Math.max(50, Math.min(200, sfi));
         const ratio = (clamped - 50) / 150; // 0-1
         const angle = -135 + ratio * 270;
         refs.needle.setAttribute('transform', `rotate(${angle} ${refs.def.cx} ${refs.def.cy})`);
 
-        // Color: red <70, yellow 70-100, green >100
+        // Color: red <70, yellow 70-100, green >100.
+
         let color = '#4caf50'; // green
         if (sfi < 70) color = '#f44336'; // red
         else if (sfi <= 100) color = '#ff9800'; // yellow/orange
 
-        // Draw filled arc up to current value
+        // Draw filled arc up to current value.
+
         const fillPath = describeArc(refs.def.cx, refs.def.cy, refs.def.radius - 3, -135, angle);
         refs.arcFill.setAttribute('d', fillPath);
         refs.arcFill.setAttribute('stroke', color);
@@ -239,7 +242,7 @@ export function updateComplication(compId, refs) {
       nextTime = times.sunset;
       isRise = false;
     } else {
-      // After today's sunset — next sunrise is tomorrow
+      // After today's sunset — next sunrise is tomorrow.
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tTimes = getSunTimes(state.myLat, state.myLon, tomorrow);

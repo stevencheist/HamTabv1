@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { SOURCE_DEFS, getBandColor } from './constants.js';
 import { esc } from './utils.js';
@@ -70,7 +73,8 @@ function drawGeodesicLine(spot) {
 
   const pts = geodesicPoints(state.myLat, state.myLon, spotLat, spotLon, 64); // 64 intermediate points for smooth arc
 
-  // Helper: split points at dateline crossings
+  // Helper: split points at dateline crossings.
+
   function splitAtDateline(points) {
     const segments = [[]];
     for (let i = 0; i < points.length; i++) {
@@ -94,7 +98,8 @@ function drawGeodesicLine(spot) {
   state.geodesicLine.addTo(state.map);
 
   // Draw long path (opposite direction around the great circle)
-  // Compute via antipode of the short path midpoint
+
+  // Compute via antipode of the short path midpoint.
   const midIdx = Math.floor(pts.length / 2);
   const midPt = pts[midIdx];
   // Antipode: negate latitude, add 180° to longitude (normalize to -180,180)
@@ -102,7 +107,8 @@ function drawGeodesicLine(spot) {
   let antiLon = midPt[1] + 180;
   if (antiLon > 180) antiLon -= 360;
 
-  // Long path: QTH → antipode → spot
+  // Long path: QTH → antipode → spot.
+
   const ptsToAnti = geodesicPoints(state.myLat, state.myLon, antiLat, antiLon, 48);
   const ptsFromAnti = geodesicPoints(antiLat, antiLon, spotLat, spotLon, 48);
   const longPts = [...ptsToAnti.slice(0, -1), ...ptsFromAnti]; // avoid duplicate middle point
@@ -132,7 +138,8 @@ function drawBandPaths() {
 
   const filtered = state.sourceFiltered[state.currentSource] || [];
 
-  // Helper: split points at dateline crossings
+  // Helper: split points at dateline crossings.
+
   function splitAtDateline(points) {
     const segments = [[]];
     for (let i = 0; i < points.length; i++) {
@@ -235,7 +242,8 @@ export function selectSpot(sid) {
   clearGeodesicLine();
   const oldSid = state.selectedSpotId;
 
-  // Toggle: clicking the already-selected spot deselects it
+  // Toggle: clicking the already-selected spot deselects it.
+
   const newSid = (sid && sid === oldSid) ? null : sid;
 
   if (oldSid && state.markers[oldSid]) {
@@ -274,7 +282,8 @@ export function selectSpot(sid) {
     }
   }
 
-  // Update spot detail and DE/DX widgets
+  // Update spot detail and DE/DX widgets.
+
   let selectedSpot = null;
   if (newSid) {
     const filtered = state.sourceFiltered[state.currentSource] || [];
@@ -319,9 +328,8 @@ export function flyToSpot(spot) {
 }
 
 // --- Cross-tab remote spot selection ---
-// Applies a spot selection from another tab. The spot object is broadcast
-// in full because this tab may not have it in its local sourceFiltered data.
-
+// Applies a spot selection from another tab. The spot object is broadcast.
+// In full because this tab may not have it in its local sourceFiltered data.
 function selectSpotFromRemote(spot) {
   // Guard: skip if app hasn't initialized yet (message arrived before initWidgets)
   if (!state.appInitialized) return;
@@ -330,7 +338,8 @@ function selectSpotFromRemote(spot) {
   clearGeodesicLine();
   const oldSid = state.selectedSpotId;
 
-  // Clear old marker highlight
+  // Clear old marker highlight.
+
   if (oldSid && state.markers[oldSid]) {
     state.markers[oldSid].setIcon(defaultIcon);
     if (state.clusterGroup) {
@@ -354,7 +363,8 @@ function selectSpotFromRemote(spot) {
   const sid = spotId(spot);
   state.selectedSpotId = sid;
 
-  // Highlight marker if this tab has one for this spot
+  // Highlight marker if this tab has one for this spot.
+
   if (state.markers[sid]) {
     state.markers[sid].setIcon(selectedIcon);
     if (state.clusterGroup) {
@@ -370,7 +380,7 @@ function selectSpotFromRemote(spot) {
     tr.classList.toggle('selected', tr.dataset.spotId === sid);
   });
 
-  // Populate DX Detail, DE/DX Info, geodesic lines from the broadcast spot data
+  // Populate DX Detail, DE/DX Info, geodesic lines from the broadcast spot data.
   updateSpotDetail(spot);
   setDedxSpot(spot);
   drawGeodesicLine(spot);
@@ -384,7 +394,7 @@ function selectSpotFromRemote(spot) {
   }
 }
 
-// Listen for remote spot selections dispatched by cross-tab.js
+// Listen for remote spot selections dispatched by cross-tab.js.
 document.addEventListener('hamtab:remote-spot-selected', (e) => {
   _suppressBroadcast = true;
   try {

@@ -1,4 +1,6 @@
-// Mobile hamburger menu — slide-out drawer with backdrop
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+// Mobile hamburger menu — slide-out drawer with backdrop.
 import state from './state.js';
 import { $ } from './dom.js';
 import { openLayoutMenu } from './layouts.js';
@@ -21,11 +23,13 @@ function openMenu() {
   // Trap focus within drawer (gated by a11y setting)
   if (state.a11yFocusTrap) releaseTrap = trapFocus(drawer);
 
-  // Focus first menu item
+  // Focus first menu item.
+
   const firstItem = drawer.querySelector('.mobile-menu-item');
   if (firstItem) firstItem.focus();
 
-  // Sync update indicator into drawer
+  // Sync update indicator into drawer.
+
   const updateEl = $('updateIndicator');
   const menuUpdate = $('mobileMenuUpdate');
   if (updateEl && menuUpdate) {
@@ -44,7 +48,8 @@ function closeMenu() {
   isOpen = false;
   if (menuBtn) menuBtn.setAttribute('aria-expanded', 'false');
 
-  // Release focus trap and restore focus to menu button
+  // Release focus trap and restore focus to menu button.
+
   if (releaseTrap) { releaseTrap(); releaseTrap = null; }
   if (menuBtn) menuBtn.focus();
 }
@@ -56,28 +61,28 @@ export function initMobileMenu() {
 
   if (!menuBtn || !backdrop || !drawer) return;
 
-  // Toggle on hamburger click
+  // Toggle on hamburger click.
   menuBtn.addEventListener('click', () => {
     if (isOpen) closeMenu();
     else openMenu();
   });
 
-  // Close on backdrop click
+  // Close on backdrop click.
   backdrop.addEventListener('click', closeMenu);
 
-  // Close on Escape key
+  // Close on Escape key.
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && isOpen) { if (!state.a11yEscapeClose) return; closeMenu(); }
   });
 
-  // Handle menu item actions
+  // Handle menu item actions.
   drawer.addEventListener('click', (e) => {
     const item = e.target.closest('.mobile-menu-item');
     if (!item) return;
 
     const action = item.dataset.action;
     if (!action) {
-      // It's a link (Coffee, Discord) — let it navigate, close menu
+      // It's a link (Coffee, Discord) — let it navigate, close menu.
       closeMenu();
       return;
     }

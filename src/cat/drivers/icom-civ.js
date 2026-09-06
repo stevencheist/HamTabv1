@@ -1,9 +1,10 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Driver: Icom CI-V (Computer Interface V) ---
 // Covers: IC-7300, IC-7610, IC-9700, IC-705, IC-7100, IC-7851, etc.
-// Protocol: Binary frames with BCD-encoded frequencies
-// Frame: FE FE <to> <from> <cmd> [<sub>] [<data>...] FD
-// Reference: Icom CI-V Protocol Specification
-
+// Protocol: Binary frames with BCD-encoded frequencies.
+// Frame: FE FE <to> <from> <cmd> [<sub>] [<data>...] FD.
+// Reference: Icom CI-V Protocol Specification.
 // --- Constants ---
 const PREAMBLE = 0xFE;
 const EOM = 0xFD;           // end of message
@@ -91,7 +92,7 @@ function freqToBCD(hz) {
 }
 
 function bcdToFreq(bytes) {
-  // 5 BCD bytes, LSB first → Hz
+  // 5 BCD bytes, LSB first → Hz.
   let hz = 0;
   let mult = 10; // smallest digit is 10Hz
   for (let i = 0; i < bytes.length; i++) {
@@ -118,10 +119,8 @@ function buildFrame(toAddr, cmd, sub, data) {
 
 // --- Driver interface ---
 // Note: CI-V uses binary transport (writeRaw/readBytes), not ASCII sendCommand.
-// The rig-manager needs to handle this differently. For now, encode() returns
-// a Uint8Array and parse() accepts a Uint8Array.
-// We use a wrapper to bridge the ASCII sendCommand interface.
-
+// The rig-manager needs to handle this differently. For now, encode() returns.
+// A Uint8Array and parse() accepts a Uint8Array.// We use a wrapper to bridge the ASCII sendCommand interface.
 let civAddress = 0x94; // default IC-7300
 
 export const icomCiv = {
@@ -160,6 +159,7 @@ export const icomCiv = {
   },
 
   // --- Command encoding ---
+
   // Returns an ASCII command string that the rig-manager will process.
   // For CI-V, we encode to hex string representation of the binary frame,
   // then the transport layer converts to raw bytes.
@@ -218,13 +218,15 @@ export const icomCiv = {
 
     if (!frame) return null;
 
-    // Encode binary frame as hex string for transport through ASCII command queue
-    // The transport layer will convert back to bytes
+    // Encode binary frame as hex string for transport through ASCII command queue.
+
+    // The transport layer will convert back to bytes.
     return 'CIV:' + Array.from(frame).map(b => b.toString(16).padStart(2, '0')).join('');
   },
 
   // --- Response parsing ---
-  // Accepts either a hex-encoded string (CIV:...) or raw response string
+
+  // Accepts either a hex-encoded string (CIV:...) or raw response string.
   parse(response) {
     if (!response) return null;
 
@@ -239,7 +241,8 @@ export const icomCiv = {
       return null;
     }
 
-    // Validate frame: FE FE <from> <to> <cmd> ... FD
+    // Validate frame: FE FE <from> <to> <cmd> ... FD.
+
     if (bytes.length < 6 || bytes[0] !== PREAMBLE || bytes[1] !== PREAMBLE) {
       return null;
     }

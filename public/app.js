@@ -28,7 +28,7 @@
         // Markers & selection
         markers: {},
         selectedSpotId: null,
-        // Filters — multi-select bands/modes stored as Sets
+        // Filters — multi-select bands/modes stored as Sets.
         activeBands: /* @__PURE__ */ new Set(),
         activeModes: /* @__PURE__ */ new Set(),
         activeCountry: null,
@@ -54,7 +54,7 @@
         // ITU region for sub-band definitions
         propagationFilterEnabled: false,
         // session-only — filter spots by predicted band reliability (≥30%)
-        // Filter presets per source
+        // Filter presets per source.
         filterPresets: { pota: {}, sota: {}, dxc: {}, wspr: {}, rbn: {} },
         // Watch list rules per source — Red (highlight), Only (include), Not (exclude)
         watchLists: (() => {
@@ -72,7 +72,7 @@
         })(),
         watchRedSpotIds: /* @__PURE__ */ new Set(),
         // spot IDs matching "red" rules — rebuilt each filter pass
-        // Auto-refresh — defaults to on, persisted in localStorage
+        // Auto-refresh — defaults to on, persisted in localStorage.
         autoRefreshEnabled: localStorage.getItem("hamtab_auto_refresh") !== "false",
         countdownSeconds: 60,
         countdownTimer: null,
@@ -106,7 +106,7 @@
         // 'qth' (500km), 'cty' (country bounds), 'world' (all spots)
         // DXpedition time filter — 'active', '7d', '30d', '180d', 'all'
         dxpedTimeFilter: localStorage.getItem("hamtab_dxped_time_filter") || "all",
-        // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage
+        // Hidden DXpedition callsigns — Set of callsign strings persisted in localStorage.
         hiddenDxpeditions: (() => {
           try {
             const s = JSON.parse(localStorage.getItem("hamtab_dxped_hidden"));
@@ -127,7 +127,7 @@
         // loaded in solar.js
         lunarFieldVisibility: null,
         // loaded in lunar.js
-        // Spot column visibility — which columns are shown in the On the Air table
+        // Spot column visibility — which columns are shown in the On the Air table.
         spotColumnVisibility: null,
         // loaded in spots.js
         // Spot table sorting
@@ -135,7 +135,7 @@
         // current sort column key (null = default spotTime)
         spotSortDirection: "desc",
         // 'asc' or 'desc'
-        // Cached data for re-render
+        // Cached data for re-render.
         lastSolarData: null,
         lastLunarData: null,
         spacewxData: null,
@@ -298,7 +298,7 @@
         // L.circleMarker[] for QSO positions on map
         logbookLines: [],
         // L.polyline[] for QSO geodesic paths
-        // Beacons / DXpeditions / Contests
+        // Beacons / DXpeditions / Contests.
         beaconTimer: null,
         // setInterval ID for 1-second beacon updates
         dedxTimer: null,
@@ -314,9 +314,11 @@
         // Progressive scaling
         reflowActive: false,
         // true when viewport < SCALE_REFLOW_WIDTH (Zone C columnar layout)
-        // POTA Hunter — worked callsign tracking + spotter location
+        // POTA Hunter — worked callsign tracking + spotter location.
         spotterLocation: localStorage.getItem("hamtab_spotter_location") || "",
         // free text for spot comments (e.g. "Dallas, TX")
+        myPark: localStorage.getItem("hamtab_my_park") || "",
+        // your POTA park reference for self-spotting (e.g. "US-1234")
         hideWorked: localStorage.getItem("hamtab_hide_worked") === "true",
         // filter toggle
         workedList: (() => {
@@ -327,7 +329,7 @@
           }
           return [];
         })(),
-        // Band Opportunity Score cache
+        // Band Opportunity Score cache.
         bandScores: null,
         // Debug mode — enables verbose console logging (cross-tab, fetch diagnostics)
         // Toggle at runtime via console: window.__hamtab_debug()
@@ -1233,7 +1235,7 @@
         ["Andorra", 42.43, 1.41, 42.66, 1.79],
         ["Monaco", 43.72, 7.41, 43.75, 7.44],
         ["Liechtenstein", 47.05, 9.47, 47.27, 9.64],
-        // Russia — split into European and Asian
+        // Russia — split into European and Asian.
         ["Russia (European)", 41.19, 27.33, 69.95, 60],
         ["Russia (Asian)", 42.3, 60, 81.86, 179.99],
         // Middle East
@@ -1362,7 +1364,7 @@
         ["Nauru", -0.56, 166.9, -0.49, 166.96],
         ["Guam", 13.24, 144.62, 13.65, 144.96],
         ["American Samoa", -14.38, -170.83, -14.16, -169.42],
-        // North Asia / other
+        // North Asia / other.
         ["Georgia", 41.05, 40.01, 43.59, 46.72],
         ["Armenia", 38.84, 43.45, 41.3, 46.63],
         ["Azerbaijan", 38.39, 44.79, 41.91, 50.37]
@@ -1393,8 +1395,10 @@
       FEATURE_FLAGS = {
         preset_profiles: "test",
         // callsign-gated SSB presets (v0.68.0)
-        pota_hunter: "dev:KG5DPV",
+        pota_hunter: "test",
         // POTA hunting helper — confirm QSO + spot reporter (v0.68.7)
+        pota_self_spot: "dev:KJ5MMO",
+        // POTA activator self-spot from On-Air widget — one-click (v0.70.3)
         band_score: "dev:KG5DPV",
         // Band Opportunity Score widget (v0.69.0)
         rbn_source: "dev:KG5DPV",
@@ -1550,8 +1554,8 @@
           if (this._onStateChange) this._onStateChange(newState);
         }
         // --- Start persistent reader loop ---
-        // Runs in the background, continuously reads from the serial port into
-        // _rawBuffer. Never calls reader.cancel() — the loop ends only when
+        // Runs in the background, continuously reads from the serial port into.
+        // _rawBuffer. Never calls reader.cancel() — the loop ends only when.
         // disconnect() cancels the reader.
         _startReadLoop() {
           if (this._readLoopRunning) {
@@ -1633,8 +1637,8 @@
           this._readLoopPromise = null;
         }
         // --- Wait for NEW data with timeout ---
-        // Always waits for the read loop to deliver new bytes — never returns
-        // early based on existing buffer content (the caller already checked).
+        // Always waits for the read loop to deliver new bytes — never returns.
+        // Early based on existing buffer content (the caller already checked).
         // This prevents busy-looping when the buffer has partial data without
         // the expected terminator.
         _waitForData(timeoutMs) {
@@ -1652,8 +1656,8 @@
         // --- Connect ---
         // Opens the browser serial port picker, then opens with configured params.
         // Asserts DTR after open. Falls back to no flow control if HW not supported.
-        // If the port is already open (reused from smart-detect), skips open and
-        // just adopts the port reference.
+        // If the port is already open (reused from smart-detect), skips open and.
+        // Just adopts the port reference.
         async connect(existingPort) {
           if (!_WebSerialTransport.isSupported()) {
             throw new Error("Web Serial API not supported in this browser");
@@ -1777,9 +1781,9 @@
           }
         }
         // --- Read until terminator ---
-        // Reads ASCII data from the internal buffer until the terminator character
-        // (default ";") is found. Returns the complete response string including
-        // terminator. Used for Yaesu/Kenwood/Elecraft ASCII protocols.
+        // Reads ASCII data from the internal buffer until the terminator character.
+        // (default ";") is found. Returns the complete response string including.
+        // Terminator. Used for Yaesu/Kenwood/Elecraft ASCII protocols.
         async readUntil(terminator = ";", timeoutMs = 2e3) {
           if (!this.port) {
             throw new Error("Serial port not open");
@@ -2552,7 +2556,7 @@
         }
         // --- Internal: handle incoming WebSocket message ---
         // KiwiSDR sends ALL frames as binary ArrayBuffers with a 3-byte ASCII tag:
-        //   "SND" — audio + S-meter data
+        //   "SND" — audio + S-meter data.
         //   "MSG" — text key=value protocol messages (sent as binary, not WS text)
         _handleMessage(event) {
           if (event.data instanceof ArrayBuffer) {
@@ -2637,7 +2641,7 @@
         }
         // --- Convert dBm to raw 0-255 scale for S-meter compatibility ---
         // KiwiSDR range: roughly -130 dBm (noise floor) to -10 dBm (strong)
-        // Maps linearly: -130 → 0, -10 → 255
+        // Maps linearly: -130 → 0, -10 → 255.
         _dbToRaw(dbm) {
           const clamped = Math.max(-130, Math.min(-10, dbm));
           return Math.round((clamped + 130) / 120 * 255);
@@ -2759,7 +2763,7 @@
         label: "Yaesu (NewCAT)",
         terminator: ";",
         // --- Initialization commands ---
-        // Sent once after connection to configure the radio for CAT control
+        // Sent once after connection to configure the radio for CAT control.
         init() {
           return [
             "ID;",
@@ -2893,9 +2897,8 @@
               return "PL;";
             case "setProcessorLevel":
               return `PL${String(params).padStart(3, "0")};`;
-            // EX (Menu) — read/write radio menu settings
-            // params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set
-            // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
+            // EX (Menu) — read/write radio menu settings.
+            // Params: { p1, p2, p3 } for read, { p1, p2, p3, value, digits } for set      // Format: EX P1P1 P2P2 P3P3 [P4~P4] ; (contiguous, no spaces)
             case "getMenu": {
               const { p1, p2, p3 } = params;
               return `EX${pad(p1, 2)}${pad(p2, 2)}${pad(p3, 2)};`;
@@ -3461,7 +3464,7 @@
           return "CIV:" + Array.from(frame).map((b) => b.toString(16).padStart(2, "0")).join("");
         },
         // --- Response parsing ---
-        // Accepts either a hex-encoded string (CIV:...) or raw response string
+        // Accepts either a hex-encoded string (CIV:...) or raw response string.
         parse(response) {
           if (!response) return null;
           let bytes;
@@ -3625,7 +3628,7 @@
           ];
         },
         // --- Command encoding ---
-        // Elecraft uses 11-digit frequency fields like Kenwood
+        // Elecraft uses 11-digit frequency fields like Kenwood.
         encode(command, params) {
           switch (command) {
             case "getFrequency":
@@ -3748,11 +3751,11 @@
       kiwisdrWs = {
         name: "kiwisdr_ws",
         label: "KiwiSDR (WebSocket)",
-        // No init commands — transport handles WebSocket handshake + auth
+        // No init commands — transport handles WebSocket handshake + auth.
         init() {
           return [];
         },
-        // RX-only capabilities — no PTT, no SWR, no power
+        // RX-only capabilities — no PTT, no SWR, no power.
         capabilities() {
           return [
             "frequency_read",
@@ -3762,7 +3765,7 @@
             "meter_signal"
           ];
         },
-        // Encode logical command → KIWI: marker string
+        // Encode logical command → KIWI: marker string.
         encode(command, params) {
           switch (command) {
             case "getFrequency":
@@ -3779,7 +3782,7 @@
               return null;
           }
         },
-        // Parse KIWI response → event object for RigStateStore
+        // Parse KIWI response → event object for RigStateStore.
         parse(response) {
           if (!response) return null;
           if (response.startsWith("FREQ:")) {
@@ -3798,7 +3801,7 @@
           }
           return null;
         },
-        // Commands sent each polling cycle
+        // Commands sent each polling cycle.
         pollCommands() {
           return [
             "getFrequency",
@@ -3806,7 +3809,7 @@
             "getSignal"
           ];
         }
-        // No meter commands — S-meter handled via pollCommands
+        // No meter commands — S-meter handled via pollCommands.
         // (KiwiSDR pushes S-meter in binary frames; no separate meter cycle needed)
       };
     }
@@ -3861,7 +3864,7 @@
         terminator: ";",
         binary: false,
         // --- Initialization commands ---
-        // After WebSocket connects, subscribe to TCI push notifications
+        // After WebSocket connects, subscribe to TCI push notifications.
         init() {
           return [
             "VFO:0,0;",
@@ -3889,7 +3892,7 @@
           ];
         },
         // --- Polling commands ---
-        // These read from the TCI transport's cache — effectively free
+        // These read from the TCI transport's cache — effectively free.
         pollCommands() {
           return [
             "getFrequency",
@@ -3906,7 +3909,7 @@
           ];
         },
         // --- Command encoding ---
-        // Converts HamTab logical commands → TCI wire format
+        // Converts HamTab logical commands → TCI wire format.
         encode(command, params) {
           switch (command) {
             case "getFrequency":
@@ -3940,7 +3943,7 @@
           }
         },
         // --- Response parsing ---
-        // Parses TCI response strings into {type, value} events for RigStateStore
+        // Parses TCI response strings into {type, value} events for RigStateStore.
         parse(response) {
           if (!response) return null;
           const resp = response.endsWith(";") ? response.slice(0, -1) : response;
@@ -4437,7 +4440,7 @@
       txLocked: false,
       txLockReason: "",
       // Menu responses — keyed by address string (e.g. "010416" for P1=01 P2=04 P3=16)
-      // Populated by EX command responses, used by digital setup to read/restore settings
+      // Populated by EX command responses, used by digital setup to read/restore settings.
       menuResponses: {},
       // --- Radio settings (populated by profile read commands) ---
       afGain: null,
@@ -5493,7 +5496,7 @@
       init_web_serial();
       init_rig_profiles();
       PROBES = [
-        // 1. Yaesu 38400/8N1 — newer radios: FT-DX10, FT-710, FT-DX101D/MP
+        // 1. Yaesu 38400/8N1 — newer radios: FT-DX10, FT-710, FT-DX101D/MP.
         {
           name: "Yaesu 38400",
           serialConfig: { baudRate: 38400, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
@@ -5560,7 +5563,7 @@
             return parseAsciiId(resp, "yaesu_ascii");
           }
         },
-        // 7. Kenwood 9600/8N1 — TS-480
+        // 7. Kenwood 9600/8N1 — TS-480.
         {
           name: "Kenwood 9600",
           serialConfig: { baudRate: 9600, dataBits: 8, stopBits: 1, parity: "none", flowControl: "none" },
@@ -5756,7 +5759,7 @@
     let nextStartTime = 0;
     let muted = false;
     return {
-      // Schedule PCM Int16 samples for playback
+      // Schedule PCM Int16 samples for playback.
       feedSamples(int16Array) {
         if (!int16Array.length) return;
         if (ctx.state === "suspended") ctx.resume();
@@ -6711,7 +6714,7 @@
     const reference = refEl.textContent.trim();
     const comments = commentEl ? commentEl.value.trim() : "";
     if (!activator || !reference) {
-      if (statusEl) statusEl.textContent = "Missing activator or reference";
+      if (statusEl) statusEl.textContent = "Missing activator or reference.";
       return;
     }
     if (submitBtn) {
@@ -10484,7 +10487,7 @@
     const defs = singleBand ? getSubBandDefinitions(state_default.activeBandPlanRegion, singleBand) : null;
     if (!defs) {
       wrap.classList.add("subband-disabled");
-      if (meta) meta.textContent = "Select one band to filter by sub-band";
+      if (meta) meta.textContent = "Select one band to filter by sub-band.";
       container.innerHTML = "";
       if (state_default.activeSubBandBand) {
         state_default.activeSubBandBand = null;
@@ -11095,7 +11098,6 @@
         });
         L.marker([mid[1], mid[0]], { icon, pane: "propagation", interactive: false }).addTo(state_default.propLabelLayer);
       });
-      state_default.map.invalidateSize();
     } catch (err2) {
       console.error("Failed to fetch propagation:", err2);
     }
@@ -12388,7 +12390,7 @@
           columns: "1fr 2fr 1fr",
           rows: "1fr 1fr",
           cellNames: ["L1", "L2", "R1", "R2"],
-          // Flex-column hybrid fields — used by grid-layout.js at runtime
+          // Flex-column hybrid fields — used by grid-layout.js at runtime.
           left: ["L1", "L2"],
           right: ["R1", "R2"],
           top: [],
@@ -15435,7 +15437,7 @@ ${beacon.location}`);
       list.textContent = "";
       const empty = document.createElement("div");
       empty.className = "dxped-empty";
-      empty.textContent = "No DXpeditions found";
+      empty.textContent = "No DXpeditions found.";
       list.appendChild(empty);
       if (countEl) countEl.textContent = "";
       updateDxpeditionMarkers([]);
@@ -15449,7 +15451,7 @@ ${beacon.location}`);
     if (filtered.length === 0 && hiddenCount === 0) {
       const empty = document.createElement("div");
       empty.className = "dxped-empty";
-      empty.textContent = "No DXpeditions match the selected time filter";
+      empty.textContent = "No DXpeditions match the selected time filter.";
       list.appendChild(empty);
       updateDxpeditionMarkers([]);
       return;
@@ -15586,7 +15588,7 @@ ${beacon.location}`);
       list.textContent = "";
       const empty = document.createElement("div");
       empty.className = "contest-empty";
-      empty.textContent = "No upcoming contests found";
+      empty.textContent = "No upcoming contests found.";
       list.appendChild(empty);
       if (countEl) countEl.textContent = "";
       return;
@@ -15604,7 +15606,7 @@ ${beacon.location}`);
       list.textContent = "";
       const empty = document.createElement("div");
       empty.className = "contest-empty";
-      empty.textContent = "No upcoming contests found";
+      empty.textContent = "No upcoming contests found.";
       list.appendChild(empty);
       if (countEl) countEl.textContent = "";
       return;
@@ -15657,6 +15659,205 @@ ${beacon.location}`);
   init_widgets();
   init_cross_tab();
   init_feature_flags();
+
+  // src/fetch-scheduler.js
+  init_widgets();
+  init_cross_tab();
+  init_feature_flags();
+
+  // src/fetch-scheduler-policy.js
+  function validateSpec(spec) {
+    if (!spec || typeof spec.id !== "string" || !spec.id) {
+      throw new Error("scheduler: spec.id is required");
+    }
+    if (typeof spec.run !== "function") {
+      throw new Error(`scheduler: ${spec.id}: spec.run must be a function`);
+    }
+    if (spec.manual !== true) {
+      if (typeof spec.intervalMs !== "number" || spec.intervalMs <= 0 || !Number.isFinite(spec.intervalMs)) {
+        throw new Error(`scheduler: ${spec.id}: spec.intervalMs must be a positive finite number`);
+      }
+    }
+    if (spec.jitterMs != null && (typeof spec.jitterMs !== "number" || spec.jitterMs < 0)) {
+      throw new Error(`scheduler: ${spec.id}: spec.jitterMs must be a non-negative number`);
+    }
+    if (spec.maxBackoffMs != null && (typeof spec.maxBackoffMs !== "number" || spec.maxBackoffMs <= 0)) {
+      throw new Error(`scheduler: ${spec.id}: spec.maxBackoffMs must be a positive number`);
+    }
+    if (spec.staleAfterMs != null && (typeof spec.staleAfterMs !== "number" || spec.staleAfterMs <= 0)) {
+      throw new Error(`scheduler: ${spec.id}: spec.staleAfterMs must be a positive number`);
+    }
+  }
+  function shouldRun(spec, ctx) {
+    if (spec.requiresVisible !== false && ctx.hidden) return false;
+    if (spec.requiresLeader && !ctx.isLeader) return false;
+    if (spec.featureFlag && !ctx.featureVisible) return false;
+    if (spec.widgetGate) {
+      if (!ctx.widgetVisible && !ctx.widgetGateOrResult) return false;
+    }
+    return true;
+  }
+  function nextDelay(spec, random = Math.random) {
+    if (!spec.jitterMs) return spec.intervalMs;
+    const jitter = Math.floor(random() * spec.jitterMs * 2) - spec.jitterMs;
+    return Math.max(0, spec.intervalMs + jitter);
+  }
+  var DEFAULT_MAX_BACKOFF_MS = 30 * 60 * 1e3;
+  var MAX_BACKOFF_EXPONENT = 10;
+  function nextBackoffDelay(spec, consecutiveFailures, random = Math.random) {
+    if (consecutiveFailures <= 0) return nextDelay(spec, random);
+    const cap = spec.maxBackoffMs ?? DEFAULT_MAX_BACKOFF_MS;
+    const exp = Math.min(consecutiveFailures, MAX_BACKOFF_EXPONENT);
+    const backoff = Math.min(spec.intervalMs * Math.pow(2, exp), cap);
+    if (spec.jitterMs) {
+      const jitter = Math.floor(random() * spec.jitterMs * 2) - spec.jitterMs;
+      return Math.max(0, backoff + jitter);
+    }
+    return backoff;
+  }
+  function isStale(spec, jobState, now = Date.now()) {
+    if (!jobState || !jobState.lastSucceededAt) return true;
+    const defaultStale = spec.intervalMs ? Math.max(spec.intervalMs * 2, 6e4) : 6e4;
+    const staleAfter = spec.staleAfterMs ?? defaultStale;
+    return now - jobState.lastSucceededAt > staleAfter;
+  }
+  function newJobState() {
+    return {
+      lastStartedAt: null,
+      lastSucceededAt: null,
+      lastFailedAt: null,
+      consecutiveFailures: 0,
+      nextEligibleAt: null,
+      stale: true,
+      lastError: null
+    };
+  }
+
+  // src/fetch-scheduler.js
+  var jobs = /* @__PURE__ */ new Map();
+  function buildContext(spec) {
+    return {
+      hidden: typeof document !== "undefined" ? document.hidden : false,
+      isLeader: isLeaderTab(),
+      widgetVisible: spec.widgetGate ? isWidgetVisible(spec.widgetGate) : void 0,
+      widgetGateOrResult: spec.widgetGateOr ? !!spec.widgetGateOr() : void 0,
+      featureVisible: spec.featureFlag ? isFeatureVisible(spec.featureFlag) : void 0
+    };
+  }
+  async function executeJob(id) {
+    const entry = jobs.get(id);
+    if (!entry) return false;
+    const { spec, state: jobState } = entry;
+    jobState.lastStartedAt = Date.now();
+    try {
+      const result = spec.run();
+      if (result && typeof result.then === "function") {
+        await result;
+      }
+      jobState.lastSucceededAt = Date.now();
+      jobState.consecutiveFailures = 0;
+      jobState.lastError = null;
+      return true;
+    } catch (err2) {
+      jobState.lastFailedAt = Date.now();
+      jobState.consecutiveFailures++;
+      jobState.lastError = err2 && err2.message ? err2.message : String(err2);
+      console.error(`[scheduler:${id}]`, err2);
+      return false;
+    }
+  }
+  function scheduleNext(id) {
+    const entry = jobs.get(id);
+    if (!entry || entry.spec.manual === true) return;
+    const delay = nextBackoffDelay(entry.spec, entry.state.consecutiveFailures);
+    entry.state.nextEligibleAt = Date.now() + delay;
+    entry.timer = setTimeout(async () => {
+      if (!jobs.has(id)) return;
+      if (shouldRun(entry.spec, buildContext(entry.spec))) {
+        await executeJob(id);
+      }
+      scheduleNext(id);
+    }, delay);
+  }
+  function register(spec) {
+    validateSpec(spec);
+    if (jobs.has(spec.id)) {
+      throw new Error(`scheduler.register: duplicate id "${spec.id}"`);
+    }
+    jobs.set(spec.id, { spec, timer: null, state: newJobState() });
+    if (spec.manual !== true) {
+      scheduleNext(spec.id);
+    }
+  }
+  function unregister(id) {
+    const entry = jobs.get(id);
+    if (!entry) return false;
+    if (entry.timer) clearTimeout(entry.timer);
+    jobs.delete(id);
+    return true;
+  }
+  function has(id) {
+    return jobs.has(id);
+  }
+  function listJobs() {
+    return Array.from(jobs.keys());
+  }
+  function getJobState(id) {
+    const entry = jobs.get(id);
+    if (!entry) return null;
+    return {
+      ...entry.state,
+      stale: isStale(entry.spec, entry.state)
+    };
+  }
+  function getAllJobStates() {
+    const result = {};
+    for (const [id, entry] of jobs) {
+      result[id] = {
+        ...entry.state,
+        stale: isStale(entry.spec, entry.state)
+      };
+    }
+    return result;
+  }
+  async function runNow(id) {
+    if (!jobs.has(id)) return false;
+    await executeJob(id);
+    return true;
+  }
+  function catchUpRenderJobs() {
+    for (const [id, entry] of jobs) {
+      if (entry.spec.manual) continue;
+      if (entry.spec.kind !== "render") continue;
+      if (!shouldRun(entry.spec, buildContext(entry.spec))) continue;
+      const sinceLastStart = Date.now() - (entry.state.lastStartedAt || 0);
+      if (sinceLastStart < 250) continue;
+      if (entry.timer) {
+        clearTimeout(entry.timer);
+        entry.timer = null;
+      }
+      executeJob(id).then(() => scheduleNext(id));
+    }
+  }
+  if (typeof window !== "undefined") {
+    window.__hamtabScheduler = {
+      list: listJobs,
+      state: getJobState,
+      all: getAllJobStates,
+      runNow,
+      has,
+      catchUp: catchUpRenderJobs
+    };
+  }
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) return;
+      catchUpRenderJobs();
+    });
+  }
+
+  // src/refresh.js
+  var AUTO_REFRESH_JOB_ID = "auto-refresh-countdown";
   var dxcSse = null;
   var rbnSse = null;
   function handleSseEvents(source, eventSource, sourceName) {
@@ -15720,54 +15921,86 @@ ${beacon.location}`);
   function isRbnSseActive() {
     return rbnSse !== null;
   }
-  async function fetchSourceData(source) {
-    const def = SOURCE_DEFS[source];
-    if (!def) return;
-    if (source === "dxc" && isDxcSseActive()) return;
-    if (source === "rbn" && isRbnSseActive()) return;
-    try {
-      const cacheable = source === "psk" || source === "wspr";
-      const url = cacheable ? def.endpoint : def.endpoint + (def.endpoint.includes("?") ? "&" : "?") + "_t=" + Date.now();
-      const resp = await fetch(url);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      let data = await resp.json();
-      if (source === "pota") {
-        data = (Array.isArray(data) ? data : []).map((s) => {
-          if (!s.callsign && s.activator) s.callsign = s.activator;
-          return s;
-        });
-      }
-      state_default.sourceData[source] = Array.isArray(data) ? data : [];
-      if (source === "wspr" && state_default.mapOverlays.wsprHeatmap) {
-        clearTimeout(state_default.wsprHeatmapRenderTimer);
-        const { renderWsprHeatmapCanvas: renderWsprHeatmapCanvas2 } = (init_wspr_heatmap(), __toCommonJS(wspr_heatmap_exports));
-        state_default.wsprHeatmapRenderTimer = setTimeout(() => renderWsprHeatmapCanvas2(state_default.wsprHeatmapBand), 200);
-      }
-      if (source === state_default.currentSource) {
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-        updateBandFilterButtons();
-        updateModeFilterButtons();
-        updateCountryFilter();
-        updateStateFilter();
-        updateGridFilter();
-        updateContinentFilter();
-      }
-    } catch (err2) {
-      console.error(`Failed to fetch ${source} spots:`, err2);
+  var SOURCE_JOBS = [
+    {
+      id: "source-pota",
+      source: "pota",
+      cacheable: false,
+      transform: (data) => (Array.isArray(data) ? data : []).map((s) => {
+        if (!s.callsign && s.activator) s.callsign = s.activator;
+        return s;
+      })
+    },
+    { id: "source-sota", source: "sota", cacheable: false },
+    {
+      id: "source-dxc",
+      source: "dxc",
+      cacheable: false,
+      shortCircuit: () => isDxcSseActive()
+    },
+    { id: "source-wwff", source: "wwff", cacheable: false },
+    { id: "source-psk", source: "psk", cacheable: true },
+    { id: "source-wspr", source: "wspr", cacheable: true },
+    {
+      id: "source-rbn",
+      source: "rbn",
+      cacheable: false,
+      featureFlag: "rbn_source",
+      shortCircuit: () => isRbnSseActive()
+    }
+  ];
+  async function fetchSourceRaw(job) {
+    const def = SOURCE_DEFS[job.source];
+    if (!def) throw new Error(`Unknown source: ${job.source}`);
+    if (job.shortCircuit && job.shortCircuit()) return null;
+    const url = job.cacheable ? def.endpoint : def.endpoint + (def.endpoint.includes("?") ? "&" : "?") + "_t=" + Date.now();
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+  }
+  function applySourceData(job, rawData) {
+    const transformed = job.transform ? job.transform(rawData) : rawData;
+    state_default.sourceData[job.source] = Array.isArray(transformed) ? transformed : [];
+    if (job.source === "wspr" && state_default.mapOverlays.wsprHeatmap) {
+      clearTimeout(state_default.wsprHeatmapRenderTimer);
+      const { renderWsprHeatmapCanvas: renderWsprHeatmapCanvas2 } = (init_wspr_heatmap(), __toCommonJS(wspr_heatmap_exports));
+      state_default.wsprHeatmapRenderTimer = setTimeout(
+        () => renderWsprHeatmapCanvas2(state_default.wsprHeatmapBand),
+        200
+      );
+    }
+    if (job.source === state_default.currentSource) {
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+      updateBandFilterButtons();
+      updateModeFilterButtons();
+      updateCountryFilter();
+      updateStateFilter();
+      updateGridFilter();
+      updateContinentFilter();
     }
   }
+  async function runSourceJob(job) {
+    if (job.featureFlag && !isFeatureVisible(job.featureFlag)) return;
+    const data = await fetchSourceRaw(job);
+    if (data === null) return;
+    applySourceData(job, data);
+  }
+  SOURCE_JOBS.forEach((job) => {
+    register({
+      id: job.id,
+      run: () => runSourceJob(job),
+      manual: true,
+      kind: "fetch"
+    });
+  });
   function refreshAll() {
     const btn = $("refreshBtn");
     if (btn) btn.textContent = "Refreshing...";
-    fetchSourceData("pota");
-    fetchSourceData("sota");
-    fetchSourceData("dxc");
-    fetchSourceData("wwff");
-    fetchSourceData("psk");
-    fetchSourceData("wspr");
-    if (isFeatureVisible("rbn_source")) fetchSourceData("rbn");
+    for (const job of SOURCE_JOBS) {
+      runNow(job.id);
+    }
     if (isWidgetVisible("widget-solar") || isWidgetVisible("widget-propagation") || isWidgetVisible("widget-voacap")) fetchSolar();
     if (isWidgetVisible("widget-lunar")) fetchLunar();
     fetchPropagation();
@@ -15790,27 +16023,35 @@ ${beacon.location}`);
       btn.textContent = "Refresh";
     }
   }
+  function autoRefreshTick() {
+    state_default.countdownSeconds--;
+    if (state_default.countdownSeconds <= 0) {
+      if (isLeaderTab()) {
+        refreshAll();
+      } else {
+        resetCountdown();
+      }
+    }
+    updateCountdownDisplay();
+  }
   function startAutoRefresh() {
     stopAutoRefresh();
     state_default.autoRefreshEnabled = true;
     localStorage.setItem("hamtab_auto_refresh", "true");
     resetCountdown();
-    state_default.countdownTimer = setInterval(() => {
-      if (document.hidden) return;
-      state_default.countdownSeconds--;
-      if (state_default.countdownSeconds <= 0) {
-        if (isLeaderTab()) {
-          refreshAll();
-        } else {
-          resetCountdown();
-        }
-      }
-      updateCountdownDisplay();
-    }, 1e3);
+    register({
+      id: AUTO_REFRESH_JOB_ID,
+      intervalMs: 1e3,
+      run: autoRefreshTick,
+      kind: "render"
+    });
   }
   function stopAutoRefresh() {
     state_default.autoRefreshEnabled = false;
     localStorage.setItem("hamtab_auto_refresh", "false");
+    if (has(AUTO_REFRESH_JOB_ID)) {
+      unregister(AUTO_REFRESH_JOB_ID);
+    }
     if (state_default.countdownTimer) {
       clearInterval(state_default.countdownTimer);
       state_default.countdownTimer = null;
@@ -16398,7 +16639,7 @@ ${beacon.location}`);
     if (!summary) return;
     if (!state_default.myCallsign) {
       if (status) {
-        status.textContent = "Set your callsign in Config";
+        status.textContent = "Set your callsign in Config.";
         status.classList.add("visible");
       }
       summary.innerHTML = "";
@@ -16407,16 +16648,16 @@ ${beacon.location}`);
     }
     if (status) {
       if (state_default.liveSpots.error && !state_default.liveSpots.lastFetch) {
-        status.textContent = "PSKReporter unavailable \u2014 retrying";
+        status.textContent = "PSKReporter unavailable \u2014 retrying.";
         status.classList.add("visible");
       } else if (state_default.liveSpots.data.length === 0 && state_default.liveSpots.lastFetch) {
-        status.textContent = "No spots in last hour";
+        status.textContent = "No spots in last hour.";
         status.classList.add("visible");
       } else if (!state_default.liveSpots.lastFetch) {
         status.textContent = "Loading...";
         status.classList.add("visible");
       } else if (state_default.liveSpots.stale) {
-        status.textContent = "Showing cached data \u2014 PSKReporter slow";
+        status.textContent = "Showing cached data \u2014 PSKReporter slow.";
         status.classList.add("visible");
       } else {
         status.textContent = "";
@@ -21086,7 +21327,6 @@ ${beacon.location}`);
         ctx.lineTo(width, y);
         ctx.stroke();
       }
-      ctx.fillStyle = "#4a5a7a";
       ctx.font = "10px Consolas, monospace";
       ctx.textAlign = "left";
       for (let db = floorDb; db <= ceilingDb; db += gridStepDb) {
@@ -21886,6 +22126,128 @@ ${beacon.location}`);
     if (btn) btn.style.display = connected ? "" : "none";
   }
 
+  // src/pota-selfspot.js
+  init_state();
+  init_dom();
+  init_feature_flags();
+  init_cat();
+  var PARK_RE = /^[A-Z0-9]+-\d{4,}$/;
+  var statusTimer = null;
+  function catModeToPotaMode(catMode) {
+    if (!catMode) return "";
+    const m = catMode.toUpperCase();
+    if (m.startsWith("CW")) return "CW";
+    if (m === "USB" || m === "LSB" || m === "SSB") return "SSB";
+    if (m.startsWith("FM")) return "FM";
+    if (m.startsWith("AM")) return "AM";
+    if (m.startsWith("DATA") || m.startsWith("DIG") || m.startsWith("PKT") || m === "RTTY" || m === "RTTY-R" || m === "PSK") return "DATA";
+    return m;
+  }
+  function setStatus(text, kind) {
+    const el2 = $("rigSelfSpotStatus");
+    if (!el2) return;
+    el2.textContent = text;
+    el2.className = "rig-selfspot-status" + (kind ? ` rig-selfspot-${kind}` : "");
+    if (statusTimer) clearTimeout(statusTimer);
+    if (text) {
+      statusTimer = setTimeout(() => {
+        if (el2.textContent === text) {
+          el2.textContent = "";
+          el2.className = "rig-selfspot-status";
+        }
+      }, kind === "err" ? 6e3 : 4e3);
+    }
+  }
+  function handleParkInput() {
+    const input = $("rigMyPark");
+    if (!input) return;
+    const val = input.value.trim().toUpperCase();
+    input.value = val;
+    state_default.myPark = val;
+    localStorage.setItem("hamtab_my_park", val);
+    input.classList.toggle("rig-input-invalid", val !== "" && !PARK_RE.test(val));
+  }
+  function handleSelfSpot() {
+    const btn = $("rigSelfSpotBtn");
+    if (!isRigConnected()) {
+      setStatus("Connect a radio first.", "err");
+      return;
+    }
+    const callsign = (state_default.myCallsign || "").trim().toUpperCase();
+    if (!callsign) {
+      setStatus("Set your callsign in config first.", "err");
+      return;
+    }
+    const park = (state_default.myPark || "").trim().toUpperCase();
+    if (!PARK_RE.test(park)) {
+      setStatus("Enter your park (e.g. US-1234).", "err");
+      $("rigMyPark")?.focus();
+      return;
+    }
+    const rig = getRigStore().get();
+    const freqHz = rig.frequency;
+    if (!freqHz || freqHz <= 0) {
+      setStatus("No frequency from the radio yet.", "err");
+      return;
+    }
+    const freqKhz = String(Math.round(freqHz / 1e3));
+    const mode2 = catModeToPotaMode(rig.mode);
+    const body = {
+      activator: callsign,
+      spotter: callsign,
+      // self-spot: you are your own spotter
+      frequency: freqKhz,
+      reference: park,
+      mode: mode2,
+      comments: state_default.spotterLocation ? `QRV from ${state_default.spotterLocation}` : "QRV"
+    };
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = "Spotting\u2026";
+    }
+    setStatus("", "");
+    fetch("/api/pota/spot", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    }).then((resp) => {
+      if (resp.ok) {
+        const mhz = (freqHz / 1e6).toFixed(3);
+        setStatus(`Spotted ${callsign} on ${mhz} ${mode2} @ ${park}`, "ok");
+      } else {
+        return resp.json().then((data) => {
+          throw new Error(data.error || `HTTP ${resp.status}`);
+        }).catch(() => {
+          throw new Error(`HTTP ${resp.status}`);
+        });
+      }
+    }).catch((err2) => setStatus(`Spot failed: ${err2.message}`, "err")).finally(() => {
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = "Spot to POTA";
+      }
+    });
+  }
+  function initSelfSpot() {
+    const row = $("rigSelfSpotRow");
+    if (!row) return;
+    if (!isFeatureVisible("pota_self_spot")) {
+      row.classList.add("hidden");
+      return;
+    }
+    row.classList.remove("hidden");
+    const parkInput = $("rigMyPark");
+    if (parkInput) {
+      parkInput.value = state_default.myPark || "";
+      parkInput.classList.toggle(
+        "rig-input-invalid",
+        parkInput.value !== "" && !PARK_RE.test(parkInput.value)
+      );
+      parkInput.addEventListener("input", handleParkInput);
+    }
+    $("rigSelfSpotBtn")?.addEventListener("click", handleSelfSpot);
+  }
+
   // src/on-air-rig.js
   init_map_overlays();
   init_voacap();
@@ -22465,7 +22827,7 @@ ${beacon.location}`);
       if (!navigator.serial || !navigator.serial.getPorts) return null;
       const ports = await navigator.serial.getPorts();
       if (ports.length === 0) {
-        statusEl.textContent = "No authorized ports \u2014 change to Auto in Radio settings";
+        statusEl.textContent = "No authorized ports \u2014 change to Auto in Radio settings.";
         return null;
       }
       return ports[0];
@@ -22506,7 +22868,7 @@ ${beacon.location}`);
         const urlInput = $("rigSdrUrl");
         const rawUrl = urlInput ? urlInput.value.trim() : "";
         if (!rawUrl) {
-          statusEl.textContent = "Enter a KiwiSDR host address";
+          statusEl.textContent = "Enter a KiwiSDR host address.";
           connectBtn.disabled = false;
           return;
         }
@@ -22549,9 +22911,9 @@ ${beacon.location}`);
           const isSecure = location.protocol === "https:";
           const isLoopback = tciHost === "localhost" || tciHost === "127.0.0.1";
           if (isSecure && !isLoopback) {
-            statusEl.textContent = `TCI failed \u2014 ws:// blocked from HTTPS. Use Host: localhost or 127.0.0.1`;
+            statusEl.textContent = `TCI failed \u2014 ws:// blocked from HTTPS. Use Host: localhost or 127.0.0.1.`;
           } else {
-            statusEl.textContent = `TCI failed \u2014 check TCI is enabled on ${tciHost}:${tciPort}`;
+            statusEl.textContent = `TCI failed \u2014 check TCI is enabled on ${tciHost}:${tciPort}.`;
           }
         }
       } else {
@@ -22866,7 +23228,7 @@ ${beacon.location}`);
     } catch (_) {
     }
     const statusEl = $("rigStatus");
-    if (statusEl) statusEl.textContent = "Released for WSJT-X \u2014 reconnect when done";
+    if (statusEl) statusEl.textContent = "Released for WSJT-X \u2014 reconnect when done.";
   }
   function handleRestoreFromWSJTX() {
     if (!isRigConnected() || !state_default.digitalRestoreState) return;
@@ -23013,7 +23375,7 @@ ${beacon.location}`);
     if (!nameInput || !isRigConnected()) return;
     const name = nameInput.value.trim();
     if (!name) {
-      if (statusEl) statusEl.textContent = "Enter a profile name";
+      if (statusEl) statusEl.textContent = "Enter a profile name.";
       return;
     }
     if (statusEl) statusEl.textContent = "Reading radio settings...";
@@ -23175,6 +23537,7 @@ ${beacon.location}`);
       const profileDeleteBtn = $("rigProfileDelete");
       if (profileDeleteBtn) profileDeleteBtn.addEventListener("click", handleProfileDelete);
       refreshProfileDropdown();
+      initSelfSpot();
       listenersAttached = true;
     }
     const store = getRigStore();
@@ -23401,7 +23764,6 @@ ${beacon.location}`);
       counter.classList.remove("over-limit");
     }
   }
-  var _initApp = null;
   function setInitApp(fn) {
     _initApp = fn;
   }
@@ -23578,8 +23940,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.70.0";
-    $("aboutVersion").textContent = "0.70.0";
+    $("splashVersion").textContent = "0.70.3";
+    $("aboutVersion").textContent = "0.70.3";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -23632,7 +23994,7 @@ ${beacon.location}`);
     }
     const dataSyncToggle = document.getElementById("dataSyncToggle");
     if (dataSyncToggle) dataSyncToggle.checked = isSyncEnabled();
-    const dataSyncSection = document.getElementById("dataSyncSection");
+    const dataSyncSection = document.getElementById("data-sync-section");
     if (dataSyncSection) {
       dataSyncSection.classList.add("hidden");
       checkSyncCapability().then((capable) => {
@@ -23883,7 +24245,7 @@ ${beacon.location}`);
       if (ports.length === 0) {
         const opt = document.createElement("option");
         opt.value = "";
-        opt.textContent = "No authorized ports \u2014 click Auto-Detect or use Auto port mode";
+        opt.textContent = "No authorized ports \u2014 click Auto-Detect or use Auto port mode.";
         portList.appendChild(opt);
         return;
       }
@@ -24360,7 +24722,7 @@ ${beacon.location}`);
     $("splashCallsignLocBtn").addEventListener("click", async () => {
       const call = $("splashCallsign").value.trim().toUpperCase();
       if (!call) {
-        updateLocStatus("Enter a callsign first", true);
+        updateLocStatus("Enter a callsign first.", true);
         return;
       }
       const btn = $("splashCallsignLocBtn");
@@ -24385,10 +24747,10 @@ ${beacon.location}`);
           $("splashGpsBtn").classList.remove("active");
           updateLocStatus("Location set from callsign");
         } else {
-          updateLocStatus("No location found for " + call, true);
+          updateLocStatus("No location found for " + call + ".", true);
         }
       } catch {
-        updateLocStatus("Lookup failed \u2014 try again", true);
+        updateLocStatus("Lookup failed \u2014 try again.", true);
       } finally {
         btn.disabled = false;
       }
@@ -24396,7 +24758,7 @@ ${beacon.location}`);
     $("splashSaveLayout").addEventListener("click", () => {
       const name = $("splashLayoutName").value.trim();
       if (!name) {
-        $("splashLayoutStatus").textContent = "Enter a layout name";
+        $("splashLayoutStatus").textContent = "Enter a layout name.";
         return;
       }
       const ok = saveNamedLayout(name);
@@ -24525,7 +24887,7 @@ ${beacon.location}`);
             setDataStatus("Copied to clipboard", false);
           }).catch(() => {
             textarea.select();
-            setDataStatus("Select and copy manually", true);
+            setDataStatus("Select and copy manually.", true);
           });
         }
       });
@@ -24534,7 +24896,7 @@ ${beacon.location}`);
       dataImportApply.addEventListener("click", () => {
         const textarea = document.getElementById("dataImportCode");
         if (!textarea || !textarea.value.trim()) {
-          setDataStatus("Paste a config code first", true);
+          setDataStatus("Paste a config code first.", true);
           return;
         }
         if (!confirm("This will replace all your settings including your callsign. Continue?")) return;
@@ -24553,7 +24915,7 @@ ${beacon.location}`);
         if (dataSyncToggleCb.checked && state_default.myCallsign) {
           pushConfig(state_default.myCallsign).then((ok) => {
             const el2 = document.getElementById("dataSyncStatus");
-            if (el2) el2.textContent = ok ? "Synced now" : "Sync failed \u2014 will retry on next save";
+            if (el2) el2.textContent = ok ? "Synced now." : "Sync failed \u2014 will retry on next save.";
           });
         }
       });
@@ -25233,7 +25595,7 @@ ${beacon.location}`);
       renderLogbook();
       renderLogbookOnMap();
       const zone = $("logbookImportZone");
-      const content = $("logbookContent");
+      const content = $("logbook-content");
       if (zone) zone.classList.add("hidden");
       if (content) content.classList.remove("hidden");
     } catch (err2) {
@@ -25246,7 +25608,7 @@ ${beacon.location}`);
     if (saved.length > 0) {
       state_default.logbookData = saved;
       const zone2 = $("logbookImportZone");
-      const content = $("logbookContent");
+      const content = $("logbook-content");
       if (zone2) zone2.classList.add("hidden");
       if (content) content.classList.remove("hidden");
       renderLogbook();
@@ -25298,7 +25660,7 @@ ${beacon.location}`);
         clearLogbookFromMap();
         renderLogbook();
         const zn = $("logbookImportZone");
-        const ct = $("logbookContent");
+        const ct = $("logbook-content");
         if (zn) zn.classList.remove("hidden");
         if (ct) ct.classList.add("hidden");
       });
@@ -25482,7 +25844,7 @@ ${beacon.location}`);
   init_utils();
   async function checkUpdateStatus() {
     const el2 = $("platformLabel");
-    if (el2 && !el2.textContent) el2.textContent = "v0.70.0";
+    if (el2 && !el2.textContent) el2.textContent = "v0.70.3";
     try {
       const resp = await fetch("/api/update/status");
       if (!resp.ok) return;
@@ -25893,16 +26255,16 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       // honeypot
     };
     if (data.feedback.length < 10) {
-      showStatus("Feedback must be at least 10 characters", "error");
+      showStatus("Feedback must be at least 10 characters.", "error");
       return;
     }
     if (data.feedback.length > 5e3) {
-      showStatus("Feedback must be less than 5000 characters", "error");
+      showStatus("Feedback must be less than 5000 characters.", "error");
       return;
     }
     const timeSinceOpen = Date.now() - formOpenTime;
     if (timeSinceOpen < 3e3) {
-      showStatus("Please take a moment to review your feedback", "error");
+      showStatus("Please take a moment to review your feedback.", "error");
       return;
     }
     submitBtn.disabled = true;
@@ -27250,31 +27612,49 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initMap();
   updateGrayLine();
   updateSunMarker();
-  setInterval(() => {
-    if (document.hidden) return;
-    updateGrayLine();
-    updateSunMarker();
-  }, 6e4);
+  register({
+    id: "gray-line",
+    intervalMs: 6e4,
+    run: () => {
+      updateGrayLine();
+      updateSunMarker();
+    },
+    kind: "render"
+  });
   initSatellites();
-  setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-satellites") || !isLeaderTab()) return;
-    fetchIssPosition();
-  }, 1e4);
-  setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-satellites") || !isLeaderTab()) return;
-    fetchSatellitePositions();
-  }, 1e4);
+  register({
+    id: "iss-position",
+    intervalMs: 1e4,
+    run: fetchIssPosition,
+    requiresLeader: true,
+    widgetGate: "widget-satellites",
+    kind: "fetch"
+  });
+  register({
+    id: "satellite-positions",
+    intervalMs: 1e4,
+    run: fetchSatellitePositions,
+    requiresLeader: true,
+    widgetGate: "widget-satellites",
+    kind: "fetch"
+  });
   updateClocks();
-  setInterval(() => {
-    if (document.hidden) return;
-    updateClocks();
-    updateBigClock();
-    updateAnalogClock();
-  }, 1e3);
-  setInterval(() => {
-    if (document.hidden) return;
-    updateSpotAges();
-  }, 3e4);
+  register({
+    id: "clocks",
+    intervalMs: 1e3,
+    run: () => {
+      updateClocks();
+      updateBigClock();
+      updateAnalogClock();
+    },
+    kind: "render"
+  });
+  register({
+    id: "spot-ages",
+    intervalMs: 3e4,
+    run: updateSpotAges,
+    kind: "render"
+  });
   function safeInit(name, fn) {
     try {
       fn();
@@ -27367,38 +27747,38 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     const newWidgets = getPendingNewWidgets();
     if (newWidgets.length > 0) showNewWidgetPopup(newWidgets);
   }
-  var PSK_REFRESH_BASE = 5 * 60 * 1e3;
-  var PSK_REFRESH_JITTER = 30 * 1e3;
-  function scheduleLiveSpotsRefresh() {
-    const delay = PSK_REFRESH_BASE + Math.floor(Math.random() * PSK_REFRESH_JITTER * 2) - PSK_REFRESH_JITTER;
-    setTimeout(() => {
-      if (!document.hidden && isWidgetVisible("widget-live-spots") && isLeaderTab()) fetchLiveSpots();
-      scheduleLiveSpotsRefresh();
-    }, delay);
-  }
-  scheduleLiveSpotsRefresh();
-  setInterval(() => {
-    if (document.hidden) return;
-    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) renderVoacapMatrix();
-  }, 60 * 1e3);
-  setInterval(() => {
-    if (document.hidden || !isLeaderTab()) return;
-    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) fetchVoacapMatrixThrottled();
-  }, 60 * 1e3);
-  setInterval(() => {
-    if (document.hidden || !isWidgetVisible("widget-beacons")) return;
-    updateBeaconMarkers();
-  }, 1e4);
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden || !state_default.appInitialized) return;
-    updateClocks();
-    updateBigClock();
-    updateAnalogClock();
-    updateSpotAges();
-    updateGrayLine();
-    updateSunMarker();
-    if (isWidgetVisible("widget-beacons")) updateBeaconMarkers();
-    if (isWidgetVisible("widget-voacap") || state_default.hfPropOverlayBand) renderVoacapMatrix();
+  register({
+    id: "psk-live-spots",
+    intervalMs: 5 * 60 * 1e3,
+    jitterMs: 30 * 1e3,
+    run: fetchLiveSpots,
+    requiresLeader: true,
+    widgetGate: "widget-live-spots",
+    kind: "fetch"
+  });
+  register({
+    id: "voacap-render",
+    intervalMs: 60 * 1e3,
+    run: renderVoacapMatrix,
+    widgetGate: "widget-voacap",
+    widgetGateOr: () => !!state_default.hfPropOverlayBand,
+    kind: "render"
+  });
+  register({
+    id: "voacap-fetch",
+    intervalMs: 60 * 1e3,
+    run: fetchVoacapMatrixThrottled,
+    requiresLeader: true,
+    widgetGate: "widget-voacap",
+    widgetGateOr: () => !!state_default.hfPropOverlayBand,
+    kind: "fetch"
+  });
+  register({
+    id: "beacon-markers",
+    intervalMs: 1e4,
+    run: updateBeaconMarkers,
+    widgetGate: "widget-beacons",
+    kind: "render"
   });
   setInitApp(initApp);
   initWidgets();

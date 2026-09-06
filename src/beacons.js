@@ -1,3 +1,5 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- NCDXF Beacon Schedule Widget ---
 // Displays the NCDXF/IARU International Beacon Project's real-time rotation.
 // 18 beacons cycle through 5 HF frequencies every 3 minutes. Pure client-side — no server endpoint.
@@ -34,7 +36,7 @@ const FREQUENCIES = [14100, 18110, 21150, 24930, 28200]; // kHz
 const CYCLE = 180; // seconds — full rotation period
 const SLOT  = 10;  // seconds — each beacon transmits per frequency
 
-// Calculate which beacon is active on each frequency right now
+// Calculate which beacon is active on each frequency right now.
 export function getActiveBeacons() {
   const now = new Date();
   const T = now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds();
@@ -48,7 +50,7 @@ export function getActiveBeacons() {
   }));
 }
 
-// Render the 5-row beacon table
+// Render the 5-row beacon table.
 function renderBeacons() {
   if (!isWidgetVisible('widget-beacons')) return;
   const tbody = $('beaconTbody');
@@ -56,7 +58,8 @@ function renderBeacons() {
 
   const active = getActiveBeacons();
 
-  // Reuse existing rows if count matches, otherwise rebuild
+  // Reuse existing rows if count matches, otherwise rebuild.
+
   if (tbody.children.length !== active.length) {
     tbody.textContent = '';
     for (const entry of active) {
@@ -84,7 +87,7 @@ function renderBeacons() {
       tbody.appendChild(tr);
     }
   } else {
-    // Update in place — avoids DOM churn every second
+    // Update in place — avoids DOM churn every second.
     for (let i = 0; i < active.length; i++) {
       const cells = tbody.children[i].children;
       cells[1].textContent = active[i].beacon.call;
@@ -95,7 +98,7 @@ function renderBeacons() {
 }
 
 export function initBeaconListeners() {
-  // No click handlers needed for now — pure display widget
+  // No click handlers needed for now — pure display widget.
 }
 
 export function startBeaconTimer() {

@@ -1,3 +1,6 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
+
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
@@ -20,7 +23,8 @@ function updateFilterVisibility() {
   $('bandFilters').style.display = allowed.includes('band') ? '' : 'none';
   $('modeFilters').style.display = allowed.includes('mode') ? '' : 'none';
 
-  // Distance and age filters
+  // Distance and age filters.
+
   const distWrap = $('distanceFilterWrap');
   const ageWrap = $('ageFilterWrap');
   if (distWrap) distWrap.style.display = allowed.includes('distance') ? '' : 'none';
@@ -60,7 +64,8 @@ export function switchSource(source) {
   // Load persisted filters for this source (instead of clearing)
   loadFiltersForSource(source);
 
-  // Update dropdown filter values from state
+  // Update dropdown filter values from state.
+
   const countryFilter = $('countryFilter');
   if (countryFilter) countryFilter.value = state.activeCountry || '';
   const stateFilter = $('stateFilter');

@@ -1,8 +1,9 @@
+// Copyright (c) 2026 SF Foundry. MIT License.
+// SPDX-License-Identifier: MIT
 // --- CAT Safety: TX Intent System ---
 // Prevents accidental TX after rapid tuning (click-to-tune).
 // After the frequency changes rapidly (multiple changes in short window),
 // TX is locked until the frequency stabilizes for a configurable period.
-
 export function createTxIntentSystem(store, options = {}) {
   const rapidThreshold = options.rapidThreshold || 3;    // freq changes within window = "rapid"
   const rapidWindowMs = options.rapidWindowMs || 2000;    // window to count changes
@@ -25,12 +26,13 @@ export function createTxIntentSystem(store, options = {}) {
         freqChanges = freqChanges.filter(t => now - t < rapidWindowMs);
 
         if (freqChanges.length >= rapidThreshold && !locked) {
-          // Rapid tuning detected — lock TX
+          // Rapid tuning detected — lock TX.
           locked = true;
           store.set({ txLocked: true, txLockReason: 'Rapid tuning — wait for settle' });
         }
 
-        // Reset settle timer on every change
+        // Reset settle timer on every change.
+
         if (locked) {
           if (settleTimer) clearTimeout(settleTimer);
           settleTimer = setTimeout(() => {

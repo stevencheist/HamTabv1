@@ -86,8 +86,8 @@ the merge and every root `*.js` is in the Dockerfile COPY list.
 Beyond the script, before pushing `hostedmode` after a large gap: `docker build .` on the branch
 and run the image with `-e HOSTED_MODE=1 -p 127.0.0.1:18081:8080`, then curl `/api/health` and
 `/download`. It is the same artifact Cloudflare builds and is the only check that catches a
-runtime file missing from the COPY list. `npm test` as written fails on Node 22 (directory args
-with trailing slashes) — run `node --test test/unit/*.js test/smoke/*.js` instead.
+runtime file missing from the COPY list. Run `npm test` on each branch after the merge (113 tests
+across `test/unit` and `test/smoke`, including the `.mjs` scheduler-policy suite).
 
 If validation fails → fix on the branch, re-run `validate.sh`, only then continue.
 

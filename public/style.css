@@ -1598,6 +1598,19 @@ header {
 
 .pota-spot-box { max-width: 340px; }
 
+/* ---- In-app dialogs (dialog.js — replaces alert/confirm/prompt) ---- */
+.app-dialog-overlay { z-index: 10050; } /* above other overlays (10000/10001), e.g. confirming from inside the Log QSO form */
+.splash-box.app-dialog-box { max-width: min(92vw, 420px); padding: 20px 24px; text-align: left; }
+.app-dialog-box h3 { margin: 0 0 8px; }
+.app-dialog-box .hidden { display: none; }
+.app-dialog-msg { margin: 0 0 12px; font-size: 0.9rem; line-height: 1.45; color: var(--text); white-space: pre-line; }
+.splash-box input.app-dialog-input { margin-bottom: 12px; font-size: 0.95rem; text-transform: none; }
+.app-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.splash-box .app-dialog-btn { padding: 6px 16px; font-size: 0.85rem; }
+.splash-box .app-dialog-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.splash-box .app-dialog-primary.app-dialog-danger { background: var(--red); }
+.splash-box .app-dialog-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* ---- Log QSO form (qso_logging) ---- */
 .qso-log-box { max-width: min(94vw, 560px); padding: 20px 24px; max-height: 92vh; overflow-y: auto; }
 .qso-log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; text-align: left; margin: 8px 0; }

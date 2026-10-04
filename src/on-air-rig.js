@@ -28,6 +28,7 @@ import { initDiagPanel, updateDiagButtonVisibility } from './cat/diagnostics/dia
 import { initSelfSpot } from './pota-selfspot.js';
 import { renderPropagationHeatmapOverlay, renderWsprHeatmapOverlay } from './map-overlays.js';
 import { toggleBandOverlay } from './voacap.js';
+import { confirmDialog } from './dialog.js';
 
 let unsubscribe = null;
 let initialized = false;
@@ -1257,7 +1258,12 @@ function handleDigitalPowerClick(e) {
 // Handle "Release for WSJT-X" — disconnect CAT so WSJT-X can claim the port.
 async function handleReleaseForWSJTX() {
   if (!isRigConnected()) return;
-  if (!confirm('Disconnect from the radio so WSJT-X can connect?\n\nYour digital settings have been applied. Reconnect when your WSJT-X session is over to restore your previous radio settings.')) return;
+  const release = await confirmDialog({
+    title: 'Release the radio for WSJT-X?',
+    message: 'HamTab disconnects from the radio so WSJT-X can connect. Your digital settings have been applied. Reconnect when your WSJT-X session is over to restore your previous radio settings.',
+    confirmLabel: 'Disconnect',
+  });
+  if (!release) return;
 
   stopScope();
   try { await disconnectRig(); } catch (_) { /* ignore */ }
@@ -1608,7 +1614,7 @@ export function initOnAirRig() {
     if (powerOffBtn) {
       powerOffBtn.addEventListener('click', async () => {
         if (!isRigConnected()) return;
-        if (!confirm('Power off the radio?')) return;
+        if (!await confirmDialog({ title: 'Power off the radio?', message: 'HamTab sends the power-off command, then disconnects.', confirmLabel: 'Power off', danger: true })) return;
         sendRigCommand('powerOff', null, 1);
         // Brief delay for command to reach radio, then disconnect CAT.
         setTimeout(async () => {

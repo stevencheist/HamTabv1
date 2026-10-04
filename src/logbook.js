@@ -13,6 +13,7 @@ import { writeADIF, exportFilename, activationFilename } from './adif-writer.js'
 import { groupActivations, dateToDisplay } from './qso-entry.js';
 import { isFeatureVisible } from './feature-flags.js';
 import { initLogForm, openLogForm, editLoggedQSO, removeLoggedQSO } from './qso-log-form.js';
+import { confirmDialog, alertDialog } from './dialog.js';
 
 // --- Grid square → lat/lon (supports 4 and 6 char) ---
 
@@ -313,7 +314,9 @@ async function finishExport(records, outs, now, extraNotes = []) {
   const notes = [...extraNotes];
   if (folded > 0) notes.push(`${folded} QSO${folded === 1 ? ' had' : 's had'} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
   if (incomplete > 0) notes.push(`${incomplete} QSO${incomplete === 1 ? ' is' : 's are'} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${incomplete === 1 ? 'it' : 'them'}.`);
-  if (notes.length > 0) alert(`Exported ${count} QSO${count === 1 ? '' : 's'}${outs.length > 1 ? ` in ${outs.length} files` : ''}.\n\n` + notes.join('\n\n'));
+  if (notes.length > 0) {
+    alertDialog({ title: `Exported ${count} QSO${count === 1 ? '' : 's'}${outs.length > 1 ? ` in ${outs.length} files` : ''}`, message: notes.join('\n\n') });
+  }
 }
 
 const MAX_ACTIVATION_CHOICES = 8; // newest activations offered individually; "All" covers the rest
@@ -593,7 +596,7 @@ async function handleFile(file) {
     const text = await file.text();
     const records = parseADIF(text);
     if (records.length === 0) {
-      alert('No QSO records found in file.');
+      alertDialog({ title: 'Nothing to import', message: 'No QSO records were found in that file.' });
       return;
     }
 
@@ -618,11 +621,11 @@ async function handleFile(file) {
     renderLogbookOnMap();
     showLogbookContent(state.logbookData.length > 0);
     if (plan.skipped.length > 0) {
-      alert(`Imported ${plan.add.length} QSOs; skipped ${plan.skipped.length} probable duplicate${plan.skipped.length === 1 ? '' : 's'}.`);
+      alertDialog({ title: 'Import complete', message: `Imported ${plan.add.length} QSO${plan.add.length === 1 ? '' : 's'}; skipped ${plan.skipped.length} probable duplicate${plan.skipped.length === 1 ? '' : 's'}.` });
     }
   } catch (err) {
     console.error('ADIF import error:', err);
-    alert('Failed to parse ADIF file: ' + err.message);
+    alertDialog({ title: 'Import failed', message: 'HamTab could not read that ADIF file: ' + err.message });
   }
 }
 
@@ -704,7 +707,7 @@ export async function initLogbook() {
       e.stopPropagation();
       exportLogbook().catch(err => {
         console.error('ADIF export error:', err);
-        alert('Export failed: ' + err.message);
+        alertDialog({ title: 'Export failed', message: err.message });
       });
     });
   }
@@ -735,7 +738,7 @@ export async function initLogbook() {
           return;
         }
         if (!scope) return;
-      } else if (!confirm('Clear all imported QSO data?')) {
+      } else if (!await confirmDialog({ title: 'Clear the logbook?', message: 'This removes all imported QSOs from this browser.', confirmLabel: 'Clear', danger: true })) {
         return;
       }
       await clearQSOs(scope);

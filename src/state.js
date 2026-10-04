@@ -125,6 +125,7 @@ const state = {
   // Map
   map: null,
   tileLayer: null, // L.tileLayer reference for dynamic tile swaps (e.g. HamClock political map)
+  cartoApiKey: localStorage.getItem('hamtab_carto_apikey') || '', // user's own CARTO basemap key — without it tiles carry an "API KEY REQUIRED" watermark
   clusterGroup: null,
   grayLinePolygon: null,
   dayPolygon: null,

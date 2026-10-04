@@ -506,6 +506,16 @@ Choose **12-hour** or **24-hour** display for both clock widgets.
 
 If both are provided, weather data comes from your chosen WU station. If left blank, weather data automatically falls back to the **National Weather Service** API using your lat/lon — no key required (US locations only).
 
+### Map Tiles (optional)
+
+The map background tiles come from [CARTO](https://carto.com/basemaps). Since August 2026, CARTO stamps an **"API KEY REQUIRED"** watermark on tiles requested without a key. The map still works with the watermark. To remove it:
+
+1. Go to [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) and create a free API key (free for non-commercial use, up to 5M tile requests a month).
+2. In HamTab, open **Config → Services → Map Tiles** and paste the key into **CARTO API Key**.
+3. Click **Save**. The map reloads its tiles without the watermark.
+
+The key is stored in your browser only. It is not sent to the HamTab server and is not shared through config sync, so enter it on each browser you use. CARTO's terms require every user to use their **own** key, and tile URLs carry the key in plain text, so don't share yours.
+
 ### Theme
 
 Choose from 8 built-in themes: **Default** (dark), **LCARS** (Star Trek TNG-inspired), **Terminal** (retro green CRT), **HamClock** (familiar to HamClock users), **Rebel** (warm desert), **Imperial** (cold steel), **Neon** (cyan glow), or **Steampunk** (brass and copper). Themes swap CSS variables for colors, borders, and shapes.
@@ -592,7 +602,7 @@ Click any row to fly to that spot on the map. The selected spot is highlighted i
 
 ### HamMap
 
-Interactive Leaflet map with dark tiles showing activation markers, your QTH, satellite positions, propagation overlays, MUF image overlay, VOACAP coverage, and the gray line terminator. Tiles automatically switch to CARTO Voyager (political) in HamClock theme.
+Interactive Leaflet map with dark tiles showing activation markers, your QTH, satellite positions, propagation overlays, MUF image overlay, VOACAP coverage, and the gray line terminator. Tiles automatically switch to CARTO Voyager (political) in HamClock theme. Without a CARTO API key the tiles show an "API KEY REQUIRED" watermark — see [Map Tiles (optional)](#map-tiles-optional) to remove it.
 
 **Map center controls** (buttons in the header):
 

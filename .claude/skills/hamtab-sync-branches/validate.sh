@@ -39,15 +39,29 @@ if [ "$branch" = "hostedmode" ]; then
   fi
 fi
 
-# 3. Duplicate '// ---' section headers (WARNING) — a merge that duplicates a block reprints its
-#    header. NOTE: some duplicates are legitimate on main (e.g. '// --- Routers ---'); the real
-#    danger (duplicate declarations) is already caught by check #1. Review any NEW duplicates.
-dupes=$(grep -n '^// ---' server.js | sed 's/^[0-9]*://' | sort | uniq -d)
+# 3. Duplicate '// --- X ---' section headers (BLOCKER) — a merge that duplicates a block reprints
+#    its header. This mirrors deploy.yml's "Scan for duplicate section headers" step exactly
+#    (same grep), which FAILS the hostedmode deploy on any repeat — so it must block here too.
+#    2026-09-06: main itself carried '// --- Routers ---' twice after the #156 refactor and the
+#    first deploy died on it. Rename headers to be unique; never downgrade this to a warning.
+dupes=$(grep -oP '// --- .+ ---' server.js | sort | uniq -d)
 if [ -z "$dupes" ]; then
-  ok "no duplicate '// ---' section headers in server.js"
+  ok "no duplicate '// --- X ---' section headers in server.js"
 else
-  warng "duplicate section headers in server.js — confirm none are merge artifacts:"
+  fail "duplicate section headers in server.js (deploy.yml will reject this push):"
   printf '%s\n' "$dupes" | sed 's/^/    /'
+fi
+
+# 3b. Runtime directories in the Dockerfile COPY list (BLOCKER) — server.js requires ./server/*
+#     and ./public; the explicit no-wildcard COPY list must include those directories or the
+#     container dies at startup with MODULE_NOT_FOUND (2026-09-06: server/ was missing since #156).
+if [ -f Dockerfile ]; then
+  for d in server public; do
+    if [ -d "$d" ] && ! grep -qE "COPY .*/app/$d +\./$d" Dockerfile; then
+      fail "Dockerfile does not COPY the $d/ directory into the runtime image"
+    fi
+  done
+  ok "Dockerfile COPY list includes runtime directories (server/, public/)"
 fi
 
 # 4. Dockerfile COPY vs root *.js (WARNING) — every RUNTIME .js must be copied (missing =>

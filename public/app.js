@@ -1407,8 +1407,8 @@
         // Reverse Beacon Network source tab (v0.70.0)
         dxc_live_tcp: "dev:KG5DPV",
         // DX Cluster live TCP/SSE feed (v0.70.0)
-        qso_logging: "dev:KJ5MMO"
-        // Log QSOs in HamTab + ADIF export (HT-299, v0.71.0)
+        qso_logging: "test"
+        // Log QSOs in HamTab + ADIF export (HT-299, v0.71.0; test v0.73.1)
       };
     }
   });
@@ -7583,7 +7583,7 @@
     const now = /* @__PURE__ */ new Date();
     const outs = [];
     for (const g of chosen) {
-      const out = writeADIF(g.records, { programVersion: "0.73.0", now });
+      const out = writeADIF(g.records, { programVersion: "0.73.1", now });
       const call = g.records[0].STATION_CALLSIGN || g.records[0].OPERATOR || state_default.myCallsign;
       downloadText(activationFilename(call, g.ref, g.date), out.text);
       outs.push(out);
@@ -7614,7 +7614,7 @@
     const records = scopes[scope];
     if (records.length === 0) return;
     const now = /* @__PURE__ */ new Date();
-    const out = writeADIF(records, { programVersion: "0.73.0", now });
+    const out = writeADIF(records, { programVersion: "0.73.1", now });
     downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
     await finishExport(records, [out], now);
   }
@@ -13775,7 +13775,11 @@
           description: "Import and view your ADIF contact logs. See your QSO history in a sortable table and plot contacts on the map with band-colored paths.",
           sections: [
             { heading: "What is ADIF?", content: "ADIF (Amateur Data Interchange Format) is the standard file format for ham radio contact logs. Most logging software \u2014 N1MM+, Log4OM, WSJT-X, Cloudlog, and others \u2014 can export to ADIF (.adi or .adif files)." },
-            { heading: "Importing Your Log", content: "Drag and drop an .adi or .adif file onto the import zone, or click to open a file picker. Your log is parsed and stored locally in your browser \u2014 nothing is uploaded to a server. You can re-import at any time to update." },
+            { heading: "Importing Your Log", content: "Drag and drop an .adi or .adif file onto the import zone, or click to open a file picker. Once a log is loaded, use the \u2912 button in the header to import again. Your log is parsed and stored locally in your browser \u2014 nothing is uploaded to a server. You can re-import at any time to update." },
+            { heading: "Logging QSOs", flag: "qso_logging", content: `Click "Log QSO" in DX Detail to log the selected station, or "+" in this header to log any contact. The form fills in what it can \u2014 call, park or summit and grid from the spot, frequency and mode from your connected radio (or the spot), and the UTC start time \u2014 and labels where each value came from. Everything is editable. Tick "I'm activating" to add your own POTA park(s), WWFF reference or SOTA summit. Logging a POTA spot also marks it worked, just like Confirm QSO; the Undo button reverses both. Use the pencil and trash icons to edit or delete contacts you logged here (imported rows stay read-only).` },
+            { heading: "Exporting ADIF", flag: "qso_logging", content: "The \u2913 button saves an ADIF (.adi) file you can upload to POTA, LoTW (sign it in TQSL first), QRZ, Cloudlog or a desktop logger. Choose all contacts, the current filtered view, only contacts logged in HamTab, or only those not yet exported. ADIF files are plain ASCII, so accented letters are simplified (Jos\xE9 becomes Jose). The stats bar shows how many logged contacts haven't been exported yet \u2014 export regularly, because browser storage can be cleared." },
+            { heading: "Activation Files", flag: "qso_logging", content: `Export \u2192 "Activation files" makes one upload-ready file per park, WWFF reference or summit per UTC day, named like CALL@US-1234-20261004.adi. A two-fer gets one file per park, which is how POTA expects n-fers to be uploaded. Park-to-park contacts keep the other station's park.` },
+            { heading: "Importing With Logged QSOs", flag: "qso_logging", content: "Contacts you logged in HamTab are never removed by an import. If you have some, importing asks whether to replace your previous import (copies of your HamTab-logged contacts in the file are skipped) or add only new contacts. Clear likewise offers to clear just imported data, and to export a backup first." },
             { heading: "Sorting & Filtering", content: "Click any column header to sort ascending or descending. Use the band and mode dropdowns to filter to specific contacts. The stats bar shows total QSOs, unique callsigns, and DXCC entities." },
             { heading: "Map View", content: 'Contacts with grid square data are plotted on the map as band-colored markers. Great circle paths connect your QTH to each contact. Toggle the "Logbook" map overlay on or off in Map Overlays config.' },
             { heading: "Storage", content: `Your log is stored in your browser's IndexedDB \u2014 it persists across sessions and can handle large logs (100,000+ QSOs). Click "Clear" to remove all imported data.` }
@@ -25514,8 +25518,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.73.0";
-    $("aboutVersion").textContent = "0.73.0";
+    $("splashVersion").textContent = "0.73.1";
+    $("aboutVersion").textContent = "0.73.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -27182,6 +27186,7 @@ ${beacon.location}`);
   init_utils();
   init_state();
   init_a11y();
+  init_feature_flags();
   function renderHelp(widgetId) {
     let helpKey = widgetId;
     if (widgetId === "widget-rst" && state_default.currentReferenceTab && state_default.currentReferenceTab !== "rst") {
@@ -27197,6 +27202,7 @@ ${beacon.location}`);
     }
     if (help.sections && help.sections.length > 0) {
       help.sections.forEach((section) => {
+        if (section.flag && !isFeatureVisible(section.flag)) return;
         html += `<div class="help-section">`;
         html += `<h3>${esc(section.heading)}</h3>`;
         html += `<p>${esc(section.content)}</p>`;

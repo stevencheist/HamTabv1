@@ -6,6 +6,7 @@ import { WIDGET_HELP } from './constants.js';
 import { esc } from './utils.js';
 import state from './state.js';
 import { openModal, closeModal } from './a11y.js';
+import { isFeatureVisible } from './feature-flags.js';
 
 // --- Help Modal Rendering ---
 
@@ -32,6 +33,8 @@ function renderHelp(widgetId) {
   // Sections
   if (help.sections && help.sections.length > 0) {
     help.sections.forEach(section => {
+      // Sections for a gated feature only show to users who can see that feature.
+      if (section.flag && !isFeatureVisible(section.flag)) return;
       html += `<div class="help-section">`;
       html += `<h3>${esc(section.heading)}</h3>`;
       html += `<p>${esc(section.content)}</p>`;

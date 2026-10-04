@@ -4,7 +4,9 @@ The HamMap widget is an interactive Leaflet-based map with multiple layers and o
 
 ## Base Map
 
-The default base map uses OpenStreetMap tiles. The map supports standard interactions:
+The base map uses CARTO tiles built from OpenStreetMap data (dark tiles by default, CARTO Voyager in the HamClock theme). Without a CARTO API key, the tiles show an "API KEY REQUIRED" watermark. The map still works; to remove the watermark, add your own free key in Config → Services → Map Tiles (see Configuration → API Keys).
+
+The map supports standard interactions:
 - **Zoom** — Mouse wheel, pinch gesture, or +/- buttons
 - **Pan** — Click and drag
 - **Double-click** — Zoom in on clicked location

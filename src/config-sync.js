@@ -16,6 +16,7 @@ const EXCLUDE_KEYS = new Set([
   'hamtab_wx_apikey',
   'hamtab_owm_apikey',
   'hamtab_n2yo_apikey',
+  'hamtab_carto_apikey',
   'hamtab_hamqth_user',
   'hamtab_hamqth_pass',
   'hamtab_wx_station',

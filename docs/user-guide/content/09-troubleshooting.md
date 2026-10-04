@@ -132,10 +132,18 @@ If data seems outdated:
 - Filters aren't excluding all spots
 - Zoom level (zoom in if markers seem missing)
 
+### "API KEY REQUIRED" Across the Map
+CARTO, the map tile provider, watermarks tiles requested without an API key.
+
+**Solution:**
+- Get a free key at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey)
+- Paste it into Config → Services → Map Tiles → CARTO API Key and click Save
+- If the watermark remains, check the key for extra spaces and hard-refresh the page (Ctrl+Shift+R)
+
 ### Map Tiles Missing
 **Solutions:**
 - Check internet connection
-- OpenStreetMap tile servers may be temporarily slow
+- CARTO tile servers may be temporarily slow
 - Wait and tiles will load as bandwidth allows
 
 ---

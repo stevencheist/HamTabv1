@@ -14,15 +14,18 @@ import { isFeatureVisible } from './feature-flags.js';
 import { getRigStore, isRigConnected } from './cat/index.js';
 import { markWorked, unmarkWorked, isWorked } from './pota-hunter.js';
 import {
-  BANDS, MODE_CHOICES, PARK_RE, modeFromRig, defaultRst, utcNow, dateToDisplay, timeToDisplay,
+  BANDS, MODE_CHOICES, PARK_RE, WWFF_RE, SOTA_RE, modeFromRig, defaultRst, utcNow, dateToDisplay, timeToDisplay,
   hzToMhz, spotFreqToMhz, validateEntry, buildRecord, recordToFields, FORM_FIELDS,
 } from './qso-entry.js';
-import { withMeta, SOURCE_HAMTAB, META_KEY } from './logbook-records.js';
+import { withMeta, SOURCE_HAMTAB, META_KEY, countUnexportedLogged } from './logbook-records.js';
 import { saveLoggedQSO, deleteLoggedQSO } from './logbook.js';
 
 const ACTIVATING_KEY = 'hamtab_log_activating';
 const MY_PARKS_KEY = 'hamtab_log_my_parks';
+const MY_WWFF_KEY = 'hamtab_log_my_wwff';
+const MY_SOTA_KEY = 'hamtab_log_my_sota';
 const UNDO_MS = 6000; // ms — how long the "Logged … Undo" toast stays up
+const BACKUP_NUDGE_EVERY = 25; // un-exported QSOs between backup reminders
 
 let editing = null; // record being edited, or null for a new QSO
 let fromSpot = null; // { call, potaSource } when opened from DX Detail
@@ -35,8 +38,9 @@ let toastTimer = null;
 
 const FIELD_IDS = {
   call: 'qsoCall', date: 'qsoDate', time: 'qsoTime', freq: 'qsoFreq', band: 'qsoBand', mode: 'qsoMode',
-  rstSent: 'qsoRstSent', rstRcvd: 'qsoRstRcvd', theirPark: 'qsoTheirPark', grid: 'qsoGrid', name: 'qsoName',
-  comment: 'qsoComment', activating: 'qsoActivating', myParks: 'qsoMyParks', stationCall: 'qsoStationCall', myGrid: 'qsoMyGrid',
+  rstSent: 'qsoRstSent', rstRcvd: 'qsoRstRcvd', theirPark: 'qsoTheirPark', theirWwff: 'qsoTheirWwff', theirSota: 'qsoTheirSota',
+  grid: 'qsoGrid', name: 'qsoName', comment: 'qsoComment', activating: 'qsoActivating', myParks: 'qsoMyParks',
+  myWwff: 'qsoMyWwff', mySota: 'qsoMySota', stationCall: 'qsoStationCall', myGrid: 'qsoMyGrid',
 };
 
 function setField(key, value) {
@@ -123,7 +127,9 @@ export function openLogForm(opts = {}) {
     setField('stationCall', (state.myCallsign || '').toUpperCase());
     setField('myGrid', myGridFromSettings());
     setField('activating', localStorage.getItem(ACTIVATING_KEY) === 'true');
-    setField('myParks', localStorage.getItem(MY_PARKS_KEY) || state.myPark || localStorage.getItem('hamtab_my_park') || '');
+    setField('myParks', localStorage.getItem(MY_PARKS_KEY) ?? (state.myPark || localStorage.getItem('hamtab_my_park') || ''));
+    setField('myWwff', localStorage.getItem(MY_WWFF_KEY) || '');
+    setField('mySota', localStorage.getItem(MY_SOTA_KEY) || '');
 
     const spot = opts.spot || null;
     if (spot) {
@@ -132,9 +138,17 @@ export function openLogForm(opts = {}) {
       setSource('call', 'spot');
       const potaSource = state.currentSource === 'pota';
       fromSpot = { call, potaSource };
-      if (potaSource && spot.reference && PARK_RE.test(String(spot.reference).toUpperCase())) {
-        setField('theirPark', spot.reference.toUpperCase());
+      // The spot's reference belongs to whichever program the On the Air tab is showing.
+      const ref = String(spot.reference || '').toUpperCase();
+      if (potaSource && PARK_RE.test(ref)) {
+        setField('theirPark', ref);
         setSource('theirPark', 'spot');
+      } else if (state.currentSource === 'wwff' && WWFF_RE.test(ref)) {
+        setField('theirWwff', ref);
+        setSource('theirWwff', 'spot');
+      } else if (state.currentSource === 'sota' && SOTA_RE.test(ref)) {
+        setField('theirSota', ref);
+        setSource('theirSota', 'spot');
       }
       const lat = parseFloat(spot.latitude);
       const lon = parseFloat(spot.longitude);
@@ -186,7 +200,12 @@ async function handleSave(e) {
 
   const built = buildRecord(f);
   localStorage.setItem(ACTIVATING_KEY, String(Boolean(f.activating)));
-  if (f.activating) localStorage.setItem(MY_PARKS_KEY, f.myParks.trim());
+  if (f.activating) {
+    // Remember what was entered (including blanks) so the next QSO of this activation starts the same.
+    localStorage.setItem(MY_PARKS_KEY, f.myParks.trim().toUpperCase());
+    localStorage.setItem(MY_WWFF_KEY, f.myWwff.trim().toUpperCase());
+    localStorage.setItem(MY_SOTA_KEY, f.mySota.trim().toUpperCase());
+  }
 
   const saveBtn = $('qsoLogSave');
   saveBtn.disabled = true;
@@ -215,7 +234,11 @@ async function handleSave(e) {
       markedWorked = true;
     }
     closeModal($('qsoLogPopup'));
-    showToast(`Logged ${built.CALL}`, async () => {
+    // Nudge a backup every BACKUP_NUDGE_EVERY un-exported QSOs (browser storage can be cleared).
+    const unexported = countUnexportedLogged(state.logbookData);
+    const nudge = unexported > 0 && unexported % BACKUP_NUDGE_EVERY === 0
+      ? ` · ${unexported} QSOs not exported yet — use Export (⤓) to back them up` : '';
+    showToast(`Logged ${built.CALL}${nudge}`, async () => {
       await deleteLoggedQSO(id);
       if (markedWorked) unmarkWorked(built.CALL);
       showToast(`Removed ${built.CALL}`);
@@ -320,7 +343,12 @@ export function initLogForm() {
   // Clear a field's error as soon as it's edited (frequency also satisfies the band check).
   for (const [key, id] of Object.entries(FIELD_IDS)) {
     $(id)?.addEventListener(id === 'qsoBand' || id === 'qsoActivating' ? 'change' : 'input', () => {
-      const keys = key === 'freq' ? ['freq', 'band'] : key === 'band' ? ['band', 'freq'] : key === 'activating' ? ['myParks'] : [key];
+      const linked = {
+        freq: ['freq', 'band'], band: ['band', 'freq'],
+        // Any one of my park / WWFF / summit satisfies "activating", so editing one clears that shared error.
+        activating: ['myParks', 'myWwff', 'mySota'], myWwff: ['myWwff', 'myParks'], mySota: ['mySota', 'myParks'],
+      };
+      const keys = linked[key] || [key];
       for (const k of keys) {
         const err = document.querySelector(`#qsoLogForm .qso-err[data-for="${k}"]`);
         if (err) err.textContent = '';

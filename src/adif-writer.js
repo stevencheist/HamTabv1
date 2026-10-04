@@ -133,3 +133,11 @@ export function exportFilename(callsign, scope, now = new Date()) {
   const safeScope = String(scope || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   return ['hamtab', call, date, safeScope].filter(Boolean).join('-') + '.adi';
 }
+
+// Activation upload name, e.g. KJ5MMO@US-1234-20261004.adi (summits: W6/NC-423 → W6_NC-423).
+export function activationFilename(callsign, ref, date) {
+  const call = String(callsign || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const safeRef = String(ref || '').toUpperCase().replace(/\//g, '_').replace(/[^A-Z0-9_-]/g, '');
+  const safeDate = String(date || '').replace(/\D/g, '').slice(0, 8);
+  return `${call || 'HAMTAB'}@${safeRef}${safeDate ? '-' + safeDate : ''}.adi`;
+}

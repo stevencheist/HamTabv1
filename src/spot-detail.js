@@ -10,6 +10,7 @@ import { sendRigCommand, isRigConnected } from './cat/index.js';
 import { resolveRigMode, spotFreqToHz } from './cat/profiles/band-auto-profile.js';
 import { validateFrequency } from './cat/safety/band-plan-validator.js';
 import { renderHunterButtons } from './pota-hunter.js';
+import { renderLogQsoButton } from './qso-log-form.js';
 
 // --- DX Detail Widget ---
 
@@ -204,6 +205,7 @@ export async function updateSpotDetail(spot) {
   // Render POTA hunter buttons (Confirm QSO + Spot)
   const hunterContainer = document.getElementById('spotDetailHunter');
   if (hunterContainer) renderHunterButtons(spot, hunterContainer);
+  if (hunterContainer) renderLogQsoButton(spot, hunterContainer);
 
   // Start ticking local time.
 

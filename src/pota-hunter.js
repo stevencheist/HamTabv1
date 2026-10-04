@@ -42,6 +42,48 @@ export function addWorked(callsign) {
   saveWorkedList();
 }
 
+function setConfirmWorked(btn) {
+  btn.textContent = '✓ Worked';
+  btn.disabled = true;
+  btn.classList.add('pota-hunter-worked');
+}
+
+function refreshAfterWorkedChange() {
+  // Re-filter if hide worked is on.
+  if (state.hideWorked) {
+    applyFilter();
+    renderSpots();
+    renderMarkers();
+  }
+  updateWorkedBadge();
+}
+
+// Same effect as clicking Confirm QSO; also used by Log QSO. Any visible Confirm button for this call updates too.
+export function markWorked(callsign) {
+  if (!callsign) return;
+  addWorked(callsign);
+  const upper = callsign.toUpperCase();
+  document.querySelectorAll('.pota-hunter-confirm').forEach(btn => {
+    if (btn.dataset.call === upper) setConfirmWorked(btn);
+  });
+  refreshAfterWorkedChange();
+}
+
+// Undo for markWorked (Log QSO's Undo). Re-enables any visible Confirm button for the call.
+export function unmarkWorked(callsign) {
+  if (!callsign) return;
+  const upper = callsign.toUpperCase();
+  state.workedList = state.workedList.filter(e => e.callsign !== upper);
+  saveWorkedList();
+  document.querySelectorAll('.pota-hunter-confirm').forEach(btn => {
+    if (btn.dataset.call !== upper) return;
+    btn.textContent = 'Confirm QSO';
+    btn.disabled = false;
+    btn.classList.remove('pota-hunter-worked');
+  });
+  refreshAfterWorkedChange();
+}
+
 export function clearWorkedList() {
   state.workedList = [];
   saveWorkedList();
@@ -68,26 +110,11 @@ export function renderHunterButtons(spot, container) {
   // Confirm QSO button
   const confirmBtn = document.createElement('button');
   confirmBtn.className = 'btn btn-sm pota-hunter-btn pota-hunter-confirm';
-  if (worked) {
-    confirmBtn.textContent = '✓ Worked';
-    confirmBtn.disabled = true;
-    confirmBtn.classList.add('pota-hunter-worked');
-  } else {
-    confirmBtn.textContent = 'Confirm QSO';
-    confirmBtn.addEventListener('click', () => {
-      addWorked(displayCall);
-      confirmBtn.textContent = '✓ Worked';
-      confirmBtn.disabled = true;
-      confirmBtn.classList.add('pota-hunter-worked');
-      // Re-filter if hide worked is on.
-      if (state.hideWorked) {
-        applyFilter();
-        renderSpots();
-        renderMarkers();
-      }
-      updateWorkedBadge();
-    });
-  }
+  confirmBtn.dataset.call = displayCall.toUpperCase();
+  confirmBtn.textContent = 'Confirm QSO';
+  // Click handler stays attached so Undo (unmarkWorked) can re-enable the button.
+  confirmBtn.addEventListener('click', () => markWorked(displayCall));
+  if (worked) setConfirmWorked(confirmBtn);
   wrap.appendChild(confirmBtn);
 
   // Spot button

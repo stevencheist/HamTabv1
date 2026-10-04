@@ -11,6 +11,7 @@ import { getBandColor } from './constants.js';
 import { parseADIF, migrateV1Record, planImport, countHamtabLogged, countUnexportedLogged, isHamtabLogged, newId, META_KEY } from './logbook-records.js';
 import { writeADIF, exportFilename } from './adif-writer.js';
 import { isFeatureVisible } from './feature-flags.js';
+import { initLogForm, openLogForm, editLoggedQSO, removeLoggedQSO } from './qso-log-form.js';
 
 // --- Grid square → lat/lon (supports 4 and 6 char) ---
 
@@ -102,6 +103,33 @@ async function loadQSOs() {
   } catch {
     return [];
   }
+}
+
+// --- HamTab-logged QSO storage (used by the Log QSO form) ---
+
+async function refreshAfterChange() {
+  state.logbookData = await loadQSOs();
+  renderLogbook();
+  renderLogbookOnMap();
+  showLogbookContent(state.logbookData.length > 0);
+}
+
+// Insert (no id) or replace (with id). Returns the record's id.
+export async function saveLoggedQSO(record) {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  const req = record.id === undefined ? tx.objectStore(STORE_NAME).add(record) : tx.objectStore(STORE_NAME).put(record);
+  await txDone(tx);
+  await refreshAfterChange();
+  return req.result;
+}
+
+export async function deleteLoggedQSO(id) {
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  tx.objectStore(STORE_NAME).delete(id);
+  await txDone(tx);
+  await refreshAfterChange();
 }
 
 // scope 'all' empties the log; 'imported' keeps HamTab-logged QSOs.
@@ -252,9 +280,11 @@ function formatTime(t) {
 // --- ADIF Export ---
 
 function updateExportButton() {
+  const on = isFeatureVisible('qso_logging');
   const btn = $('logbookExportBtn');
-  if (!btn) return;
-  btn.style.display = isFeatureVisible('qso_logging') && state.logbookData.length > 0 ? '' : 'none';
+  if (btn) btn.style.display = on && state.logbookData.length > 0 ? '' : 'none';
+  const logBtn = $('logbookLogBtn');
+  if (logBtn) logBtn.style.display = on ? '' : 'none';
 }
 
 function downloadText(filename, text) {
@@ -312,6 +342,8 @@ export function renderLogbook() {
 
   const filtered = getFilteredData();
   const sorted = sortData(filtered);
+  // Edit/delete column only when logging is enabled and there are HamTab-logged rows; imported rows stay read-only.
+  const showRowActions = isFeatureVisible('qso_logging') && countHamtabLogged(state.logbookData) > 0;
 
   // Render header
   if (thead) {
@@ -342,6 +374,13 @@ export function renderLogbook() {
       }
       tr.appendChild(th);
     }
+    if (showRowActions) {
+      const th = document.createElement('th');
+      th.scope = 'col';
+      th.className = 'logbook-actions-col';
+      th.innerHTML = '<span class="sr-only">Actions</span>';
+      tr.appendChild(th);
+    }
     thead.appendChild(tr);
   }
 
@@ -357,6 +396,17 @@ export function renderLogbook() {
       if (col.key === 'QSO_DATE') val = formatDate(val);
       else if (col.key === 'TIME_ON') val = formatTime(val);
       td.textContent = val;
+      tr.appendChild(td);
+    }
+    if (showRowActions) {
+      const td = document.createElement('td');
+      td.className = 'logbook-actions-col';
+      if (isHamtabLogged(q)) {
+        tr.classList.add('logbook-row-logged');
+        td.innerHTML = '<button type="button" class="logbook-row-btn" data-act="edit" title="Edit QSO" aria-label="Edit QSO">&#x270E;</button>' +
+          '<button type="button" class="logbook-row-btn" data-act="delete" title="Delete QSO" aria-label="Delete QSO">&#x1F5D1;</button>';
+        td.dataset.id = q.id;
+      }
       tr.appendChild(td);
     }
     tbody.appendChild(tr);
@@ -576,6 +626,28 @@ export async function initLogbook() {
       input.accept = '.adi,.adif';
       input.addEventListener('change', (ev) => { if (ev.target.files[0]) handleFile(ev.target.files[0]); });
       input.click();
+    });
+  }
+
+  // Log QSO form + "+" button and row edit/delete (gated: qso_logging)
+  initLogForm();
+  const logBtn = $('logbookLogBtn');
+  if (logBtn) {
+    logBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openLogForm();
+    });
+  }
+  const tbodyEl = $('logbookBody');
+  if (tbodyEl) {
+    tbodyEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('.logbook-row-btn');
+      if (!btn) return;
+      const id = Number(btn.parentElement.dataset.id);
+      const record = state.logbookData.find(r => r.id === id);
+      if (!record) return;
+      if (btn.dataset.act === 'edit') editLoggedQSO(record);
+      else if (btn.dataset.act === 'delete') removeLoggedQSO(record).catch(err => console.error('Delete failed:', err));
     });
   }
 

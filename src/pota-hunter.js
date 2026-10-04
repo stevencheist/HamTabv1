@@ -275,9 +275,10 @@ function submitSpot() {
         if (statusEl) statusEl.className = 'pota-spot-status pota-spot-ok';
         setTimeout(() => closeModal(popup), 1500);
       } else {
-        return resp.json().then(data => {
+        // Show the server's reason; fall back to the status only if the body isn't JSON.
+        return resp.json().catch(() => ({})).then(data => {
           throw new Error(data.error || `HTTP ${resp.status}`);
-        }).catch(() => { throw new Error(`HTTP ${resp.status}`); });
+        });
       }
     })
     .catch(err => {

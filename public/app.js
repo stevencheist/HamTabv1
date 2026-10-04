@@ -27018,7 +27018,7 @@ ${beacon.location}`);
   init_dom();
   function initUpdateDisplay() {
     const el2 = $("platformLabel");
-    if (el2) el2.textContent = "v0.73.1";
+    if (el2) el2.textContent = "v0.73.2";
   }
 
   // src/settings-sync.js

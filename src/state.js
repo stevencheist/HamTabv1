@@ -227,7 +227,7 @@ const state = {
   voacapParamTimer: null,   // debounce timer for power/mode/TOA/path button clicks
 
   // Logbook (ADIF import)
-  logbookSortColumn: 'qsoDate', // current sort column key
+  logbookSortColumn: 'QSO_DATE', // current sort column key (LOGBOOK_COLS key) — newest first by default
   logbookSortDirection: 'desc', // 'asc' or 'desc'
   logbookFilterBand: '', // band filter ('' = all)
   logbookFilterMode: '', // mode filter ('' = all)

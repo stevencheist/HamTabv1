@@ -19,6 +19,7 @@ import {
 } from './qso-entry.js';
 import { withMeta, SOURCE_HAMTAB, META_KEY, countUnexportedLogged } from './logbook-records.js';
 import { saveLoggedQSO, deleteLoggedQSO } from './logbook.js';
+import { confirmDialog } from './dialog.js';
 
 const ACTIVATING_KEY = 'hamtab_log_activating';
 const MY_PARKS_KEY = 'hamtab_log_my_parks';
@@ -386,7 +387,13 @@ export function editLoggedQSO(record) {
 
 export async function removeLoggedQSO(record) {
   if (!record || !record[META_KEY]) return;
-  if (!confirm(`Delete the QSO with ${record.CALL || 'this station'} on ${dateToDisplay(record.QSO_DATE)}?`)) return;
+  const ok = await confirmDialog({
+    title: 'Delete this QSO?',
+    message: `Delete the QSO with ${record.CALL || 'this station'} on ${dateToDisplay(record.QSO_DATE)}? You can undo right after.`,
+    confirmLabel: 'Delete',
+    danger: true,
+  });
+  if (!ok) return;
   const snapshot = { ...record };
   await deleteLoggedQSO(record.id);
   showToast(`Deleted ${record.CALL || 'QSO'}`, async () => {

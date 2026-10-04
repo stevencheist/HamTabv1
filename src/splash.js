@@ -33,6 +33,7 @@ import { startDedxTimer, stopDedxTimer } from './dedx-info.js';
 import { exportConfig, importConfig, checkSyncCapability, pushConfig, isSyncEnabled, setSyncEnabled } from './config-sync.js';
 import { getAvailableProfiles, smartDetect } from './cat/index.js';
 import { initOnAirRig, destroyOnAirRig } from './on-air-rig.js';
+import { confirmDialog } from './dialog.js';
 
 // --- Staged grid assignments (working copy during config modal session) ---
 let stagedAssignments = {};
@@ -299,8 +300,8 @@ function renderSplashLayoutList() {
     delBtn.className = 'splash-layout-item-del';
     delBtn.textContent = '\u00D7';
     delBtn.title = 'Delete';
-    delBtn.addEventListener('click', () => {
-      if (confirm(`Delete layout "${name}"?`)) {
+    delBtn.addEventListener('click', async () => {
+      if (await confirmDialog({ title: 'Delete layout?', message: `Delete the layout "${name}"? This can't be undone.`, confirmLabel: 'Delete', danger: true })) {
         deleteNamedLayout(name);
         renderSplashLayoutList();
         $('splashLayoutStatus').textContent = `Deleted "${name}"`;
@@ -1719,13 +1720,19 @@ export function initSplashListeners() {
   }
 
   if (dataImportApply) {
-    dataImportApply.addEventListener('click', () => {
+    dataImportApply.addEventListener('click', async () => {
       const textarea = document.getElementById('dataImportCode');
       if (!textarea || !textarea.value.trim()) {
         setDataStatus('Paste a config code first.', true);
         return;
       }
-      if (!confirm('This will replace all your settings including your callsign. Continue?')) return;
+      const replace = await confirmDialog({
+        title: 'Replace all settings?',
+        message: 'This replaces all of your settings, including your callsign, with the imported config. HamTab reloads afterwards.',
+        confirmLabel: 'Replace settings',
+        danger: true,
+      });
+      if (!replace) return;
       const result = importConfig(textarea.value);
       if (result.ok) {
         setDataStatus(`Imported config from ${result.callsign || 'unknown'} — reloading...`, false);

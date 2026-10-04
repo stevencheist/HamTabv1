@@ -23946,8 +23946,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.70.4";
-    $("aboutVersion").textContent = "0.70.4";
+    $("splashVersion").textContent = "0.70.5";
+    $("aboutVersion").textContent = "0.70.5";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -26252,7 +26252,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
         setTimeout(closeFeedback, 2e3);
       } else if (response.status === 503) {
         showStatusWithLink(
-          "Feedback system temporarily unavailable. Please submit directly: ",
+          (result.error || "Feedback system temporarily unavailable.") + " Please submit directly: ",
           "https://github.com/stevencheist/HamTabv1/issues/new",
           "Create GitHub Issue"
         );

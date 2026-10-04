@@ -111,12 +111,13 @@ router.post('/feedback', feedbackLimiter, async (req, res) => {
     // 5. Check for GitHub token — if not configured, optionally relay to hamtab.net
     const githubToken = process.env.GITHUB_FEEDBACK_TOKEN;
     if (!githubToken) {
-      // Relay requires explicit opt-in via FEEDBACK_RELAY_ENABLED=1
-      const relayEnabled = process.env.FEEDBACK_RELAY_ENABLED === '1';
+      // Relay is on by default — the user pressing Send is consent to forward it. Opt out with FEEDBACK_RELAY_ENABLED=0.
+      const relaySetting = (process.env.FEEDBACK_RELAY_ENABLED || '').trim().toLowerCase();
+      const relayEnabled = !['0', 'false', 'no', 'off'].includes(relaySetting);
       if (!relayEnabled) {
-        console.warn('Feedback rejected — no GITHUB_FEEDBACK_TOKEN and FEEDBACK_RELAY_ENABLED not set');
+        console.warn('Feedback rejected — no GITHUB_FEEDBACK_TOKEN and FEEDBACK_RELAY_ENABLED is off');
         return res.status(503).json({
-          error: 'Feedback not configured. Set GITHUB_FEEDBACK_TOKEN or FEEDBACK_RELAY_ENABLED=1 in .env. You can also submit feedback at https://github.com/stevencheist/HamTabv1/issues'
+          error: 'Feedback forwarding is turned off on this HamTab server (FEEDBACK_RELAY_ENABLED).'
         });
       }
 
@@ -152,7 +153,7 @@ router.post('/feedback', feedbackLimiter, async (req, res) => {
         relayReq.on('error', (err) => {
           console.error('Relay to hamtab.net failed:', err.message);
           res.status(503).json({
-            error: 'Feedback relay unavailable. Please submit feedback directly at https://github.com/stevencheist/HamTabv1/issues'
+            error: 'Could not reach hamtab.net to forward your feedback.'
           });
         });
 
@@ -162,7 +163,7 @@ router.post('/feedback', feedbackLimiter, async (req, res) => {
       } catch (relayErr) {
         console.error('Relay error:', relayErr.message);
         return res.status(503).json({
-          error: 'Feedback relay unavailable. Please submit feedback directly at https://github.com/stevencheist/HamTabv1/issues'
+          error: 'Could not reach hamtab.net to forward your feedback.'
         });
       }
     }

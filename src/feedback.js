@@ -164,9 +164,9 @@ async function submitFeedback(e) {
       // Close modal after 2 seconds.
       setTimeout(closeFeedback, 2000);
     } else if (response.status === 503) {
-      // Relay unavailable — show GitHub link.
+      // Relay off or unreachable — show the server's reason plus a GitHub link.
       showStatusWithLink(
-        'Feedback system temporarily unavailable. Please submit directly: ',
+        (result.error || 'Feedback system temporarily unavailable.') + ' Please submit directly: ',
         'https://github.com/stevencheist/HamTabv1/issues/new',
         'Create GitHub Issue'
       );

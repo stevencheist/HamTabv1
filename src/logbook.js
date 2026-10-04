@@ -8,35 +8,9 @@ import { esc } from './utils.js';
 import { gridToLatLon, geodesicPoints } from './geo.js';
 import { freqToBand } from './filters.js';
 import { getBandColor } from './constants.js';
-
-// --- ADIF Parser ---
-
-function parseADIF(text) {
-  const records = [];
-  // Strip header (everything before <eoh>)
-  const headerEnd = text.search(/<eoh>/i);
-  const body = headerEnd >= 0 ? text.substring(headerEnd + 5) : text;
-
-  // Split on <eor> to get individual records.
-
-  const rawRecords = body.split(/<eor>/i);
-
-  for (const raw of rawRecords) {
-    const record = {};
-    // Match field tags: <FIELD_NAME:LENGTH[:TYPE]>value.
-    const fieldRe = /<([A-Za-z_][A-Za-z0-9_]*):(\d+)(?::[A-Za-z])?>/gi;
-    let m;
-    while ((m = fieldRe.exec(raw)) !== null) {
-      const name = m[1].toUpperCase();
-      const len = parseInt(m[2], 10);
-      const valStart = m.index + m[0].length;
-      const val = raw.substring(valStart, valStart + len);
-      record[name] = val;
-    }
-    if (record.CALL) records.push(record);
-  }
-  return records;
-}
+import { parseADIF, migrateV1Record, planImport, countHamtabLogged, countUnexportedLogged, isHamtabLogged, newId, META_KEY } from './logbook-records.js';
+import { writeADIF, exportFilename } from './adif-writer.js';
+import { isFeatureVisible } from './feature-flags.js';
 
 // --- Grid square → lat/lon (supports 4 and 6 char) ---
 
@@ -59,7 +33,7 @@ function gridToLL(grid) {
 // --- IndexedDB Storage ---
 
 const DB_NAME = 'hamtab_logbook';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // v2 (v0.71.0): `_hamtab` metadata + source index, non-destructive import
 const STORE_NAME = 'qsos';
 
 function openDB() {
@@ -67,27 +41,52 @@ function openDB() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('call', 'CALL', { unique: false });
-        store.createIndex('date', 'QSO_DATE', { unique: false });
+      const tx = e.target.transaction;
+      const store = db.objectStoreNames.contains(STORE_NAME)
+        ? tx.objectStore(STORE_NAME)
+        : db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      if (!store.indexNames.contains('call')) store.createIndex('call', 'CALL', { unique: false });
+      if (!store.indexNames.contains('date')) store.createIndex('date', 'QSO_DATE', { unique: false });
+      if (e.oldVersion < 2) {
+        if (!store.indexNames.contains('source')) store.createIndex('source', '_hamtab.source', { unique: false });
+        // Tag v1 rows as imported inside the upgrade transaction — if anything fails the
+        // upgrade aborts and the v1 data is left exactly as it was.
+        const now = new Date().toISOString();
+        store.openCursor().onsuccess = (ev) => {
+          const cursor = ev.target.result;
+          if (!cursor) return;
+          cursor.update(migrateV1Record(cursor.value, now));
+          cursor.continue();
+        };
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onblocked = () => console.warn('Logbook upgrade waiting — close other HamTab tabs to finish it.');
+    req.onsuccess = () => {
+      const db = req.result;
+      // Let a newer HamTab tab upgrade the database instead of being blocked by this one.
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
   });
 }
 
-async function saveQSOs(records) {
+function txDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('Logbook transaction aborted'));
+  });
+}
+
+// Apply an import plan (from planImport) in one transaction so a failure leaves the old log intact.
+async function applyImportPlan(plan) {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
   const store = tx.objectStore(STORE_NAME);
-  store.clear();
-  for (const r of records) store.put(r);
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
+  for (const r of plan.remove) store.delete(r.id);
+  for (const r of plan.add) store.add(r);
+  return txDone(tx);
 }
 
 async function loadQSOs() {
@@ -105,11 +104,88 @@ async function loadQSOs() {
   }
 }
 
-async function clearQSOs() {
+// scope 'all' empties the log; 'imported' keeps HamTab-logged QSOs.
+async function clearQSOs(scope = 'all') {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
-  tx.objectStore(STORE_NAME).clear();
-  return new Promise((resolve) => { tx.oncomplete = resolve; });
+  const store = tx.objectStore(STORE_NAME);
+  if (scope === 'all') {
+    store.clear();
+  } else {
+    store.openCursor().onsuccess = (ev) => {
+      const cursor = ev.target.result;
+      if (!cursor) return;
+      if (!isHamtabLogged(cursor.value)) cursor.delete();
+      cursor.continue();
+    };
+  }
+  return txDone(tx);
+}
+
+// Stamp lastExportedAt on the HamTab-logged QSOs that were just exported.
+async function markExported(uuids, when) {
+  if (uuids.size === 0) return;
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  tx.objectStore(STORE_NAME).openCursor().onsuccess = (ev) => {
+    const cursor = ev.target.result;
+    if (!cursor) return;
+    const meta = cursor.value[META_KEY];
+    if (meta && uuids.has(meta.uuid)) {
+      cursor.update({ ...cursor.value, [META_KEY]: { ...meta, lastExportedAt: when } });
+    }
+    cursor.continue();
+  };
+  return txDone(tx);
+}
+
+// --- Inline choice prompt ---
+// Shown inside the Logbook widget; resolves with the chosen value, or null on Cancel/Escape.
+function askChoice(message, choices) {
+  return new Promise((resolve) => {
+    const body = document.querySelector('#widget-logbook .widget-body');
+    if (!body) { resolve(null); return; }
+    const old = body.querySelector('.logbook-choice');
+    if (old) old.remove();
+
+    const panel = document.createElement('div');
+    panel.className = 'logbook-choice';
+    panel.setAttribute('role', 'alertdialog');
+    const msg = document.createElement('div');
+    msg.className = 'logbook-choice-msg';
+    msg.textContent = message;
+    panel.appendChild(msg);
+    const row = document.createElement('div');
+    row.className = 'logbook-choice-actions';
+
+    const finish = (value) => {
+      panel.removeEventListener('keydown', onKey);
+      panel.remove();
+      resolve(value);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') finish(null); };
+    panel.addEventListener('keydown', onKey);
+
+    for (const c of [...choices, { label: 'Cancel', value: null }]) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = c.label;
+      if (c.primary) btn.className = 'primary';
+      btn.addEventListener('click', () => finish(c.value));
+      row.appendChild(btn);
+    }
+    panel.appendChild(row);
+    body.prepend(panel);
+    const first = row.querySelector('button');
+    if (first) first.focus();
+  });
+}
+
+function showLogbookContent(hasData) {
+  const zone = $('logbookImportZone');
+  const content = $('logbook-content');
+  if (zone) zone.classList.toggle('hidden', hasData);
+  if (content) content.classList.toggle('hidden', !hasData);
 }
 
 // --- Column Definitions ---
@@ -173,7 +249,61 @@ function formatTime(t) {
   return t.substring(0, 2) + ':' + t.substring(2, 4);
 }
 
+// --- ADIF Export ---
+
+function updateExportButton() {
+  const btn = $('logbookExportBtn');
+  if (!btn) return;
+  btn.style.display = isFeatureVisible('qso_logging') && state.logbookData.length > 0 ? '' : 'none';
+}
+
+function downloadText(filename, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=us-ascii' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000); // ms — give the browser time to start the download
+}
+
+async function exportLogbook() {
+  const all = state.logbookData;
+  const filtered = getFilteredData();
+  const logged = all.filter(isHamtabLogged);
+  const unexported = logged.filter(r => !r[META_KEY].lastExportedAt);
+  const scopes = { all, view: filtered, logged, unexported };
+
+  const choices = [{ label: `All (${all.length})`, value: 'all', primary: true }];
+  if (filtered.length !== all.length) choices.push({ label: `Current view (${filtered.length})`, value: 'view' });
+  if (logged.length > 0) choices.push({ label: `Logged in HamTab (${logged.length})`, value: 'logged' });
+  if (unexported.length > 0) choices.push({ label: `Not yet exported (${unexported.length})`, value: 'unexported' });
+
+  const scope = choices.length === 1 ? 'all' : await askChoice('Export which QSOs as an ADIF (.adi) file?', choices);
+  if (!scope) return;
+  const records = scopes[scope];
+  if (records.length === 0) return;
+
+  const now = new Date();
+  const out = writeADIF(records, { programVersion: __APP_VERSION__, now });
+  downloadText(exportFilename(state.myCallsign, scope, now), out.text);
+
+  const exportedUuids = new Set(records.filter(isHamtabLogged).map(r => r[META_KEY].uuid));
+  if (exportedUuids.size > 0) {
+    await markExported(exportedUuids, now.toISOString());
+    state.logbookData = await loadQSOs();
+    renderLogbook();
+  }
+
+  const notes = [];
+  if (out.foldedRecords > 0) notes.push(`${out.foldedRecords} QSO${out.foldedRecords === 1 ? ' had' : 's had'} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
+  if (out.incompleteRecords > 0) notes.push(`${out.incompleteRecords} QSO${out.incompleteRecords === 1 ? ' is' : 's are'} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${out.incompleteRecords === 1 ? 'it' : 'them'}.`);
+  if (notes.length > 0) alert(`Exported ${out.recordCount} QSOs.\n\n` + notes.join('\n\n'));
+}
+
 export function renderLogbook() {
+  updateExportButton();
   const tbody = $('logbookBody');
   const thead = $('logbookHead');
   const countEl = $('logbookCount');
@@ -370,17 +500,30 @@ async function handleFile(file) {
       alert('No QSO records found in file.');
       return;
     }
-    state.logbookData = records;
-    await saveQSOs(records);
+
+    // With no HamTab-logged QSOs this is exactly the old behavior: the file replaces the log.
+    let mode = 'replace-imported';
+    const loggedCount = countHamtabLogged(state.logbookData);
+    if (loggedCount > 0) {
+      mode = await askChoice(
+        `Import ${records.length} QSOs. Your ${loggedCount} QSO${loggedCount === 1 ? '' : 's'} logged in HamTab will be kept either way.`,
+        [
+          { label: 'Replace previous import', value: 'replace-imported', primary: true },
+          { label: 'Add new only (skip duplicates)', value: 'add-new' },
+        ]
+      );
+      if (!mode) return;
+    }
+
+    const plan = planImport(state.logbookData, records, mode, newId());
+    await applyImportPlan(plan);
+    state.logbookData = await loadQSOs();
     renderLogbook();
     renderLogbookOnMap();
-
-    // Show table, hide import zone.
-
-    const zone = $('logbookImportZone');
-    const content = $('logbook-content');
-    if (zone) zone.classList.add('hidden');
-    if (content) content.classList.remove('hidden');
+    showLogbookContent(state.logbookData.length > 0);
+    if (plan.skipped.length > 0) {
+      alert(`Imported ${plan.add.length} QSOs; skipped ${plan.skipped.length} probable duplicate${plan.skipped.length === 1 ? '' : 's'}.`);
+    }
   } catch (err) {
     console.error('ADIF import error:', err);
     alert('Failed to parse ADIF file: ' + err.message);
@@ -436,20 +579,53 @@ export async function initLogbook() {
     });
   }
 
+  // Export button (gated: qso_logging)
+  const exportBtn = $('logbookExportBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      exportLogbook().catch(err => {
+        console.error('ADIF export error:', err);
+        alert('Export failed: ' + err.message);
+      });
+    });
+  }
+  updateExportButton();
+
   // Clear button
   const clearBtn = $('logbookClearBtn');
   if (clearBtn) {
     clearBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!confirm('Clear all imported QSO data?')) return;
-      await clearQSOs();
-      state.logbookData = [];
+      const loggedCount = countHamtabLogged(state.logbookData);
+      let scope = 'all';
+      if (loggedCount > 0) {
+        const unexported = countUnexportedLogged(state.logbookData);
+        const choices = [
+          { label: 'Clear imported only', value: 'imported', primary: true },
+          { label: 'Clear everything', value: 'all' },
+        ];
+        if (unexported > 0 && isFeatureVisible('qso_logging')) {
+          choices.unshift({ label: `Export backup first (${unexported} not yet exported)`, value: 'backup' });
+        }
+        scope = await askChoice(
+          `You have ${loggedCount} QSO${loggedCount === 1 ? '' : 's'} logged in HamTab. Clearing everything deletes them permanently.`,
+          choices
+        );
+        if (scope === 'backup') {
+          await exportLogbook();
+          return;
+        }
+        if (!scope) return;
+      } else if (!confirm('Clear all imported QSO data?')) {
+        return;
+      }
+      await clearQSOs(scope);
+      state.logbookData = scope === 'all' ? [] : await loadQSOs();
       clearLogbookFromMap();
       renderLogbook();
-      const zn = $('logbookImportZone');
-      const ct = $('logbook-content');
-      if (zn) zn.classList.remove('hidden');
-      if (ct) ct.classList.add('hidden');
+      renderLogbookOnMap();
+      showLogbookContent(state.logbookData.length > 0);
     });
   }
 

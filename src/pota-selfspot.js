@@ -111,9 +111,10 @@ function handleSelfSpot() {
         const mhz = (freqHz / 1_000_000).toFixed(3);
         setStatus(`Spotted ${callsign} on ${mhz} ${mode} @ ${park}`, 'ok');
       } else {
+        // Show the server's reason; fall back to the status only if the body isn't JSON.
         return resp.json()
-          .then(data => { throw new Error(data.error || `HTTP ${resp.status}`); })
-          .catch(() => { throw new Error(`HTTP ${resp.status}`); });
+          .catch(() => ({}))
+          .then(data => { throw new Error(data.error || `HTTP ${resp.status}`); });
       }
     })
     .catch(err => setStatus(`Spot failed: ${err.message}`, 'err'))

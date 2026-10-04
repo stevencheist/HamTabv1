@@ -4114,52 +4114,52 @@
     const minInterval = options.minInterval || 60;
     const maxQueueSize = options.maxQueueSize || 50;
     const trace = getTraceBus();
-    let queue = [];
+    let queue2 = [];
     let processing = false;
     let lastSendTime = 0;
     function push(command, params = null, priority = 0) {
       if (command === "setFrequency" || command === "setFrequencyB") {
-        const existing = queue.findIndex((item) => item.command === command);
+        const existing = queue2.findIndex((item) => item.command === command);
         if (existing >= 0) {
-          queue[existing].params = params;
-          queue[existing].priority = Math.max(queue[existing].priority, priority);
+          queue2[existing].params = params;
+          queue2[existing].priority = Math.max(queue2[existing].priority, priority);
           trace.record("queue", "coalesce", { command, params });
           return;
         }
       }
       if (command === "setRFPower") {
-        const existing = queue.findIndex((item) => item.command === command);
+        const existing = queue2.findIndex((item) => item.command === command);
         if (existing >= 0) {
-          queue[existing].params = params;
+          queue2[existing].params = params;
           trace.record("queue", "coalesce", { command, params });
           return;
         }
       }
-      if (queue.length >= maxQueueSize) {
-        queue.sort((a, b) => b.priority - a.priority);
-        const dropped = queue.slice(maxQueueSize - 1);
-        queue = queue.slice(0, maxQueueSize - 1);
+      if (queue2.length >= maxQueueSize) {
+        queue2.sort((a, b) => b.priority - a.priority);
+        const dropped = queue2.slice(maxQueueSize - 1);
+        queue2 = queue2.slice(0, maxQueueSize - 1);
         for (const d of dropped) {
           trace.record("queue", "drop", { command: d.command, params: d.params });
         }
       }
-      trace.record("queue", "enqueue", { command, params, priority, queueSize: queue.length + 1 });
-      queue.push({ command, params, priority, time: Date.now() });
-      queue.sort((a, b) => {
+      trace.record("queue", "enqueue", { command, params, priority, queueSize: queue2.length + 1 });
+      queue2.push({ command, params, priority, time: Date.now() });
+      queue2.sort((a, b) => {
         if (b.priority !== a.priority) return b.priority - a.priority;
         return a.time - b.time;
       });
       processNext();
     }
     async function processNext() {
-      if (processing || queue.length === 0) return;
+      if (processing || queue2.length === 0) return;
       processing = true;
       try {
         const elapsed2 = Date.now() - lastSendTime;
         if (elapsed2 < minInterval) {
           await new Promise((resolve) => setTimeout(resolve, minInterval - elapsed2));
         }
-        const item = queue.shift();
+        const item = queue2.shift();
         if (item) {
           lastSendTime = Date.now();
           await sendFn(item.command, item.params);
@@ -4168,16 +4168,16 @@
         console.error("[cat] Queue send error:", err2);
       } finally {
         processing = false;
-        if (queue.length > 0) {
+        if (queue2.length > 0) {
           processNext();
         }
       }
     }
     function clear() {
-      queue = [];
+      queue2 = [];
     }
     function size() {
-      return queue.length;
+      return queue2.length;
     }
     return { push, clear, size };
   }
@@ -4203,7 +4203,7 @@
     function bytesToHex(bytes) {
       return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
     }
-    const queue = createCommandQueue(
+    const queue2 = createCommandQueue(
       async (command, params) => {
         const encoded = driver.encode(command, params);
         if (!encoded) return;
@@ -4315,7 +4315,7 @@
         if (!connected) return;
         const commands = driver.pollCommands();
         for (const cmd of commands) {
-          queue.push(cmd, null, 0);
+          queue2.push(cmd, null, 0);
         }
       }, pollingInterval);
     }
@@ -4330,11 +4330,11 @@
       if (!driver.meterCommands) return;
       meterTimer = setInterval(() => {
         if (!connected) return;
-        queue.push("getSignal", null, 0);
+        queue2.push("getSignal", null, 0);
         const rigState = store.get();
         if (rigState.ptt) {
-          queue.push("getSWR", null, 0);
-          queue.push("getPower", null, 0);
+          queue2.push("getSWR", null, 0);
+          queue2.push("getPower", null, 0);
         }
       }, meterInterval);
     }
@@ -4368,7 +4368,7 @@
       connected = false;
       stopPolling();
       stopMeters();
-      queue.clear();
+      queue2.clear();
       try {
         await transport.disconnect();
       } catch (err2) {
@@ -4378,7 +4378,7 @@
     }
     function sendCommand(command, params, priority = 1) {
       if (!connected) return;
-      queue.push(command, params, priority);
+      queue2.push(command, params, priority);
     }
     function isConnected() {
       return connected;
@@ -7319,6 +7319,103 @@
     }
   });
 
+  // src/dialog.js
+  function build() {
+    overlay = document.createElement("div");
+    overlay.className = "splash-overlay hidden app-dialog-overlay";
+    overlay.id = "appDialog";
+    overlay.innerHTML = `
+    <div class="splash-box app-dialog-box" role="alertdialog" aria-modal="true" aria-labelledby="appDialogTitle" aria-describedby="appDialogMsg">
+      <h3 id="appDialogTitle"></h3>
+      <p id="appDialogMsg" class="app-dialog-msg"></p>
+      <input type="text" id="appDialogInput" class="app-dialog-input hidden" autocomplete="off" spellcheck="false" />
+      <div class="app-dialog-actions">
+        <button type="button" id="appDialogCancel" class="app-dialog-btn app-dialog-secondary">Cancel</button>
+        <button type="button" id="appDialogOk" class="app-dialog-btn app-dialog-primary">OK</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+  }
+  function show(kind, opts) {
+    if (!overlay) build();
+    const title = overlay.querySelector("#appDialogTitle");
+    const msg = overlay.querySelector("#appDialogMsg");
+    const input = overlay.querySelector("#appDialogInput");
+    const okBtn = overlay.querySelector("#appDialogOk");
+    const cancelBtn = overlay.querySelector("#appDialogCancel");
+    title.textContent = opts.title || (kind === "alert" ? "HamTab" : kind === "prompt" ? "Enter a value" : "Are you sure?");
+    title.classList.toggle("hidden", !title.textContent);
+    msg.textContent = opts.message || "";
+    msg.classList.toggle("hidden", !opts.message);
+    input.classList.toggle("hidden", kind !== "prompt");
+    input.value = opts.value || "";
+    input.placeholder = opts.placeholder || "";
+    if (opts.label) input.setAttribute("aria-label", opts.label);
+    okBtn.textContent = opts.confirmLabel || "OK";
+    okBtn.classList.toggle("app-dialog-danger", Boolean(opts.danger));
+    cancelBtn.textContent = opts.cancelLabel || "Cancel";
+    cancelBtn.classList.toggle("hidden", kind === "alert");
+    return new Promise((resolve) => {
+      const finish = (confirmed) => {
+        okBtn.removeEventListener("click", onOk);
+        cancelBtn.removeEventListener("click", onCancel);
+        overlay.removeEventListener("click", onBackdrop);
+        document.removeEventListener("keydown", onKey, true);
+        closeModal(overlay);
+        if (kind === "alert") resolve(void 0);
+        else if (kind === "confirm") resolve(confirmed);
+        else resolve(confirmed ? input.value : null);
+      };
+      const onOk = () => finish(true);
+      const onCancel = () => finish(false);
+      const onBackdrop = (e) => {
+        if (e.target === overlay) finish(false);
+      };
+      const onKey = (e) => {
+        if (overlay.classList.contains("hidden")) return;
+        if (e.key === "Escape" && (state_default.a11yEscapeClose !== false || kind === "alert")) {
+          e.stopPropagation();
+          finish(false);
+        } else if (e.key === "Enter" && (kind !== "confirm" || document.activeElement === okBtn || document.activeElement === input)) {
+          e.preventDefault();
+          e.stopPropagation();
+          finish(true);
+        }
+      };
+      okBtn.addEventListener("click", onOk);
+      cancelBtn.addEventListener("click", onCancel);
+      overlay.addEventListener("click", onBackdrop);
+      document.addEventListener("keydown", onKey, true);
+      const focusEl = kind === "prompt" ? input : opts.danger ? cancelBtn : okBtn;
+      openModal(overlay, { focusEl });
+      if (kind === "prompt") input.select();
+    });
+  }
+  function enqueue(kind, opts) {
+    const next = queue.then(() => show(kind, opts));
+    queue = next.catch(() => {
+    });
+    return next;
+  }
+  function confirmDialog(opts) {
+    return enqueue("confirm", typeof opts === "string" ? { message: opts } : opts);
+  }
+  function alertDialog(opts) {
+    return enqueue("alert", typeof opts === "string" ? { message: opts } : opts);
+  }
+  function promptDialog(opts) {
+    return enqueue("prompt", typeof opts === "string" ? { title: opts } : opts);
+  }
+  var overlay, queue;
+  var init_dialog = __esm({
+    "src/dialog.js"() {
+      init_state();
+      init_a11y();
+      overlay = null;
+      queue = Promise.resolve();
+    }
+  });
+
   // src/logbook.js
   function gridToLL(grid) {
     if (!grid || grid.length < 4) return null;
@@ -7557,9 +7654,9 @@
     const notes = [...extraNotes];
     if (folded > 0) notes.push(`${folded} QSO${folded === 1 ? " had" : "s had"} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
     if (incomplete > 0) notes.push(`${incomplete} QSO${incomplete === 1 ? " is" : "s are"} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${incomplete === 1 ? "it" : "them"}.`);
-    if (notes.length > 0) alert(`Exported ${count} QSO${count === 1 ? "" : "s"}${outs.length > 1 ? ` in ${outs.length} files` : ""}.
-
-` + notes.join("\n\n"));
+    if (notes.length > 0) {
+      alertDialog({ title: `Exported ${count} QSO${count === 1 ? "" : "s"}${outs.length > 1 ? ` in ${outs.length} files` : ""}`, message: notes.join("\n\n") });
+    }
   }
   async function exportActivations(groups) {
     let chosen = groups;
@@ -7576,7 +7673,7 @@
     const now = /* @__PURE__ */ new Date();
     const outs = [];
     for (const g of chosen) {
-      const out = writeADIF(g.records, { programVersion: "0.73.2", now });
+      const out = writeADIF(g.records, { programVersion: "0.73.3", now });
       const call = g.records[0].STATION_CALLSIGN || g.records[0].OPERATOR || state_default.myCallsign;
       downloadText(activationFilename(call, g.ref, g.date), out.text);
       outs.push(out);
@@ -7607,7 +7704,7 @@
     const records = scopes[scope];
     if (records.length === 0) return;
     const now = /* @__PURE__ */ new Date();
-    const out = writeADIF(records, { programVersion: "0.73.2", now });
+    const out = writeADIF(records, { programVersion: "0.73.3", now });
     downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
     await finishExport(records, [out], now);
   }
@@ -7795,7 +7892,7 @@
       const text = await file.text();
       const records = parseADIF(text);
       if (records.length === 0) {
-        alert("No QSO records found in file.");
+        alertDialog({ title: "Nothing to import", message: "No QSO records were found in that file." });
         return;
       }
       let mode2 = "replace-imported";
@@ -7817,11 +7914,11 @@
       renderLogbookOnMap();
       showLogbookContent(state_default.logbookData.length > 0);
       if (plan.skipped.length > 0) {
-        alert(`Imported ${plan.add.length} QSOs; skipped ${plan.skipped.length} probable duplicate${plan.skipped.length === 1 ? "" : "s"}.`);
+        alertDialog({ title: "Import complete", message: `Imported ${plan.add.length} QSO${plan.add.length === 1 ? "" : "s"}; skipped ${plan.skipped.length} probable duplicate${plan.skipped.length === 1 ? "" : "s"}.` });
       }
     } catch (err2) {
       console.error("ADIF import error:", err2);
-      alert("Failed to parse ADIF file: " + err2.message);
+      alertDialog({ title: "Import failed", message: "HamTab could not read that ADIF file: " + err2.message });
     }
   }
   async function initLogbook() {
@@ -7897,7 +7994,7 @@
         e.stopPropagation();
         exportLogbook().catch((err2) => {
           console.error("ADIF export error:", err2);
-          alert("Export failed: " + err2.message);
+          alertDialog({ title: "Export failed", message: err2.message });
         });
       });
     }
@@ -7926,7 +8023,7 @@
             return;
           }
           if (!scope) return;
-        } else if (!confirm("Clear all imported QSO data?")) {
+        } else if (!await confirmDialog({ title: "Clear the logbook?", message: "This removes all imported QSOs from this browser.", confirmLabel: "Clear", danger: true })) {
           return;
         }
         await clearQSOs(scope);
@@ -7968,6 +8065,7 @@
       init_qso_entry();
       init_feature_flags();
       init_qso_log_form();
+      init_dialog();
       DB_NAME = "hamtab_logbook";
       DB_VERSION = 2;
       STORE_NAME = "qsos";
@@ -8292,7 +8390,13 @@
   }
   async function removeLoggedQSO(record) {
     if (!record || !record[META_KEY]) return;
-    if (!confirm(`Delete the QSO with ${record.CALL || "this station"} on ${dateToDisplay(record.QSO_DATE)}?`)) return;
+    const ok = await confirmDialog({
+      title: "Delete this QSO?",
+      message: `Delete the QSO with ${record.CALL || "this station"} on ${dateToDisplay(record.QSO_DATE)}? You can undo right after.`,
+      confirmLabel: "Delete",
+      danger: true
+    });
+    if (!ok) return;
     const snapshot = { ...record };
     await deleteLoggedQSO(record.id);
     showToast(`Deleted ${record.CALL || "QSO"}`, async () => {
@@ -8314,6 +8418,7 @@
       init_qso_entry();
       init_logbook_records();
       init_logbook();
+      init_dialog();
       ACTIVATING_KEY = "hamtab_log_activating";
       MY_PARKS_KEY = "hamtab_log_my_parks";
       MY_WWFF_KEY = "hamtab_log_my_wwff";
@@ -11824,9 +11929,9 @@
   function updatePrivFilterVisibility() {
     const label = document.querySelector(".priv-filter-label");
     if (!label) return;
-    const show2 = isUSCallsign(state_default.myCallsign) && !!state_default.licenseClass;
-    label.classList.toggle("hidden", !show2);
-    if (!show2) {
+    const show3 = isUSCallsign(state_default.myCallsign) && !!state_default.licenseClass;
+    label.classList.toggle("hidden", !show3);
+    if (!show3) {
       state_default.privilegeFilterEnabled = false;
       const cb = $("privFilter");
       if (cb) cb.checked = false;
@@ -12014,14 +12119,14 @@
       });
     }
     if (savePresetBtn) {
-      savePresetBtn.addEventListener("click", () => {
-        const name = prompt("Preset name:");
+      savePresetBtn.addEventListener("click", async () => {
+        const name = await promptDialog({ title: "Save filter preset", label: "Preset name", placeholder: "e.g. 20m CW", confirmLabel: "Save" });
         if (name && name.trim()) savePreset(name.trim());
       });
     }
     if (deletePresetBtn) {
-      deletePresetBtn.addEventListener("click", () => {
-        const name = prompt("Preset name to delete:");
+      deletePresetBtn.addEventListener("click", async () => {
+        const name = await promptDialog({ title: "Delete filter preset", label: "Preset name to delete", confirmLabel: "Delete" });
         if (name && name.trim()) deletePreset(name.trim());
       });
     }
@@ -12327,6 +12432,7 @@
       init_geo();
       init_band_conditions();
       init_pota_hunter();
+      init_dialog();
     }
   });
 
@@ -23819,6 +23925,7 @@ ${beacon.location}`);
   // src/on-air-rig.js
   init_map_overlays();
   init_voacap();
+  init_dialog();
   var unsubscribe = null;
   var initialized2 = false;
   var listenersAttached = false;
@@ -24789,7 +24896,12 @@ ${beacon.location}`);
   }
   async function handleReleaseForWSJTX() {
     if (!isRigConnected()) return;
-    if (!confirm("Disconnect from the radio so WSJT-X can connect?\n\nYour digital settings have been applied. Reconnect when your WSJT-X session is over to restore your previous radio settings.")) return;
+    const release = await confirmDialog({
+      title: "Release the radio for WSJT-X?",
+      message: "HamTab disconnects from the radio so WSJT-X can connect. Your digital settings have been applied. Reconnect when your WSJT-X session is over to restore your previous radio settings.",
+      confirmLabel: "Disconnect"
+    });
+    if (!release) return;
     stopScope();
     try {
       await disconnectRig();
@@ -25063,7 +25175,7 @@ ${beacon.location}`);
       if (powerOffBtn) {
         powerOffBtn.addEventListener("click", async () => {
           if (!isRigConnected()) return;
-          if (!confirm("Power off the radio?")) return;
+          if (!await confirmDialog({ title: "Power off the radio?", message: "HamTab sends the power-off command, then disconnects.", confirmLabel: "Power off", danger: true })) return;
           sendRigCommand("powerOff", null, 1);
           setTimeout(async () => {
             stopScope();
@@ -25137,6 +25249,7 @@ ${beacon.location}`);
   onWidgetHide("widget-on-air-rig", destroyOnAirRig);
 
   // src/splash.js
+  init_dialog();
   var stagedAssignments = {};
   var selectedCell = null;
   function updateOperatorDisplay2() {
@@ -25363,8 +25476,8 @@ ${beacon.location}`);
       delBtn.className = "splash-layout-item-del";
       delBtn.textContent = "\xD7";
       delBtn.title = "Delete";
-      delBtn.addEventListener("click", () => {
-        if (confirm(`Delete layout "${name}"?`)) {
+      delBtn.addEventListener("click", async () => {
+        if (await confirmDialog({ title: "Delete layout?", message: `Delete the layout "${name}"? This can't be undone.`, confirmLabel: "Delete", danger: true })) {
           deleteNamedLayout(name);
           renderSplashLayoutList();
           $("splashLayoutStatus").textContent = `Deleted "${name}"`;
@@ -25509,8 +25622,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.73.2";
-    $("aboutVersion").textContent = "0.73.2";
+    $("splashVersion").textContent = "0.73.3";
+    $("aboutVersion").textContent = "0.73.3";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -26469,13 +26582,19 @@ ${beacon.location}`);
       });
     }
     if (dataImportApply) {
-      dataImportApply.addEventListener("click", () => {
+      dataImportApply.addEventListener("click", async () => {
         const textarea = document.getElementById("dataImportCode");
         if (!textarea || !textarea.value.trim()) {
           setDataStatus("Paste a config code first.", true);
           return;
         }
-        if (!confirm("This will replace all your settings including your callsign. Continue?")) return;
+        const replace = await confirmDialog({
+          title: "Replace all settings?",
+          message: "This replaces all of your settings, including your callsign, with the imported config. HamTab reloads afterwards.",
+          confirmLabel: "Replace settings",
+          danger: true
+        });
+        if (!replace) return;
         const result = importConfig(textarea.value);
         if (result.ok) {
           setDataStatus(`Imported config from ${result.callsign || "unknown"} \u2014 reloading...`, false);
@@ -27469,32 +27588,32 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
     if (dateEl) dateEl.textContent = fmtDate(now);
     if (utcDateEl) utcDateEl.textContent = fmtDate(now, { timeZone: "UTC" });
   }
-  function show() {
-    const overlay = $("bigClockOverlay");
-    if (!overlay) return;
+  function show2() {
+    const overlay2 = $("bigClockOverlay");
+    if (!overlay2) return;
     active = true;
-    openModal(overlay);
+    openModal(overlay2);
     updateBigClock();
   }
   function hide() {
-    const overlay = $("bigClockOverlay");
-    if (!overlay) return;
+    const overlay2 = $("bigClockOverlay");
+    if (!overlay2) return;
     active = false;
-    closeModal(overlay);
+    closeModal(overlay2);
   }
   function toggleBigClock() {
     if (active) hide();
-    else show();
+    else show2();
   }
   function initBigClock() {
     const clockGroup = $("headerClockLocal");
     const clockUtc = $("headerClockUtc");
     if (clockGroup) clockGroup.addEventListener("click", toggleBigClock);
     if (clockUtc) clockUtc.addEventListener("click", toggleBigClock);
-    const overlay = $("bigClockOverlay");
-    if (overlay) {
-      overlay.addEventListener("click", hide);
-      const inner = overlay.querySelector(".big-clock-inner");
+    const overlay2 = $("bigClockOverlay");
+    if (overlay2) {
+      overlay2.addEventListener("click", hide);
+      const inner = overlay2.querySelector(".big-clock-inner");
       if (inner) inner.addEventListener("click", (e) => e.stopPropagation());
     }
     document.addEventListener("keydown", (e) => {
@@ -28467,6 +28586,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   init_dom();
   init_constants();
   init_widgets();
+  init_dialog();
   var menuOpen = false;
   function renderMenu() {
     const menu = $("layoutMenu");
@@ -28490,9 +28610,9 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       delBtn.className = "layout-delete-btn";
       delBtn.textContent = "\xD7";
       delBtn.title = "Delete layout";
-      delBtn.addEventListener("click", (e) => {
+      delBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        if (confirm(`Delete layout "${name}"?`)) {
+        if (await confirmDialog({ title: "Delete layout?", message: `Delete the layout "${name}"? This can't be undone.`, confirmLabel: "Delete", danger: true })) {
           deleteNamedLayout(name);
           renderMenu();
         }
@@ -28546,7 +28666,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
       if (!name) return;
       const ok = saveNamedLayout(name);
       if (!ok) {
-        alert("Maximum 20 layouts reached. Delete one first.");
+        alertDialog({ title: "Layout limit reached", message: "You can save up to 20 layouts. Delete one first." });
         return;
       }
       renderMenu();

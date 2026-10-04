@@ -10,6 +10,7 @@ import { renderMarkers } from './markers.js';
 import { distanceMi } from './geo.js';
 import { calculateBandReliability, calculateMUF, dayFraction, HF_BANDS } from './band-conditions.js';
 import { isWorked } from './pota-hunter.js';
+import { promptDialog } from './dialog.js';
 
 export function freqToBand(freqStr) {
   let freq = parseFloat(freqStr);
@@ -781,15 +782,15 @@ export function initFilterListeners() {
   }
 
   if (savePresetBtn) {
-    savePresetBtn.addEventListener('click', () => {
-      const name = prompt('Preset name:');
+    savePresetBtn.addEventListener('click', async () => {
+      const name = await promptDialog({ title: 'Save filter preset', label: 'Preset name', placeholder: 'e.g. 20m CW', confirmLabel: 'Save' });
       if (name && name.trim()) savePreset(name.trim());
     });
   }
 
   if (deletePresetBtn) {
-    deletePresetBtn.addEventListener('click', () => {
-      const name = prompt('Preset name to delete:');
+    deletePresetBtn.addEventListener('click', async () => {
+      const name = await promptDialog({ title: 'Delete filter preset', label: 'Preset name to delete', confirmLabel: 'Delete' });
       if (name && name.trim()) deletePreset(name.trim());
     });
   }

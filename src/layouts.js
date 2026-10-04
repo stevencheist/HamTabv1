@@ -7,6 +7,7 @@ import state from './state.js';
 import { $ } from './dom.js';
 import { USER_LAYOUT_KEY, LAYOUTS_KEY } from './constants.js';
 import { getNamedLayouts, saveNamedLayout, loadNamedLayout, deleteNamedLayout } from './widgets.js';
+import { confirmDialog, alertDialog } from './dialog.js';
 
 let menuOpen = false;
 
@@ -37,9 +38,9 @@ function renderMenu() {
     delBtn.className = 'layout-delete-btn';
     delBtn.textContent = '\u00D7'; // ×
     delBtn.title = 'Delete layout';
-    delBtn.addEventListener('click', (e) => {
+    delBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (confirm(`Delete layout "${name}"?`)) {
+      if (await confirmDialog({ title: 'Delete layout?', message: `Delete the layout "${name}"? This can't be undone.`, confirmLabel: 'Delete', danger: true })) {
         deleteNamedLayout(name);
         renderMenu();
       }
@@ -102,7 +103,7 @@ function showSaveInput(menu) {
     if (!name) return;
     const ok = saveNamedLayout(name);
     if (!ok) {
-      alert('Maximum 20 layouts reached. Delete one first.');
+      alertDialog({ title: 'Layout limit reached', message: 'You can save up to 20 layouts. Delete one first.' });
       return;
     }
     renderMenu();

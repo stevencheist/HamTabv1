@@ -25,6 +25,10 @@ const RST3_MODES = new Set(['CW', 'RTTY', 'PSK', 'PSK31', 'PSK63']);
 
 // POTA park reference, e.g. US-1234, K-0001, GB-0001 (same rule as self-spot).
 export const PARK_RE = /^[A-Z0-9]+-\d{4,}$/;
+// WWFF reference, e.g. KFF-1234, DLFF-0001, ONFF-0123.
+export const WWFF_RE = /^[A-Z0-9]{1,4}FF-\d{4}$/;
+// SOTA summit, e.g. W6/NC-423, G/LD-001, VK3/VE-001.
+export const SOTA_RE = /^[A-Z0-9]{1,4}\/[A-Z0-9]{2}-\d{3}$/;
 
 export function toAdifMode(displayMode) {
   const m = String(displayMode || '').trim().toUpperCase();
@@ -115,11 +119,18 @@ export function validateEntry(f) {
   if (freq && !(parseFloat(freq) > 0)) errors.freq = 'Frequency in MHz, e.g. 14.074.';
   if (!freq && !f.band) errors.band = 'Enter a frequency or pick a band.';
   if (!String(f.mode || '').trim()) errors.mode = 'Pick a mode.';
-  const theirPark = String(f.theirPark || '').trim().toUpperCase();
-  if (theirPark && !PARK_RE.test(theirPark)) errors.theirPark = 'Park reference like US-1234.';
+  const up = v => String(v || '').trim().toUpperCase();
+  if (up(f.theirPark) && !PARK_RE.test(up(f.theirPark))) errors.theirPark = 'Park reference like US-1234.';
+  if (up(f.theirWwff) && !WWFF_RE.test(up(f.theirWwff))) errors.theirWwff = 'WWFF reference like KFF-1234.';
+  if (up(f.theirSota) && !SOTA_RE.test(up(f.theirSota))) errors.theirSota = 'Summit like W6/NC-423.';
   if (f.activating) {
     const parks = parseParks(f.myParks);
-    if (parks.length === 0 || parks.some(p => !PARK_RE.test(p))) errors.myParks = 'Your park(s), e.g. US-1234 or US-1234, US-5678.';
+    if (parks.some(p => !PARK_RE.test(p))) errors.myParks = 'Your park(s), e.g. US-1234 or US-1234, US-5678.';
+    if (up(f.myWwff) && !WWFF_RE.test(up(f.myWwff))) errors.myWwff = 'WWFF reference like KFF-1234.';
+    if (up(f.mySota) && !SOTA_RE.test(up(f.mySota))) errors.mySota = 'Summit like W6/NC-423.';
+    if (parks.length === 0 && !up(f.myWwff) && !up(f.mySota) && !errors.myParks) {
+      errors.myParks = 'Enter your park, WWFF reference or summit — or untick "I\'m activating".';
+    }
   }
   return errors;
 }
@@ -148,8 +159,16 @@ export function buildRecord(f) {
   };
   if (theirPark) Object.assign(rec, { SIG: 'POTA', SIG_INFO: theirPark, POTA_REF: theirPark });
   if (myParks.length > 0) {
-    // One park per MY_SIG_INFO; the full list lives in MY_POTA_REF. Per-park files come from the export step.
+    // One park per MY_SIG_INFO; the full list lives in MY_POTA_REF. Per-park files come from the activation export.
     Object.assign(rec, { MY_SIG: 'POTA', MY_SIG_INFO: myParks[0], MY_POTA_REF: myParks.join(',') });
+  }
+  // WWFF and SOTA use their dedicated ADIF fields; the activation export sets SIG/MY_SIG per program.
+  const up = v => String(v || '').trim().toUpperCase();
+  rec.WWFF_REF = up(f.theirWwff);
+  rec.SOTA_REF = up(f.theirSota);
+  if (f.activating) {
+    rec.MY_WWFF_REF = up(f.myWwff);
+    rec.MY_SOTA_REF = up(f.mySota);
   }
   for (const k of Object.keys(rec)) if (rec[k] === '') delete rec[k];
   return rec;
@@ -157,7 +176,8 @@ export function buildRecord(f) {
 
 // Fields this form owns. On edit, these are replaced; anything else on the record is kept.
 export const FORM_FIELDS = ['CALL', 'QSO_DATE', 'TIME_ON', 'FREQ', 'BAND', 'MODE', 'SUBMODE', 'RST_SENT', 'RST_RCVD',
-  'STATION_CALLSIGN', 'MY_GRIDSQUARE', 'GRIDSQUARE', 'NAME', 'COMMENT', 'SIG', 'SIG_INFO', 'POTA_REF', 'MY_SIG', 'MY_SIG_INFO', 'MY_POTA_REF'];
+  'STATION_CALLSIGN', 'MY_GRIDSQUARE', 'GRIDSQUARE', 'NAME', 'COMMENT', 'SIG', 'SIG_INFO', 'POTA_REF', 'MY_SIG', 'MY_SIG_INFO', 'MY_POTA_REF',
+  'WWFF_REF', 'MY_WWFF_REF', 'SOTA_REF', 'MY_SOTA_REF'];
 
 // Record → form fields, for editing.
 export function recordToFields(r) {
@@ -177,7 +197,56 @@ export function recordToFields(r) {
     name: r.NAME || '',
     comment: r.COMMENT || '',
     theirPark: r.POTA_REF || (r.SIG === 'POTA' ? r.SIG_INFO : '') || '',
-    activating: Boolean(myParks),
-    myParks: String(myParks).split(',').join(', '),
+    theirWwff: r.WWFF_REF || (r.SIG === 'WWFF' ? r.SIG_INFO : '') || '',
+    theirSota: r.SOTA_REF || '',
+    activating: Boolean(myParks || r.MY_WWFF_REF || r.MY_SOTA_REF),
+    myParks: String(myParks).split(',').filter(Boolean).join(', '),
+    myWwff: r.MY_WWFF_REF || (r.MY_SIG === 'WWFF' ? r.MY_SIG_INFO : '') || '',
+    mySota: r.MY_SOTA_REF || '',
   };
+}
+
+// --- Activation exports ---
+// One file per program reference per UTC day: POTA wants one log per park (n-fers are
+// uploaded once per park), WWFF one per reference, SOTA one per summit. Each copy of a
+// QSO carries only that program's MY_SIG/SIG pair so award fields don't cross programs.
+
+function myPotaParks(r) {
+  if (r.MY_POTA_REF) return parseParks(r.MY_POTA_REF);
+  if (String(r.MY_SIG || '').toUpperCase() === 'POTA' && r.MY_SIG_INFO) return parseParks(r.MY_SIG_INFO);
+  return [];
+}
+function myWwffRef(r) {
+  if (r.MY_WWFF_REF) return String(r.MY_WWFF_REF).toUpperCase();
+  if (String(r.MY_SIG || '').toUpperCase() === 'WWFF' && r.MY_SIG_INFO) return String(r.MY_SIG_INFO).toUpperCase();
+  return '';
+}
+
+// Returns [{ program, ref, date, records }], newest first. Records are copies shaped for that program.
+export function groupActivations(records) {
+  const groups = new Map();
+  const add = (program, ref, rec, shaped) => {
+    const key = `${program}|${ref}|${rec.QSO_DATE || ''}`;
+    if (!groups.has(key)) groups.set(key, { program, ref, date: rec.QSO_DATE || '', records: [] });
+    groups.get(key).records.push(shaped);
+  };
+  for (const r of records) {
+    const theirPota = r.POTA_REF ? parseParks(r.POTA_REF)[0] : (String(r.SIG || '').toUpperCase() === 'POTA' ? r.SIG_INFO : '');
+    const theirWwff = r.WWFF_REF || (String(r.SIG || '').toUpperCase() === 'WWFF' ? r.SIG_INFO : '');
+    for (const park of myPotaParks(r)) {
+      const shaped = { ...r, MY_SIG: 'POTA', MY_SIG_INFO: park, MY_POTA_REF: park };
+      delete shaped.SIG; delete shaped.SIG_INFO;
+      if (theirPota) Object.assign(shaped, { SIG: 'POTA', SIG_INFO: String(theirPota).toUpperCase() });
+      add('POTA', park, r, shaped);
+    }
+    const wwff = myWwffRef(r);
+    if (wwff) {
+      const shaped = { ...r, MY_SIG: 'WWFF', MY_SIG_INFO: wwff, MY_WWFF_REF: wwff };
+      delete shaped.SIG; delete shaped.SIG_INFO;
+      if (theirWwff) Object.assign(shaped, { SIG: 'WWFF', SIG_INFO: String(theirWwff).toUpperCase() });
+      add('WWFF', wwff, r, shaped);
+    }
+    if (r.MY_SOTA_REF) add('SOTA', String(r.MY_SOTA_REF).toUpperCase(), r, { ...r });
+  }
+  return [...groups.values()].sort((a, b) => (b.date + b.ref).localeCompare(a.date + a.ref));
 }

@@ -9,7 +9,8 @@ import { gridToLatLon, geodesicPoints } from './geo.js';
 import { freqToBand } from './filters.js';
 import { getBandColor } from './constants.js';
 import { parseADIF, migrateV1Record, planImport, countHamtabLogged, countUnexportedLogged, isHamtabLogged, newId, META_KEY } from './logbook-records.js';
-import { writeADIF, exportFilename } from './adif-writer.js';
+import { writeADIF, exportFilename, activationFilename } from './adif-writer.js';
+import { groupActivations, dateToDisplay } from './qso-entry.js';
 import { isFeatureVisible } from './feature-flags.js';
 import { initLogForm, openLogForm, editLoggedQSO, removeLoggedQSO } from './qso-log-form.js';
 
@@ -298,38 +299,81 @@ function downloadText(filename, text) {
   setTimeout(() => URL.revokeObjectURL(url), 10000); // ms — give the browser time to start the download
 }
 
-async function exportLogbook() {
-  const all = state.logbookData;
-  const filtered = getFilteredData();
-  const logged = all.filter(isHamtabLogged);
-  const unexported = logged.filter(r => !r[META_KEY].lastExportedAt);
-  const scopes = { all, view: filtered, logged, unexported };
-
-  const choices = [{ label: `All (${all.length})`, value: 'all', primary: true }];
-  if (filtered.length !== all.length) choices.push({ label: `Current view (${filtered.length})`, value: 'view' });
-  if (logged.length > 0) choices.push({ label: `Logged in HamTab (${logged.length})`, value: 'logged' });
-  if (unexported.length > 0) choices.push({ label: `Not yet exported (${unexported.length})`, value: 'unexported' });
-
-  const scope = choices.length === 1 ? 'all' : await askChoice('Export which QSOs as an ADIF (.adi) file?', choices);
-  if (!scope) return;
-  const records = scopes[scope];
-  if (records.length === 0) return;
-
-  const now = new Date();
-  const out = writeADIF(records, { programVersion: __APP_VERSION__, now });
-  downloadText(exportFilename(state.myCallsign, scope, now), out.text);
-
+// Stamp exported HamTab-logged QSOs, refresh, and explain anything the writer had to change.
+async function finishExport(records, outs, now, extraNotes = []) {
   const exportedUuids = new Set(records.filter(isHamtabLogged).map(r => r[META_KEY].uuid));
   if (exportedUuids.size > 0) {
     await markExported(exportedUuids, now.toISOString());
     state.logbookData = await loadQSOs();
     renderLogbook();
   }
+  const folded = outs.reduce((n, o) => n + o.foldedRecords, 0);
+  const incomplete = outs.reduce((n, o) => n + o.incompleteRecords, 0);
+  const count = outs.reduce((n, o) => n + o.recordCount, 0);
+  const notes = [...extraNotes];
+  if (folded > 0) notes.push(`${folded} QSO${folded === 1 ? ' had' : 's had'} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
+  if (incomplete > 0) notes.push(`${incomplete} QSO${incomplete === 1 ? ' is' : 's are'} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${incomplete === 1 ? 'it' : 'them'}.`);
+  if (notes.length > 0) alert(`Exported ${count} QSO${count === 1 ? '' : 's'}${outs.length > 1 ? ` in ${outs.length} files` : ''}.\n\n` + notes.join('\n\n'));
+}
 
-  const notes = [];
-  if (out.foldedRecords > 0) notes.push(`${out.foldedRecords} QSO${out.foldedRecords === 1 ? ' had' : 's had'} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
-  if (out.incompleteRecords > 0) notes.push(`${out.incompleteRecords} QSO${out.incompleteRecords === 1 ? ' is' : 's are'} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${out.incompleteRecords === 1 ? 'it' : 'them'}.`);
-  if (notes.length > 0) alert(`Exported ${out.recordCount} QSOs.\n\n` + notes.join('\n\n'));
+const MAX_ACTIVATION_CHOICES = 8; // newest activations offered individually; "All" covers the rest
+
+// One upload-ready file per program reference per UTC day (POTA wants one log per park).
+async function exportActivations(groups) {
+  let chosen = groups;
+  if (groups.length > 1) {
+    const choices = groups.slice(0, MAX_ACTIVATION_CHOICES).map((g, i) => ({
+      label: `${g.program} ${g.ref} · ${dateToDisplay(g.date)} (${g.records.length})`,
+      value: String(i),
+    }));
+    choices.unshift({ label: `All ${groups.length} files`, value: 'all', primary: true });
+    const pick = await askChoice('Download one upload-ready file per activation (program, reference and UTC day):', choices);
+    if (!pick) return;
+    chosen = pick === 'all' ? groups : [groups[Number(pick)]];
+  }
+  const now = new Date();
+  const outs = [];
+  for (const g of chosen) {
+    const out = writeADIF(g.records, { programVersion: __APP_VERSION__, now });
+    const call = g.records[0].STATION_CALLSIGN || g.records[0].OPERATOR || state.myCallsign;
+    downloadText(activationFilename(call, g.ref, g.date), out.text);
+    outs.push(out);
+    if (chosen.length > 1) await new Promise(r => setTimeout(r, 300)); // ms — browsers drop rapid back-to-back downloads
+  }
+  const extra = chosen.length > 1 ? ['If only one file arrived, allow this site to download multiple files when the browser asks, then export again.'] : [];
+  // A multi-park QSO is only fully exported once every one of its activation files is out, so a
+  // single-file pick doesn't stamp lastExportedAt (an "All files" export, or a regular export, does).
+  const complete = chosen.length === groups.length;
+  await finishExport(complete ? chosen.flatMap(g => g.records) : [], outs, now, extra);
+}
+
+export async function exportLogbook() {
+  const all = state.logbookData;
+  const filtered = getFilteredData();
+  const logged = all.filter(isHamtabLogged);
+  const unexported = logged.filter(r => !r[META_KEY].lastExportedAt);
+  const activations = groupActivations(all);
+  const scopes = { all, view: filtered, logged, unexported };
+
+  const choices = [{ label: `All (${all.length})`, value: 'all', primary: true }];
+  if (filtered.length !== all.length) choices.push({ label: `Current view (${filtered.length})`, value: 'view' });
+  if (logged.length > 0) choices.push({ label: `Logged in HamTab (${logged.length})`, value: 'logged' });
+  if (unexported.length > 0) choices.push({ label: `Not yet exported (${unexported.length})`, value: 'unexported' });
+  if (activations.length > 0) choices.push({ label: `Activation files (${activations.length})`, value: 'activations' });
+
+  const scope = choices.length === 1 ? 'all' : await askChoice('Export which QSOs as an ADIF (.adi) file?', choices);
+  if (!scope) return;
+  if (scope === 'activations') {
+    await exportActivations(activations);
+    return;
+  }
+  const records = scopes[scope];
+  if (records.length === 0) return;
+
+  const now = new Date();
+  const out = writeADIF(records, { programVersion: __APP_VERSION__, now });
+  downloadText(exportFilename(state.myCallsign, scope, now), out.text);
+  await finishExport(records, [out], now);
 }
 
 export function renderLogbook() {
@@ -429,6 +473,8 @@ export function renderLogbook() {
       const parts = [filtered.length + ' QSOs', calls.size + ' calls'];
       if (dxcc.size > 0) parts.push(dxcc.size + ' DXCC');
       if (sorted.length > maxRows) parts.push('showing first ' + maxRows);
+      const unexported = isFeatureVisible('qso_logging') ? countUnexportedLogged(state.logbookData) : 0;
+      if (unexported > 0) parts.push(unexported + ' not exported');
       statsEl.textContent = parts.join(' \u00b7 ');
     }
   }

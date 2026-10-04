@@ -6878,11 +6878,18 @@
     if (freq && !(parseFloat(freq) > 0)) errors.freq = "Frequency in MHz, e.g. 14.074.";
     if (!freq && !f.band) errors.band = "Enter a frequency or pick a band.";
     if (!String(f.mode || "").trim()) errors.mode = "Pick a mode.";
-    const theirPark = String(f.theirPark || "").trim().toUpperCase();
-    if (theirPark && !PARK_RE.test(theirPark)) errors.theirPark = "Park reference like US-1234.";
+    const up = (v) => String(v || "").trim().toUpperCase();
+    if (up(f.theirPark) && !PARK_RE.test(up(f.theirPark))) errors.theirPark = "Park reference like US-1234.";
+    if (up(f.theirWwff) && !WWFF_RE.test(up(f.theirWwff))) errors.theirWwff = "WWFF reference like KFF-1234.";
+    if (up(f.theirSota) && !SOTA_RE.test(up(f.theirSota))) errors.theirSota = "Summit like W6/NC-423.";
     if (f.activating) {
       const parks = parseParks(f.myParks);
-      if (parks.length === 0 || parks.some((p) => !PARK_RE.test(p))) errors.myParks = "Your park(s), e.g. US-1234 or US-1234, US-5678.";
+      if (parks.some((p) => !PARK_RE.test(p))) errors.myParks = "Your park(s), e.g. US-1234 or US-1234, US-5678.";
+      if (up(f.myWwff) && !WWFF_RE.test(up(f.myWwff))) errors.myWwff = "WWFF reference like KFF-1234.";
+      if (up(f.mySota) && !SOTA_RE.test(up(f.mySota))) errors.mySota = "Summit like W6/NC-423.";
+      if (parks.length === 0 && !up(f.myWwff) && !up(f.mySota) && !errors.myParks) {
+        errors.myParks = `Enter your park, WWFF reference or summit \u2014 or untick "I'm activating".`;
+      }
     }
     return errors;
   }
@@ -6911,6 +6918,13 @@
     if (myParks.length > 0) {
       Object.assign(rec, { MY_SIG: "POTA", MY_SIG_INFO: myParks[0], MY_POTA_REF: myParks.join(",") });
     }
+    const up = (v) => String(v || "").trim().toUpperCase();
+    rec.WWFF_REF = up(f.theirWwff);
+    rec.SOTA_REF = up(f.theirSota);
+    if (f.activating) {
+      rec.MY_WWFF_REF = up(f.myWwff);
+      rec.MY_SOTA_REF = up(f.mySota);
+    }
     for (const k of Object.keys(rec)) if (rec[k] === "") delete rec[k];
     return rec;
   }
@@ -6931,11 +6945,54 @@
       name: r.NAME || "",
       comment: r.COMMENT || "",
       theirPark: r.POTA_REF || (r.SIG === "POTA" ? r.SIG_INFO : "") || "",
-      activating: Boolean(myParks),
-      myParks: String(myParks).split(",").join(", ")
+      theirWwff: r.WWFF_REF || (r.SIG === "WWFF" ? r.SIG_INFO : "") || "",
+      theirSota: r.SOTA_REF || "",
+      activating: Boolean(myParks || r.MY_WWFF_REF || r.MY_SOTA_REF),
+      myParks: String(myParks).split(",").filter(Boolean).join(", "),
+      myWwff: r.MY_WWFF_REF || (r.MY_SIG === "WWFF" ? r.MY_SIG_INFO : "") || "",
+      mySota: r.MY_SOTA_REF || ""
     };
   }
-  var BANDS2, SUBMODES, MODE_CHOICES, PHONE_MODES, RST3_MODES, PARK_RE, dateToDisplay, timeToDisplay, digitsOnly, CALL_RE, FORM_FIELDS;
+  function myPotaParks(r) {
+    if (r.MY_POTA_REF) return parseParks(r.MY_POTA_REF);
+    if (String(r.MY_SIG || "").toUpperCase() === "POTA" && r.MY_SIG_INFO) return parseParks(r.MY_SIG_INFO);
+    return [];
+  }
+  function myWwffRef(r) {
+    if (r.MY_WWFF_REF) return String(r.MY_WWFF_REF).toUpperCase();
+    if (String(r.MY_SIG || "").toUpperCase() === "WWFF" && r.MY_SIG_INFO) return String(r.MY_SIG_INFO).toUpperCase();
+    return "";
+  }
+  function groupActivations(records) {
+    const groups = /* @__PURE__ */ new Map();
+    const add = (program, ref, rec, shaped) => {
+      const key = `${program}|${ref}|${rec.QSO_DATE || ""}`;
+      if (!groups.has(key)) groups.set(key, { program, ref, date: rec.QSO_DATE || "", records: [] });
+      groups.get(key).records.push(shaped);
+    };
+    for (const r of records) {
+      const theirPota = r.POTA_REF ? parseParks(r.POTA_REF)[0] : String(r.SIG || "").toUpperCase() === "POTA" ? r.SIG_INFO : "";
+      const theirWwff = r.WWFF_REF || (String(r.SIG || "").toUpperCase() === "WWFF" ? r.SIG_INFO : "");
+      for (const park of myPotaParks(r)) {
+        const shaped = { ...r, MY_SIG: "POTA", MY_SIG_INFO: park, MY_POTA_REF: park };
+        delete shaped.SIG;
+        delete shaped.SIG_INFO;
+        if (theirPota) Object.assign(shaped, { SIG: "POTA", SIG_INFO: String(theirPota).toUpperCase() });
+        add("POTA", park, r, shaped);
+      }
+      const wwff = myWwffRef(r);
+      if (wwff) {
+        const shaped = { ...r, MY_SIG: "WWFF", MY_SIG_INFO: wwff, MY_WWFF_REF: wwff };
+        delete shaped.SIG;
+        delete shaped.SIG_INFO;
+        if (theirWwff) Object.assign(shaped, { SIG: "WWFF", SIG_INFO: String(theirWwff).toUpperCase() });
+        add("WWFF", wwff, r, shaped);
+      }
+      if (r.MY_SOTA_REF) add("SOTA", String(r.MY_SOTA_REF).toUpperCase(), r, { ...r });
+    }
+    return [...groups.values()].sort((a, b) => (b.date + b.ref).localeCompare(a.date + a.ref));
+  }
+  var BANDS2, SUBMODES, MODE_CHOICES, PHONE_MODES, RST3_MODES, PARK_RE, WWFF_RE, SOTA_RE, dateToDisplay, timeToDisplay, digitsOnly, CALL_RE, FORM_FIELDS;
   var init_qso_entry = __esm({
     "src/qso-entry.js"() {
       BANDS2 = ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm"];
@@ -6954,6 +7011,8 @@
       PHONE_MODES = /* @__PURE__ */ new Set(["SSB", "USB", "LSB", "FM", "AM", "DSTAR", "C4FM", "DMR", "DIGITALVOICE"]);
       RST3_MODES = /* @__PURE__ */ new Set(["CW", "RTTY", "PSK", "PSK31", "PSK63"]);
       PARK_RE = /^[A-Z0-9]+-\d{4,}$/;
+      WWFF_RE = /^[A-Z0-9]{1,4}FF-\d{4}$/;
+      SOTA_RE = /^[A-Z0-9]{1,4}\/[A-Z0-9]{2}-\d{3}$/;
       dateToDisplay = (d) => /^\d{8}$/.test(d || "") ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : d || "";
       timeToDisplay = (t) => {
         const s = String(t || "");
@@ -6983,7 +7042,11 @@
         "POTA_REF",
         "MY_SIG",
         "MY_SIG_INFO",
-        "MY_POTA_REF"
+        "MY_POTA_REF",
+        "WWFF_REF",
+        "MY_WWFF_REF",
+        "SOTA_REF",
+        "MY_SOTA_REF"
       ];
     }
   });
@@ -7184,6 +7247,12 @@
     const date = adifTimestamp(now).slice(0, 8);
     const safeScope = String(scope || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     return ["hamtab", call, date, safeScope].filter(Boolean).join("-") + ".adi";
+  }
+  function activationFilename(callsign, ref, date) {
+    const call = String(callsign || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const safeRef = String(ref || "").toUpperCase().replace(/\//g, "_").replace(/[^A-Z0-9_-]/g, "");
+    const safeDate = String(date || "").replace(/\D/g, "").slice(0, 8);
+    return `${call || "HAMTAB"}@${safeRef}${safeDate ? "-" + safeDate : ""}.adi`;
   }
   var ADIF_VERSION, FIELD_ORDER, MULTILINE_FIELDS, SPECIAL_FOLDS;
   var init_adif_writer = __esm({
@@ -7480,35 +7549,72 @@
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1e4);
   }
-  async function exportLogbook() {
-    const all = state_default.logbookData;
-    const filtered = getFilteredData();
-    const logged = all.filter(isHamtabLogged);
-    const unexported = logged.filter((r) => !r[META_KEY].lastExportedAt);
-    const scopes = { all, view: filtered, logged, unexported };
-    const choices = [{ label: `All (${all.length})`, value: "all", primary: true }];
-    if (filtered.length !== all.length) choices.push({ label: `Current view (${filtered.length})`, value: "view" });
-    if (logged.length > 0) choices.push({ label: `Logged in HamTab (${logged.length})`, value: "logged" });
-    if (unexported.length > 0) choices.push({ label: `Not yet exported (${unexported.length})`, value: "unexported" });
-    const scope = choices.length === 1 ? "all" : await askChoice("Export which QSOs as an ADIF (.adi) file?", choices);
-    if (!scope) return;
-    const records = scopes[scope];
-    if (records.length === 0) return;
-    const now = /* @__PURE__ */ new Date();
-    const out = writeADIF(records, { programVersion: "0.72.0", now });
-    downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
+  async function finishExport(records, outs, now, extraNotes = []) {
     const exportedUuids = new Set(records.filter(isHamtabLogged).map((r) => r[META_KEY].uuid));
     if (exportedUuids.size > 0) {
       await markExported(exportedUuids, now.toISOString());
       state_default.logbookData = await loadQSOs();
       renderLogbook();
     }
-    const notes = [];
-    if (out.foldedRecords > 0) notes.push(`${out.foldedRecords} QSO${out.foldedRecords === 1 ? " had" : "s had"} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
-    if (out.incompleteRecords > 0) notes.push(`${out.incompleteRecords} QSO${out.incompleteRecords === 1 ? " is" : "s are"} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${out.incompleteRecords === 1 ? "it" : "them"}.`);
-    if (notes.length > 0) alert(`Exported ${out.recordCount} QSOs.
+    const folded = outs.reduce((n, o) => n + o.foldedRecords, 0);
+    const incomplete = outs.reduce((n, o) => n + o.incompleteRecords, 0);
+    const count = outs.reduce((n, o) => n + o.recordCount, 0);
+    const notes = [...extraNotes];
+    if (folded > 0) notes.push(`${folded} QSO${folded === 1 ? " had" : "s had"} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
+    if (incomplete > 0) notes.push(`${incomplete} QSO${incomplete === 1 ? " is" : "s are"} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${incomplete === 1 ? "it" : "them"}.`);
+    if (notes.length > 0) alert(`Exported ${count} QSO${count === 1 ? "" : "s"}${outs.length > 1 ? ` in ${outs.length} files` : ""}.
 
 ` + notes.join("\n\n"));
+  }
+  async function exportActivations(groups) {
+    let chosen = groups;
+    if (groups.length > 1) {
+      const choices = groups.slice(0, MAX_ACTIVATION_CHOICES).map((g, i) => ({
+        label: `${g.program} ${g.ref} \xB7 ${dateToDisplay(g.date)} (${g.records.length})`,
+        value: String(i)
+      }));
+      choices.unshift({ label: `All ${groups.length} files`, value: "all", primary: true });
+      const pick = await askChoice("Download one upload-ready file per activation (program, reference and UTC day):", choices);
+      if (!pick) return;
+      chosen = pick === "all" ? groups : [groups[Number(pick)]];
+    }
+    const now = /* @__PURE__ */ new Date();
+    const outs = [];
+    for (const g of chosen) {
+      const out = writeADIF(g.records, { programVersion: "0.73.0", now });
+      const call = g.records[0].STATION_CALLSIGN || g.records[0].OPERATOR || state_default.myCallsign;
+      downloadText(activationFilename(call, g.ref, g.date), out.text);
+      outs.push(out);
+      if (chosen.length > 1) await new Promise((r) => setTimeout(r, 300));
+    }
+    const extra = chosen.length > 1 ? ["If only one file arrived, allow this site to download multiple files when the browser asks, then export again."] : [];
+    const complete = chosen.length === groups.length;
+    await finishExport(complete ? chosen.flatMap((g) => g.records) : [], outs, now, extra);
+  }
+  async function exportLogbook() {
+    const all = state_default.logbookData;
+    const filtered = getFilteredData();
+    const logged = all.filter(isHamtabLogged);
+    const unexported = logged.filter((r) => !r[META_KEY].lastExportedAt);
+    const activations = groupActivations(all);
+    const scopes = { all, view: filtered, logged, unexported };
+    const choices = [{ label: `All (${all.length})`, value: "all", primary: true }];
+    if (filtered.length !== all.length) choices.push({ label: `Current view (${filtered.length})`, value: "view" });
+    if (logged.length > 0) choices.push({ label: `Logged in HamTab (${logged.length})`, value: "logged" });
+    if (unexported.length > 0) choices.push({ label: `Not yet exported (${unexported.length})`, value: "unexported" });
+    if (activations.length > 0) choices.push({ label: `Activation files (${activations.length})`, value: "activations" });
+    const scope = choices.length === 1 ? "all" : await askChoice("Export which QSOs as an ADIF (.adi) file?", choices);
+    if (!scope) return;
+    if (scope === "activations") {
+      await exportActivations(activations);
+      return;
+    }
+    const records = scopes[scope];
+    if (records.length === 0) return;
+    const now = /* @__PURE__ */ new Date();
+    const out = writeADIF(records, { programVersion: "0.73.0", now });
+    downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
+    await finishExport(records, [out], now);
   }
   function renderLogbook() {
     updateExportButton();
@@ -7594,6 +7700,8 @@
         const parts = [filtered.length + " QSOs", calls.size + " calls"];
         if (dxcc.size > 0) parts.push(dxcc.size + " DXCC");
         if (sorted.length > maxRows) parts.push("showing first " + maxRows);
+        const unexported = isFeatureVisible("qso_logging") ? countUnexportedLogged(state_default.logbookData) : 0;
+        if (unexported > 0) parts.push(unexported + " not exported");
         statsEl.textContent = parts.join(" \xB7 ");
       }
     }
@@ -7851,7 +7959,7 @@
       });
     }
   }
-  var DB_NAME, DB_VERSION, STORE_NAME, LOGBOOK_COLS;
+  var DB_NAME, DB_VERSION, STORE_NAME, LOGBOOK_COLS, MAX_ACTIVATION_CHOICES;
   var init_logbook = __esm({
     "src/logbook.js"() {
       init_state();
@@ -7862,6 +7970,7 @@
       init_constants();
       init_logbook_records();
       init_adif_writer();
+      init_qso_entry();
       init_feature_flags();
       init_qso_log_form();
       DB_NAME = "hamtab_logbook";
@@ -7879,6 +7988,7 @@
         { key: "GRIDSQUARE", label: "Grid", sortable: true },
         { key: "NAME", label: "Name", sortable: true }
       ];
+      MAX_ACTIVATION_CHOICES = 8;
     }
   });
 
@@ -7955,7 +8065,9 @@
       setField("stationCall", (state_default.myCallsign || "").toUpperCase());
       setField("myGrid", myGridFromSettings());
       setField("activating", localStorage.getItem(ACTIVATING_KEY) === "true");
-      setField("myParks", localStorage.getItem(MY_PARKS_KEY) || state_default.myPark || localStorage.getItem("hamtab_my_park") || "");
+      setField("myParks", localStorage.getItem(MY_PARKS_KEY) ?? (state_default.myPark || localStorage.getItem("hamtab_my_park") || ""));
+      setField("myWwff", localStorage.getItem(MY_WWFF_KEY) || "");
+      setField("mySota", localStorage.getItem(MY_SOTA_KEY) || "");
       const spot = opts.spot || null;
       if (spot) {
         const call = (spot.callsign || spot.activator || "").toUpperCase();
@@ -7963,9 +8075,16 @@
         setSource("call", "spot");
         const potaSource = state_default.currentSource === "pota";
         fromSpot = { call, potaSource };
-        if (potaSource && spot.reference && PARK_RE.test(String(spot.reference).toUpperCase())) {
-          setField("theirPark", spot.reference.toUpperCase());
+        const ref = String(spot.reference || "").toUpperCase();
+        if (potaSource && PARK_RE.test(ref)) {
+          setField("theirPark", ref);
           setSource("theirPark", "spot");
+        } else if (state_default.currentSource === "wwff" && WWFF_RE.test(ref)) {
+          setField("theirWwff", ref);
+          setSource("theirWwff", "spot");
+        } else if (state_default.currentSource === "sota" && SOTA_RE.test(ref)) {
+          setField("theirSota", ref);
+          setSource("theirSota", "spot");
         }
         const lat = parseFloat(spot.latitude);
         const lon = parseFloat(spot.longitude);
@@ -8010,7 +8129,11 @@
     if (Object.keys(errors).length > 0) return;
     const built = buildRecord(f);
     localStorage.setItem(ACTIVATING_KEY, String(Boolean(f.activating)));
-    if (f.activating) localStorage.setItem(MY_PARKS_KEY, f.myParks.trim());
+    if (f.activating) {
+      localStorage.setItem(MY_PARKS_KEY, f.myParks.trim().toUpperCase());
+      localStorage.setItem(MY_WWFF_KEY, f.myWwff.trim().toUpperCase());
+      localStorage.setItem(MY_SOTA_KEY, f.mySota.trim().toUpperCase());
+    }
     const saveBtn = $("qsoLogSave");
     saveBtn.disabled = true;
     try {
@@ -8033,7 +8156,9 @@
         markedWorked = true;
       }
       closeModal($("qsoLogPopup"));
-      showToast(`Logged ${built.CALL}`, async () => {
+      const unexported = countUnexportedLogged(state_default.logbookData);
+      const nudge = unexported > 0 && unexported % BACKUP_NUDGE_EVERY === 0 ? ` \xB7 ${unexported} QSOs not exported yet \u2014 use Export (\u2913) to back them up` : "";
+      showToast(`Logged ${built.CALL}${nudge}`, async () => {
         await deleteLoggedQSO(id);
         if (markedWorked) unmarkWorked(built.CALL);
         showToast(`Removed ${built.CALL}`);
@@ -8126,7 +8251,15 @@
     });
     for (const [key, id] of Object.entries(FIELD_IDS)) {
       $(id)?.addEventListener(id === "qsoBand" || id === "qsoActivating" ? "change" : "input", () => {
-        const keys = key === "freq" ? ["freq", "band"] : key === "band" ? ["band", "freq"] : key === "activating" ? ["myParks"] : [key];
+        const linked = {
+          freq: ["freq", "band"],
+          band: ["band", "freq"],
+          // Any one of my park / WWFF / summit satisfies "activating", so editing one clears that shared error.
+          activating: ["myParks", "myWwff", "mySota"],
+          myWwff: ["myWwff", "myParks"],
+          mySota: ["mySota", "myParks"]
+        };
+        const keys = linked[key] || [key];
         for (const k of keys) {
           const err2 = document.querySelector(`#qsoLogForm .qso-err[data-for="${k}"]`);
           if (err2) err2.textContent = "";
@@ -8172,7 +8305,7 @@
       showToast(`Restored ${snapshot.CALL || "QSO"}`);
     });
   }
-  var ACTIVATING_KEY, MY_PARKS_KEY, UNDO_MS, editing, fromSpot, rstTouched, bandTouched, persistRequested, toastTimer, FIELD_IDS;
+  var ACTIVATING_KEY, MY_PARKS_KEY, MY_WWFF_KEY, MY_SOTA_KEY, UNDO_MS, BACKUP_NUDGE_EVERY, editing, fromSpot, rstTouched, bandTouched, persistRequested, toastTimer, FIELD_IDS;
   var init_qso_log_form = __esm({
     "src/qso-log-form.js"() {
       init_state();
@@ -8188,7 +8321,10 @@
       init_logbook();
       ACTIVATING_KEY = "hamtab_log_activating";
       MY_PARKS_KEY = "hamtab_log_my_parks";
+      MY_WWFF_KEY = "hamtab_log_my_wwff";
+      MY_SOTA_KEY = "hamtab_log_my_sota";
       UNDO_MS = 6e3;
+      BACKUP_NUDGE_EVERY = 25;
       editing = null;
       fromSpot = null;
       rstTouched = false;
@@ -8205,11 +8341,15 @@
         rstSent: "qsoRstSent",
         rstRcvd: "qsoRstRcvd",
         theirPark: "qsoTheirPark",
+        theirWwff: "qsoTheirWwff",
+        theirSota: "qsoTheirSota",
         grid: "qsoGrid",
         name: "qsoName",
         comment: "qsoComment",
         activating: "qsoActivating",
         myParks: "qsoMyParks",
+        myWwff: "qsoMyWwff",
+        mySota: "qsoMySota",
         stationCall: "qsoStationCall",
         myGrid: "qsoMyGrid"
       };
@@ -25372,8 +25512,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.72.0";
-    $("aboutVersion").textContent = "0.72.0";
+    $("splashVersion").textContent = "0.73.0";
+    $("aboutVersion").textContent = "0.73.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

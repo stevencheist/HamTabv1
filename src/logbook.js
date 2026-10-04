@@ -8,6 +8,7 @@ import { esc } from './utils.js';
 import { gridToLatLon, geodesicPoints } from './geo.js';
 import { freqToBand } from './filters.js';
 import { getBandColor } from './constants.js';
+import { migrateV1Record, planImport, countHamtabLogged, isHamtabLogged, newId } from './logbook-records.js';
 
 // --- ADIF Parser ---
 
@@ -59,7 +60,7 @@ function gridToLL(grid) {
 // --- IndexedDB Storage ---
 
 const DB_NAME = 'hamtab_logbook';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // v2 (v0.71.0): `_hamtab` metadata + source index, non-destructive import
 const STORE_NAME = 'qsos';
 
 function openDB() {
@@ -67,27 +68,52 @@ function openDB() {
     const req = indexedDB.open(DB_NAME, DB_VERSION);
     req.onupgradeneeded = (e) => {
       const db = e.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
-        store.createIndex('call', 'CALL', { unique: false });
-        store.createIndex('date', 'QSO_DATE', { unique: false });
+      const tx = e.target.transaction;
+      const store = db.objectStoreNames.contains(STORE_NAME)
+        ? tx.objectStore(STORE_NAME)
+        : db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      if (!store.indexNames.contains('call')) store.createIndex('call', 'CALL', { unique: false });
+      if (!store.indexNames.contains('date')) store.createIndex('date', 'QSO_DATE', { unique: false });
+      if (e.oldVersion < 2) {
+        if (!store.indexNames.contains('source')) store.createIndex('source', '_hamtab.source', { unique: false });
+        // Tag v1 rows as imported inside the upgrade transaction — if anything fails the
+        // upgrade aborts and the v1 data is left exactly as it was.
+        const now = new Date().toISOString();
+        store.openCursor().onsuccess = (ev) => {
+          const cursor = ev.target.result;
+          if (!cursor) return;
+          cursor.update(migrateV1Record(cursor.value, now));
+          cursor.continue();
+        };
       }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onblocked = () => console.warn('Logbook upgrade waiting — close other HamTab tabs to finish it.');
+    req.onsuccess = () => {
+      const db = req.result;
+      // Let a newer HamTab tab upgrade the database instead of being blocked by this one.
+      db.onversionchange = () => db.close();
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
   });
 }
 
-async function saveQSOs(records) {
+function txDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('Logbook transaction aborted'));
+  });
+}
+
+// Apply an import plan (from planImport) in one transaction so a failure leaves the old log intact.
+async function applyImportPlan(plan) {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
   const store = tx.objectStore(STORE_NAME);
-  store.clear();
-  for (const r of records) store.put(r);
-  return new Promise((resolve, reject) => {
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
+  for (const r of plan.remove) store.delete(r.id);
+  for (const r of plan.add) store.add(r);
+  return txDone(tx);
 }
 
 async function loadQSOs() {
@@ -105,11 +131,71 @@ async function loadQSOs() {
   }
 }
 
-async function clearQSOs() {
+// scope 'all' empties the log; 'imported' keeps HamTab-logged QSOs.
+async function clearQSOs(scope = 'all') {
   const db = await openDB();
   const tx = db.transaction(STORE_NAME, 'readwrite');
-  tx.objectStore(STORE_NAME).clear();
-  return new Promise((resolve) => { tx.oncomplete = resolve; });
+  const store = tx.objectStore(STORE_NAME);
+  if (scope === 'all') {
+    store.clear();
+  } else {
+    store.openCursor().onsuccess = (ev) => {
+      const cursor = ev.target.result;
+      if (!cursor) return;
+      if (!isHamtabLogged(cursor.value)) cursor.delete();
+      cursor.continue();
+    };
+  }
+  return txDone(tx);
+}
+
+// --- Inline choice prompt ---
+// Shown inside the Logbook widget; resolves with the chosen value, or null on Cancel/Escape.
+function askChoice(message, choices) {
+  return new Promise((resolve) => {
+    const body = document.querySelector('#widget-logbook .widget-body');
+    if (!body) { resolve(null); return; }
+    const old = body.querySelector('.logbook-choice');
+    if (old) old.remove();
+
+    const panel = document.createElement('div');
+    panel.className = 'logbook-choice';
+    panel.setAttribute('role', 'alertdialog');
+    const msg = document.createElement('div');
+    msg.className = 'logbook-choice-msg';
+    msg.textContent = message;
+    panel.appendChild(msg);
+    const row = document.createElement('div');
+    row.className = 'logbook-choice-actions';
+
+    const finish = (value) => {
+      panel.removeEventListener('keydown', onKey);
+      panel.remove();
+      resolve(value);
+    };
+    const onKey = (e) => { if (e.key === 'Escape') finish(null); };
+    panel.addEventListener('keydown', onKey);
+
+    for (const c of [...choices, { label: 'Cancel', value: null }]) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = c.label;
+      if (c.primary) btn.className = 'primary';
+      btn.addEventListener('click', () => finish(c.value));
+      row.appendChild(btn);
+    }
+    panel.appendChild(row);
+    body.prepend(panel);
+    const first = row.querySelector('button');
+    if (first) first.focus();
+  });
+}
+
+function showLogbookContent(hasData) {
+  const zone = $('logbookImportZone');
+  const content = $('logbook-content');
+  if (zone) zone.classList.toggle('hidden', hasData);
+  if (content) content.classList.toggle('hidden', !hasData);
 }
 
 // --- Column Definitions ---
@@ -370,17 +456,30 @@ async function handleFile(file) {
       alert('No QSO records found in file.');
       return;
     }
-    state.logbookData = records;
-    await saveQSOs(records);
+
+    // With no HamTab-logged QSOs this is exactly the old behavior: the file replaces the log.
+    let mode = 'replace-imported';
+    const loggedCount = countHamtabLogged(state.logbookData);
+    if (loggedCount > 0) {
+      mode = await askChoice(
+        `Import ${records.length} QSOs. Your ${loggedCount} QSO${loggedCount === 1 ? '' : 's'} logged in HamTab will be kept either way.`,
+        [
+          { label: 'Replace previous import', value: 'replace-imported', primary: true },
+          { label: 'Add new only (skip duplicates)', value: 'add-new' },
+        ]
+      );
+      if (!mode) return;
+    }
+
+    const plan = planImport(state.logbookData, records, mode, newId());
+    await applyImportPlan(plan);
+    state.logbookData = await loadQSOs();
     renderLogbook();
     renderLogbookOnMap();
-
-    // Show table, hide import zone.
-
-    const zone = $('logbookImportZone');
-    const content = $('logbook-content');
-    if (zone) zone.classList.add('hidden');
-    if (content) content.classList.remove('hidden');
+    showLogbookContent(state.logbookData.length > 0);
+    if (plan.skipped.length > 0) {
+      alert(`Imported ${plan.add.length} QSOs; skipped ${plan.skipped.length} probable duplicate${plan.skipped.length === 1 ? '' : 's'}.`);
+    }
   } catch (err) {
     console.error('ADIF import error:', err);
     alert('Failed to parse ADIF file: ' + err.message);
@@ -441,15 +540,26 @@ export async function initLogbook() {
   if (clearBtn) {
     clearBtn.addEventListener('click', async (e) => {
       e.stopPropagation();
-      if (!confirm('Clear all imported QSO data?')) return;
-      await clearQSOs();
-      state.logbookData = [];
+      const loggedCount = countHamtabLogged(state.logbookData);
+      let scope = 'all';
+      if (loggedCount > 0) {
+        scope = await askChoice(
+          `You have ${loggedCount} QSO${loggedCount === 1 ? '' : 's'} logged in HamTab. Clearing everything deletes them permanently.`,
+          [
+            { label: 'Clear imported only', value: 'imported', primary: true },
+            { label: 'Clear everything', value: 'all' },
+          ]
+        );
+        if (!scope) return;
+      } else if (!confirm('Clear all imported QSO data?')) {
+        return;
+      }
+      await clearQSOs(scope);
+      state.logbookData = scope === 'all' ? [] : await loadQSOs();
       clearLogbookFromMap();
       renderLogbook();
-      const zn = $('logbookImportZone');
-      const ct = $('logbook-content');
-      if (zn) zn.classList.remove('hidden');
-      if (ct) ct.classList.add('hidden');
+      renderLogbookOnMap();
+      showLogbookContent(state.logbookData.length > 0);
     });
   }
 

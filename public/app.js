@@ -6759,10 +6759,8 @@
         if (statusEl) statusEl.className = "pota-spot-status pota-spot-ok";
         setTimeout(() => closeModal(popup), 1500);
       } else {
-        return resp.json().then((data) => {
+        return resp.json().catch(() => ({})).then((data) => {
           throw new Error(data.error || `HTTP ${resp.status}`);
-        }).catch(() => {
-          throw new Error(`HTTP ${resp.status}`);
         });
       }
     }).catch((err2) => {
@@ -7578,7 +7576,7 @@
     const now = /* @__PURE__ */ new Date();
     const outs = [];
     for (const g of chosen) {
-      const out = writeADIF(g.records, { programVersion: "0.73.1", now });
+      const out = writeADIF(g.records, { programVersion: "0.73.2", now });
       const call = g.records[0].STATION_CALLSIGN || g.records[0].OPERATOR || state_default.myCallsign;
       downloadText(activationFilename(call, g.ref, g.date), out.text);
       outs.push(out);
@@ -7609,7 +7607,7 @@
     const records = scopes[scope];
     if (records.length === 0) return;
     const now = /* @__PURE__ */ new Date();
-    const out = writeADIF(records, { programVersion: "0.73.1", now });
+    const out = writeADIF(records, { programVersion: "0.73.2", now });
     downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
     await finishExport(records, [out], now);
   }
@@ -23787,10 +23785,8 @@ ${beacon.location}`);
         const mhz = (freqHz / 1e6).toFixed(3);
         setStatus(`Spotted ${callsign} on ${mhz} ${mode2} @ ${park}`, "ok");
       } else {
-        return resp.json().then((data) => {
+        return resp.json().catch(() => ({})).then((data) => {
           throw new Error(data.error || `HTTP ${resp.status}`);
-        }).catch(() => {
-          throw new Error(`HTTP ${resp.status}`);
         });
       }
     }).catch((err2) => setStatus(`Spot failed: ${err2.message}`, "err")).finally(() => {
@@ -25513,8 +25509,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.73.1";
-    $("aboutVersion").textContent = "0.73.1";
+    $("splashVersion").textContent = "0.73.2";
+    $("aboutVersion").textContent = "0.73.2";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

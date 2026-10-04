@@ -6,7 +6,7 @@ const express = require('express');
 const mqtt = require('mqtt');
 const net = require('net');
 const { XMLParser } = require('fast-xml-parser');
-const { secureFetch, fetchJSON, fetchText } = require('../services/http-fetch');
+const { securePost, fetchJSON, fetchText } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
 const { setFreshnessHeaders } = require('../services/freshness-headers');
 const { isUSCallsign, lookupHamqth, gridToLatLon } = require('./callsign');
@@ -30,16 +30,21 @@ router.get('/spots', async (req, res) => {
 });
 
 // --- POTA Spot Submission Proxy ---
-// Posts a spot to api.pota.app on behalf of the user
+// Posts a spot to api.pota.app on behalf of the user.
+const POTA_SPOT_URL = 'https://api.pota.app/spot';
+// Portable/prefixed calls are common on activations (F4ABC/P, VE3/W1AW).
+const SPOT_CALL_RE = /^[A-Z0-9]+(\/[A-Z0-9]+)*$/i;
+const isSpotCall = (c) => typeof c === 'string' && c.length >= 3 && c.length <= 15 && SPOT_CALL_RE.test(c);
+
 router.post('/pota/spot', express.json(), async (req, res) => {
   try {
-    const { activator, spotter, frequency, reference, mode, comments } = req.body;
+    const { activator, spotter, frequency, reference, mode, comments } = req.body || {};
 
     // Validate required fields
-    if (!activator || !/^[A-Z0-9]{3,10}$/i.test(activator)) {
+    if (!isSpotCall(activator)) {
       return res.status(400).json({ error: 'Invalid activator callsign' });
     }
-    if (!spotter || !/^[A-Z0-9]{3,10}$/i.test(spotter)) {
+    if (!isSpotCall(spotter)) {
       return res.status(400).json({ error: 'Invalid spotter callsign' });
     }
     if (!reference || !/^[A-Z0-9]+-\d{4,}$/i.test(reference)) {
@@ -59,18 +64,18 @@ router.post('/pota/spot', express.json(), async (req, res) => {
       source: 'HamTab',
     };
 
-    const resp = await secureFetch('https://api.pota.app/spot', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(spotData),
-    });
+    // securePost, not secureFetch: secureFetch is GET-only and ignores a fetch()-style options
+    // object, which is why spot submission returned 502 from v0.68.7 to v0.73.1.
+    const resp = await securePost(POTA_SPOT_URL, spotData);
 
     if (resp.ok) {
       res.json({ success: true });
     } else {
-      const text = await resp.text().catch(() => '');
-      console.error('[POTA spot] Upstream error:', resp.status, text);
-      res.status(resp.status).json({ error: `POTA API returned ${resp.status}` });
+      const detail = String(resp.text || '').replace(/\s+/g, ' ').trim().slice(0, 160);
+      console.error('[POTA spot] Upstream error:', resp.status, detail);
+      // Relay POTA's own 4xx (bad park, duplicate, etc.); upstream 5xx becomes our 502.
+      const status = resp.status >= 400 && resp.status < 500 ? resp.status : 502;
+      res.status(status).json({ error: `POTA rejected the spot (HTTP ${resp.status})${detail ? ': ' + detail : ''}` });
     }
   } catch (err) {
     console.error('[POTA spot] Error:', err.message);

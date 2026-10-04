@@ -112,6 +112,73 @@ function secureFetch(url, redirectCount = 0) {
   });
 }
 
+// POST a JSON body with the same SSRF guards as secureFetch (HTTPS only, resolved IP must be
+// public and is pinned, TLS SNI + Host keep the real hostname). Unlike secureFetch it resolves
+// for every HTTP status with { status, ok, text } so callers can relay upstream errors, and it
+// never follows redirects (a redirected POST would silently become a GET).
+// deps are injectable for tests: { resolveHost, request }.
+function securePost(url, body, extraHeaders = {}, deps = {}) {
+  const resolve = deps.resolveHost || resolveHost;
+  const request = deps.request || https.request;
+  return new Promise((resolvePromise, reject) => {
+    let parsed;
+    try {
+      parsed = new URL(url);
+    } catch (err) {
+      return reject(err);
+    }
+    if (parsed.protocol !== 'https:') {
+      return reject(new Error('Only HTTPS URLs are allowed'));
+    }
+    const payload = typeof body === 'string' ? body : JSON.stringify(body);
+
+    resolve(parsed.hostname).then((resolvedIP) => {
+      if (isPrivateIP(resolvedIP)) {
+        return reject(new Error('Requests to private addresses are blocked'));
+      }
+      const req = request({
+        hostname: resolvedIP,
+        path: parsed.pathname + parsed.search,
+        port: parsed.port || 443,
+        method: 'POST',
+        headers: {
+          'User-Agent': 'HamTab/1.0',
+          'Accept': 'application/json, text/plain, */*',
+          ...extraHeaders,
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(payload),
+          'Host': parsed.hostname,
+        },
+        servername: parsed.hostname, // for TLS SNI
+      }, (resp) => {
+        let data = '';
+        let bytes = 0;
+        resp.on('data', (chunk) => {
+          bytes += chunk.length;
+          if (bytes > MAX_RESPONSE_BYTES) {
+            resp.destroy();
+            return reject(new Error('Response too large'));
+          }
+          data += chunk;
+        });
+        resp.on('end', () => resolvePromise({
+          status: resp.statusCode,
+          ok: resp.statusCode >= 200 && resp.statusCode < 300,
+          text: data,
+        }));
+        resp.on('error', reject);
+      });
+      req.on('error', reject);
+      req.setTimeout(REQUEST_TIMEOUT_MS, () => {
+        req.destroy();
+        reject(new Error('Request timed out'));
+      });
+      req.write(payload);
+      req.end();
+    }).catch(reject);
+  });
+}
+
 async function fetchJSON(url) {
   const data = await secureFetch(url);
   return JSON.parse(data);
@@ -121,4 +188,4 @@ async function fetchText(url) {
   return secureFetch(url);
 }
 
-module.exports = { isPrivateIP, resolveHost, secureFetch, fetchJSON, fetchText, MAX_REDIRECTS, MAX_RESPONSE_BYTES, REQUEST_TIMEOUT_MS };
+module.exports = { isPrivateIP, resolveHost, secureFetch, securePost, fetchJSON, fetchText, MAX_REDIRECTS, MAX_RESPONSE_BYTES, REQUEST_TIMEOUT_MS };

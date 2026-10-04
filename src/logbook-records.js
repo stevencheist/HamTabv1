@@ -57,6 +57,35 @@ export function countUnexportedLogged(records) {
   return records.filter(r => isHamtabLogged(r) && !r[META_KEY].lastExportedAt).length;
 }
 
+// --- ADIF Parser ---
+
+export function parseADIF(text) {
+  const records = [];
+  // Strip header (everything before <eoh>)
+  const headerEnd = text.search(/<eoh>/i);
+  const body = headerEnd >= 0 ? text.substring(headerEnd + 5) : text;
+
+  // Split on <eor> to get individual records.
+
+  const rawRecords = body.split(/<eor>/i);
+
+  for (const raw of rawRecords) {
+    const record = {};
+    // Match field tags: <FIELD_NAME:LENGTH[:TYPE]>value.
+    const fieldRe = /<([A-Za-z_][A-Za-z0-9_]*):(\d+)(?::[A-Za-z])?>/gi;
+    let m;
+    while ((m = fieldRe.exec(raw)) !== null) {
+      const name = m[1].toUpperCase();
+      const len = parseInt(m[2], 10);
+      const valStart = m.index + m[0].length;
+      const val = raw.substring(valStart, valStart + len);
+      record[name] = val;
+    }
+    if (record.CALL) records.push(record);
+  }
+  return records;
+}
+
 // --- Duplicate detection ---
 
 function norm(v) {

@@ -8,36 +8,9 @@ import { esc } from './utils.js';
 import { gridToLatLon, geodesicPoints } from './geo.js';
 import { freqToBand } from './filters.js';
 import { getBandColor } from './constants.js';
-import { migrateV1Record, planImport, countHamtabLogged, isHamtabLogged, newId } from './logbook-records.js';
-
-// --- ADIF Parser ---
-
-function parseADIF(text) {
-  const records = [];
-  // Strip header (everything before <eoh>)
-  const headerEnd = text.search(/<eoh>/i);
-  const body = headerEnd >= 0 ? text.substring(headerEnd + 5) : text;
-
-  // Split on <eor> to get individual records.
-
-  const rawRecords = body.split(/<eor>/i);
-
-  for (const raw of rawRecords) {
-    const record = {};
-    // Match field tags: <FIELD_NAME:LENGTH[:TYPE]>value.
-    const fieldRe = /<([A-Za-z_][A-Za-z0-9_]*):(\d+)(?::[A-Za-z])?>/gi;
-    let m;
-    while ((m = fieldRe.exec(raw)) !== null) {
-      const name = m[1].toUpperCase();
-      const len = parseInt(m[2], 10);
-      const valStart = m.index + m[0].length;
-      const val = raw.substring(valStart, valStart + len);
-      record[name] = val;
-    }
-    if (record.CALL) records.push(record);
-  }
-  return records;
-}
+import { parseADIF, migrateV1Record, planImport, countHamtabLogged, countUnexportedLogged, isHamtabLogged, newId, META_KEY } from './logbook-records.js';
+import { writeADIF, exportFilename } from './adif-writer.js';
+import { isFeatureVisible } from './feature-flags.js';
 
 // --- Grid square → lat/lon (supports 4 and 6 char) ---
 
@@ -146,6 +119,23 @@ async function clearQSOs(scope = 'all') {
       cursor.continue();
     };
   }
+  return txDone(tx);
+}
+
+// Stamp lastExportedAt on the HamTab-logged QSOs that were just exported.
+async function markExported(uuids, when) {
+  if (uuids.size === 0) return;
+  const db = await openDB();
+  const tx = db.transaction(STORE_NAME, 'readwrite');
+  tx.objectStore(STORE_NAME).openCursor().onsuccess = (ev) => {
+    const cursor = ev.target.result;
+    if (!cursor) return;
+    const meta = cursor.value[META_KEY];
+    if (meta && uuids.has(meta.uuid)) {
+      cursor.update({ ...cursor.value, [META_KEY]: { ...meta, lastExportedAt: when } });
+    }
+    cursor.continue();
+  };
   return txDone(tx);
 }
 
@@ -259,7 +249,61 @@ function formatTime(t) {
   return t.substring(0, 2) + ':' + t.substring(2, 4);
 }
 
+// --- ADIF Export ---
+
+function updateExportButton() {
+  const btn = $('logbookExportBtn');
+  if (!btn) return;
+  btn.style.display = isFeatureVisible('qso_logging') && state.logbookData.length > 0 ? '' : 'none';
+}
+
+function downloadText(filename, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=us-ascii' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000); // ms — give the browser time to start the download
+}
+
+async function exportLogbook() {
+  const all = state.logbookData;
+  const filtered = getFilteredData();
+  const logged = all.filter(isHamtabLogged);
+  const unexported = logged.filter(r => !r[META_KEY].lastExportedAt);
+  const scopes = { all, view: filtered, logged, unexported };
+
+  const choices = [{ label: `All (${all.length})`, value: 'all', primary: true }];
+  if (filtered.length !== all.length) choices.push({ label: `Current view (${filtered.length})`, value: 'view' });
+  if (logged.length > 0) choices.push({ label: `Logged in HamTab (${logged.length})`, value: 'logged' });
+  if (unexported.length > 0) choices.push({ label: `Not yet exported (${unexported.length})`, value: 'unexported' });
+
+  const scope = choices.length === 1 ? 'all' : await askChoice('Export which QSOs as an ADIF (.adi) file?', choices);
+  if (!scope) return;
+  const records = scopes[scope];
+  if (records.length === 0) return;
+
+  const now = new Date();
+  const out = writeADIF(records, { programVersion: __APP_VERSION__, now });
+  downloadText(exportFilename(state.myCallsign, scope, now), out.text);
+
+  const exportedUuids = new Set(records.filter(isHamtabLogged).map(r => r[META_KEY].uuid));
+  if (exportedUuids.size > 0) {
+    await markExported(exportedUuids, now.toISOString());
+    state.logbookData = await loadQSOs();
+    renderLogbook();
+  }
+
+  const notes = [];
+  if (out.foldedRecords > 0) notes.push(`${out.foldedRecords} QSO${out.foldedRecords === 1 ? ' had' : 's had'} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
+  if (out.incompleteRecords > 0) notes.push(`${out.incompleteRecords} QSO${out.incompleteRecords === 1 ? ' is' : 's are'} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${out.incompleteRecords === 1 ? 'it' : 'them'}.`);
+  if (notes.length > 0) alert(`Exported ${out.recordCount} QSOs.\n\n` + notes.join('\n\n'));
+}
+
 export function renderLogbook() {
+  updateExportButton();
   const tbody = $('logbookBody');
   const thead = $('logbookHead');
   const countEl = $('logbookCount');
@@ -535,6 +579,19 @@ export async function initLogbook() {
     });
   }
 
+  // Export button (gated: qso_logging)
+  const exportBtn = $('logbookExportBtn');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      exportLogbook().catch(err => {
+        console.error('ADIF export error:', err);
+        alert('Export failed: ' + err.message);
+      });
+    });
+  }
+  updateExportButton();
+
   // Clear button
   const clearBtn = $('logbookClearBtn');
   if (clearBtn) {
@@ -543,13 +600,22 @@ export async function initLogbook() {
       const loggedCount = countHamtabLogged(state.logbookData);
       let scope = 'all';
       if (loggedCount > 0) {
+        const unexported = countUnexportedLogged(state.logbookData);
+        const choices = [
+          { label: 'Clear imported only', value: 'imported', primary: true },
+          { label: 'Clear everything', value: 'all' },
+        ];
+        if (unexported > 0 && isFeatureVisible('qso_logging')) {
+          choices.unshift({ label: `Export backup first (${unexported} not yet exported)`, value: 'backup' });
+        }
         scope = await askChoice(
           `You have ${loggedCount} QSO${loggedCount === 1 ? '' : 's'} logged in HamTab. Clearing everything deletes them permanently.`,
-          [
-            { label: 'Clear imported only', value: 'imported', primary: true },
-            { label: 'Clear everything', value: 'all' },
-          ]
+          choices
         );
+        if (scope === 'backup') {
+          await exportLogbook();
+          return;
+        }
         if (!scope) return;
       } else if (!confirm('Clear all imported QSO data?')) {
         return;

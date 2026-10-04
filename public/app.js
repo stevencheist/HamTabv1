@@ -1403,8 +1403,10 @@
         // Band Opportunity Score widget (v0.69.0)
         rbn_source: "dev:KG5DPV",
         // Reverse Beacon Network source tab (v0.70.0)
-        dxc_live_tcp: "dev:KG5DPV"
+        dxc_live_tcp: "dev:KG5DPV",
         // DX Cluster live TCP/SSE feed (v0.70.0)
+        qso_logging: "dev:KJ5MMO"
+        // Log QSOs in HamTab + ADIF export (HT-299, v0.71.0)
       };
     }
   });
@@ -25342,6 +25344,29 @@ ${beacon.location}`);
   function countHamtabLogged(records) {
     return records.filter(isHamtabLogged).length;
   }
+  function countUnexportedLogged(records) {
+    return records.filter((r) => isHamtabLogged(r) && !r[META_KEY].lastExportedAt).length;
+  }
+  function parseADIF(text) {
+    const records = [];
+    const headerEnd = text.search(/<eoh>/i);
+    const body = headerEnd >= 0 ? text.substring(headerEnd + 5) : text;
+    const rawRecords = body.split(/<eor>/i);
+    for (const raw of rawRecords) {
+      const record = {};
+      const fieldRe = /<([A-Za-z_][A-Za-z0-9_]*):(\d+)(?::[A-Za-z])?>/gi;
+      let m;
+      while ((m = fieldRe.exec(raw)) !== null) {
+        const name = m[1].toUpperCase();
+        const len = parseInt(m[2], 10);
+        const valStart = m.index + m[0].length;
+        const val = raw.substring(valStart, valStart + len);
+        record[name] = val;
+      }
+      if (record.CALL) records.push(record);
+    }
+    return records;
+  }
   function norm(v) {
     return (v == null ? "" : String(v)).trim().toUpperCase();
   }
@@ -25385,27 +25410,160 @@ ${beacon.location}`);
     throw new Error("Unknown import mode: " + mode2);
   }
 
-  // src/logbook.js
-  function parseADIF(text) {
-    const records = [];
-    const headerEnd = text.search(/<eoh>/i);
-    const body = headerEnd >= 0 ? text.substring(headerEnd + 5) : text;
-    const rawRecords = body.split(/<eor>/i);
-    for (const raw of rawRecords) {
-      const record = {};
-      const fieldRe = /<([A-Za-z_][A-Za-z0-9_]*):(\d+)(?::[A-Za-z])?>/gi;
-      let m;
-      while ((m = fieldRe.exec(raw)) !== null) {
-        const name = m[1].toUpperCase();
-        const len = parseInt(m[2], 10);
-        const valStart = m.index + m[0].length;
-        const val = raw.substring(valStart, valStart + len);
-        record[name] = val;
-      }
-      if (record.CALL) records.push(record);
+  // src/adif-writer.js
+  var ADIF_VERSION = "3.1.7";
+  var FIELD_ORDER = [
+    "CALL",
+    "QSO_DATE",
+    "TIME_ON",
+    "QSO_DATE_OFF",
+    "TIME_OFF",
+    "BAND",
+    "BAND_RX",
+    "FREQ",
+    "FREQ_RX",
+    "MODE",
+    "SUBMODE",
+    "RST_SENT",
+    "RST_RCVD",
+    "STATION_CALLSIGN",
+    "OPERATOR",
+    "MY_SIG",
+    "MY_SIG_INFO",
+    "MY_POTA_REF",
+    "SIG",
+    "SIG_INFO",
+    "POTA_REF",
+    "MY_SOTA_REF",
+    "SOTA_REF",
+    "MY_WWFF_REF",
+    "WWFF_REF",
+    "GRIDSQUARE",
+    "MY_GRIDSQUARE",
+    "MY_STATE",
+    "NAME",
+    "QTH",
+    "STATE",
+    "TX_PWR",
+    "COMMENT"
+  ];
+  var MULTILINE_FIELDS = /* @__PURE__ */ new Set(["ADDRESS", "NOTES", "QSLMSG", "RIG"]);
+  var SPECIAL_FOLDS = {
+    "\xDF": "ss",
+    "\xC6": "AE",
+    "\xE6": "ae",
+    "\xD8": "O",
+    "\xF8": "o",
+    "\u0152": "OE",
+    "\u0153": "oe",
+    "\xDE": "TH",
+    "\xFE": "th",
+    "\xD0": "D",
+    "\xF0": "d",
+    "\u0110": "D",
+    "\u0111": "d",
+    "\u0141": "L",
+    "\u0142": "l",
+    "\u0131": "i",
+    "\u2018": "'",
+    "\u2019": "'",
+    "\u201C": '"',
+    "\u201D": '"',
+    "\u2013": "-",
+    "\u2014": "-",
+    "\u2026": "...",
+    "\xA0": " "
+  };
+  function toAscii(input, multiline = false) {
+    const original = String(input);
+    let s = original.normalize("NFD").replace(/[̀-ͯ]/g, "");
+    s = s.replace(/[^\x00-\x7f]/g, (ch) => SPECIAL_FOLDS[ch] ?? "");
+    if (multiline) {
+      s = s.replace(/\r?\n/g, "\r\n").replace(/[^\x20-\x7e\r\n]/g, "");
+    } else {
+      s = s.replace(/[\r\n\t]+/g, " ").replace(/[^\x20-\x7e]/g, "");
     }
-    return records;
+    return { value: s, changed: s !== original };
   }
+  function isExportableField(name) {
+    if (name === META_KEY || name === "id") return false;
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return false;
+    return !/_INTL$/i.test(name);
+  }
+  function orderedFields(record) {
+    const names = Object.keys(record).filter(isExportableField).map((n) => n.toUpperCase());
+    const unique = [...new Set(names)];
+    const rest = unique.filter((n) => !FIELD_ORDER.includes(n)).sort();
+    return [...FIELD_ORDER.filter((n) => unique.includes(n)), ...rest];
+  }
+  function lookup(record, upperName) {
+    if (upperName in record) return record[upperName];
+    const key = Object.keys(record).find((k) => k.toUpperCase() === upperName);
+    return key === void 0 ? void 0 : record[key];
+  }
+  function formatField(name, rawValue) {
+    if (rawValue === void 0 || rawValue === null) return { text: "", changed: false };
+    let { value, changed } = toAscii(rawValue, MULTILINE_FIELDS.has(name));
+    if (name === "FREQ" || name === "FREQ_RX") value = value.replace(",", ".");
+    value = value.trim();
+    if (value === "") return { text: "", changed };
+    return { text: `<${name}:${value.length}>${value}`, changed };
+  }
+  function missingRequired(record) {
+    const missing = [];
+    const get = (n) => String(lookup(record, n) ?? "").trim();
+    if (!get("CALL")) missing.push("CALL");
+    if (!/^\d{8}$/.test(get("QSO_DATE"))) missing.push("QSO_DATE");
+    if (!/^\d{4}(\d{2})?$/.test(get("TIME_ON"))) missing.push("TIME_ON");
+    if (!get("BAND") && !get("FREQ")) missing.push("BAND/FREQ");
+    if (!get("MODE")) missing.push("MODE");
+    return missing;
+  }
+  function adifTimestamp(date) {
+    const p = (n) => String(n).padStart(2, "0");
+    return `${date.getUTCFullYear()}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())} ${p(date.getUTCHours())}${p(date.getUTCMinutes())}${p(date.getUTCSeconds())}`;
+  }
+  function writeADIF(records, { programVersion = "", now = /* @__PURE__ */ new Date() } = {}) {
+    const header = [
+      `HamTab ADIF export ${adifTimestamp(now)} UTC`,
+      // header text must not start with '<'
+      formatField("ADIF_VER", ADIF_VERSION).text,
+      formatField("PROGRAMID", "HamTab").text,
+      programVersion ? formatField("PROGRAMVERSION", programVersion).text : "",
+      formatField("CREATED_TIMESTAMP", adifTimestamp(now)).text,
+      "<EOH>"
+    ].filter(Boolean).join("\n");
+    let foldedRecords = 0;
+    let incompleteRecords = 0;
+    const lines = [header, ""];
+    for (const record of records) {
+      let folded = false;
+      const parts = [];
+      for (const name of orderedFields(record)) {
+        const f = formatField(name, lookup(record, name));
+        if (f.changed) folded = true;
+        if (f.text) parts.push(f.text);
+      }
+      if (folded) foldedRecords++;
+      if (missingRequired(record).length > 0) incompleteRecords++;
+      lines.push(parts.join(" ") + " <EOR>");
+    }
+    return {
+      text: lines.join("\n") + "\n",
+      recordCount: records.length,
+      foldedRecords,
+      incompleteRecords
+    };
+  }
+  function exportFilename(callsign, scope, now = /* @__PURE__ */ new Date()) {
+    const call = String(callsign || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const date = adifTimestamp(now).slice(0, 8);
+    const safeScope = String(scope || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return ["hamtab", call, date, safeScope].filter(Boolean).join("-") + ".adi";
+  }
+
+  // src/logbook.js
+  init_feature_flags();
   function gridToLL(grid) {
     if (!grid || grid.length < 4) return null;
     const g = grid.toUpperCase();
@@ -25496,6 +25654,21 @@ ${beacon.location}`);
         cursor.continue();
       };
     }
+    return txDone(tx);
+  }
+  async function markExported(uuids, when) {
+    if (uuids.size === 0) return;
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).openCursor().onsuccess = (ev) => {
+      const cursor = ev.target.result;
+      if (!cursor) return;
+      const meta = cursor.value[META_KEY];
+      if (meta && uuids.has(meta.uuid)) {
+        cursor.update({ ...cursor.value, [META_KEY]: { ...meta, lastExportedAt: when } });
+      }
+      cursor.continue();
+    };
     return txDone(tx);
   }
   function askChoice(message, choices) {
@@ -25592,7 +25765,53 @@ ${beacon.location}`);
     if (!t || t.length < 4) return t || "";
     return t.substring(0, 2) + ":" + t.substring(2, 4);
   }
+  function updateExportButton() {
+    const btn = $("logbookExportBtn");
+    if (!btn) return;
+    btn.style.display = isFeatureVisible("qso_logging") && state_default.logbookData.length > 0 ? "" : "none";
+  }
+  function downloadText(filename, text) {
+    const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=us-ascii" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1e4);
+  }
+  async function exportLogbook() {
+    const all = state_default.logbookData;
+    const filtered = getFilteredData();
+    const logged = all.filter(isHamtabLogged);
+    const unexported = logged.filter((r) => !r[META_KEY].lastExportedAt);
+    const scopes = { all, view: filtered, logged, unexported };
+    const choices = [{ label: `All (${all.length})`, value: "all", primary: true }];
+    if (filtered.length !== all.length) choices.push({ label: `Current view (${filtered.length})`, value: "view" });
+    if (logged.length > 0) choices.push({ label: `Logged in HamTab (${logged.length})`, value: "logged" });
+    if (unexported.length > 0) choices.push({ label: `Not yet exported (${unexported.length})`, value: "unexported" });
+    const scope = choices.length === 1 ? "all" : await askChoice("Export which QSOs as an ADIF (.adi) file?", choices);
+    if (!scope) return;
+    const records = scopes[scope];
+    if (records.length === 0) return;
+    const now = /* @__PURE__ */ new Date();
+    const out = writeADIF(records, { programVersion: "0.71.0", now });
+    downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
+    const exportedUuids = new Set(records.filter(isHamtabLogged).map((r) => r[META_KEY].uuid));
+    if (exportedUuids.size > 0) {
+      await markExported(exportedUuids, now.toISOString());
+      state_default.logbookData = await loadQSOs();
+      renderLogbook();
+    }
+    const notes = [];
+    if (out.foldedRecords > 0) notes.push(`${out.foldedRecords} QSO${out.foldedRecords === 1 ? " had" : "s had"} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
+    if (out.incompleteRecords > 0) notes.push(`${out.incompleteRecords} QSO${out.incompleteRecords === 1 ? " is" : "s are"} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${out.incompleteRecords === 1 ? "it" : "them"}.`);
+    if (notes.length > 0) alert(`Exported ${out.recordCount} QSOs.
+
+` + notes.join("\n\n"));
+  }
   function renderLogbook() {
+    updateExportButton();
     const tbody = $("logbookBody");
     const thead = $("logbookHead");
     const countEl = $("logbookCount");
@@ -25831,6 +26050,17 @@ ${beacon.location}`);
         input.click();
       });
     }
+    const exportBtn = $("logbookExportBtn");
+    if (exportBtn) {
+      exportBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        exportLogbook().catch((err2) => {
+          console.error("ADIF export error:", err2);
+          alert("Export failed: " + err2.message);
+        });
+      });
+    }
+    updateExportButton();
     const clearBtn = $("logbookClearBtn");
     if (clearBtn) {
       clearBtn.addEventListener("click", async (e) => {
@@ -25838,13 +26068,22 @@ ${beacon.location}`);
         const loggedCount = countHamtabLogged(state_default.logbookData);
         let scope = "all";
         if (loggedCount > 0) {
+          const unexported = countUnexportedLogged(state_default.logbookData);
+          const choices = [
+            { label: "Clear imported only", value: "imported", primary: true },
+            { label: "Clear everything", value: "all" }
+          ];
+          if (unexported > 0 && isFeatureVisible("qso_logging")) {
+            choices.unshift({ label: `Export backup first (${unexported} not yet exported)`, value: "backup" });
+          }
           scope = await askChoice(
             `You have ${loggedCount} QSO${loggedCount === 1 ? "" : "s"} logged in HamTab. Clearing everything deletes them permanently.`,
-            [
-              { label: "Clear imported only", value: "imported", primary: true },
-              { label: "Clear everything", value: "all" }
-            ]
+            choices
           );
+          if (scope === "backup") {
+            await exportLogbook();
+            return;
+          }
           if (!scope) return;
         } else if (!confirm("Clear all imported QSO data?")) {
           return;

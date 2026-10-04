@@ -8,6 +8,7 @@ const https = require('https');
 const express = require('express');
 const { isPrivateIP } = require('../services/http-fetch');
 const { feedbackLimiter } = require('../middleware/security');
+const { getConfig } = require('../../server-config');
 
 const router = express.Router();
 
@@ -113,7 +114,8 @@ router.post('/feedback', feedbackLimiter, async (req, res) => {
     if (!githubToken) {
       // Relay is on by default — the user pressing Send is consent to forward it. Opt out with FEEDBACK_RELAY_ENABLED=0.
       const relaySetting = (process.env.FEEDBACK_RELAY_ENABLED || '').trim().toLowerCase();
-      const relayEnabled = !['0', 'false', 'no', 'off'].includes(relaySetting);
+      // Never relay from hamtab.net itself — without a token it would forward to itself in a loop.
+      const relayEnabled = !['0', 'false', 'no', 'off'].includes(relaySetting) && !getConfig().isHostedmode;
       if (!relayEnabled) {
         console.warn('Feedback rejected — no GITHUB_FEEDBACK_TOKEN and FEEDBACK_RELAY_ENABLED is off');
         return res.status(503).json({
@@ -121,7 +123,7 @@ router.post('/feedback', feedbackLimiter, async (req, res) => {
         });
       }
 
-      console.log('No local GITHUB_FEEDBACK_TOKEN — relaying to hamtab.net (opt-in enabled)');
+      console.log('No local GITHUB_FEEDBACK_TOKEN — relaying to hamtab.net');
       try {
         const relayData = JSON.stringify({ name, email, feedback, website });
         const relayReq = https.request({

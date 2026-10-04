@@ -52,7 +52,7 @@ Live FT8/FT4 decodes and logged QSOs from WSJT-X, N1MM+, and other logging softw
 - ~~Audit cache-busting query params~~ *(done — v0.66.7, removed `_t` params)*
 
 ### Logging
-- QSO logging with ADIF export — log contacts in HamTab (prefilled from the selected spot and live rig frequency/mode), then download a standards-compliant `.adi` file for upload to POTA, LoTW, QRZ, Cloudlog, or a desktop logger. Today the logbook is import-only. *(planning: CODEX-SF372 × AGY-SF003)*
+- QSO logging with ADIF export — log contacts in HamTab (prefilled from the selected spot and live rig frequency/mode), then download a standards-compliant `.adi` file for upload to POTA, LoTW, QRZ, Cloudlog, or a desktop logger. Today the logbook is import-only. *(planned — HT-299)*
 
 ### Map & Visualization
 - Azimuthal map projection (DE-centered) with bearing rings

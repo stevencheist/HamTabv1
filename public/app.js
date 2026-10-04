@@ -281,8 +281,8 @@
         voacapParamTimer: null,
         // debounce timer for power/mode/TOA/path button clicks
         // Logbook (ADIF import)
-        logbookSortColumn: "qsoDate",
-        // current sort column key
+        logbookSortColumn: "QSO_DATE",
+        // current sort column key (LOGBOOK_COLS key) — newest first by default
         logbookSortDirection: "desc",
         // 'asc' or 'desc'
         logbookFilterBand: "",
@@ -6575,6 +6575,41 @@
     state_default.workedList.push({ callsign: upper, timestamp: Date.now() });
     saveWorkedList();
   }
+  function setConfirmWorked(btn) {
+    btn.textContent = "\u2713 Worked";
+    btn.disabled = true;
+    btn.classList.add("pota-hunter-worked");
+  }
+  function refreshAfterWorkedChange() {
+    if (state_default.hideWorked) {
+      applyFilter();
+      renderSpots();
+      renderMarkers();
+    }
+    updateWorkedBadge();
+  }
+  function markWorked(callsign) {
+    if (!callsign) return;
+    addWorked(callsign);
+    const upper = callsign.toUpperCase();
+    document.querySelectorAll(".pota-hunter-confirm").forEach((btn) => {
+      if (btn.dataset.call === upper) setConfirmWorked(btn);
+    });
+    refreshAfterWorkedChange();
+  }
+  function unmarkWorked(callsign) {
+    if (!callsign) return;
+    const upper = callsign.toUpperCase();
+    state_default.workedList = state_default.workedList.filter((e) => e.callsign !== upper);
+    saveWorkedList();
+    document.querySelectorAll(".pota-hunter-confirm").forEach((btn) => {
+      if (btn.dataset.call !== upper) return;
+      btn.textContent = "Confirm QSO";
+      btn.disabled = false;
+      btn.classList.remove("pota-hunter-worked");
+    });
+    refreshAfterWorkedChange();
+  }
   function clearWorkedList() {
     state_default.workedList = [];
     saveWorkedList();
@@ -6593,25 +6628,10 @@
     wrap.className = "pota-hunter-actions";
     const confirmBtn = document.createElement("button");
     confirmBtn.className = "btn btn-sm pota-hunter-btn pota-hunter-confirm";
-    if (worked) {
-      confirmBtn.textContent = "\u2713 Worked";
-      confirmBtn.disabled = true;
-      confirmBtn.classList.add("pota-hunter-worked");
-    } else {
-      confirmBtn.textContent = "Confirm QSO";
-      confirmBtn.addEventListener("click", () => {
-        addWorked(displayCall);
-        confirmBtn.textContent = "\u2713 Worked";
-        confirmBtn.disabled = true;
-        confirmBtn.classList.add("pota-hunter-worked");
-        if (state_default.hideWorked) {
-          applyFilter();
-          renderSpots();
-          renderMarkers();
-        }
-        updateWorkedBadge();
-      });
-    }
+    confirmBtn.dataset.call = displayCall.toUpperCase();
+    confirmBtn.textContent = "Confirm QSO";
+    confirmBtn.addEventListener("click", () => markWorked(displayCall));
+    if (worked) setConfirmWorked(confirmBtn);
     wrap.appendChild(confirmBtn);
     const spotBtn = document.createElement("button");
     spotBtn.className = "btn btn-sm pota-hunter-btn pota-hunter-spot";
@@ -6791,6 +6811,1408 @@
     }
   });
 
+  // src/qso-entry.js
+  function toAdifMode(displayMode) {
+    const m = String(displayMode || "").trim().toUpperCase();
+    if (!m) return { MODE: "", SUBMODE: "" };
+    if (SUBMODES[m]) return { MODE: SUBMODES[m][0], SUBMODE: SUBMODES[m][1] };
+    return { MODE: m, SUBMODE: "" };
+  }
+  function fromAdifMode(mode2, submode) {
+    const sub = String(submode || "").toUpperCase();
+    if (sub && SUBMODES[sub]) return sub;
+    return String(mode2 || "").toUpperCase();
+  }
+  function modeFromRig(catMode) {
+    const m = String(catMode || "").toUpperCase();
+    if (!m) return "";
+    if (m.startsWith("CW")) return "CW";
+    if (m === "USB" || m === "LSB") return m;
+    if (m.startsWith("FM")) return "FM";
+    if (m.startsWith("AM")) return "AM";
+    if (m.startsWith("RTTY")) return "RTTY";
+    return "";
+  }
+  function defaultRst(displayMode) {
+    const m = String(displayMode || "").toUpperCase();
+    if (PHONE_MODES.has(m)) return "59";
+    if (RST3_MODES.has(m)) return "599";
+    return "";
+  }
+  function utcNow(date = /* @__PURE__ */ new Date()) {
+    const p = (n) => String(n).padStart(2, "0");
+    return {
+      date: `${date.getUTCFullYear()}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())}`,
+      time: `${p(date.getUTCHours())}${p(date.getUTCMinutes())}${p(date.getUTCSeconds())}`
+    };
+  }
+  function hzToMhz(hz) {
+    const n = Number(hz);
+    if (!Number.isFinite(n) || n <= 0) return "";
+    const s = (n / 1e6).toFixed(6).replace(/0+$/, "");
+    const [whole, frac = ""] = s.split(".");
+    return `${whole}.${frac.padEnd(3, "0")}`;
+  }
+  function spotFreqToMhz(freq) {
+    const v = parseFloat(freq);
+    if (!Number.isFinite(v) || v <= 0) return "";
+    if (v > 1e6) return hzToMhz(v);
+    if (v > 1e3) return hzToMhz(v * 1e3);
+    return hzToMhz(v * 1e6);
+  }
+  function parseParks(text) {
+    return [...new Set(String(text || "").toUpperCase().split(/[\s,;]+/).filter(Boolean))];
+  }
+  function validateEntry(f) {
+    const errors = {};
+    const call = String(f.call || "").trim().toUpperCase();
+    if (!call || !CALL_RE.test(call) || !/\d/.test(call) || call.length < 3) errors.call = "Enter a valid callsign.";
+    const date = digitsOnly(f.date);
+    if (!/^\d{8}$/.test(date) || Number(date.slice(4, 6)) < 1 || Number(date.slice(4, 6)) > 12 || Number(date.slice(6, 8)) < 1 || Number(date.slice(6, 8)) > 31) errors.date = "Use YYYY-MM-DD (UTC).";
+    const time = digitsOnly(f.time);
+    if (!/^\d{4}(\d{2})?$/.test(time) || Number(time.slice(0, 2)) > 23 || Number(time.slice(2, 4)) > 59 || time.length === 6 && Number(time.slice(4, 6)) > 59) errors.time = "Use HH:MM or HH:MM:SS (UTC).";
+    const freq = String(f.freq || "").trim();
+    if (freq && !(parseFloat(freq) > 0)) errors.freq = "Frequency in MHz, e.g. 14.074.";
+    if (!freq && !f.band) errors.band = "Enter a frequency or pick a band.";
+    if (!String(f.mode || "").trim()) errors.mode = "Pick a mode.";
+    const theirPark = String(f.theirPark || "").trim().toUpperCase();
+    if (theirPark && !PARK_RE.test(theirPark)) errors.theirPark = "Park reference like US-1234.";
+    if (f.activating) {
+      const parks = parseParks(f.myParks);
+      if (parks.length === 0 || parks.some((p) => !PARK_RE.test(p))) errors.myParks = "Your park(s), e.g. US-1234 or US-1234, US-5678.";
+    }
+    return errors;
+  }
+  function buildRecord(f) {
+    const { MODE, SUBMODE } = toAdifMode(f.mode);
+    const theirPark = String(f.theirPark || "").trim().toUpperCase();
+    const myParks = f.activating ? parseParks(f.myParks) : [];
+    const freq = String(f.freq || "").trim().replace(",", ".");
+    const rec = {
+      CALL: String(f.call || "").trim().toUpperCase(),
+      QSO_DATE: digitsOnly(f.date),
+      TIME_ON: digitsOnly(f.time),
+      FREQ: freq,
+      BAND: f.band || "",
+      MODE,
+      SUBMODE,
+      RST_SENT: String(f.rstSent || "").trim(),
+      RST_RCVD: String(f.rstRcvd || "").trim(),
+      STATION_CALLSIGN: String(f.stationCall || "").trim().toUpperCase(),
+      MY_GRIDSQUARE: String(f.myGrid || "").trim(),
+      GRIDSQUARE: String(f.grid || "").trim(),
+      NAME: String(f.name || "").trim(),
+      COMMENT: String(f.comment || "").trim()
+    };
+    if (theirPark) Object.assign(rec, { SIG: "POTA", SIG_INFO: theirPark, POTA_REF: theirPark });
+    if (myParks.length > 0) {
+      Object.assign(rec, { MY_SIG: "POTA", MY_SIG_INFO: myParks[0], MY_POTA_REF: myParks.join(",") });
+    }
+    for (const k of Object.keys(rec)) if (rec[k] === "") delete rec[k];
+    return rec;
+  }
+  function recordToFields(r) {
+    const myParks = r.MY_POTA_REF || (r.MY_SIG === "POTA" ? r.MY_SIG_INFO : "") || "";
+    return {
+      call: r.CALL || "",
+      date: dateToDisplay(r.QSO_DATE),
+      time: timeToDisplay(r.TIME_ON),
+      freq: r.FREQ || "",
+      band: (r.BAND || "").toLowerCase(),
+      mode: fromAdifMode(r.MODE, r.SUBMODE),
+      rstSent: r.RST_SENT || "",
+      rstRcvd: r.RST_RCVD || "",
+      stationCall: r.STATION_CALLSIGN || "",
+      myGrid: r.MY_GRIDSQUARE || "",
+      grid: r.GRIDSQUARE || "",
+      name: r.NAME || "",
+      comment: r.COMMENT || "",
+      theirPark: r.POTA_REF || (r.SIG === "POTA" ? r.SIG_INFO : "") || "",
+      activating: Boolean(myParks),
+      myParks: String(myParks).split(",").join(", ")
+    };
+  }
+  var BANDS2, SUBMODES, MODE_CHOICES, PHONE_MODES, RST3_MODES, PARK_RE, dateToDisplay, timeToDisplay, digitsOnly, CALL_RE, FORM_FIELDS;
+  var init_qso_entry = __esm({
+    "src/qso-entry.js"() {
+      BANDS2 = ["160m", "80m", "60m", "40m", "30m", "20m", "17m", "15m", "12m", "10m", "6m", "2m", "70cm"];
+      SUBMODES = {
+        USB: ["SSB", "USB"],
+        LSB: ["SSB", "LSB"],
+        FT4: ["MFSK", "FT4"],
+        JS8: ["MFSK", "JS8"],
+        Q65: ["MFSK", "Q65"],
+        PSK31: ["PSK", "PSK31"],
+        PSK63: ["PSK", "PSK63"],
+        C4FM: ["DIGITALVOICE", "C4FM"],
+        DMR: ["DIGITALVOICE", "DMR"]
+      };
+      MODE_CHOICES = ["SSB", "USB", "LSB", "CW", "FM", "AM", "FT8", "FT4", "JS8", "RTTY", "PSK31", "Q65", "SSTV", "OLIVIA", "DSTAR", "C4FM", "DMR"];
+      PHONE_MODES = /* @__PURE__ */ new Set(["SSB", "USB", "LSB", "FM", "AM", "DSTAR", "C4FM", "DMR", "DIGITALVOICE"]);
+      RST3_MODES = /* @__PURE__ */ new Set(["CW", "RTTY", "PSK", "PSK31", "PSK63"]);
+      PARK_RE = /^[A-Z0-9]+-\d{4,}$/;
+      dateToDisplay = (d) => /^\d{8}$/.test(d || "") ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : d || "";
+      timeToDisplay = (t) => {
+        const s = String(t || "");
+        if (/^\d{6}$/.test(s)) return `${s.slice(0, 2)}:${s.slice(2, 4)}:${s.slice(4, 6)}`;
+        if (/^\d{4}$/.test(s)) return `${s.slice(0, 2)}:${s.slice(2, 4)}`;
+        return s;
+      };
+      digitsOnly = (s) => String(s || "").replace(/\D/g, "");
+      CALL_RE = /^[A-Z0-9]+(\/[A-Z0-9]+)*$/;
+      FORM_FIELDS = [
+        "CALL",
+        "QSO_DATE",
+        "TIME_ON",
+        "FREQ",
+        "BAND",
+        "MODE",
+        "SUBMODE",
+        "RST_SENT",
+        "RST_RCVD",
+        "STATION_CALLSIGN",
+        "MY_GRIDSQUARE",
+        "GRIDSQUARE",
+        "NAME",
+        "COMMENT",
+        "SIG",
+        "SIG_INFO",
+        "POTA_REF",
+        "MY_SIG",
+        "MY_SIG_INFO",
+        "MY_POTA_REF"
+      ];
+    }
+  });
+
+  // src/logbook-records.js
+  function newId() {
+    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+      return crypto.randomUUID();
+    }
+    return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  }
+  function withMeta(record, source, importBatchId = null, now = (/* @__PURE__ */ new Date()).toISOString()) {
+    return {
+      ...record,
+      [META_KEY]: {
+        uuid: newId(),
+        source,
+        importBatchId,
+        createdAt: now,
+        updatedAt: now,
+        lastExportedAt: null
+      }
+    };
+  }
+  function migrateV1Record(record, now = (/* @__PURE__ */ new Date()).toISOString()) {
+    if (record && record[META_KEY]) return record;
+    return withMeta(record, SOURCE_IMPORT, MIGRATED_BATCH_ID, now);
+  }
+  function getSource(record) {
+    return record && record[META_KEY] && record[META_KEY].source || SOURCE_IMPORT;
+  }
+  function isHamtabLogged(record) {
+    return getSource(record) !== SOURCE_IMPORT;
+  }
+  function countHamtabLogged(records) {
+    return records.filter(isHamtabLogged).length;
+  }
+  function countUnexportedLogged(records) {
+    return records.filter((r) => isHamtabLogged(r) && !r[META_KEY].lastExportedAt).length;
+  }
+  function parseADIF(text) {
+    const records = [];
+    const headerEnd = text.search(/<eoh>/i);
+    const body = headerEnd >= 0 ? text.substring(headerEnd + 5) : text;
+    const rawRecords = body.split(/<eor>/i);
+    for (const raw of rawRecords) {
+      const record = {};
+      const fieldRe = /<([A-Za-z_][A-Za-z0-9_]*):(\d+)(?::[A-Za-z])?>/gi;
+      let m;
+      while ((m = fieldRe.exec(raw)) !== null) {
+        const name = m[1].toUpperCase();
+        const len = parseInt(m[2], 10);
+        const valStart = m.index + m[0].length;
+        const val = raw.substring(valStart, valStart + len);
+        record[name] = val;
+      }
+      if (record.CALL) records.push(record);
+    }
+    return records;
+  }
+  function norm(v) {
+    return (v == null ? "" : String(v)).trim().toUpperCase();
+  }
+  function timeToMinutes(t) {
+    const s = norm(t);
+    if (!/^\d{4}(\d{2})?$/.test(s)) return null;
+    return parseInt(s.slice(0, 2), 10) * 60 + parseInt(s.slice(2, 4), 10);
+  }
+  function isProbableDuplicate(a, b) {
+    if (norm(a.CALL) !== norm(b.CALL)) return false;
+    if (norm(a.QSO_DATE) !== norm(b.QSO_DATE)) return false;
+    if (norm(a.BAND) !== norm(b.BAND)) return false;
+    if (norm(a.MODE) !== norm(b.MODE)) return false;
+    const sa = norm(a.STATION_CALLSIGN || a.OPERATOR);
+    const sb = norm(b.STATION_CALLSIGN || b.OPERATOR);
+    if (sa && sb && sa !== sb) return false;
+    const ta = timeToMinutes(a.TIME_ON);
+    const tb = timeToMinutes(b.TIME_ON);
+    if (ta === null || tb === null) return ta === tb && norm(a.TIME_ON) === norm(b.TIME_ON);
+    return Math.abs(ta - tb) <= DUP_WINDOW_MIN;
+  }
+  function planImport(existing, incoming, mode2, importBatchId, now = (/* @__PURE__ */ new Date()).toISOString()) {
+    const tagged = incoming.map((r) => withMeta(r, SOURCE_IMPORT, importBatchId, now));
+    if (mode2 === "replace-imported") {
+      const keep = existing.filter(isHamtabLogged);
+      const remove = existing.filter((r) => !isHamtabLogged(r));
+      const add = [];
+      const skipped = [];
+      for (const r of tagged) (keep.some((k) => isProbableDuplicate(k, r)) ? skipped : add).push(r);
+      return { keep, remove, add, skipped };
+    }
+    if (mode2 === "add-new") {
+      const add = [];
+      const skipped = [];
+      for (const r of tagged) {
+        const dup = existing.some((e) => isProbableDuplicate(e, r)) || add.some((a) => isProbableDuplicate(a, r));
+        (dup ? skipped : add).push(r);
+      }
+      return { keep: existing, remove: [], add, skipped };
+    }
+    throw new Error("Unknown import mode: " + mode2);
+  }
+  var META_KEY, SOURCE_IMPORT, SOURCE_HAMTAB, MIGRATED_BATCH_ID, DUP_WINDOW_MIN;
+  var init_logbook_records = __esm({
+    "src/logbook-records.js"() {
+      META_KEY = "_hamtab";
+      SOURCE_IMPORT = "import";
+      SOURCE_HAMTAB = "hamtab";
+      MIGRATED_BATCH_ID = "v1-migrated";
+      DUP_WINDOW_MIN = 2;
+    }
+  });
+
+  // src/adif-writer.js
+  function toAscii(input, multiline = false) {
+    const original = String(input);
+    let s = original.normalize("NFD").replace(/[̀-ͯ]/g, "");
+    s = s.replace(/[^\x00-\x7f]/g, (ch) => SPECIAL_FOLDS[ch] ?? "");
+    if (multiline) {
+      s = s.replace(/\r?\n/g, "\r\n").replace(/[^\x20-\x7e\r\n]/g, "");
+    } else {
+      s = s.replace(/[\r\n\t]+/g, " ").replace(/[^\x20-\x7e]/g, "");
+    }
+    return { value: s, changed: s !== original };
+  }
+  function isExportableField(name) {
+    if (name === META_KEY || name === "id") return false;
+    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return false;
+    return !/_INTL$/i.test(name);
+  }
+  function orderedFields(record) {
+    const names = Object.keys(record).filter(isExportableField).map((n) => n.toUpperCase());
+    const unique = [...new Set(names)];
+    const rest = unique.filter((n) => !FIELD_ORDER.includes(n)).sort();
+    return [...FIELD_ORDER.filter((n) => unique.includes(n)), ...rest];
+  }
+  function lookup(record, upperName) {
+    if (upperName in record) return record[upperName];
+    const key = Object.keys(record).find((k) => k.toUpperCase() === upperName);
+    return key === void 0 ? void 0 : record[key];
+  }
+  function formatField(name, rawValue) {
+    if (rawValue === void 0 || rawValue === null) return { text: "", changed: false };
+    let { value, changed } = toAscii(rawValue, MULTILINE_FIELDS.has(name));
+    if (name === "FREQ" || name === "FREQ_RX") value = value.replace(",", ".");
+    value = value.trim();
+    if (value === "") return { text: "", changed };
+    return { text: `<${name}:${value.length}>${value}`, changed };
+  }
+  function missingRequired(record) {
+    const missing = [];
+    const get = (n) => String(lookup(record, n) ?? "").trim();
+    if (!get("CALL")) missing.push("CALL");
+    if (!/^\d{8}$/.test(get("QSO_DATE"))) missing.push("QSO_DATE");
+    if (!/^\d{4}(\d{2})?$/.test(get("TIME_ON"))) missing.push("TIME_ON");
+    if (!get("BAND") && !get("FREQ")) missing.push("BAND/FREQ");
+    if (!get("MODE")) missing.push("MODE");
+    return missing;
+  }
+  function adifTimestamp(date) {
+    const p = (n) => String(n).padStart(2, "0");
+    return `${date.getUTCFullYear()}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())} ${p(date.getUTCHours())}${p(date.getUTCMinutes())}${p(date.getUTCSeconds())}`;
+  }
+  function writeADIF(records, { programVersion = "", now = /* @__PURE__ */ new Date() } = {}) {
+    const header = [
+      `HamTab ADIF export ${adifTimestamp(now)} UTC`,
+      // header text must not start with '<'
+      formatField("ADIF_VER", ADIF_VERSION).text,
+      formatField("PROGRAMID", "HamTab").text,
+      programVersion ? formatField("PROGRAMVERSION", programVersion).text : "",
+      formatField("CREATED_TIMESTAMP", adifTimestamp(now)).text,
+      "<EOH>"
+    ].filter(Boolean).join("\n");
+    let foldedRecords = 0;
+    let incompleteRecords = 0;
+    const lines = [header, ""];
+    for (const record of records) {
+      let folded = false;
+      const parts = [];
+      for (const name of orderedFields(record)) {
+        const f = formatField(name, lookup(record, name));
+        if (f.changed) folded = true;
+        if (f.text) parts.push(f.text);
+      }
+      if (folded) foldedRecords++;
+      if (missingRequired(record).length > 0) incompleteRecords++;
+      lines.push(parts.join(" ") + " <EOR>");
+    }
+    return {
+      text: lines.join("\n") + "\n",
+      recordCount: records.length,
+      foldedRecords,
+      incompleteRecords
+    };
+  }
+  function exportFilename(callsign, scope, now = /* @__PURE__ */ new Date()) {
+    const call = String(callsign || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    const date = adifTimestamp(now).slice(0, 8);
+    const safeScope = String(scope || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return ["hamtab", call, date, safeScope].filter(Boolean).join("-") + ".adi";
+  }
+  var ADIF_VERSION, FIELD_ORDER, MULTILINE_FIELDS, SPECIAL_FOLDS;
+  var init_adif_writer = __esm({
+    "src/adif-writer.js"() {
+      init_logbook_records();
+      ADIF_VERSION = "3.1.7";
+      FIELD_ORDER = [
+        "CALL",
+        "QSO_DATE",
+        "TIME_ON",
+        "QSO_DATE_OFF",
+        "TIME_OFF",
+        "BAND",
+        "BAND_RX",
+        "FREQ",
+        "FREQ_RX",
+        "MODE",
+        "SUBMODE",
+        "RST_SENT",
+        "RST_RCVD",
+        "STATION_CALLSIGN",
+        "OPERATOR",
+        "MY_SIG",
+        "MY_SIG_INFO",
+        "MY_POTA_REF",
+        "SIG",
+        "SIG_INFO",
+        "POTA_REF",
+        "MY_SOTA_REF",
+        "SOTA_REF",
+        "MY_WWFF_REF",
+        "WWFF_REF",
+        "GRIDSQUARE",
+        "MY_GRIDSQUARE",
+        "MY_STATE",
+        "NAME",
+        "QTH",
+        "STATE",
+        "TX_PWR",
+        "COMMENT"
+      ];
+      MULTILINE_FIELDS = /* @__PURE__ */ new Set(["ADDRESS", "NOTES", "QSLMSG", "RIG"]);
+      SPECIAL_FOLDS = {
+        "\xDF": "ss",
+        "\xC6": "AE",
+        "\xE6": "ae",
+        "\xD8": "O",
+        "\xF8": "o",
+        "\u0152": "OE",
+        "\u0153": "oe",
+        "\xDE": "TH",
+        "\xFE": "th",
+        "\xD0": "D",
+        "\xF0": "d",
+        "\u0110": "D",
+        "\u0111": "d",
+        "\u0141": "L",
+        "\u0142": "l",
+        "\u0131": "i",
+        "\u2018": "'",
+        "\u2019": "'",
+        "\u201C": '"',
+        "\u201D": '"',
+        "\u2013": "-",
+        "\u2014": "-",
+        "\u2026": "...",
+        "\xA0": " "
+      };
+    }
+  });
+
+  // src/logbook.js
+  function gridToLL(grid) {
+    if (!grid || grid.length < 4) return null;
+    const g = grid.toUpperCase();
+    if (!/^[A-R]{2}[0-9]{2}/.test(g)) return null;
+    let lon = (g.charCodeAt(0) - 65) * 20 + parseInt(g[2]) * 2 - 180;
+    let lat = (g.charCodeAt(1) - 65) * 10 + parseInt(g[3]) - 90;
+    if (g.length >= 6 && /^[A-X]{2}$/.test(g.substring(4, 6))) {
+      lon += (g.charCodeAt(4) - 65) * (2 / 24) + 1 / 24;
+      lat += (g.charCodeAt(5) - 65) * (1 / 24) + 1 / 48;
+    } else {
+      lon += 1;
+      lat += 0.5;
+    }
+    return { lat, lon };
+  }
+  function openDB() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        const tx = e.target.transaction;
+        const store = db.objectStoreNames.contains(STORE_NAME) ? tx.objectStore(STORE_NAME) : db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
+        if (!store.indexNames.contains("call")) store.createIndex("call", "CALL", { unique: false });
+        if (!store.indexNames.contains("date")) store.createIndex("date", "QSO_DATE", { unique: false });
+        if (e.oldVersion < 2) {
+          if (!store.indexNames.contains("source")) store.createIndex("source", "_hamtab.source", { unique: false });
+          const now = (/* @__PURE__ */ new Date()).toISOString();
+          store.openCursor().onsuccess = (ev) => {
+            const cursor = ev.target.result;
+            if (!cursor) return;
+            cursor.update(migrateV1Record(cursor.value, now));
+            cursor.continue();
+          };
+        }
+      };
+      req.onblocked = () => console.warn("Logbook upgrade waiting \u2014 close other HamTab tabs to finish it.");
+      req.onsuccess = () => {
+        const db = req.result;
+        db.onversionchange = () => db.close();
+        resolve(db);
+      };
+      req.onerror = () => reject(req.error);
+    });
+  }
+  function txDone(tx) {
+    return new Promise((resolve, reject) => {
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error("Logbook transaction aborted"));
+    });
+  }
+  async function applyImportPlan(plan) {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    for (const r of plan.remove) store.delete(r.id);
+    for (const r of plan.add) store.add(r);
+    return txDone(tx);
+  }
+  async function loadQSOs() {
+    try {
+      const db = await openDB();
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+      return new Promise((resolve) => {
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => resolve([]);
+      });
+    } catch {
+      return [];
+    }
+  }
+  async function refreshAfterChange() {
+    state_default.logbookData = await loadQSOs();
+    renderLogbook();
+    renderLogbookOnMap();
+    showLogbookContent(state_default.logbookData.length > 0);
+  }
+  async function saveLoggedQSO(record) {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const req = record.id === void 0 ? tx.objectStore(STORE_NAME).add(record) : tx.objectStore(STORE_NAME).put(record);
+    await txDone(tx);
+    await refreshAfterChange();
+    return req.result;
+  }
+  async function deleteLoggedQSO(id) {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).delete(id);
+    await txDone(tx);
+    await refreshAfterChange();
+  }
+  async function clearQSOs(scope = "all") {
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    if (scope === "all") {
+      store.clear();
+    } else {
+      store.openCursor().onsuccess = (ev) => {
+        const cursor = ev.target.result;
+        if (!cursor) return;
+        if (!isHamtabLogged(cursor.value)) cursor.delete();
+        cursor.continue();
+      };
+    }
+    return txDone(tx);
+  }
+  async function markExported(uuids, when) {
+    if (uuids.size === 0) return;
+    const db = await openDB();
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    tx.objectStore(STORE_NAME).openCursor().onsuccess = (ev) => {
+      const cursor = ev.target.result;
+      if (!cursor) return;
+      const meta = cursor.value[META_KEY];
+      if (meta && uuids.has(meta.uuid)) {
+        cursor.update({ ...cursor.value, [META_KEY]: { ...meta, lastExportedAt: when } });
+      }
+      cursor.continue();
+    };
+    return txDone(tx);
+  }
+  function askChoice(message, choices) {
+    return new Promise((resolve) => {
+      const body = document.querySelector("#widget-logbook .widget-body");
+      if (!body) {
+        resolve(null);
+        return;
+      }
+      const old = body.querySelector(".logbook-choice");
+      if (old) old.remove();
+      const panel = document.createElement("div");
+      panel.className = "logbook-choice";
+      panel.setAttribute("role", "alertdialog");
+      const msg = document.createElement("div");
+      msg.className = "logbook-choice-msg";
+      msg.textContent = message;
+      panel.appendChild(msg);
+      const row = document.createElement("div");
+      row.className = "logbook-choice-actions";
+      const finish = (value) => {
+        panel.removeEventListener("keydown", onKey);
+        panel.remove();
+        resolve(value);
+      };
+      const onKey = (e) => {
+        if (e.key === "Escape") finish(null);
+      };
+      panel.addEventListener("keydown", onKey);
+      for (const c of [...choices, { label: "Cancel", value: null }]) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = c.label;
+        if (c.primary) btn.className = "primary";
+        btn.addEventListener("click", () => finish(c.value));
+        row.appendChild(btn);
+      }
+      panel.appendChild(row);
+      body.prepend(panel);
+      const first = row.querySelector("button");
+      if (first) first.focus();
+    });
+  }
+  function showLogbookContent(hasData) {
+    const zone = $("logbookImportZone");
+    const content = $("logbook-content");
+    if (zone) zone.classList.toggle("hidden", hasData);
+    if (content) content.classList.toggle("hidden", !hasData);
+  }
+  function getFilteredData() {
+    let data = state_default.logbookData;
+    if (state_default.logbookFilterBand) {
+      data = data.filter((q) => (q.BAND || "").toUpperCase() === state_default.logbookFilterBand.toUpperCase());
+    }
+    if (state_default.logbookFilterMode) {
+      data = data.filter((q) => (q.MODE || "").toUpperCase() === state_default.logbookFilterMode.toUpperCase());
+    }
+    return data;
+  }
+  function sortData(data) {
+    const col = state_default.logbookSortColumn || "QSO_DATE";
+    const dir = state_default.logbookSortDirection === "asc" ? 1 : -1;
+    return [...data].sort((a, b) => {
+      let aVal = a[col] || "";
+      let bVal = b[col] || "";
+      if (col === "FREQ") {
+        return dir * ((parseFloat(aVal) || 0) - (parseFloat(bVal) || 0));
+      }
+      if (col === "QSO_DATE") {
+        const aKey = (a.QSO_DATE || "") + (a.TIME_ON || "");
+        const bKey = (b.QSO_DATE || "") + (b.TIME_ON || "");
+        return dir * aKey.localeCompare(bKey);
+      }
+      return dir * aVal.toString().localeCompare(bVal.toString());
+    });
+  }
+  function formatDate(d) {
+    if (!d || d.length !== 8) return d || "";
+    return d.substring(0, 4) + "-" + d.substring(4, 6) + "-" + d.substring(6, 8);
+  }
+  function formatTime(t) {
+    if (!t || t.length < 4) return t || "";
+    return t.substring(0, 2) + ":" + t.substring(2, 4);
+  }
+  function updateExportButton() {
+    const on = isFeatureVisible("qso_logging");
+    const btn = $("logbookExportBtn");
+    if (btn) btn.style.display = on && state_default.logbookData.length > 0 ? "" : "none";
+    const logBtn = $("logbookLogBtn");
+    if (logBtn) logBtn.style.display = on ? "" : "none";
+  }
+  function downloadText(filename, text) {
+    const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=us-ascii" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1e4);
+  }
+  async function exportLogbook() {
+    const all = state_default.logbookData;
+    const filtered = getFilteredData();
+    const logged = all.filter(isHamtabLogged);
+    const unexported = logged.filter((r) => !r[META_KEY].lastExportedAt);
+    const scopes = { all, view: filtered, logged, unexported };
+    const choices = [{ label: `All (${all.length})`, value: "all", primary: true }];
+    if (filtered.length !== all.length) choices.push({ label: `Current view (${filtered.length})`, value: "view" });
+    if (logged.length > 0) choices.push({ label: `Logged in HamTab (${logged.length})`, value: "logged" });
+    if (unexported.length > 0) choices.push({ label: `Not yet exported (${unexported.length})`, value: "unexported" });
+    const scope = choices.length === 1 ? "all" : await askChoice("Export which QSOs as an ADIF (.adi) file?", choices);
+    if (!scope) return;
+    const records = scopes[scope];
+    if (records.length === 0) return;
+    const now = /* @__PURE__ */ new Date();
+    const out = writeADIF(records, { programVersion: "0.72.0", now });
+    downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
+    const exportedUuids = new Set(records.filter(isHamtabLogged).map((r) => r[META_KEY].uuid));
+    if (exportedUuids.size > 0) {
+      await markExported(exportedUuids, now.toISOString());
+      state_default.logbookData = await loadQSOs();
+      renderLogbook();
+    }
+    const notes = [];
+    if (out.foldedRecords > 0) notes.push(`${out.foldedRecords} QSO${out.foldedRecords === 1 ? " had" : "s had"} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
+    if (out.incompleteRecords > 0) notes.push(`${out.incompleteRecords} QSO${out.incompleteRecords === 1 ? " is" : "s are"} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${out.incompleteRecords === 1 ? "it" : "them"}.`);
+    if (notes.length > 0) alert(`Exported ${out.recordCount} QSOs.
+
+` + notes.join("\n\n"));
+  }
+  function renderLogbook() {
+    updateExportButton();
+    const tbody = $("logbookBody");
+    const thead = $("logbookHead");
+    const countEl = $("logbookCount");
+    const statsEl = $("logbookStats");
+    if (!tbody) return;
+    const filtered = getFilteredData();
+    const sorted = sortData(filtered);
+    const showRowActions = isFeatureVisible("qso_logging") && countHamtabLogged(state_default.logbookData) > 0;
+    if (thead) {
+      thead.innerHTML = "";
+      const tr = document.createElement("tr");
+      for (const col of LOGBOOK_COLS) {
+        const th = document.createElement("th");
+        th.textContent = col.label;
+        th.scope = "col";
+        if (col.sortable) {
+          th.classList.add("sortable");
+          const key = col.key;
+          th.addEventListener("click", () => {
+            if (state_default.logbookSortColumn === key) {
+              state_default.logbookSortDirection = state_default.logbookSortDirection === "asc" ? "desc" : "asc";
+            } else {
+              state_default.logbookSortColumn = key;
+              state_default.logbookSortDirection = key === "QSO_DATE" ? "desc" : "asc";
+            }
+            renderLogbook();
+          });
+          if (state_default.logbookSortColumn === key) {
+            th.classList.add(state_default.logbookSortDirection === "asc" ? "sort-asc" : "sort-desc");
+            th.setAttribute("aria-sort", state_default.logbookSortDirection === "asc" ? "ascending" : "descending");
+          } else {
+            th.setAttribute("aria-sort", "none");
+          }
+        }
+        tr.appendChild(th);
+      }
+      if (showRowActions) {
+        const th = document.createElement("th");
+        th.scope = "col";
+        th.className = "logbook-actions-col";
+        th.innerHTML = '<span class="sr-only">Actions</span>';
+        tr.appendChild(th);
+      }
+      thead.appendChild(tr);
+    }
+    const maxRows = 500;
+    tbody.innerHTML = "";
+    const slice = sorted.slice(0, maxRows);
+    for (const q of slice) {
+      const tr = document.createElement("tr");
+      for (const col of LOGBOOK_COLS) {
+        const td = document.createElement("td");
+        let val = q[col.key] || "";
+        if (col.key === "QSO_DATE") val = formatDate(val);
+        else if (col.key === "TIME_ON") val = formatTime(val);
+        td.textContent = val;
+        tr.appendChild(td);
+      }
+      if (showRowActions) {
+        const td = document.createElement("td");
+        td.className = "logbook-actions-col";
+        if (isHamtabLogged(q)) {
+          tr.classList.add("logbook-row-logged");
+          td.innerHTML = '<button type="button" class="logbook-row-btn" data-act="edit" title="Edit QSO" aria-label="Edit QSO">&#x270E;</button><button type="button" class="logbook-row-btn" data-act="delete" title="Delete QSO" aria-label="Delete QSO">&#x1F5D1;</button>';
+          td.dataset.id = q.id;
+        }
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    if (countEl) {
+      countEl.textContent = state_default.logbookData.length > 0 ? `(${filtered.length}${filtered.length !== state_default.logbookData.length ? "/" + state_default.logbookData.length : ""})` : "";
+    }
+    if (statsEl) {
+      if (state_default.logbookData.length === 0) {
+        statsEl.textContent = "";
+      } else {
+        const calls = new Set(filtered.map((q) => q.CALL));
+        const dxcc = new Set(filtered.map((q) => q.DXCC).filter(Boolean));
+        const parts = [filtered.length + " QSOs", calls.size + " calls"];
+        if (dxcc.size > 0) parts.push(dxcc.size + " DXCC");
+        if (sorted.length > maxRows) parts.push("showing first " + maxRows);
+        statsEl.textContent = parts.join(" \xB7 ");
+      }
+    }
+    populateFilterDropdowns();
+  }
+  function populateFilterDropdowns() {
+    const bandSel = $("logbookBandFilter");
+    const modeSel = $("logbookModeFilter");
+    if (!bandSel || !modeSel) return;
+    const bands = /* @__PURE__ */ new Set();
+    const modes = /* @__PURE__ */ new Set();
+    for (const q of state_default.logbookData) {
+      if (q.BAND) bands.add(q.BAND.toUpperCase());
+      if (q.MODE) modes.add(q.MODE.toUpperCase());
+    }
+    const sortedBands = [...bands].sort((a, b) => {
+      const na = parseFloat(a) || 0;
+      const nb = parseFloat(b) || 0;
+      return na - nb;
+    });
+    const sortedModes = [...modes].sort();
+    const bandKey = sortedBands.join(",");
+    const modeKey = sortedModes.join(",");
+    if (bandSel.dataset.keys !== bandKey) {
+      const cur = state_default.logbookFilterBand;
+      bandSel.innerHTML = '<option value="">All Bands</option>';
+      for (const b of sortedBands) {
+        const opt = document.createElement("option");
+        opt.value = b;
+        opt.textContent = b;
+        if (b === cur) opt.selected = true;
+        bandSel.appendChild(opt);
+      }
+      bandSel.dataset.keys = bandKey;
+    }
+    if (modeSel.dataset.keys !== modeKey) {
+      const cur = state_default.logbookFilterMode;
+      modeSel.innerHTML = '<option value="">All Modes</option>';
+      for (const m of sortedModes) {
+        const opt = document.createElement("option");
+        opt.value = m;
+        opt.textContent = m;
+        if (m === cur) opt.selected = true;
+        modeSel.appendChild(opt);
+      }
+      modeSel.dataset.keys = modeKey;
+    }
+  }
+  function renderLogbookOnMap() {
+    clearLogbookFromMap();
+    if (!state_default.map || state_default.logbookData.length === 0) return;
+    if (!state_default.mapOverlays.logbookQsos) return;
+    const L2 = window.L;
+    const filtered = getFilteredData();
+    for (const q of filtered) {
+      const grid = q.GRIDSQUARE || "";
+      const ll = gridToLL(grid);
+      if (!ll) continue;
+      const band = q.BAND || freqToBand(q.FREQ || "") || "";
+      const color = getBandColor(band) || "#888";
+      if (state_default.myLat !== null && state_default.myLon !== null) {
+        const pts = geodesicPoints(state_default.myLat, state_default.myLon, ll.lat, ll.lon, 32);
+        const line = L2.polyline(pts, { color, weight: 1.2, opacity: 0.3, interactive: false });
+        line.addTo(state_default.map);
+        state_default.logbookLines.push(line);
+      }
+      const marker = L2.circleMarker([ll.lat, ll.lon], {
+        radius: 5,
+        fillColor: color,
+        color: "#fff",
+        weight: 1.5,
+        opacity: 0.8,
+        fillOpacity: 0.6
+      });
+      const dateStr = formatDate(q.QSO_DATE);
+      const timeStr = formatTime(q.TIME_ON);
+      marker.bindPopup(
+        '<div class="logbook-popup"><strong>' + esc(q.CALL || "") + "</strong><br>" + esc(dateStr) + " " + esc(timeStr) + "Z<br>" + esc(q.FREQ || "") + " " + esc(q.MODE || "") + (q.RST_SENT ? "<br>RST: " + esc(q.RST_SENT) + "/" + esc(q.RST_RCVD || "") : "") + (q.NAME ? "<br>" + esc(q.NAME) : "") + "</div>"
+      );
+      marker.addTo(state_default.map);
+      state_default.logbookMarkers.push(marker);
+    }
+  }
+  function clearLogbookFromMap() {
+    for (const m of state_default.logbookMarkers) {
+      if (state_default.map) state_default.map.removeLayer(m);
+    }
+    for (const l of state_default.logbookLines) {
+      if (state_default.map) state_default.map.removeLayer(l);
+    }
+    state_default.logbookMarkers = [];
+    state_default.logbookLines = [];
+  }
+  async function handleFile(file) {
+    try {
+      const text = await file.text();
+      const records = parseADIF(text);
+      if (records.length === 0) {
+        alert("No QSO records found in file.");
+        return;
+      }
+      let mode2 = "replace-imported";
+      const loggedCount = countHamtabLogged(state_default.logbookData);
+      if (loggedCount > 0) {
+        mode2 = await askChoice(
+          `Import ${records.length} QSOs. Your ${loggedCount} QSO${loggedCount === 1 ? "" : "s"} logged in HamTab will be kept either way.`,
+          [
+            { label: "Replace previous import", value: "replace-imported", primary: true },
+            { label: "Add new only (skip duplicates)", value: "add-new" }
+          ]
+        );
+        if (!mode2) return;
+      }
+      const plan = planImport(state_default.logbookData, records, mode2, newId());
+      await applyImportPlan(plan);
+      state_default.logbookData = await loadQSOs();
+      renderLogbook();
+      renderLogbookOnMap();
+      showLogbookContent(state_default.logbookData.length > 0);
+      if (plan.skipped.length > 0) {
+        alert(`Imported ${plan.add.length} QSOs; skipped ${plan.skipped.length} probable duplicate${plan.skipped.length === 1 ? "" : "s"}.`);
+      }
+    } catch (err2) {
+      console.error("ADIF import error:", err2);
+      alert("Failed to parse ADIF file: " + err2.message);
+    }
+  }
+  async function initLogbook() {
+    const saved = await loadQSOs();
+    if (saved.length > 0) {
+      state_default.logbookData = saved;
+      const zone2 = $("logbookImportZone");
+      const content = $("logbook-content");
+      if (zone2) zone2.classList.add("hidden");
+      if (content) content.classList.remove("hidden");
+      renderLogbook();
+      renderLogbookOnMap();
+    }
+    const zone = $("logbookImportZone");
+    if (zone) {
+      zone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        zone.classList.add("drag-over");
+      });
+      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
+      zone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        zone.classList.remove("drag-over");
+        const file = e.dataTransfer.files[0];
+        if (file) handleFile(file);
+      });
+      zone.addEventListener("click", () => {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".adi,.adif";
+        input.addEventListener("change", (e) => {
+          if (e.target.files[0]) handleFile(e.target.files[0]);
+        });
+        input.click();
+      });
+    }
+    const importBtn = $("logbookImportBtn");
+    if (importBtn) {
+      importBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".adi,.adif";
+        input.addEventListener("change", (ev) => {
+          if (ev.target.files[0]) handleFile(ev.target.files[0]);
+        });
+        input.click();
+      });
+    }
+    initLogForm();
+    const logBtn = $("logbookLogBtn");
+    if (logBtn) {
+      logBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        openLogForm();
+      });
+    }
+    const tbodyEl = $("logbookBody");
+    if (tbodyEl) {
+      tbodyEl.addEventListener("click", (e) => {
+        const btn = e.target.closest(".logbook-row-btn");
+        if (!btn) return;
+        const id = Number(btn.parentElement.dataset.id);
+        const record = state_default.logbookData.find((r) => r.id === id);
+        if (!record) return;
+        if (btn.dataset.act === "edit") editLoggedQSO(record);
+        else if (btn.dataset.act === "delete") removeLoggedQSO(record).catch((err2) => console.error("Delete failed:", err2));
+      });
+    }
+    const exportBtn = $("logbookExportBtn");
+    if (exportBtn) {
+      exportBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        exportLogbook().catch((err2) => {
+          console.error("ADIF export error:", err2);
+          alert("Export failed: " + err2.message);
+        });
+      });
+    }
+    updateExportButton();
+    const clearBtn = $("logbookClearBtn");
+    if (clearBtn) {
+      clearBtn.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        const loggedCount = countHamtabLogged(state_default.logbookData);
+        let scope = "all";
+        if (loggedCount > 0) {
+          const unexported = countUnexportedLogged(state_default.logbookData);
+          const choices = [
+            { label: "Clear imported only", value: "imported", primary: true },
+            { label: "Clear everything", value: "all" }
+          ];
+          if (unexported > 0 && isFeatureVisible("qso_logging")) {
+            choices.unshift({ label: `Export backup first (${unexported} not yet exported)`, value: "backup" });
+          }
+          scope = await askChoice(
+            `You have ${loggedCount} QSO${loggedCount === 1 ? "" : "s"} logged in HamTab. Clearing everything deletes them permanently.`,
+            choices
+          );
+          if (scope === "backup") {
+            await exportLogbook();
+            return;
+          }
+          if (!scope) return;
+        } else if (!confirm("Clear all imported QSO data?")) {
+          return;
+        }
+        await clearQSOs(scope);
+        state_default.logbookData = scope === "all" ? [] : await loadQSOs();
+        clearLogbookFromMap();
+        renderLogbook();
+        renderLogbookOnMap();
+        showLogbookContent(state_default.logbookData.length > 0);
+      });
+    }
+    const bandSel = $("logbookBandFilter");
+    const modeSel = $("logbookModeFilter");
+    if (bandSel) {
+      bandSel.addEventListener("change", () => {
+        state_default.logbookFilterBand = bandSel.value;
+        renderLogbook();
+        renderLogbookOnMap();
+      });
+    }
+    if (modeSel) {
+      modeSel.addEventListener("change", () => {
+        state_default.logbookFilterMode = modeSel.value;
+        renderLogbook();
+        renderLogbookOnMap();
+      });
+    }
+  }
+  var DB_NAME, DB_VERSION, STORE_NAME, LOGBOOK_COLS;
+  var init_logbook = __esm({
+    "src/logbook.js"() {
+      init_state();
+      init_dom();
+      init_utils();
+      init_geo();
+      init_filters();
+      init_constants();
+      init_logbook_records();
+      init_adif_writer();
+      init_feature_flags();
+      init_qso_log_form();
+      DB_NAME = "hamtab_logbook";
+      DB_VERSION = 2;
+      STORE_NAME = "qsos";
+      LOGBOOK_COLS = [
+        { key: "QSO_DATE", label: "Date", sortable: true },
+        { key: "TIME_ON", label: "Time", sortable: true },
+        { key: "CALL", label: "Call", sortable: true },
+        { key: "FREQ", label: "Freq", sortable: true },
+        { key: "BAND", label: "Band", sortable: true },
+        { key: "MODE", label: "Mode", sortable: true },
+        { key: "RST_SENT", label: "S", sortable: false },
+        { key: "RST_RCVD", label: "R", sortable: false },
+        { key: "GRIDSQUARE", label: "Grid", sortable: true },
+        { key: "NAME", label: "Name", sortable: true }
+      ];
+    }
+  });
+
+  // src/qso-log-form.js
+  function setField(key, value) {
+    const el2 = $(FIELD_IDS[key]);
+    if (!el2) return;
+    if (el2.type === "checkbox") el2.checked = Boolean(value);
+    else el2.value = value ?? "";
+  }
+  function readFields() {
+    const f = {};
+    for (const [key, id] of Object.entries(FIELD_IDS)) {
+      const el2 = $(id);
+      if (!el2) continue;
+      f[key] = el2.type === "checkbox" ? el2.checked : el2.value;
+    }
+    return f;
+  }
+  function setSource(key, text) {
+    const el2 = document.querySelector(`.qso-src[data-for="${key}"]`);
+    if (el2) el2.textContent = text ? `(${text})` : "";
+  }
+  function clearSources() {
+    document.querySelectorAll("#qsoLogForm .qso-src").forEach((el2) => {
+      el2.textContent = "";
+    });
+  }
+  function showErrors(errors) {
+    document.querySelectorAll("#qsoLogForm .qso-err").forEach((el2) => {
+      el2.textContent = errors[el2.dataset.for] || "";
+    });
+    for (const [key, id] of Object.entries(FIELD_IDS)) {
+      const el2 = $(id);
+      if (el2) el2.classList.toggle("qso-invalid", Boolean(errors[key]));
+    }
+    const firstKey = Object.keys(FIELD_IDS).find((k) => errors[k]);
+    if (firstKey) $(FIELD_IDS[firstKey])?.focus();
+  }
+  function updateActivatingRow() {
+    const row = $("qsoMyParksRow");
+    if (row) row.classList.toggle("hidden", !$("qsoActivating")?.checked);
+  }
+  function myGridFromSettings() {
+    if (state_default.myLat === null || state_default.myLon === null || Number.isNaN(state_default.myLat) || Number.isNaN(state_default.myLon)) return "";
+    return latLonToGrid(state_default.myLat, state_default.myLon);
+  }
+  function setNow() {
+    const { date, time } = utcNow();
+    setField("date", dateToDisplay(date));
+    setField("time", timeToDisplay(time));
+    setSource("time", "now");
+  }
+  function openLogForm(opts = {}) {
+    if (!isFeatureVisible("qso_logging")) return;
+    const popup = $("qsoLogPopup");
+    if (!popup) return;
+    editing = opts.record || null;
+    fromSpot = null;
+    rstTouched = false;
+    bandTouched = false;
+    clearSources();
+    showErrors({});
+    $("qsoLogTitle").textContent = editing ? "Edit QSO" : "Log QSO";
+    $("qsoLogSave").textContent = editing ? "Save changes" : "Log QSO";
+    if (editing) {
+      const f = recordToFields(editing);
+      for (const key of Object.keys(FIELD_IDS)) setField(key, f[key]);
+      rstTouched = true;
+      bandTouched = Boolean(f.band);
+    } else {
+      for (const key of Object.keys(FIELD_IDS)) setField(key, "");
+      setNow();
+      setField("stationCall", (state_default.myCallsign || "").toUpperCase());
+      setField("myGrid", myGridFromSettings());
+      setField("activating", localStorage.getItem(ACTIVATING_KEY) === "true");
+      setField("myParks", localStorage.getItem(MY_PARKS_KEY) || state_default.myPark || localStorage.getItem("hamtab_my_park") || "");
+      const spot = opts.spot || null;
+      if (spot) {
+        const call = (spot.callsign || spot.activator || "").toUpperCase();
+        setField("call", call);
+        setSource("call", "spot");
+        const potaSource = state_default.currentSource === "pota";
+        fromSpot = { call, potaSource };
+        if (potaSource && spot.reference && PARK_RE.test(String(spot.reference).toUpperCase())) {
+          setField("theirPark", spot.reference.toUpperCase());
+          setSource("theirPark", "spot");
+        }
+        const lat = parseFloat(spot.latitude);
+        const lon = parseFloat(spot.longitude);
+        if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
+          setField("grid", latLonToGrid(lat, lon).slice(0, 4));
+          setSource("grid", "spot");
+        }
+      }
+      let freq = "";
+      let mode2 = "";
+      if (isRigConnected()) {
+        const rig = getRigStore().get();
+        freq = hzToMhz(rig.frequency);
+        mode2 = modeFromRig(rig.mode);
+        if (freq) setSource("freq", "rig");
+        if (mode2) setSource("mode", "rig");
+      }
+      if (spot && !freq) {
+        freq = spotFreqToMhz(spot.frequency);
+        if (freq) setSource("freq", "spot");
+      }
+      if (spot && !mode2 && spot.mode) {
+        mode2 = String(spot.mode).toUpperCase();
+        setSource("mode", "spot");
+      }
+      setField("freq", freq);
+      setField("band", freq ? freqToBand(freq) || "" : "");
+      setField("mode", mode2);
+      setField("rstSent", defaultRst(mode2));
+      setField("rstRcvd", defaultRst(mode2));
+    }
+    updateActivatingRow();
+    const callEl = $("qsoCall");
+    const focusEl = editing || !callEl.value ? callEl : $("qsoRstSent").value ? $("qsoRstRcvd") : $("qsoMode");
+    openModal(popup, { focusEl });
+  }
+  async function handleSave(e) {
+    e.preventDefault();
+    const f = readFields();
+    const errors = validateEntry(f);
+    showErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+    const built = buildRecord(f);
+    localStorage.setItem(ACTIVATING_KEY, String(Boolean(f.activating)));
+    if (f.activating) localStorage.setItem(MY_PARKS_KEY, f.myParks.trim());
+    const saveBtn = $("qsoLogSave");
+    saveBtn.disabled = true;
+    try {
+      if (editing) {
+        const merged = { ...editing };
+        for (const k of FORM_FIELDS) delete merged[k];
+        Object.assign(merged, built);
+        merged[META_KEY] = { ...editing[META_KEY], updatedAt: (/* @__PURE__ */ new Date()).toISOString(), lastExportedAt: null };
+        await saveLoggedQSO(merged);
+        closeModal($("qsoLogPopup"));
+        showToast(`Updated ${built.CALL}`);
+        return;
+      }
+      const record = withMeta(built, SOURCE_HAMTAB);
+      const id = await saveLoggedQSO(record);
+      requestPersistentStorage();
+      let markedWorked = false;
+      if (fromSpot && fromSpot.potaSource && fromSpot.call === built.CALL && isFeatureVisible("pota_hunter") && !isWorked(built.CALL)) {
+        markWorked(built.CALL);
+        markedWorked = true;
+      }
+      closeModal($("qsoLogPopup"));
+      showToast(`Logged ${built.CALL}`, async () => {
+        await deleteLoggedQSO(id);
+        if (markedWorked) unmarkWorked(built.CALL);
+        showToast(`Removed ${built.CALL}`);
+      });
+    } catch (err2) {
+      console.error("Log QSO failed:", err2);
+      showErrors({ call: "Could not save: " + err2.message });
+    } finally {
+      saveBtn.disabled = false;
+    }
+  }
+  function requestPersistentStorage() {
+    if (persistRequested) return;
+    persistRequested = true;
+    try {
+      if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persist().catch(() => {
+        });
+      }
+    } catch {
+    }
+  }
+  function showToast(message, onUndo) {
+    let toast = $("qsoToast");
+    if (!toast) return;
+    toast.innerHTML = "";
+    const text = document.createElement("span");
+    text.textContent = message;
+    toast.appendChild(text);
+    if (onUndo) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = "Undo";
+      btn.addEventListener("click", () => {
+        toast.classList.add("hidden");
+        onUndo().catch((err2) => console.error("Undo failed:", err2));
+      }, { once: true });
+      toast.appendChild(btn);
+    }
+    toast.classList.remove("hidden");
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.add("hidden"), UNDO_MS);
+  }
+  function renderLogQsoButton(spot, container) {
+    if (!isFeatureVisible("qso_logging") || !container || !spot) return;
+    if (!(spot.callsign || spot.activator)) return;
+    const btn = document.createElement("button");
+    btn.className = "btn btn-sm pota-hunter-btn qso-log-btn";
+    btn.textContent = "Log QSO";
+    btn.addEventListener("click", () => openLogForm({ spot }));
+    const row = container.querySelector(".pota-hunter-actions");
+    if (row) {
+      row.appendChild(btn);
+    } else {
+      const wrap = document.createElement("div");
+      wrap.className = "pota-hunter-actions";
+      wrap.appendChild(btn);
+      container.appendChild(wrap);
+    }
+  }
+  function initLogForm() {
+    const popup = $("qsoLogPopup");
+    if (!popup) return;
+    const modeList = $("qsoModeList");
+    if (modeList && !modeList.children.length) {
+      for (const m of MODE_CHOICES) {
+        const opt = document.createElement("option");
+        opt.value = m;
+        modeList.appendChild(opt);
+      }
+    }
+    const bandSel = $("qsoBand");
+    if (bandSel && bandSel.options.length <= 1) {
+      for (const b of BANDS2) {
+        const opt = document.createElement("option");
+        opt.value = b;
+        opt.textContent = b;
+        bandSel.appendChild(opt);
+      }
+    }
+    $("qsoLogForm")?.addEventListener("submit", handleSave);
+    $("qsoLogCancel")?.addEventListener("click", () => closeModal(popup));
+    $("qsoNowBtn")?.addEventListener("click", setNow);
+    $("qsoActivating")?.addEventListener("change", updateActivatingRow);
+    popup.addEventListener("click", (e) => {
+      if (e.target === popup) closeModal(popup);
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && !popup.classList.contains("hidden") && state_default.a11yEscapeClose) closeModal(popup);
+    });
+    for (const [key, id] of Object.entries(FIELD_IDS)) {
+      $(id)?.addEventListener(id === "qsoBand" || id === "qsoActivating" ? "change" : "input", () => {
+        const keys = key === "freq" ? ["freq", "band"] : key === "band" ? ["band", "freq"] : key === "activating" ? ["myParks"] : [key];
+        for (const k of keys) {
+          const err2 = document.querySelector(`#qsoLogForm .qso-err[data-for="${k}"]`);
+          if (err2) err2.textContent = "";
+          $(FIELD_IDS[k])?.classList.remove("qso-invalid");
+        }
+      });
+    }
+    $("qsoFreq")?.addEventListener("input", () => {
+      setSource("freq", "");
+      if (bandTouched) return;
+      const band = freqToBand($("qsoFreq").value);
+      if (band) $("qsoBand").value = band;
+    });
+    $("qsoBand")?.addEventListener("change", () => {
+      bandTouched = true;
+    });
+    $("qsoMode")?.addEventListener("input", () => {
+      setSource("mode", "");
+      if (rstTouched) return;
+      const rst = defaultRst($("qsoMode").value);
+      $("qsoRstSent").value = rst;
+      $("qsoRstRcvd").value = rst;
+    });
+    for (const id of ["qsoRstSent", "qsoRstRcvd"]) {
+      $(id)?.addEventListener("input", () => {
+        rstTouched = true;
+      });
+    }
+    for (const id of ["qsoDate", "qsoTime"]) {
+      $(id)?.addEventListener("input", () => setSource("time", ""));
+    }
+  }
+  function editLoggedQSO(record) {
+    openLogForm({ record });
+  }
+  async function removeLoggedQSO(record) {
+    if (!record || !record[META_KEY]) return;
+    if (!confirm(`Delete the QSO with ${record.CALL || "this station"} on ${dateToDisplay(record.QSO_DATE)}?`)) return;
+    const snapshot = { ...record };
+    await deleteLoggedQSO(record.id);
+    showToast(`Deleted ${record.CALL || "QSO"}`, async () => {
+      await saveLoggedQSO(snapshot);
+      showToast(`Restored ${snapshot.CALL || "QSO"}`);
+    });
+  }
+  var ACTIVATING_KEY, MY_PARKS_KEY, UNDO_MS, editing, fromSpot, rstTouched, bandTouched, persistRequested, toastTimer, FIELD_IDS;
+  var init_qso_log_form = __esm({
+    "src/qso-log-form.js"() {
+      init_state();
+      init_dom();
+      init_geo();
+      init_filters();
+      init_a11y();
+      init_feature_flags();
+      init_cat();
+      init_pota_hunter();
+      init_qso_entry();
+      init_logbook_records();
+      init_logbook();
+      ACTIVATING_KEY = "hamtab_log_activating";
+      MY_PARKS_KEY = "hamtab_log_my_parks";
+      UNDO_MS = 6e3;
+      editing = null;
+      fromSpot = null;
+      rstTouched = false;
+      bandTouched = false;
+      persistRequested = false;
+      toastTimer = null;
+      FIELD_IDS = {
+        call: "qsoCall",
+        date: "qsoDate",
+        time: "qsoTime",
+        freq: "qsoFreq",
+        band: "qsoBand",
+        mode: "qsoMode",
+        rstSent: "qsoRstSent",
+        rstRcvd: "qsoRstRcvd",
+        theirPark: "qsoTheirPark",
+        grid: "qsoGrid",
+        name: "qsoName",
+        comment: "qsoComment",
+        activating: "qsoActivating",
+        myParks: "qsoMyParks",
+        stationCall: "qsoStationCall",
+        myGrid: "qsoMyGrid"
+      };
+    }
+  });
+
   // src/spot-detail.js
   function weatherCacheKey(lat, lon) {
     return `${lat.toFixed(1)},${lon.toFixed(1)}`;
@@ -6945,6 +8367,7 @@
     }
     const hunterContainer = document.getElementById("spotDetailHunter");
     if (hunterContainer) renderHunterButtons(spot, hunterContainer);
+    if (hunterContainer) renderLogQsoButton(spot, hunterContainer);
     if (clockInterval) clearInterval(clockInterval);
     if (!isNaN(lon)) {
       clockInterval = setInterval(() => renderLocalTime(lon), 1e3);
@@ -7056,6 +8479,7 @@
       init_band_auto_profile();
       init_band_plan_validator();
       init_pota_hunter();
+      init_qso_log_form();
       currentSpot = null;
       clockInterval = null;
       spotDetailWeatherCache = {};
@@ -22135,7 +23559,7 @@ ${beacon.location}`);
   init_dom();
   init_feature_flags();
   init_cat();
-  var PARK_RE = /^[A-Z0-9]+-\d{4,}$/;
+  var PARK_RE2 = /^[A-Z0-9]+-\d{4,}$/;
   var statusTimer = null;
   function catModeToPotaMode(catMode) {
     if (!catMode) return "";
@@ -22169,7 +23593,7 @@ ${beacon.location}`);
     input.value = val;
     state_default.myPark = val;
     localStorage.setItem("hamtab_my_park", val);
-    input.classList.toggle("rig-input-invalid", val !== "" && !PARK_RE.test(val));
+    input.classList.toggle("rig-input-invalid", val !== "" && !PARK_RE2.test(val));
   }
   function handleSelfSpot() {
     const btn = $("rigSelfSpotBtn");
@@ -22183,7 +23607,7 @@ ${beacon.location}`);
       return;
     }
     const park = (state_default.myPark || "").trim().toUpperCase();
-    if (!PARK_RE.test(park)) {
+    if (!PARK_RE2.test(park)) {
       setStatus("Enter your park (e.g. US-1234).", "err");
       $("rigMyPark")?.focus();
       return;
@@ -22245,7 +23669,7 @@ ${beacon.location}`);
       parkInput.value = state_default.myPark || "";
       parkInput.classList.toggle(
         "rig-input-invalid",
-        parkInput.value !== "" && !PARK_RE.test(parkInput.value)
+        parkInput.value !== "" && !PARK_RE2.test(parkInput.value)
       );
       parkInput.addEventListener("input", handleParkInput);
     }
@@ -23945,8 +25369,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.71.0";
-    $("aboutVersion").textContent = "0.71.0";
+    $("splashVersion").textContent = "0.72.0";
+    $("aboutVersion").textContent = "0.72.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -25295,823 +26719,7 @@ ${beacon.location}`);
   init_map_overlays();
   init_markers();
   init_spots();
-
-  // src/logbook.js
-  init_state();
-  init_dom();
-  init_utils();
-  init_geo();
-  init_filters();
-  init_constants();
-
-  // src/logbook-records.js
-  var META_KEY = "_hamtab";
-  var SOURCE_IMPORT = "import";
-  var MIGRATED_BATCH_ID = "v1-migrated";
-  var DUP_WINDOW_MIN = 2;
-  function newId() {
-    if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-      return crypto.randomUUID();
-    }
-    return "id-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
-  }
-  function withMeta(record, source, importBatchId = null, now = (/* @__PURE__ */ new Date()).toISOString()) {
-    return {
-      ...record,
-      [META_KEY]: {
-        uuid: newId(),
-        source,
-        importBatchId,
-        createdAt: now,
-        updatedAt: now,
-        lastExportedAt: null
-      }
-    };
-  }
-  function migrateV1Record(record, now = (/* @__PURE__ */ new Date()).toISOString()) {
-    if (record && record[META_KEY]) return record;
-    return withMeta(record, SOURCE_IMPORT, MIGRATED_BATCH_ID, now);
-  }
-  function getSource(record) {
-    return record && record[META_KEY] && record[META_KEY].source || SOURCE_IMPORT;
-  }
-  function isHamtabLogged(record) {
-    return getSource(record) !== SOURCE_IMPORT;
-  }
-  function countHamtabLogged(records) {
-    return records.filter(isHamtabLogged).length;
-  }
-  function countUnexportedLogged(records) {
-    return records.filter((r) => isHamtabLogged(r) && !r[META_KEY].lastExportedAt).length;
-  }
-  function parseADIF(text) {
-    const records = [];
-    const headerEnd = text.search(/<eoh>/i);
-    const body = headerEnd >= 0 ? text.substring(headerEnd + 5) : text;
-    const rawRecords = body.split(/<eor>/i);
-    for (const raw of rawRecords) {
-      const record = {};
-      const fieldRe = /<([A-Za-z_][A-Za-z0-9_]*):(\d+)(?::[A-Za-z])?>/gi;
-      let m;
-      while ((m = fieldRe.exec(raw)) !== null) {
-        const name = m[1].toUpperCase();
-        const len = parseInt(m[2], 10);
-        const valStart = m.index + m[0].length;
-        const val = raw.substring(valStart, valStart + len);
-        record[name] = val;
-      }
-      if (record.CALL) records.push(record);
-    }
-    return records;
-  }
-  function norm(v) {
-    return (v == null ? "" : String(v)).trim().toUpperCase();
-  }
-  function timeToMinutes(t) {
-    const s = norm(t);
-    if (!/^\d{4}(\d{2})?$/.test(s)) return null;
-    return parseInt(s.slice(0, 2), 10) * 60 + parseInt(s.slice(2, 4), 10);
-  }
-  function isProbableDuplicate(a, b) {
-    if (norm(a.CALL) !== norm(b.CALL)) return false;
-    if (norm(a.QSO_DATE) !== norm(b.QSO_DATE)) return false;
-    if (norm(a.BAND) !== norm(b.BAND)) return false;
-    if (norm(a.MODE) !== norm(b.MODE)) return false;
-    const sa = norm(a.STATION_CALLSIGN || a.OPERATOR);
-    const sb = norm(b.STATION_CALLSIGN || b.OPERATOR);
-    if (sa && sb && sa !== sb) return false;
-    const ta = timeToMinutes(a.TIME_ON);
-    const tb = timeToMinutes(b.TIME_ON);
-    if (ta === null || tb === null) return ta === tb && norm(a.TIME_ON) === norm(b.TIME_ON);
-    return Math.abs(ta - tb) <= DUP_WINDOW_MIN;
-  }
-  function planImport(existing, incoming, mode2, importBatchId, now = (/* @__PURE__ */ new Date()).toISOString()) {
-    const tagged = incoming.map((r) => withMeta(r, SOURCE_IMPORT, importBatchId, now));
-    if (mode2 === "replace-imported") {
-      const keep = existing.filter(isHamtabLogged);
-      const remove = existing.filter((r) => !isHamtabLogged(r));
-      const add = [];
-      const skipped = [];
-      for (const r of tagged) (keep.some((k) => isProbableDuplicate(k, r)) ? skipped : add).push(r);
-      return { keep, remove, add, skipped };
-    }
-    if (mode2 === "add-new") {
-      const add = [];
-      const skipped = [];
-      for (const r of tagged) {
-        const dup = existing.some((e) => isProbableDuplicate(e, r)) || add.some((a) => isProbableDuplicate(a, r));
-        (dup ? skipped : add).push(r);
-      }
-      return { keep: existing, remove: [], add, skipped };
-    }
-    throw new Error("Unknown import mode: " + mode2);
-  }
-
-  // src/adif-writer.js
-  var ADIF_VERSION = "3.1.7";
-  var FIELD_ORDER = [
-    "CALL",
-    "QSO_DATE",
-    "TIME_ON",
-    "QSO_DATE_OFF",
-    "TIME_OFF",
-    "BAND",
-    "BAND_RX",
-    "FREQ",
-    "FREQ_RX",
-    "MODE",
-    "SUBMODE",
-    "RST_SENT",
-    "RST_RCVD",
-    "STATION_CALLSIGN",
-    "OPERATOR",
-    "MY_SIG",
-    "MY_SIG_INFO",
-    "MY_POTA_REF",
-    "SIG",
-    "SIG_INFO",
-    "POTA_REF",
-    "MY_SOTA_REF",
-    "SOTA_REF",
-    "MY_WWFF_REF",
-    "WWFF_REF",
-    "GRIDSQUARE",
-    "MY_GRIDSQUARE",
-    "MY_STATE",
-    "NAME",
-    "QTH",
-    "STATE",
-    "TX_PWR",
-    "COMMENT"
-  ];
-  var MULTILINE_FIELDS = /* @__PURE__ */ new Set(["ADDRESS", "NOTES", "QSLMSG", "RIG"]);
-  var SPECIAL_FOLDS = {
-    "\xDF": "ss",
-    "\xC6": "AE",
-    "\xE6": "ae",
-    "\xD8": "O",
-    "\xF8": "o",
-    "\u0152": "OE",
-    "\u0153": "oe",
-    "\xDE": "TH",
-    "\xFE": "th",
-    "\xD0": "D",
-    "\xF0": "d",
-    "\u0110": "D",
-    "\u0111": "d",
-    "\u0141": "L",
-    "\u0142": "l",
-    "\u0131": "i",
-    "\u2018": "'",
-    "\u2019": "'",
-    "\u201C": '"',
-    "\u201D": '"',
-    "\u2013": "-",
-    "\u2014": "-",
-    "\u2026": "...",
-    "\xA0": " "
-  };
-  function toAscii(input, multiline = false) {
-    const original = String(input);
-    let s = original.normalize("NFD").replace(/[̀-ͯ]/g, "");
-    s = s.replace(/[^\x00-\x7f]/g, (ch) => SPECIAL_FOLDS[ch] ?? "");
-    if (multiline) {
-      s = s.replace(/\r?\n/g, "\r\n").replace(/[^\x20-\x7e\r\n]/g, "");
-    } else {
-      s = s.replace(/[\r\n\t]+/g, " ").replace(/[^\x20-\x7e]/g, "");
-    }
-    return { value: s, changed: s !== original };
-  }
-  function isExportableField(name) {
-    if (name === META_KEY || name === "id") return false;
-    if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) return false;
-    return !/_INTL$/i.test(name);
-  }
-  function orderedFields(record) {
-    const names = Object.keys(record).filter(isExportableField).map((n) => n.toUpperCase());
-    const unique = [...new Set(names)];
-    const rest = unique.filter((n) => !FIELD_ORDER.includes(n)).sort();
-    return [...FIELD_ORDER.filter((n) => unique.includes(n)), ...rest];
-  }
-  function lookup(record, upperName) {
-    if (upperName in record) return record[upperName];
-    const key = Object.keys(record).find((k) => k.toUpperCase() === upperName);
-    return key === void 0 ? void 0 : record[key];
-  }
-  function formatField(name, rawValue) {
-    if (rawValue === void 0 || rawValue === null) return { text: "", changed: false };
-    let { value, changed } = toAscii(rawValue, MULTILINE_FIELDS.has(name));
-    if (name === "FREQ" || name === "FREQ_RX") value = value.replace(",", ".");
-    value = value.trim();
-    if (value === "") return { text: "", changed };
-    return { text: `<${name}:${value.length}>${value}`, changed };
-  }
-  function missingRequired(record) {
-    const missing = [];
-    const get = (n) => String(lookup(record, n) ?? "").trim();
-    if (!get("CALL")) missing.push("CALL");
-    if (!/^\d{8}$/.test(get("QSO_DATE"))) missing.push("QSO_DATE");
-    if (!/^\d{4}(\d{2})?$/.test(get("TIME_ON"))) missing.push("TIME_ON");
-    if (!get("BAND") && !get("FREQ")) missing.push("BAND/FREQ");
-    if (!get("MODE")) missing.push("MODE");
-    return missing;
-  }
-  function adifTimestamp(date) {
-    const p = (n) => String(n).padStart(2, "0");
-    return `${date.getUTCFullYear()}${p(date.getUTCMonth() + 1)}${p(date.getUTCDate())} ${p(date.getUTCHours())}${p(date.getUTCMinutes())}${p(date.getUTCSeconds())}`;
-  }
-  function writeADIF(records, { programVersion = "", now = /* @__PURE__ */ new Date() } = {}) {
-    const header = [
-      `HamTab ADIF export ${adifTimestamp(now)} UTC`,
-      // header text must not start with '<'
-      formatField("ADIF_VER", ADIF_VERSION).text,
-      formatField("PROGRAMID", "HamTab").text,
-      programVersion ? formatField("PROGRAMVERSION", programVersion).text : "",
-      formatField("CREATED_TIMESTAMP", adifTimestamp(now)).text,
-      "<EOH>"
-    ].filter(Boolean).join("\n");
-    let foldedRecords = 0;
-    let incompleteRecords = 0;
-    const lines = [header, ""];
-    for (const record of records) {
-      let folded = false;
-      const parts = [];
-      for (const name of orderedFields(record)) {
-        const f = formatField(name, lookup(record, name));
-        if (f.changed) folded = true;
-        if (f.text) parts.push(f.text);
-      }
-      if (folded) foldedRecords++;
-      if (missingRequired(record).length > 0) incompleteRecords++;
-      lines.push(parts.join(" ") + " <EOR>");
-    }
-    return {
-      text: lines.join("\n") + "\n",
-      recordCount: records.length,
-      foldedRecords,
-      incompleteRecords
-    };
-  }
-  function exportFilename(callsign, scope, now = /* @__PURE__ */ new Date()) {
-    const call = String(callsign || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
-    const date = adifTimestamp(now).slice(0, 8);
-    const safeScope = String(scope || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    return ["hamtab", call, date, safeScope].filter(Boolean).join("-") + ".adi";
-  }
-
-  // src/logbook.js
-  init_feature_flags();
-  function gridToLL(grid) {
-    if (!grid || grid.length < 4) return null;
-    const g = grid.toUpperCase();
-    if (!/^[A-R]{2}[0-9]{2}/.test(g)) return null;
-    let lon = (g.charCodeAt(0) - 65) * 20 + parseInt(g[2]) * 2 - 180;
-    let lat = (g.charCodeAt(1) - 65) * 10 + parseInt(g[3]) - 90;
-    if (g.length >= 6 && /^[A-X]{2}$/.test(g.substring(4, 6))) {
-      lon += (g.charCodeAt(4) - 65) * (2 / 24) + 1 / 24;
-      lat += (g.charCodeAt(5) - 65) * (1 / 24) + 1 / 48;
-    } else {
-      lon += 1;
-      lat += 0.5;
-    }
-    return { lat, lon };
-  }
-  var DB_NAME = "hamtab_logbook";
-  var DB_VERSION = 2;
-  var STORE_NAME = "qsos";
-  function openDB() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = (e) => {
-        const db = e.target.result;
-        const tx = e.target.transaction;
-        const store = db.objectStoreNames.contains(STORE_NAME) ? tx.objectStore(STORE_NAME) : db.createObjectStore(STORE_NAME, { keyPath: "id", autoIncrement: true });
-        if (!store.indexNames.contains("call")) store.createIndex("call", "CALL", { unique: false });
-        if (!store.indexNames.contains("date")) store.createIndex("date", "QSO_DATE", { unique: false });
-        if (e.oldVersion < 2) {
-          if (!store.indexNames.contains("source")) store.createIndex("source", "_hamtab.source", { unique: false });
-          const now = (/* @__PURE__ */ new Date()).toISOString();
-          store.openCursor().onsuccess = (ev) => {
-            const cursor = ev.target.result;
-            if (!cursor) return;
-            cursor.update(migrateV1Record(cursor.value, now));
-            cursor.continue();
-          };
-        }
-      };
-      req.onblocked = () => console.warn("Logbook upgrade waiting \u2014 close other HamTab tabs to finish it.");
-      req.onsuccess = () => {
-        const db = req.result;
-        db.onversionchange = () => db.close();
-        resolve(db);
-      };
-      req.onerror = () => reject(req.error);
-    });
-  }
-  function txDone(tx) {
-    return new Promise((resolve, reject) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error);
-      tx.onabort = () => reject(tx.error || new Error("Logbook transaction aborted"));
-    });
-  }
-  async function applyImportPlan(plan) {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    for (const r of plan.remove) store.delete(r.id);
-    for (const r of plan.add) store.add(r);
-    return txDone(tx);
-  }
-  async function loadQSOs() {
-    try {
-      const db = await openDB();
-      const tx = db.transaction(STORE_NAME, "readonly");
-      const store = tx.objectStore(STORE_NAME);
-      const req = store.getAll();
-      return new Promise((resolve) => {
-        req.onsuccess = () => resolve(req.result || []);
-        req.onerror = () => resolve([]);
-      });
-    } catch {
-      return [];
-    }
-  }
-  async function clearQSOs(scope = "all") {
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    const store = tx.objectStore(STORE_NAME);
-    if (scope === "all") {
-      store.clear();
-    } else {
-      store.openCursor().onsuccess = (ev) => {
-        const cursor = ev.target.result;
-        if (!cursor) return;
-        if (!isHamtabLogged(cursor.value)) cursor.delete();
-        cursor.continue();
-      };
-    }
-    return txDone(tx);
-  }
-  async function markExported(uuids, when) {
-    if (uuids.size === 0) return;
-    const db = await openDB();
-    const tx = db.transaction(STORE_NAME, "readwrite");
-    tx.objectStore(STORE_NAME).openCursor().onsuccess = (ev) => {
-      const cursor = ev.target.result;
-      if (!cursor) return;
-      const meta = cursor.value[META_KEY];
-      if (meta && uuids.has(meta.uuid)) {
-        cursor.update({ ...cursor.value, [META_KEY]: { ...meta, lastExportedAt: when } });
-      }
-      cursor.continue();
-    };
-    return txDone(tx);
-  }
-  function askChoice(message, choices) {
-    return new Promise((resolve) => {
-      const body = document.querySelector("#widget-logbook .widget-body");
-      if (!body) {
-        resolve(null);
-        return;
-      }
-      const old = body.querySelector(".logbook-choice");
-      if (old) old.remove();
-      const panel = document.createElement("div");
-      panel.className = "logbook-choice";
-      panel.setAttribute("role", "alertdialog");
-      const msg = document.createElement("div");
-      msg.className = "logbook-choice-msg";
-      msg.textContent = message;
-      panel.appendChild(msg);
-      const row = document.createElement("div");
-      row.className = "logbook-choice-actions";
-      const finish = (value) => {
-        panel.removeEventListener("keydown", onKey);
-        panel.remove();
-        resolve(value);
-      };
-      const onKey = (e) => {
-        if (e.key === "Escape") finish(null);
-      };
-      panel.addEventListener("keydown", onKey);
-      for (const c of [...choices, { label: "Cancel", value: null }]) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.textContent = c.label;
-        if (c.primary) btn.className = "primary";
-        btn.addEventListener("click", () => finish(c.value));
-        row.appendChild(btn);
-      }
-      panel.appendChild(row);
-      body.prepend(panel);
-      const first = row.querySelector("button");
-      if (first) first.focus();
-    });
-  }
-  function showLogbookContent(hasData) {
-    const zone = $("logbookImportZone");
-    const content = $("logbook-content");
-    if (zone) zone.classList.toggle("hidden", hasData);
-    if (content) content.classList.toggle("hidden", !hasData);
-  }
-  var LOGBOOK_COLS = [
-    { key: "QSO_DATE", label: "Date", sortable: true },
-    { key: "TIME_ON", label: "Time", sortable: true },
-    { key: "CALL", label: "Call", sortable: true },
-    { key: "FREQ", label: "Freq", sortable: true },
-    { key: "BAND", label: "Band", sortable: true },
-    { key: "MODE", label: "Mode", sortable: true },
-    { key: "RST_SENT", label: "S", sortable: false },
-    { key: "RST_RCVD", label: "R", sortable: false },
-    { key: "GRIDSQUARE", label: "Grid", sortable: true },
-    { key: "NAME", label: "Name", sortable: true }
-  ];
-  function getFilteredData() {
-    let data = state_default.logbookData;
-    if (state_default.logbookFilterBand) {
-      data = data.filter((q) => (q.BAND || "").toUpperCase() === state_default.logbookFilterBand.toUpperCase());
-    }
-    if (state_default.logbookFilterMode) {
-      data = data.filter((q) => (q.MODE || "").toUpperCase() === state_default.logbookFilterMode.toUpperCase());
-    }
-    return data;
-  }
-  function sortData(data) {
-    const col = state_default.logbookSortColumn || "QSO_DATE";
-    const dir = state_default.logbookSortDirection === "asc" ? 1 : -1;
-    return [...data].sort((a, b) => {
-      let aVal = a[col] || "";
-      let bVal = b[col] || "";
-      if (col === "FREQ") {
-        return dir * ((parseFloat(aVal) || 0) - (parseFloat(bVal) || 0));
-      }
-      if (col === "QSO_DATE") {
-        const aKey = (a.QSO_DATE || "") + (a.TIME_ON || "");
-        const bKey = (b.QSO_DATE || "") + (b.TIME_ON || "");
-        return dir * aKey.localeCompare(bKey);
-      }
-      return dir * aVal.toString().localeCompare(bVal.toString());
-    });
-  }
-  function formatDate(d) {
-    if (!d || d.length !== 8) return d || "";
-    return d.substring(0, 4) + "-" + d.substring(4, 6) + "-" + d.substring(6, 8);
-  }
-  function formatTime(t) {
-    if (!t || t.length < 4) return t || "";
-    return t.substring(0, 2) + ":" + t.substring(2, 4);
-  }
-  function updateExportButton() {
-    const btn = $("logbookExportBtn");
-    if (!btn) return;
-    btn.style.display = isFeatureVisible("qso_logging") && state_default.logbookData.length > 0 ? "" : "none";
-  }
-  function downloadText(filename, text) {
-    const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=us-ascii" }));
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1e4);
-  }
-  async function exportLogbook() {
-    const all = state_default.logbookData;
-    const filtered = getFilteredData();
-    const logged = all.filter(isHamtabLogged);
-    const unexported = logged.filter((r) => !r[META_KEY].lastExportedAt);
-    const scopes = { all, view: filtered, logged, unexported };
-    const choices = [{ label: `All (${all.length})`, value: "all", primary: true }];
-    if (filtered.length !== all.length) choices.push({ label: `Current view (${filtered.length})`, value: "view" });
-    if (logged.length > 0) choices.push({ label: `Logged in HamTab (${logged.length})`, value: "logged" });
-    if (unexported.length > 0) choices.push({ label: `Not yet exported (${unexported.length})`, value: "unexported" });
-    const scope = choices.length === 1 ? "all" : await askChoice("Export which QSOs as an ADIF (.adi) file?", choices);
-    if (!scope) return;
-    const records = scopes[scope];
-    if (records.length === 0) return;
-    const now = /* @__PURE__ */ new Date();
-    const out = writeADIF(records, { programVersion: "0.71.0", now });
-    downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
-    const exportedUuids = new Set(records.filter(isHamtabLogged).map((r) => r[META_KEY].uuid));
-    if (exportedUuids.size > 0) {
-      await markExported(exportedUuids, now.toISOString());
-      state_default.logbookData = await loadQSOs();
-      renderLogbook();
-    }
-    const notes = [];
-    if (out.foldedRecords > 0) notes.push(`${out.foldedRecords} QSO${out.foldedRecords === 1 ? " had" : "s had"} accented or non-English characters converted to plain ASCII (ADIF .adi files are ASCII-only).`);
-    if (out.incompleteRecords > 0) notes.push(`${out.incompleteRecords} QSO${out.incompleteRecords === 1 ? " is" : "s are"} missing a call, date, time, band/frequency or mode; upload sites such as POTA or LoTW may reject ${out.incompleteRecords === 1 ? "it" : "them"}.`);
-    if (notes.length > 0) alert(`Exported ${out.recordCount} QSOs.
-
-` + notes.join("\n\n"));
-  }
-  function renderLogbook() {
-    updateExportButton();
-    const tbody = $("logbookBody");
-    const thead = $("logbookHead");
-    const countEl = $("logbookCount");
-    const statsEl = $("logbookStats");
-    if (!tbody) return;
-    const filtered = getFilteredData();
-    const sorted = sortData(filtered);
-    if (thead) {
-      thead.innerHTML = "";
-      const tr = document.createElement("tr");
-      for (const col of LOGBOOK_COLS) {
-        const th = document.createElement("th");
-        th.textContent = col.label;
-        th.scope = "col";
-        if (col.sortable) {
-          th.classList.add("sortable");
-          const key = col.key;
-          th.addEventListener("click", () => {
-            if (state_default.logbookSortColumn === key) {
-              state_default.logbookSortDirection = state_default.logbookSortDirection === "asc" ? "desc" : "asc";
-            } else {
-              state_default.logbookSortColumn = key;
-              state_default.logbookSortDirection = key === "QSO_DATE" ? "desc" : "asc";
-            }
-            renderLogbook();
-          });
-          if (state_default.logbookSortColumn === key) {
-            th.classList.add(state_default.logbookSortDirection === "asc" ? "sort-asc" : "sort-desc");
-            th.setAttribute("aria-sort", state_default.logbookSortDirection === "asc" ? "ascending" : "descending");
-          } else {
-            th.setAttribute("aria-sort", "none");
-          }
-        }
-        tr.appendChild(th);
-      }
-      thead.appendChild(tr);
-    }
-    const maxRows = 500;
-    tbody.innerHTML = "";
-    const slice = sorted.slice(0, maxRows);
-    for (const q of slice) {
-      const tr = document.createElement("tr");
-      for (const col of LOGBOOK_COLS) {
-        const td = document.createElement("td");
-        let val = q[col.key] || "";
-        if (col.key === "QSO_DATE") val = formatDate(val);
-        else if (col.key === "TIME_ON") val = formatTime(val);
-        td.textContent = val;
-        tr.appendChild(td);
-      }
-      tbody.appendChild(tr);
-    }
-    if (countEl) {
-      countEl.textContent = state_default.logbookData.length > 0 ? `(${filtered.length}${filtered.length !== state_default.logbookData.length ? "/" + state_default.logbookData.length : ""})` : "";
-    }
-    if (statsEl) {
-      if (state_default.logbookData.length === 0) {
-        statsEl.textContent = "";
-      } else {
-        const calls = new Set(filtered.map((q) => q.CALL));
-        const dxcc = new Set(filtered.map((q) => q.DXCC).filter(Boolean));
-        const parts = [filtered.length + " QSOs", calls.size + " calls"];
-        if (dxcc.size > 0) parts.push(dxcc.size + " DXCC");
-        if (sorted.length > maxRows) parts.push("showing first " + maxRows);
-        statsEl.textContent = parts.join(" \xB7 ");
-      }
-    }
-    populateFilterDropdowns();
-  }
-  function populateFilterDropdowns() {
-    const bandSel = $("logbookBandFilter");
-    const modeSel = $("logbookModeFilter");
-    if (!bandSel || !modeSel) return;
-    const bands = /* @__PURE__ */ new Set();
-    const modes = /* @__PURE__ */ new Set();
-    for (const q of state_default.logbookData) {
-      if (q.BAND) bands.add(q.BAND.toUpperCase());
-      if (q.MODE) modes.add(q.MODE.toUpperCase());
-    }
-    const sortedBands = [...bands].sort((a, b) => {
-      const na = parseFloat(a) || 0;
-      const nb = parseFloat(b) || 0;
-      return na - nb;
-    });
-    const sortedModes = [...modes].sort();
-    const bandKey = sortedBands.join(",");
-    const modeKey = sortedModes.join(",");
-    if (bandSel.dataset.keys !== bandKey) {
-      const cur = state_default.logbookFilterBand;
-      bandSel.innerHTML = '<option value="">All Bands</option>';
-      for (const b of sortedBands) {
-        const opt = document.createElement("option");
-        opt.value = b;
-        opt.textContent = b;
-        if (b === cur) opt.selected = true;
-        bandSel.appendChild(opt);
-      }
-      bandSel.dataset.keys = bandKey;
-    }
-    if (modeSel.dataset.keys !== modeKey) {
-      const cur = state_default.logbookFilterMode;
-      modeSel.innerHTML = '<option value="">All Modes</option>';
-      for (const m of sortedModes) {
-        const opt = document.createElement("option");
-        opt.value = m;
-        opt.textContent = m;
-        if (m === cur) opt.selected = true;
-        modeSel.appendChild(opt);
-      }
-      modeSel.dataset.keys = modeKey;
-    }
-  }
-  function renderLogbookOnMap() {
-    clearLogbookFromMap();
-    if (!state_default.map || state_default.logbookData.length === 0) return;
-    if (!state_default.mapOverlays.logbookQsos) return;
-    const L2 = window.L;
-    const filtered = getFilteredData();
-    for (const q of filtered) {
-      const grid = q.GRIDSQUARE || "";
-      const ll = gridToLL(grid);
-      if (!ll) continue;
-      const band = q.BAND || freqToBand(q.FREQ || "") || "";
-      const color = getBandColor(band) || "#888";
-      if (state_default.myLat !== null && state_default.myLon !== null) {
-        const pts = geodesicPoints(state_default.myLat, state_default.myLon, ll.lat, ll.lon, 32);
-        const line = L2.polyline(pts, { color, weight: 1.2, opacity: 0.3, interactive: false });
-        line.addTo(state_default.map);
-        state_default.logbookLines.push(line);
-      }
-      const marker = L2.circleMarker([ll.lat, ll.lon], {
-        radius: 5,
-        fillColor: color,
-        color: "#fff",
-        weight: 1.5,
-        opacity: 0.8,
-        fillOpacity: 0.6
-      });
-      const dateStr = formatDate(q.QSO_DATE);
-      const timeStr = formatTime(q.TIME_ON);
-      marker.bindPopup(
-        '<div class="logbook-popup"><strong>' + esc(q.CALL || "") + "</strong><br>" + esc(dateStr) + " " + esc(timeStr) + "Z<br>" + esc(q.FREQ || "") + " " + esc(q.MODE || "") + (q.RST_SENT ? "<br>RST: " + esc(q.RST_SENT) + "/" + esc(q.RST_RCVD || "") : "") + (q.NAME ? "<br>" + esc(q.NAME) : "") + "</div>"
-      );
-      marker.addTo(state_default.map);
-      state_default.logbookMarkers.push(marker);
-    }
-  }
-  function clearLogbookFromMap() {
-    for (const m of state_default.logbookMarkers) {
-      if (state_default.map) state_default.map.removeLayer(m);
-    }
-    for (const l of state_default.logbookLines) {
-      if (state_default.map) state_default.map.removeLayer(l);
-    }
-    state_default.logbookMarkers = [];
-    state_default.logbookLines = [];
-  }
-  async function handleFile(file) {
-    try {
-      const text = await file.text();
-      const records = parseADIF(text);
-      if (records.length === 0) {
-        alert("No QSO records found in file.");
-        return;
-      }
-      let mode2 = "replace-imported";
-      const loggedCount = countHamtabLogged(state_default.logbookData);
-      if (loggedCount > 0) {
-        mode2 = await askChoice(
-          `Import ${records.length} QSOs. Your ${loggedCount} QSO${loggedCount === 1 ? "" : "s"} logged in HamTab will be kept either way.`,
-          [
-            { label: "Replace previous import", value: "replace-imported", primary: true },
-            { label: "Add new only (skip duplicates)", value: "add-new" }
-          ]
-        );
-        if (!mode2) return;
-      }
-      const plan = planImport(state_default.logbookData, records, mode2, newId());
-      await applyImportPlan(plan);
-      state_default.logbookData = await loadQSOs();
-      renderLogbook();
-      renderLogbookOnMap();
-      showLogbookContent(state_default.logbookData.length > 0);
-      if (plan.skipped.length > 0) {
-        alert(`Imported ${plan.add.length} QSOs; skipped ${plan.skipped.length} probable duplicate${plan.skipped.length === 1 ? "" : "s"}.`);
-      }
-    } catch (err2) {
-      console.error("ADIF import error:", err2);
-      alert("Failed to parse ADIF file: " + err2.message);
-    }
-  }
-  async function initLogbook() {
-    const saved = await loadQSOs();
-    if (saved.length > 0) {
-      state_default.logbookData = saved;
-      const zone2 = $("logbookImportZone");
-      const content = $("logbook-content");
-      if (zone2) zone2.classList.add("hidden");
-      if (content) content.classList.remove("hidden");
-      renderLogbook();
-      renderLogbookOnMap();
-    }
-    const zone = $("logbookImportZone");
-    if (zone) {
-      zone.addEventListener("dragover", (e) => {
-        e.preventDefault();
-        zone.classList.add("drag-over");
-      });
-      zone.addEventListener("dragleave", () => zone.classList.remove("drag-over"));
-      zone.addEventListener("drop", (e) => {
-        e.preventDefault();
-        zone.classList.remove("drag-over");
-        const file = e.dataTransfer.files[0];
-        if (file) handleFile(file);
-      });
-      zone.addEventListener("click", () => {
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = ".adi,.adif";
-        input.addEventListener("change", (e) => {
-          if (e.target.files[0]) handleFile(e.target.files[0]);
-        });
-        input.click();
-      });
-    }
-    const importBtn = $("logbookImportBtn");
-    if (importBtn) {
-      importBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const input = document.createElement("input");
-        input.type = "file";
-        input.accept = ".adi,.adif";
-        input.addEventListener("change", (ev) => {
-          if (ev.target.files[0]) handleFile(ev.target.files[0]);
-        });
-        input.click();
-      });
-    }
-    const exportBtn = $("logbookExportBtn");
-    if (exportBtn) {
-      exportBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        exportLogbook().catch((err2) => {
-          console.error("ADIF export error:", err2);
-          alert("Export failed: " + err2.message);
-        });
-      });
-    }
-    updateExportButton();
-    const clearBtn = $("logbookClearBtn");
-    if (clearBtn) {
-      clearBtn.addEventListener("click", async (e) => {
-        e.stopPropagation();
-        const loggedCount = countHamtabLogged(state_default.logbookData);
-        let scope = "all";
-        if (loggedCount > 0) {
-          const unexported = countUnexportedLogged(state_default.logbookData);
-          const choices = [
-            { label: "Clear imported only", value: "imported", primary: true },
-            { label: "Clear everything", value: "all" }
-          ];
-          if (unexported > 0 && isFeatureVisible("qso_logging")) {
-            choices.unshift({ label: `Export backup first (${unexported} not yet exported)`, value: "backup" });
-          }
-          scope = await askChoice(
-            `You have ${loggedCount} QSO${loggedCount === 1 ? "" : "s"} logged in HamTab. Clearing everything deletes them permanently.`,
-            choices
-          );
-          if (scope === "backup") {
-            await exportLogbook();
-            return;
-          }
-          if (!scope) return;
-        } else if (!confirm("Clear all imported QSO data?")) {
-          return;
-        }
-        await clearQSOs(scope);
-        state_default.logbookData = scope === "all" ? [] : await loadQSOs();
-        clearLogbookFromMap();
-        renderLogbook();
-        renderLogbookOnMap();
-        showLogbookContent(state_default.logbookData.length > 0);
-      });
-    }
-    const bandSel = $("logbookBandFilter");
-    const modeSel = $("logbookModeFilter");
-    if (bandSel) {
-      bandSel.addEventListener("change", () => {
-        state_default.logbookFilterBand = bandSel.value;
-        renderLogbook();
-        renderLogbookOnMap();
-      });
-    }
-    if (modeSel) {
-      modeSel.addEventListener("change", () => {
-        state_default.logbookFilterMode = modeSel.value;
-        renderLogbook();
-        renderLogbookOnMap();
-      });
-    }
-  }
-
-  // src/config.js
+  init_logbook();
   function initConfigListeners() {
     $("solarCfgBtn").addEventListener("mousedown", (e) => {
       e.stopPropagation();
@@ -27960,6 +28568,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   // src/main.js
   init_tabs();
   init_a11y();
+  init_logbook();
   init_pota_hunter();
   init_band_score();
   init_feature_flags();

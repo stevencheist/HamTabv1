@@ -1182,6 +1182,7 @@
         <button class="widget-help-btn" data-widget="widget-logbook" title="Help" aria-label="Help for Logbook">?</button>
         <button class="widget-cfg-btn" id="logbookImportBtn" title="Import ADIF" aria-label="Import ADIF logbook">&#x2912;</button>
         <button class="widget-cfg-btn" id="logbookExportBtn" title="Export ADIF" aria-label="Export logbook as ADIF" style="display:none">&#x2913;</button>
+        <button class="widget-cfg-btn" id="logbookLogBtn" title="Log a QSO" aria-label="Log a QSO" style="display:none">+</button>
         <button class="widget-cfg-btn" id="logbookClearBtn" title="Clear log" aria-label="Clear logbook data">&#x2715;</button>
       </div>
       <div class="widget-body">
@@ -1599,6 +1600,53 @@
       </div>
     </div>
   </div>
+
+  <!-- Log QSO form (qso_logging) -->
+  <div class="splash-overlay hidden" id="qsoLogPopup">
+    <div class="splash-box qso-log-box" role="dialog" aria-modal="true" aria-labelledby="qsoLogTitle">
+      <h3 id="qsoLogTitle">Log QSO</h3>
+      <form id="qsoLogForm" novalidate autocomplete="off">
+        <div class="qso-log-grid">
+          <label class="qso-wide">Call <span class="qso-src" data-for="call"></span>
+            <input type="text" id="qsoCall" spellcheck="false" style="text-transform:uppercase" />
+            <span class="qso-err" data-for="call"></span></label>
+          <label>Date (UTC) <input type="text" id="qsoDate" placeholder="YYYY-MM-DD" inputmode="numeric" />
+            <span class="qso-err" data-for="date"></span></label>
+          <label>Time (UTC) <span class="qso-src" data-for="time"></span>
+            <span class="qso-time-row"><input type="text" id="qsoTime" placeholder="HH:MM:SS" inputmode="numeric" /><button type="button" id="qsoNowBtn" class="btn btn-sm" title="Set to the current UTC time">Now</button></span>
+            <span class="qso-err" data-for="time"></span></label>
+          <label>Freq (MHz) <span class="qso-src" data-for="freq"></span>
+            <input type="text" id="qsoFreq" placeholder="14.074" inputmode="decimal" />
+            <span class="qso-err" data-for="freq"></span></label>
+          <label>Band <select id="qsoBand"><option value="">—</option></select>
+            <span class="qso-err" data-for="band"></span></label>
+          <label>Mode <span class="qso-src" data-for="mode"></span>
+            <input type="text" id="qsoMode" list="qsoModeList" spellcheck="false" style="text-transform:uppercase" />
+            <datalist id="qsoModeList"></datalist>
+            <span class="qso-err" data-for="mode"></span></label>
+          <label>RST sent <input type="text" id="qsoRstSent" maxlength="7" /></label>
+          <label>RST rcvd <input type="text" id="qsoRstRcvd" maxlength="7" /></label>
+          <label>Their park <span class="qso-src" data-for="theirPark"></span>
+            <input type="text" id="qsoTheirPark" placeholder="US-1234 (POTA)" spellcheck="false" style="text-transform:uppercase" />
+            <span class="qso-err" data-for="theirPark"></span></label>
+          <label>Their grid <span class="qso-src" data-for="grid"></span>
+            <input type="text" id="qsoGrid" spellcheck="false" maxlength="8" /></label>
+          <label class="qso-wide">Name <input type="text" id="qsoName" maxlength="60" /></label>
+          <label class="qso-wide">Comment <input type="text" id="qsoComment" maxlength="200" /></label>
+          <label class="qso-wide qso-check"><input type="checkbox" id="qsoActivating" /> I'm activating a park (POTA)</label>
+          <label class="qso-wide hidden" id="qsoMyParksRow">My park(s) <input type="text" id="qsoMyParks" placeholder="US-1234 or US-1234, US-5678" spellcheck="false" style="text-transform:uppercase" />
+            <span class="qso-err" data-for="myParks"></span></label>
+          <label>My call <input type="text" id="qsoStationCall" spellcheck="false" style="text-transform:uppercase" /></label>
+          <label>My grid <input type="text" id="qsoMyGrid" spellcheck="false" maxlength="8" /></label>
+        </div>
+        <div class="pota-spot-actions">
+          <button type="submit" id="qsoLogSave" class="btn btn-sm">Log QSO</button>
+          <button type="button" id="qsoLogCancel" class="btn btn-sm pota-spot-cancel-btn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  <div id="qsoToast" class="qso-toast hidden" role="status" aria-live="polite"></div>
 
   <script src="vendor/leaflet.js"></script>
   <script src="vendor/leaflet.markercluster.js"></script>

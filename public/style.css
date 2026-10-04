@@ -1619,6 +1619,68 @@ header {
 /* ---- POTA Spot Reporter popup ---- */
 
 .pota-spot-box { max-width: 340px; }
+
+/* ---- Log QSO form (qso_logging) ---- */
+.qso-log-box { max-width: min(94vw, 560px); padding: 20px 24px; max-height: 92vh; overflow-y: auto; }
+.qso-log-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; text-align: left; margin: 8px 0; }
+.qso-log-grid label { margin: 0; }
+.qso-log-grid .qso-wide { grid-column: 1 / -1; }
+.qso-log-grid .hidden { display: none; }
+.qso-log-grid input,
+.qso-log-grid select {
+  width: 100%;
+  margin: 2px 0 0;
+  padding: 5px 8px;
+  font-size: 0.9rem;
+  font-family: monospace;
+  text-transform: none;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+.qso-log-grid input:focus,
+.qso-log-grid select:focus { border-color: var(--accent); outline: none; }
+.qso-log-grid .qso-invalid { border-color: var(--red); }
+.qso-log-grid .qso-check { display: flex; align-items: center; gap: 6px; color: var(--text); }
+.qso-log-grid .qso-check input { width: auto; margin: 0; }
+.qso-time-row { display: flex; gap: 6px; align-items: center; }
+.qso-time-row input { flex: 1; }
+.splash-box .qso-time-row button { padding: 4px 10px; margin-top: 2px; }
+.qso-src { font-size: 0.7rem; color: var(--text-dim); opacity: 0.8; }
+.qso-err { display: block; min-height: 0; font-size: 0.72rem; color: var(--red); }
+.qso-err:empty { display: none; }
+@media (max-width: 480px) {
+  .qso-log-grid { grid-template-columns: 1fr; }
+}
+.qso-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 14px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.qso-toast.hidden { display: none; }
+.qso-toast button {
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  border-radius: 4px;
+  padding: 2px 10px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
 .pota-spot-fields { display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 .pota-spot-row { font-size: 0.85rem; }
 .pota-spot-label { color: var(--text-dim); margin-right: 4px; }
@@ -8773,6 +8835,18 @@ body.grayscale {
   opacity: 0.6;
 }
 
+.logbook-actions-col { width: 1%; white-space: nowrap; text-align: right; }
+.logbook-row-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 3px;
+  font-size: 0.8rem;
+}
+.logbook-row-btn:hover,
+.logbook-row-btn:focus-visible { color: var(--accent); }
+.logbook-row-logged td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 /* The import zone shows only when the log is empty; the header ⤒ button imports after that. */
 .logbook-import-zone.hidden,
 #logbook-content.hidden {

@@ -1604,6 +1604,9 @@ header {
 .qso-log-grid label { margin: 0; }
 .qso-log-grid .qso-wide { grid-column: 1 / -1; }
 .qso-log-grid .hidden { display: none; }
+.qso-my-refs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; padding: 6px 8px; border-left: 2px solid var(--accent); }
+.qso-my-refs.hidden { display: none; }
+@media (max-width: 480px) { .qso-my-refs { grid-template-columns: 1fr; } }
 .qso-log-grid input,
 .qso-log-grid select {
   width: 100%;

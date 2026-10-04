@@ -1622,16 +1622,28 @@
             <span class="qso-err" data-for="mode"></span></label>
           <label>RST sent <input type="text" id="qsoRstSent" maxlength="7" /></label>
           <label>RST rcvd <input type="text" id="qsoRstRcvd" maxlength="7" /></label>
-          <label>Their park <span class="qso-src" data-for="theirPark"></span>
-            <input type="text" id="qsoTheirPark" placeholder="US-1234 (POTA)" spellcheck="false" style="text-transform:uppercase" />
+          <label>Their POTA park <span class="qso-src" data-for="theirPark"></span>
+            <input type="text" id="qsoTheirPark" placeholder="US-1234" spellcheck="false" style="text-transform:uppercase" />
             <span class="qso-err" data-for="theirPark"></span></label>
+          <label>Their WWFF ref <span class="qso-src" data-for="theirWwff"></span>
+            <input type="text" id="qsoTheirWwff" placeholder="KFF-1234" spellcheck="false" style="text-transform:uppercase" />
+            <span class="qso-err" data-for="theirWwff"></span></label>
+          <label>Their summit (SOTA) <span class="qso-src" data-for="theirSota"></span>
+            <input type="text" id="qsoTheirSota" placeholder="W6/NC-423" spellcheck="false" style="text-transform:uppercase" />
+            <span class="qso-err" data-for="theirSota"></span></label>
           <label>Their grid <span class="qso-src" data-for="grid"></span>
             <input type="text" id="qsoGrid" spellcheck="false" maxlength="8" /></label>
           <label class="qso-wide">Name <input type="text" id="qsoName" maxlength="60" /></label>
           <label class="qso-wide">Comment <input type="text" id="qsoComment" maxlength="200" /></label>
-          <label class="qso-wide qso-check"><input type="checkbox" id="qsoActivating" /> I'm activating a park (POTA)</label>
-          <label class="qso-wide hidden" id="qsoMyParksRow">My park(s) <input type="text" id="qsoMyParks" placeholder="US-1234 or US-1234, US-5678" spellcheck="false" style="text-transform:uppercase" />
-            <span class="qso-err" data-for="myParks"></span></label>
+          <label class="qso-wide qso-check"><input type="checkbox" id="qsoActivating" /> I'm activating (POTA / WWFF / SOTA)</label>
+          <div class="qso-wide qso-my-refs hidden" id="qsoMyParksRow">
+            <label class="qso-wide">My POTA park(s) <input type="text" id="qsoMyParks" placeholder="US-1234 or US-1234, US-5678" spellcheck="false" style="text-transform:uppercase" />
+              <span class="qso-err" data-for="myParks"></span></label>
+            <label>My WWFF ref <input type="text" id="qsoMyWwff" placeholder="KFF-1234" spellcheck="false" style="text-transform:uppercase" />
+              <span class="qso-err" data-for="myWwff"></span></label>
+            <label>My summit (SOTA) <input type="text" id="qsoMySota" placeholder="W6/NC-423" spellcheck="false" style="text-transform:uppercase" />
+              <span class="qso-err" data-for="mySota"></span></label>
+          </div>
           <label>My call <input type="text" id="qsoStationCall" spellcheck="false" style="text-transform:uppercase" /></label>
           <label>My grid <input type="text" id="qsoMyGrid" spellcheck="false" maxlength="8" /></label>
         </div>

@@ -155,6 +155,8 @@
         map: null,
         tileLayer: null,
         // L.tileLayer reference for dynamic tile swaps (e.g. HamClock political map)
+        cartoApiKey: localStorage.getItem("hamtab_carto_apikey") || "",
+        // user's own CARTO basemap key — without it tiles carry an "API KEY REQUIRED" watermark
         clusterGroup: null,
         grayLinePolygon: null,
         dayPolygon: null,
@@ -11931,6 +11933,7 @@
           sections: [
             { heading: "Spot Markers", content: "Each dot on the map is a spotted station. Click a marker to select it and see its details. A line will be drawn showing the path from your location to the station." },
             { heading: "Map Overlays", content: "Click the gear icon to toggle overlays: lat/lon grid, Maidenhead grid squares (a location system hams use), time zones, MUF map (Maximum Usable Frequency from prop.kc2g.com), D-RAP absorption (NOAA SWPC \u2014 shows where HF signals are being absorbed by solar events), Propagation Heatmap (colored map showing predicted band reliability from your QTH \u2014 pick a band from the dropdown), DX Paths (band-colored great circle lines), DXpedition Markers (active/upcoming DXpeditions), Tropics & Arctic Lines (major latitude circles with labels), Weather Radar (global precipitation from RainViewer), Cloud Cover (OpenWeatherMap \u2014 useful for satellite and EME ops), and Map Legend (color key for all marker types). D-RAP auto-enables when Kp reaches storm level (\u22655). Cloud Cover requires an OpenWeatherMap API key (enter in Config > Services)." },
+            { heading: "Map Watermark", content: 'The map background comes from CARTO, which now stamps "API KEY REQUIRED" across its tiles unless you supply a key. The map still works with the watermark. To remove it, get a free key at carto.com/basemaps/apikey and paste it in Config > Services > Map Tiles. The key is saved in this browser only.' },
             { heading: "Geodesic Paths", content: "The curved line between you and a selected station is called a geodesic (great-circle) path \u2014 this is the shortest route over the Earth's surface and the direction to point your antenna." },
             { heading: "Center Mode", content: "Use the QTH/PM/DX/CTY buttons in the map header to control centering. QTH centers on your home location. PM (Prime Meridian) shows the whole world. DX follows the selected spot. CTY zooms to fit your country's boundaries, determined automatically from your location." },
             { heading: "Fullscreen", content: "Click the \u26F6 button in the map header to expand the map to fill the entire screen. Click the \u2715 button or press Escape to return to the normal layout." }
@@ -14008,6 +14011,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     updateSunMarker: () => updateSunMarker,
     updateUserMarker: () => updateUserMarker
   });
+  function withCartoKey(url) {
+    return state_default.cartoApiKey ? url + "?key=" + encodeURIComponent(state_default.cartoApiKey) : url;
+  }
   function initMap() {
     const hasLeaflet = typeof L !== "undefined" && L.map;
     if (!hasLeaflet) return;
@@ -14056,7 +14062,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         // added manually for position control
       }).setView([39.8, -98.5], 4);
       L.control.zoom({ position: isMobile ? "bottomright" : "topleft" }).addTo(state_default.map);
-      state_default.tileLayer = L.tileLayer(TILE_DARK, {
+      state_default.tileLayer = L.tileLayer(withCartoKey(TILE_DARK), {
         attribution: "&copy; OpenStreetMap &copy; CARTO",
         maxZoom: 19
       }).addTo(state_default.map);
@@ -14227,7 +14233,7 @@ ${beacon.location}`);
   }
   function swapMapTiles(themeId) {
     if (!state_default.tileLayer) return;
-    const url = themeId === "hamclock" ? TILE_VOYAGER : TILE_DARK;
+    const url = withCartoKey(themeId === "hamclock" ? TILE_VOYAGER : TILE_DARK);
     state_default.tileLayer.setUrl(url);
   }
   var TILE_DARK, TILE_VOYAGER, BEACON_COLORS;
@@ -21002,6 +21008,7 @@ ${beacon.location}`);
     "hamtab_wx_apikey",
     "hamtab_owm_apikey",
     "hamtab_n2yo_apikey",
+    "hamtab_carto_apikey",
     "hamtab_hamqth_user",
     "hamtab_hamqth_pass",
     "hamtab_wx_station",
@@ -23863,6 +23870,7 @@ ${beacon.location}`);
     $("splashWxApiKey").value = state_default.wxApiKey;
     $("splashOwmApiKey").value = state_default.owmApiKey;
     $("splashN2yoApiKey").value = state_default.n2yoApiKey;
+    $("splashCartoApiKey").value = state_default.cartoApiKey;
     $("splashHamqthUser").value = state_default.hamqthUser;
     $("splashHamqthPass").value = "";
     $("splashHamqthPass").placeholder = state_default.hamqthUser ? "(server-configured)" : "";
@@ -23935,8 +23943,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.70.3";
-    $("aboutVersion").textContent = "0.70.3";
+    $("splashVersion").textContent = "0.70.4";
+    $("aboutVersion").textContent = "0.70.4";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -24471,6 +24479,13 @@ ${beacon.location}`);
       localStorage.setItem("hamtab_owm_apikey", state_default.owmApiKey);
       localStorage.setItem("hamtab_n2yo_apikey", state_default.n2yoApiKey);
       localStorage.setItem("hamtab_hamqth_user", state_default.hamqthUser);
+      const cartoApiKeyEl = $("splashCartoApiKey");
+      const cartoApiKey = cartoApiKeyEl ? cartoApiKeyEl.value.trim() : state_default.cartoApiKey;
+      if (cartoApiKey !== state_default.cartoApiKey) {
+        state_default.cartoApiKey = cartoApiKey;
+        localStorage.setItem("hamtab_carto_apikey", cartoApiKey);
+        swapMapTiles(getCurrentThemeId());
+      }
       const envUpdates = {};
       if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
       if (state_default.owmApiKey) envUpdates.OWM_API_KEY = state_default.owmApiKey;

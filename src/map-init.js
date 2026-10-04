@@ -13,6 +13,12 @@ import { findCountryBounds } from './country-bounds.js';
 const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
 const TILE_VOYAGER = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 
+// CARTO watermarks keyless tiles (since Aug 2026). Each user brings their own key
+// because CARTO's terms forbid sharing a key or proxying tiles through a server.
+function withCartoKey(url) {
+  return state.cartoApiKey ? url + '?key=' + encodeURIComponent(state.cartoApiKey) : url;
+}
+
 export function initMap() {
   const hasLeaflet = typeof L !== 'undefined' && L.map;
   if (!hasLeaflet) return;
@@ -31,7 +37,7 @@ export function initMap() {
     // Zoom control: bottom-right on mobile for thumb reach, top-left on desktop.
     L.control.zoom({ position: isMobile ? 'bottomright' : 'topleft' }).addTo(state.map);
 
-    state.tileLayer = L.tileLayer(TILE_DARK, {
+    state.tileLayer = L.tileLayer(withCartoKey(TILE_DARK), {
       attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 19,
     }).addTo(state.map);
@@ -288,6 +294,6 @@ export function updateBeaconMarkers() {
 // Swap map tiles based on theme (HamClock uses political/colored tiles)
 export function swapMapTiles(themeId) {
   if (!state.tileLayer) return;
-  const url = themeId === 'hamclock' ? TILE_VOYAGER : TILE_DARK;
+  const url = withCartoKey(themeId === 'hamclock' ? TILE_VOYAGER : TILE_DARK);
   state.tileLayer.setUrl(url);
 }

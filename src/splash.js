@@ -6,7 +6,7 @@ import { $ } from './dom.js';
 import { WIDGET_DEFS } from './constants.js';
 import { esc } from './utils.js';
 import { latLonToGrid, gridToLatLon } from './geo.js';
-import { centerMapOnUser, updateUserMarker } from './map-init.js';
+import { centerMapOnUser, updateUserMarker, swapMapTiles } from './map-init.js';
 import { updateClocks } from './clocks.js';
 import { renderSpots } from './spots.js';
 import { openModal, closeModal } from './a11y.js';
@@ -390,6 +390,7 @@ export function showSplash() {
   $('splashWxApiKey').value = state.wxApiKey;
   $('splashOwmApiKey').value = state.owmApiKey;
   $('splashN2yoApiKey').value = state.n2yoApiKey;
+  $('splashCartoApiKey').value = state.cartoApiKey;
   $('splashHamqthUser').value = state.hamqthUser;
   // Password field intentionally left empty — stored server-side only.
   $('splashHamqthPass').value = '';
@@ -1245,6 +1246,14 @@ function dismissSplash() {
     localStorage.setItem('hamtab_owm_apikey', state.owmApiKey);
     localStorage.setItem('hamtab_n2yo_apikey', state.n2yoApiKey);
     localStorage.setItem('hamtab_hamqth_user', state.hamqthUser);
+    // CARTO key stays in this browser only — it is the user's own key and is never sent to the server.
+    const cartoApiKeyEl = $('splashCartoApiKey');
+    const cartoApiKey = cartoApiKeyEl ? cartoApiKeyEl.value.trim() : state.cartoApiKey;
+    if (cartoApiKey !== state.cartoApiKey) {
+      state.cartoApiKey = cartoApiKey;
+      localStorage.setItem('hamtab_carto_apikey', cartoApiKey);
+      swapMapTiles(getCurrentThemeId());
+    }
     // Hamqth password: server-side only, never in localStorage.
     // Persist API keys to server .env so all clients share them.
     const envUpdates = {};

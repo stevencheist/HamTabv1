@@ -60,6 +60,16 @@ Optional, for enhanced weather data.
 
 If not provided, weather data comes from National Weather Service (US only).
 
+### CARTO API Key (Map Tiles)
+Optional. Removes the "API KEY REQUIRED" watermark from the map.
+
+1. Visit [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey)
+2. Create a free API key (free for non-commercial use)
+3. Paste into Config → Services → Map Tiles
+4. Click Save. The map reloads its tiles without the watermark
+
+The key is stored in your browser only and is not synced to other devices. Use your own key; CARTO's terms don't allow sharing one.
+
 ---
 
 ## Display Preferences

@@ -1,6 +1,6 @@
 {
   "name": "hamtab",
-  "version": "0.70.3",
+  "version": "0.70.4",
   "description": "HamTab — Free modern alternative to HamClock. POTA, SOTA, DX cluster, propagation, satellite tracking, space weather, and live rig control (CAT) dashboard for amateur radio operators.",
   "keywords": [
     "amateur radio",
@@ -28,7 +28,7 @@
     "dev": "node esbuild.mjs --watch",
     "start": "node esbuild.mjs && node server.js",
     "start:direct": "node server.js",
-    "test": "node --test test/unit/ test/smoke/"
+    "test": "node --test \"test/**/*.test.js\" \"test/**/*.test.mjs\""
   },
   "dependencies": {
     "@cloudflare/containers": "^0.1.0",

@@ -249,6 +249,16 @@ Alternative weather provider. Requires free API key.
 
 ---
 
+## Map Tiles (CARTO)
+
+### What is CARTO?
+CARTO provides the map background tiles, drawn from OpenStreetMap data. HamTab uses the Dark Matter style by default and Voyager in the HamClock theme.
+
+### API Key (Optional)
+Without a key, CARTO stamps an "API KEY REQUIRED" watermark on every tile. The map still works. To remove the watermark, create a free key at [carto.com/basemaps/apikey](https://carto.com/basemaps/apikey) and paste it into Config → Services → Map Tiles. The key is stored in your browser only.
+
+---
+
 ## Contest Calendar (WA7BNM)
 
 ### What Is It?
@@ -326,3 +336,5 @@ All external API requests are proxied through the HamTab server:
 - Your IP address is not exposed to external services
 - Your location is not transmitted to data providers
 - Distance calculations happen client-side using locally-stored coordinates
+
+The exception is map tiles: your browser loads them directly from CARTO (with your CARTO API key, if you set one), because CARTO's terms don't allow tiles to be proxied through a server.

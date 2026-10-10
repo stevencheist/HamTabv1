@@ -1,9 +1,10 @@
 // Copyright (c) 2026 SF Foundry. MIT License.
 // SPDX-License-Identifier: MIT
 // Migration must run first, before state.js reads localStorage.
-import { migrate, migrateV2 } from './migration.js';
+import { migrate, migrateV2, migrateV3 } from './migration.js';
 migrate();
 migrateV2();
+migrateV3();
 
 // Theme must apply before any rendering to avoid flash of unstyled content.
 import { initTheme } from './themes.js';
@@ -49,7 +50,7 @@ import { initFeedbackListeners } from './feedback.js';
 import { initLiveSpotsListeners, fetchLiveSpots, renderLiveSpotsOnMap } from './live-spots.js';
 import { initVoacapListeners, renderVoacapMatrix, fetchVoacapMatrix, fetchVoacapMatrixThrottled } from './voacap.js';
 import { initHeatmapListeners } from './rel-heatmap.js';
-import { initSpaceWxListeners, fetchSpaceWxData } from './spacewx-graphs.js';
+import { initSpaceWxListeners, fetchSpaceWxData, renderSpaceWxGraph } from './spacewx-graphs.js';
 import { initBeaconListeners, startBeaconTimer } from './beacons.js';
 import { initDxpeditionListeners, fetchDxpeditions } from './dxpeditions.js';
 import { initContestListeners, fetchContests } from './contests.js';
@@ -144,6 +145,14 @@ initLiveSpotsListeners();
 initVoacapListeners();
 initHeatmapListeners();
 initSpaceWxListeners();
+
+// Repaint widgets whose colors are computed in JS when the palette changes
+// (e.g. Auto flipping to Daylight at sunrise).
+window.addEventListener('hamtab:themechange', () => {
+  for (const repaint of [renderPropagationWidget, renderVoacapMatrix, renderSpaceWxGraph]) {
+    try { repaint(); } catch (e) { if (state.debug) console.error('Theme repaint failed:', e); }
+  }
+});
 initBeaconListeners();
 initDxpeditionListeners();
 initContestListeners();

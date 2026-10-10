@@ -7,6 +7,7 @@ import { $ } from './dom.js';
 import { SAT_FREQUENCIES, DEFAULT_TRACKED_SATS } from './constants.js';
 import { esc } from './utils.js';
 import { openModal, closeModal } from './a11y.js';
+import { isLightTheme } from './themes.js';
 
 // --- Constants ---
 
@@ -124,10 +125,11 @@ function updateIssOrbitLine() {
   if (!path || path.length < 2) return;
 
   const segments = splitAtDateline(path);
+  const light = isLightTheme(); // pale cyan at 50% disappears on light tiles
   state.satellites.orbitLines['25544'] = L.polyline(segments, {
-    color: '#00bcd4',
+    color: light ? '#00838f' : '#00bcd4',
     weight: 1.5,
-    opacity: 0.5,
+    opacity: light ? 0.85 : 0.5,
     dashArray: '6 4',
     interactive: false,
   }).addTo(state.map);

@@ -5900,6 +5900,187 @@ body.grayscale .prop-heatmap-legend-bar {
   letter-spacing: 0.5px;
 }
 
+/* ---- Theme: Daylight (sunlight-readable light palette) ---- */
+/* Palette lives in src/themes.js. These rules fix spots where the base styles
+   hardcode dark-theme colors (white text, dark panels, white glows) that vanish
+   or glare on a light background. Status colors in this theme are dark enough
+   that white text on them passes 4.5:1, so badges switch from black to white. */
+
+body.theme-daylight .widget {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+}
+
+body.theme-daylight .widget-area.snap-grid-visible {
+  background-image:
+    repeating-linear-gradient(0deg, rgba(0,0,0,0.07) 0 1px, transparent 1px 20px),
+    repeating-linear-gradient(90deg, rgba(0,0,0,0.07) 0 1px, transparent 1px 20px);
+}
+
+/* Header buttons fade to 40-60% on dark themes; in sun they need full strength. */
+body.theme-daylight .widget-cfg-btn,
+body.theme-daylight .widget-help-btn,
+body.theme-daylight .widget-close-btn {
+  opacity: 1;
+}
+body.theme-daylight .widget-close-btn:hover { color: var(--red); }
+
+/* Header clocks (weather gradients keep their own text colors). */
+body.theme-daylight .header-clock {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+body.theme-daylight .header-clock-time { text-shadow: none; }
+
+/* Text hardcoded white/pale for dark backgrounds. */
+body.theme-daylight .callsign { color: var(--text); }
+body.theme-daylight .grid-option:hover,
+body.theme-daylight .grid-option.highlighted { color: var(--text); }
+body.theme-daylight .band-score-badge { color: var(--yellow); }
+body.theme-daylight .band-table-header-day { color: #8a4700; }
+body.theme-daylight .band-table-header-night { color: #283593; }
+body.theme-daylight .widget-slot-counter.over-limit { color: var(--orange); }
+body.theme-daylight .wl-rule-mode.red { color: var(--red); }
+body.theme-daylight .wl-rule-mode.only { color: var(--green); }
+body.theme-daylight .wl-rule-mode.not { color: var(--text-dim); }
+body.theme-daylight .feedback-status.success { color: var(--green); }
+body.theme-daylight .feedback-status.error { color: var(--red); }
+body.theme-daylight .latlon-label,
+body.theme-daylight .iss-popup-title { color: #0b5394; }
+body.theme-daylight .sat-popup-title { color: var(--green); }
+body.theme-daylight .rig-diag-counter-val.error,
+body.theme-daylight .rig-diag-trace-entry.error,
+body.theme-daylight .data-status.error { color: var(--red); }
+body.theme-daylight .rig-diag-counter-val.warn { color: var(--orange); }
+body.theme-daylight .rig-diag-counter-val.ok,
+body.theme-daylight .rig-diag-trace-entry.parse { color: var(--green); }
+body.theme-daylight .rig-diag-trace-entry.queue { color: var(--text-dim); }
+body.theme-daylight .rig-diag-trace-entry.transport,
+body.theme-daylight .rig-diag-btn,
+body.theme-daylight .rig-profile-save-btn { color: #0b5394; }
+body.theme-daylight .rig-power-off-btn,
+body.theme-daylight .rig-profile-delete-btn { color: var(--red); }
+
+/* Below-horizon satellites dim to 50% on dark themes; that is too faint on white,
+   so mark them with a lighter name instead of fading the whole row. */
+body.theme-daylight .sat-row.below-horizon { opacity: 1; }
+body.theme-daylight .sat-row.below-horizon .sat-name { color: var(--text-dim); font-weight: 400; }
+body.theme-daylight .solar-status-label { opacity: 1; }
+
+/* Config grid preview: small labels fade to 60% and sit on accent fills. */
+body.theme-daylight .grid-preview-cell .cell-name { opacity: 0.9; }
+body.theme-daylight .grid-perm-preview .grid-preview-cell.grid-preview-spanned { opacity: 0.85; }
+body.theme-daylight .grid-preview-map .cell-widget,
+body.theme-daylight .grid-preview-spanned .cell-widget { color: #fff; }
+
+/* Map markers: lighter fills fail behind white text on light tiles. */
+body.theme-daylight .user-icon { background: #1565c0; }
+body.theme-daylight .marker-cluster-small div { background-color: rgba(5, 107, 38, 0.88); }
+body.theme-daylight .marker-cluster-small { background-color: rgba(5, 107, 38, 0.3); }
+body.theme-daylight .marker-cluster-large div { background-color: rgba(176, 18, 58, 0.88); }
+body.theme-daylight .marker-cluster-large { background-color: rgba(176, 18, 58, 0.3); }
+
+/* Black text on status-color badges: status colors are dark here, so use white. */
+body.theme-daylight .prop-filter-btn.active,
+body.theme-daylight .worked-filter-btn.active,
+body.theme-daylight .pota-hunter-confirm,
+body.theme-daylight .voacap-param-active,
+body.theme-daylight .voacap-engine-real,
+body.theme-daylight .voacap-engine-sim,
+body.theme-daylight .dxped-badge,
+body.theme-daylight .contest-mode-mixed,
+body.theme-daylight .contest-now-badge,
+body.theme-daylight .rig-overlay-cw,
+body.theme-daylight .rig-overlay-digi,
+body.theme-daylight .rig-overlay-phone,
+body.theme-daylight .rig-sdr-badge,
+body.theme-daylight .rig-demo-badge,
+body.theme-daylight .rig-digital-active,
+body.theme-daylight .rig-selfspot-btn,
+body.theme-daylight .rig-digital-power-chip.active,
+body.theme-daylight .rig-digital-apply-btn,
+body.theme-daylight .rig-digital-restore-pending,
+body.theme-daylight .restart-btn:hover {
+  color: #fff;
+}
+
+/* Panels with hardcoded dark backgrounds (some via undefined-var fallbacks). */
+body.theme-daylight .leaflet-container { background: #dfe6ea; } /* close to Voyager's sea while tiles load */
+body.theme-daylight .voacap-table { background: var(--surface2); }
+body.theme-daylight .voacap-row:hover { background: rgba(0, 0, 0, 0.05); }
+body.theme-daylight .mobile-menu-drawer { background: var(--surface); }
+body.theme-daylight .rig-sdr-url-input,
+body.theme-daylight .rig-diag-trace { background: var(--bg); }
+body.theme-daylight .big-clock-overlay { background: rgba(255, 255, 255, 0.96); }
+body.theme-daylight .band-score-top,
+body.theme-daylight .dedx-utc-badge,
+body.theme-daylight .theme-swatch { background: rgba(0, 0, 0, 0.03); }
+body.theme-daylight .logbook-import-zone:hover,
+body.theme-daylight .logbook-import-zone.drag-over,
+body.theme-daylight .logbook-table tr:hover td { background: rgba(0, 0, 0, 0.04); }
+
+/* Faint white glows read as smudges on white; use soft dark shadows instead. */
+body.theme-daylight .layout-menu,
+body.theme-daylight .call-tooltip,
+body.theme-daylight .qso-toast,
+body.theme-daylight .leaflet-popup-content-wrapper { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); }
+body.theme-daylight .live-spots-band-card.active { box-shadow: 0 0 0 2px var(--accent); }
+
+/* Map labels: halo text on a light pill so data-driven colors stay legible on light tiles. */
+body.theme-daylight .prop-label span,
+body.theme-daylight .grid-label {
+  text-shadow: none;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 3px;
+  padding: 0 3px;
+}
+/* Contour colors come from the data feed (bright greens/yellows); darken for white. */
+body.theme-daylight .prop-label span { filter: brightness(0.6) saturate(1.4); }
+body.theme-daylight .tropics-label { color: #8a4700; }
+body.theme-daylight .tropics-arctic { color: #0b5394; }
+body.theme-daylight .timezone-label { color: #6a1b9a; }
+body.theme-daylight .maidenhead-label,
+body.theme-daylight .maidenhead-label-sm,
+body.theme-daylight .maidenhead-label-xs { color: #b33c00; }
+body.theme-daylight .latlon-equator { color: #0b5394; }
+
+/* Rig LCD: the glow look uses accent at 35-55% alpha, which turns pastel on white. */
+body.theme-daylight .rig-lcd,
+body.theme-daylight .rig-lcd-tx { box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2); }
+body.theme-daylight .rig-lcd::before { display: none; }
+body.theme-daylight .rig-frequency,
+body.theme-daylight .rig-lcd-tx .rig-frequency,
+body.theme-daylight .rig-band-btn.active { text-shadow: none; }
+body.theme-daylight .rig-vfo-label,
+body.theme-daylight .rig-freq-unit,
+body.theme-daylight .rig-frequency-b,
+body.theme-daylight .rig-lcd-tx .rig-vfo-label,
+body.theme-daylight .rig-lcd-tx .rig-freq-unit { color: var(--text-dim); }
+body.theme-daylight .rig-band-btn {
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+body.theme-daylight .rig-band-btn:hover { color: var(--text); }
+body.theme-daylight .rig-meter-scale,
+body.theme-daylight .rig-meter-row label,
+body.theme-daylight .rig-power-row label,
+body.theme-daylight .rig-status,
+body.theme-daylight .rig-sdr-url-input::placeholder { color: var(--text-dim); }
+body.theme-daylight .rig-meter-over-label { color: var(--red); }
+body.theme-daylight .rig-meter-bar,
+body.theme-daylight .rig-band-overlay {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+body.theme-daylight .rig-meter-bar::after {
+  background: repeating-linear-gradient(90deg, transparent 0, transparent calc(100% / 15 - 1.5px), var(--surface) calc(100% / 15 - 1.5px), var(--surface) calc(100% / 15));
+}
+body.theme-daylight .rig-overlay-needle { background: var(--text); box-shadow: none; }
+body.theme-daylight .rig-band-select,
+body.theme-daylight .rig-mode-select,
+body.theme-daylight .rig-profile-select,
+body.theme-daylight .rig-power-slider,
+body.theme-daylight .rig-connect-btn { border-color: var(--border); }
+
 /* ---- Theme Selector (Config Modal Appearance Tab) ---- */
 
 .theme-selector {

@@ -8,6 +8,7 @@ import { renderAllMapOverlays, renderTropicsLines } from './map-overlays.js';
 import { BEACONS, getActiveBeacons } from './beacons.js';
 import { BREAKPOINT_MOBILE } from './constants.js';
 import { findCountryBounds } from './country-bounds.js';
+import { getEffectiveThemeId, isLightTheme } from './themes.js';
 
 // --- Tile URL constants ---
 const TILE_DARK = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
@@ -17,6 +18,12 @@ const TILE_VOYAGER = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/
 // because CARTO's terms forbid sharing a key or proxying tiles through a server.
 function withCartoKey(url) {
   return state.cartoApiKey ? url + '?key=' + encodeURIComponent(state.cartoApiKey) : url;
+}
+
+// HamClock mimics its political basemap; Daylight needs a light map that keeps
+// land/sea contrast in direct sun (Voyager reads better than Positron there).
+function tileUrlForTheme(themeId) {
+  return (themeId === 'hamclock' || themeId === 'daylight') ? TILE_VOYAGER : TILE_DARK;
 }
 
 export function initMap() {
@@ -37,10 +44,18 @@ export function initMap() {
     // Zoom control: bottom-right on mobile for thumb reach, top-left on desktop.
     L.control.zoom({ position: isMobile ? 'bottomright' : 'topleft' }).addTo(state.map);
 
-    state.tileLayer = L.tileLayer(withCartoKey(TILE_DARK), {
+    state.tileLayer = L.tileLayer(withCartoKey(tileUrlForTheme(getEffectiveThemeId())), {
       attribution: '&copy; OpenStreetMap &copy; CARTO',
       maxZoom: 19,
     }).addTo(state.map);
+
+    // Restyle overlays whose colors depend on light vs dark tiles.
+    window.addEventListener('hamtab:themechange', () => {
+      if (state.mapOverlays.tropicsLines) renderTropicsLines();
+      for (const marker of Object.values(state.beaconMarkers)) {
+        marker.setStyle({ color: beaconStroke(marker.options.fillColor) });
+      }
+    });
 
     state.clusterGroup = L.markerClusterGroup({
       maxClusterRadius: 40, // px — merge markers within 40px; keeps clusters tight on a dark basemap
@@ -262,6 +277,11 @@ const BEACON_COLORS = {
   28200: '#4488ff', // 10m — blue
 };
 
+// Yellow/white dots vanish on light tiles; a dark outline keeps them visible.
+function beaconStroke(color) {
+  return isLightTheme() ? '#1a1a1a' : color;
+}
+
 export function updateBeaconMarkers() {
   if (!state.map) return;
   const active = getActiveBeacons();
@@ -280,7 +300,7 @@ export function updateBeaconMarkers() {
     const color = BEACON_COLORS[freq] || '#ffffff';
     const marker = L.circleMarker([beacon.lat, beacon.lon], {
       radius: 5,
-      color,
+      color: beaconStroke(color),
       fillColor: color,
       fillOpacity: 0.8,
       weight: 1,
@@ -291,9 +311,9 @@ export function updateBeaconMarkers() {
   }
 }
 
-// Swap map tiles based on theme (HamClock uses political/colored tiles)
+// Swap map tiles based on the painted theme (HamClock and Daylight use light tiles).
 export function swapMapTiles(themeId) {
   if (!state.tileLayer) return;
-  const url = withCartoKey(themeId === 'hamclock' ? TILE_VOYAGER : TILE_DARK);
+  const url = withCartoKey(tileUrlForTheme(themeId));
   state.tileLayer.setUrl(url);
 }

@@ -4,6 +4,7 @@
 // Canvas 2D graphs for Kp, X-Ray, SFI, Solar Wind, Bz
 // Data from NOAA SWPC via /api/spacewx/history.
 import state from './state.js';
+import { parseUtcMs } from './utils.js';
 
 // --- Tab switching ---
 
@@ -148,7 +149,7 @@ function drawYLabels(ctx, bounds, yMin, yMax, ticks, formatFn) {
 
 function drawTimeAxis(ctx, bounds, data) {
   if (data.length < 2) return;
-  const times = data.map(d => new Date(d.time_tag + (d.time_tag.includes('Z') ? '' : 'Z')).getTime());
+  const times = data.map(d => parseUtcMs(d.time_tag));
   const tMin = times[0];
   const tMax = times[times.length - 1];
   const range = tMax - tMin;
@@ -165,7 +166,7 @@ function drawTimeAxis(ctx, bounds, data) {
   ctx.textBaseline = 'top';
 
   for (let i = 0; i < data.length; i += step) {
-    const t = new Date(data[i].time_tag + (data[i].time_tag.includes('Z') ? '' : 'Z'));
+    const t = new Date(parseUtcMs(data[i].time_tag));
     const x = bounds.x + ((times[i] - tMin) / range) * bounds.w;
 
     // Format: "Feb 1" for multi-day, "12:00" for short spans.
@@ -205,7 +206,7 @@ function drawThreshold(ctx, bounds, yMin, yMax, yVal, label, color) {
 
 function drawLine(ctx, bounds, data, yMin, yMax, color, keyFn) {
   if (data.length < 2) return;
-  const times = data.map(d => new Date(d.time_tag + (d.time_tag.includes('Z') ? '' : 'Z')).getTime());
+  const times = data.map(d => parseUtcMs(d.time_tag));
   const tMin = times[0];
   const tMax = times[times.length - 1];
   const range = tMax - tMin;
@@ -226,7 +227,21 @@ function drawLine(ctx, bounds, data, yMin, yMax, color, keyFn) {
   ctx.stroke();
 }
 
-function drawTitle(ctx, bounds, text) {
+// Describe how much time a series covers ("24 Hours", "7 Days", "41 Days") so titles stay
+// honest when SWPC changes a feed's window (the RTSW wind/mag feeds are ~24 h, F10.7 ~40 days).
+function spanLabel(data) {
+  if (!data || data.length < 2) return '';
+  const first = parseUtcMs(data[0].time_tag);
+  const last = parseUtcMs(data[data.length - 1].time_tag);
+  if (Number.isNaN(first) || Number.isNaN(last) || last <= first) return '';
+  const hours = (last - first) / 3600000; // ms per hour
+  if (hours < 36) return Math.max(1, Math.round(hours)) + ' Hours';
+  return Math.round(hours / 24) + ' Days';
+}
+
+function drawTitle(ctx, bounds, text, data) {
+  const span = spanLabel(data);
+  if (span) text += ' \u2014 ' + span;
   ctx.fillStyle = colorText();
   ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'left';
@@ -255,7 +270,7 @@ function kpBarColor(val) {
 }
 
 function drawKpGraph(ctx, bounds, data) {
-  drawTitle(ctx, bounds, 'Kp Index — 7 Days');
+  drawTitle(ctx, bounds, 'Kp Index', data);
 
   const yMin = 0;
   const yMax = 9;
@@ -270,7 +285,7 @@ function drawKpGraph(ctx, bounds, data) {
 
   // Bars
   const barW = Math.max(2, (bounds.w / data.length) - 1);
-  const times = data.map(d => new Date(d.time_tag + (d.time_tag.includes('Z') ? '' : 'Z')).getTime());
+  const times = data.map(d => parseUtcMs(d.time_tag));
   const tMin = times[0];
   const tMax = times[times.length - 1];
   const range = tMax - tMin || 1;
@@ -289,7 +304,7 @@ function drawKpGraph(ctx, bounds, data) {
 // --- X-Ray line chart (log scale) ---
 
 function drawXrayGraph(ctx, bounds, data) {
-  drawTitle(ctx, bounds, 'X-Ray Flux — 7 Days');
+  drawTitle(ctx, bounds, 'X-Ray Flux', data);
 
   // Log scale: 1e-9 to 1e-3 (nanoflux to milliflux)
   const logMin = -9; // 1e-9
@@ -329,7 +344,7 @@ function drawXrayGraph(ctx, bounds, data) {
 // --- SFI line chart ---
 
 function drawSfiGraph(ctx, bounds, data) {
-  drawTitle(ctx, bounds, 'Solar Flux Index — 90 Days');
+  drawTitle(ctx, bounds, 'Solar Flux Index', data);
 
   const vals = data.map(d => d.value).filter(v => !isNaN(v));
   const dataMin = Math.min(...vals);
@@ -355,7 +370,7 @@ function drawSfiGraph(ctx, bounds, data) {
 // --- Solar Wind line chart ---
 
 function drawWindGraph(ctx, bounds, data) {
-  drawTitle(ctx, bounds, 'Solar Wind Speed — 7 Days');
+  drawTitle(ctx, bounds, 'Solar Wind Speed', data);
 
   const vals = data.map(d => d.value).filter(v => !isNaN(v));
   const yMin = 0;
@@ -374,7 +389,7 @@ function drawWindGraph(ctx, bounds, data) {
   // Color-segmented line: green < 400, yellow 400-600, red > 600.
 
   if (data.length >= 2) {
-    const times = data.map(d => new Date(d.time_tag + (d.time_tag.includes('Z') ? '' : 'Z')).getTime());
+    const times = data.map(d => parseUtcMs(d.time_tag));
     const tMin = times[0];
     const tMax = times[times.length - 1];
     const range = tMax - tMin || 1;
@@ -401,7 +416,7 @@ function drawWindGraph(ctx, bounds, data) {
 // --- Bz line chart (signed, with zero reference) ---
 
 function drawBzGraph(ctx, bounds, data) {
-  drawTitle(ctx, bounds, 'Bz (IMF) & Bt — 7 Days');
+  drawTitle(ctx, bounds, 'Bz (IMF) & Bt', data);
 
   const bzVals = data.map(d => d.value).filter(v => !isNaN(v));
   const btVals = data.map(d => d.value2).filter(v => v !== undefined && !isNaN(v));
@@ -431,7 +446,7 @@ function drawBzGraph(ctx, bounds, data) {
   // Bz line: green positive, red negative — draw as segmented.
 
   if (data.length >= 2) {
-    const times = data.map(d => new Date(d.time_tag + (d.time_tag.includes('Z') ? '' : 'Z')).getTime());
+    const times = data.map(d => parseUtcMs(d.time_tag));
     const tMin = times[0];
     const tMax = times[times.length - 1];
     const range = tMax - tMin || 1;

@@ -1,18 +1,18 @@
 # HamTab
 
-A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstitute.com/ham/HamClock/) alternative. Displays live POTA, SOTA, DX Cluster, WWFF, PSKReporter, WSPR, and Reverse Beacon Network spots on an interactive map with VOACAP propagation predictions, HF band conditions, band opportunity scores, space weather, satellite tracking, contests, DXpeditions, NCDXF beacons, weather, and lunar/EME data — all in a customizable, themeable widget layout.
+A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstitute.com/ham/HamClock/) alternative. Displays live POTA, DX Cluster, WWFF, PSKReporter, WSPR, and Reverse Beacon Network spots on an interactive map with VOACAP propagation predictions, HF band conditions, band opportunity scores, space weather, satellite tracking, contests, DXpeditions, NCDXF beacons, weather, and lunar/EME data — all in a customizable, themeable widget layout.
 
 ![Node.js](https://img.shields.io/badge/Node.js-18%2B-green) ![Express](https://img.shields.io/badge/Express-4.x-blue) ![License](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ## Features
 
 ### Spots & Activations
-- **On the Air** — Real-time POTA, SOTA, DX Cluster, WWFF, PSKReporter, WSPR, and Reverse Beacon Network (RBN) spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
+- **On the Air** — Real-time POTA, DX Cluster, WWFF, PSKReporter, WSPR, and Reverse Beacon Network (RBN) spots with source tabs, filtering by band, mode, country, US state, and Maidenhead grid square
 - **Live Spots** — See where your signal is being received via PSKReporter with real-time MQTT updates — band cards show spot count or farthest distance per band with visual map lines
 - **DX Detail** — Detailed view of a selected spot with callsign info, frequency, distance/bearing, QRZ link, and POTA Hunter tools (confirm QSO, spot activations)
 
 ### Map & Overlays
-- **Interactive Map** — Leaflet map with clustered markers for POTA, SOTA, DX Cluster, WWFF, PSKReporter, and WSPR spots, dark tiles, and clickable popups with QRZ callsign links
+- **Interactive Map** — Leaflet map with clustered markers for POTA, DX Cluster, WWFF, PSKReporter, and WSPR spots, dark tiles, and clickable popups with QRZ callsign links
 - **Map Center Controls** — Quick buttons to center on your QTH, prime meridian, selected spot, or zoom to fit your country
 - **Day/Night Terminator** — Gray line overlay showing the solar terminator with a subtle daylight tint on the illuminated hemisphere
 - **Propagation Contours** — MUF and foF2 HF propagation overlays on the map from prop.kc2g.com
@@ -29,7 +29,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **HF Band Conditions** — Day/night conditions for 160m through 6m with reliability percentages, color-coded from green (open) to red (closed). 6m includes sporadic E detection from live HamQSL data
 - **Band Score** — "What band should I be on right now?" Composite 0–100 score per band combining propagation reliability (50%), PSK/WSPR activity density (30%), and space weather (20%), with top 3 bands highlighted
 - **VOACAP DE→DX** — 24-hour propagation prediction grid with adjustable power (5W/100W/1kW), mode (CW/SSB/FT8), and path (short/long). Uses the Voice of America Coverage Analysis Program engine with automatic simplified fallback
-- **Space Weather History** — Historical graphs for Kp index, X-ray flux, SFI, solar wind speed, and Bz over the past week (90 days for SFI)
+- **Space Weather History** — Historical graphs for Kp index, X-ray flux, SFI, solar wind speed, and Bz (Kp and X-ray: past week; solar wind and Bz: past 24 hours; SFI: about 40 days)
 
 ### DX & Contesting
 - **Contests** — Active and upcoming contest calendar from WA7BNM with mode badges (CW/Phone/Digital) and links to contest rules
@@ -585,14 +585,15 @@ Displays UTC time, day, date, and year. Shares the same clock style setting as L
 
 ### On the Air
 
-Real-time spots from six data sources.
+Real-time spots from five data sources.
 
-**Source tabs** — Switch between POTA, SOTA, DXC (DX Cluster), WWFF, PSK (PSKReporter), and WSPR. Active tab is saved across sessions.
+**Source tabs** — Switch between POTA, DXC (DX Cluster), WWFF, PSK (PSKReporter), and WSPR. Active tab is saved across sessions.
+
+> SOTA spots are paused: SOTA retired the spots API HamTab used, and its replacement requires approval for third-party apps. The SOTA tab is hidden until HamTab is approved. SOTA summit references still work everywhere else (QSO logging, activator fields, summit links).
 
 | Source | Data | Columns |
 |--------|------|---------|
 | **POTA** | Parks on the Air activator spots | Callsign, Freq, Mode, Ref, Park Name, Time |
-| **SOTA** | Summits on the Air spots | Callsign, Freq, Mode, Ref, Summit, Time |
 | **DXC** | DX Cluster worldwide spots | Callsign, Freq, Mode, DX, Distance, Age |
 | **WWFF** | World Wide Flora & Fauna activator spots | Callsign, Freq, Mode, Ref, Name, Time |
 | **PSK** | PSKReporter digital mode reports | TX Call, Freq, Mode, RX Call, SNR, Grid |
@@ -705,9 +706,9 @@ Historical space weather data graphed over time. Switch between tabs:
 |-----|------|--------|
 | **Kp** | Geomagnetic Kp index | 7 days |
 | **X-Ray** | GOES X-ray flux | 7 days |
-| **SFI** | Solar Flux Index (10.7 cm) | 90 days |
-| **Wind** | Solar wind speed | 7 days |
-| **Bz** | IMF Bz component | 7 days |
+| **SFI** | Solar Flux Index (10.7 cm) | ~40 days |
+| **Wind** | Solar wind speed | 24 hours |
+| **Bz** | IMF Bz component | 24 hours |
 
 ### Live Spots
 
@@ -876,7 +877,7 @@ Leaflet maps and marker clustering are bundled locally in the `public/vendor/` d
 | API | Purpose | Auth |
 |-----|---------|------|
 | [POTA API](https://api.pota.app/) | Live activator spots | None |
-| [SOTA API](https://api2.sota.org.uk/) | Summit spots and coordinates | None |
+| [SOTA API](https://api2.sota.org.uk/) | Summit spots and coordinates (paused: API retired, replacement needs approval) | None |
 | [HamQSL Solar XML](https://www.hamqsl.com/solarxml.php) | Solar indices and band conditions | None |
 | [Propagation Contours](https://prop.kc2g.com/) | MUF and foF2 HF propagation contours and image overlays | None |
 | [WWFF Spots](https://spots.wwff.co/) | World Wide Flora & Fauna activator spots | None |

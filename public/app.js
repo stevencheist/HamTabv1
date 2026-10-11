@@ -509,6 +509,7 @@
     const tier = FEATURE_FLAGS[featureName];
     if (!tier) return true;
     if (tier === "release") return true;
+    if (tier === "off") return false;
     const callsign = (state_default.myCallsign || "").toUpperCase();
     if (tier === "test") {
       return DEV_CALLSIGNS.includes(callsign);
@@ -539,8 +540,11 @@
         // DX Cluster live TCP/SSE feed (v0.70.0)
         qso_logging: "test",
         // Log QSOs in HamTab + ADIF export (HT-299, v0.71.0; test v0.73.1)
-        daylight_theme: "release"
+        daylight_theme: "release",
         // Daylight light theme + Auto (follow OS light/dark) (v0.74.0)
+        // SOTA api2 spots deprecated 2026; new API requires SOTA reflector API-consumers registration
+        // and approval; disabled until then. Re-enable here and in server/routes/spots.js (SOTA_SPOTS_ENABLED). (v0.74.1)
+        sota_spots: "off"
       };
     }
   });
@@ -695,7 +699,8 @@
     cacheCallsign: () => cacheCallsign,
     esc: () => esc,
     fmtTime: () => fmtTime,
-    formatAge: () => formatAge
+    formatAge: () => formatAge,
+    parseUtcMs: () => parseUtcMs
   });
   function esc(str) {
     const div = document.createElement("div");
@@ -714,10 +719,17 @@
     }
     state_default.callsignCache[key] = value;
   }
+  function parseUtcMs(ts) {
+    if (ts === null || ts === void 0 || ts === "") return NaN;
+    if (typeof ts === "number") return ts;
+    let s = String(ts).trim();
+    if (/^\d{4}-\d{2}-\d{2} \d/.test(s)) s = s.replace(" ", "T");
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(s)) s += "Z";
+    return Date.parse(s);
+  }
   function formatAge(spotTime) {
     if (!spotTime) return "";
-    const ts = spotTime.endsWith("Z") ? spotTime : spotTime + "Z";
-    const diffMs = Date.now() - new Date(ts).getTime();
+    const diffMs = Date.now() - parseUtcMs(spotTime);
     if (Number.isNaN(diffMs)) return "";
     if (diffMs < 0) return "0s";
     const totalSec = Math.floor(diffMs / 1e3);
@@ -7705,7 +7717,7 @@
     const now = /* @__PURE__ */ new Date();
     const outs = [];
     for (const g of chosen) {
-      const out = writeADIF(g.records, { programVersion: "0.74.0", now });
+      const out = writeADIF(g.records, { programVersion: "0.74.1", now });
       const call = g.records[0].STATION_CALLSIGN || g.records[0].OPERATOR || state_default.myCallsign;
       downloadText(activationFilename(call, g.ref, g.date), out.text);
       outs.push(out);
@@ -7736,7 +7748,7 @@
     const records = scopes[scope];
     if (records.length === 0) return;
     const now = /* @__PURE__ */ new Date();
-    const out = writeADIF(records, { programVersion: "0.74.0", now });
+    const out = writeADIF(records, { programVersion: "0.74.1", now });
     downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
     await finishExport(records, [out], now);
   }
@@ -11377,7 +11389,7 @@
     const dir = state_default.spotSortDirection === "asc" ? 1 : -1;
     const sorted = [...filtered].sort((a, b) => {
       if (sortCol === "spotTime" || sortCol === "age") {
-        return dir * (new Date(a.spotTime) - new Date(b.spotTime));
+        return dir * ((parseUtcMs(a.spotTime) || 0) - (parseUtcMs(b.spotTime) || 0));
       } else if (sortCol === "frequency") {
         return dir * ((parseFloat(a.frequency) || 0) - (parseFloat(b.frequency) || 0));
       } else {
@@ -11402,7 +11414,7 @@
         const td = document.createElement("td");
         if (col.class) td.className = col.class;
         if (col.key === "spotTime") {
-          const time = spot.spotTime ? new Date(spot.spotTime) : null;
+          const time = spot.spotTime ? new Date(parseUtcMs(spot.spotTime)) : null;
           td.textContent = time && !isNaN(time) ? fmtTime(time, { hour: "2-digit", minute: "2-digit" }) : "";
         } else if (col.key === "age") {
           td.dataset.col = "age";
@@ -11590,7 +11602,9 @@
   function filterByAge(spot) {
     if (state_default.activeMaxAge === null) return true;
     if (!spot.spotTime) return true;
-    const ageMs = Date.now() - new Date(spot.spotTime).getTime();
+    const spotMs = parseUtcMs(spot.spotTime);
+    if (Number.isNaN(spotMs)) return true;
+    const ageMs = Date.now() - spotMs;
     const ageMin = ageMs / 6e4;
     return ageMin <= state_default.activeMaxAge;
   }
@@ -13405,6 +13419,8 @@
         sota: {
           label: "SOTA",
           endpoint: "/api/spots/sota",
+          featureFlag: "sota_spots",
+          // Tab hidden and polling stopped while the flag is off.
           columns: [
             { key: "callsign", label: "Callsign", class: "callsign", sortable: true },
             { key: "frequency", label: "Freq", class: "freq", sortable: true },
@@ -13495,6 +13511,7 @@
         rbn: {
           label: "RBN",
           endpoint: "/api/spots/rbn",
+          featureFlag: "rbn_source",
           columns: [
             { key: "callsign", label: "DX Station", class: "callsign", sortable: true },
             { key: "frequency", label: "Freq", class: "freq", sortable: true },
@@ -13618,11 +13635,11 @@
         },
         "widget-activations": {
           title: "On the Air",
-          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from six sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), PSKReporter (digital mode reception reports), and WSPR (weak signal propagation beacons).",
+          description: "A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from five sources: POTA (Parks on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), PSKReporter (digital mode reception reports), and WSPR (weak signal propagation beacons). SOTA (Summits on the Air) spots are paused for now while SOTA moves to a new spots service that requires approval for third-party apps.",
           sections: [
-            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, SOTA, DXC, WWFF, PSK, and WSPR sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
+            { heading: "How to Use", content: "Use the tabs at the top to switch between POTA, DXC, WWFF, PSK, and WSPR sources. Click any row to select that station \u2014 its details will appear in the DX Detail widget and its location will be highlighted on the map." },
             { heading: "POTA", content: "Shows operators activating parks for the Parks on the Air program. Click the park reference link to see park details on the POTA website." },
-            { heading: "SOTA", content: "Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details." },
+            { heading: "SOTA", flag: "sota_spots", content: "Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details." },
             { heading: "DX Cluster", content: "Worldwide spots from the DX Cluster network. Great for finding rare or distant (DX) stations." },
             { heading: "WWFF", content: "Shows operators activating nature reserves for the World Wide Flora & Fauna program. Similar to POTA but with a worldwide scope \u2014 especially popular in Europe. Click the reference link for reserve details." },
             { heading: "PSK Reporter", content: "Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions." },
@@ -13655,11 +13672,11 @@
         },
         "widget-spacewx": {
           title: "Space Weather History",
-          description: "Historical graphs of key space weather indices over the past week (or 90 days for Solar Flux). These charts help you spot trends and understand how conditions are changing \u2014 not just a single snapshot, but the bigger picture.",
+          description: "Historical graphs of key space weather indices: the past week for Kp and X-Ray, the past 24 hours for Solar Wind and Bz, and about the past 40 days for Solar Flux (each graph title shows the span it covers). These charts help you spot trends and understand how conditions are changing \u2014 not just a single snapshot, but the bigger picture.",
           sections: [
             { heading: "Tabs", content: "Five tabs let you switch between different measurements: Kp index (geomagnetic activity), X-Ray flux (solar flare intensity), SFI (Solar Flux Index \u2014 overall solar activity), Solar Wind speed, and Bz (interplanetary magnetic field direction)." },
-            { heading: "What the graphs show", content: "Kp: Bar chart colored green/yellow/red \u2014 values above 4 mean geomagnetic storms that can disrupt HF. X-Ray: Line chart on a log scale \u2014 C/M/X class flares marked. SFI: 90-day trend \u2014 higher values (100+) mean better HF propagation. Wind: Solar wind speed \u2014 above 400 km/s can disturb conditions. Bz: Southward (negative) Bz opens Earth's magnetosphere to solar wind, worsening conditions." },
-            { heading: "Data source", content: "All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 15 minutes." }
+            { heading: "What the graphs show", content: "Kp: Bar chart colored green/yellow/red \u2014 values above 4 mean geomagnetic storms that can disrupt HF. X-Ray: Line chart on a log scale \u2014 C/M/X class flares marked. SFI: roughly 40-day trend \u2014 higher values (100+) mean better HF propagation. Wind: Solar wind speed \u2014 above 400 km/s can disturb conditions. Bz: Southward (negative) Bz opens Earth's magnetosphere to solar wind, worsening conditions." },
+            { heading: "Data source", content: "All data comes from NOAA Space Weather Prediction Center (SWPC). Solar Wind and Bz use the real-time 1-minute feeds from the spacecraft SWPC currently relies on and refresh every 5 minutes; the other graphs refresh every 15 minutes." }
           ],
           links: [
             { label: "NOAA SWPC", url: "https://www.swpc.noaa.gov/" }
@@ -15521,6 +15538,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       const tileUrl = `${data.host}${data.path}/256/{z}/{x}/{y}/2/1_1.png`;
       if (weatherRadarLayer) state_default.map.removeLayer(weatherRadarLayer);
       weatherRadarLayer = L.tileLayer(tileUrl, {
+        // RainViewer's free tiles stop at zoom 7 and return a "Zoom Level Not Supported" image
+        // above it, so let Leaflet upscale z7 tiles when the map is zoomed in further.
+        maxNativeZoom: 7,
         opacity: 0.35,
         pane: "propagation",
         // z-300, below mapOverlays (350)
@@ -15559,7 +15579,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         L.DomEvent.disableScrollPropagation(div);
         const items = [
           { symbol: '<span class="legend-dot" style="background:#4CAF50"></span>', label: "POTA" },
-          { symbol: '<span class="legend-dot" style="background:#FF9800"></span>', label: "SOTA" },
+          { symbol: '<span class="legend-dot" style="background:#FF9800"></span>', label: "SOTA", flag: "sota_spots" },
           { symbol: '<span class="legend-dot" style="background:#f44336"></span>', label: "DX Cluster" },
           { symbol: '<span class="legend-dot" style="background:#009688"></span>', label: "WWFF" },
           { symbol: '<span class="legend-dot" style="background:#9C27B0"></span>', label: "PSKReporter" },
@@ -15571,7 +15591,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
           { symbol: '<span class="legend-line" style="border-color:#4a90e2"></span>', label: "Geodesic path" },
           { symbol: '<span class="legend-dot legend-beacon"></span>', label: "NCDXF beacon" }
         ];
-        div.innerHTML = '<div class="legend-title">Legend</div>' + items.map((i) => `<div class="legend-row">${i.symbol}<span class="legend-label">${i.label}</span></div>`).join("");
+        div.innerHTML = '<div class="legend-title">Legend</div>' + items.filter((i) => !i.flag || isFeatureVisible(i.flag)).map((i) => `<div class="legend-row">${i.symbol}<span class="legend-label">${i.label}</span></div>`).join("");
         return div;
       }
     });
@@ -15605,6 +15625,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     "src/map-overlays.js"() {
       init_state();
       init_themes();
+      init_feature_flags();
       init_rel_heatmap();
       init_wspr_heatmap();
       mufImageLayer = null;
@@ -16427,8 +16448,12 @@ ${beacon.location}`);
       }
     }
   }
+  function isSourceAvailable(source) {
+    const def = SOURCE_DEFS[source];
+    return !!def && (!def.featureFlag || isFeatureVisible(def.featureFlag));
+  }
   function switchSource(source) {
-    if (!SOURCE_DEFS[source]) source = "pota";
+    if (!isSourceAvailable(source)) source = "pota";
     state_default.currentSource = source;
     localStorage.setItem("hamtab_spot_source", source);
     $("sourceTabs").querySelectorAll(".source-tab").forEach((btn) => {
@@ -16459,7 +16484,7 @@ ${beacon.location}`);
   }
   function initSourceListeners() {
     $("sourceTabs").querySelectorAll(".source-tab").forEach((btn) => {
-      if (btn.dataset.source === "rbn" && !isFeatureVisible("rbn_source")) {
+      if (!isSourceAvailable(btn.dataset.source)) {
         btn.style.display = "none";
       }
       btn.addEventListener("mousedown", (e) => e.stopPropagation());
@@ -16821,6 +16846,7 @@ ${beacon.location}`);
 
   // src/spacewx-graphs.js
   init_state();
+  init_utils();
   function initSpaceWxListeners() {
     const tabs = document.querySelectorAll(".spacewx-tab");
     tabs.forEach((btn) => {
@@ -16954,7 +16980,7 @@ ${beacon.location}`);
   }
   function drawTimeAxis(ctx, bounds, data) {
     if (data.length < 2) return;
-    const times = data.map((d) => (/* @__PURE__ */ new Date(d.time_tag + (d.time_tag.includes("Z") ? "" : "Z"))).getTime());
+    const times = data.map((d) => parseUtcMs(d.time_tag));
     const tMin = times[0];
     const tMax = times[times.length - 1];
     const range = tMax - tMin;
@@ -16966,7 +16992,7 @@ ${beacon.location}`);
     ctx.textAlign = "center";
     ctx.textBaseline = "top";
     for (let i = 0; i < data.length; i += step) {
-      const t = /* @__PURE__ */ new Date(data[i].time_tag + (data[i].time_tag.includes("Z") ? "" : "Z"));
+      const t = new Date(parseUtcMs(data[i].time_tag));
       const x = bounds.x + (times[i] - tMin) / range * bounds.w;
       let label;
       if (range > 3 * 24 * 60 * 60 * 1e3) {
@@ -16999,7 +17025,7 @@ ${beacon.location}`);
   }
   function drawLine(ctx, bounds, data, yMin, yMax, color, keyFn) {
     if (data.length < 2) return;
-    const times = data.map((d) => (/* @__PURE__ */ new Date(d.time_tag + (d.time_tag.includes("Z") ? "" : "Z"))).getTime());
+    const times = data.map((d) => parseUtcMs(d.time_tag));
     const tMin = times[0];
     const tMax = times[times.length - 1];
     const range = tMax - tMin;
@@ -17020,7 +17046,18 @@ ${beacon.location}`);
     }
     ctx.stroke();
   }
-  function drawTitle(ctx, bounds, text) {
+  function spanLabel(data) {
+    if (!data || data.length < 2) return "";
+    const first = parseUtcMs(data[0].time_tag);
+    const last = parseUtcMs(data[data.length - 1].time_tag);
+    if (Number.isNaN(first) || Number.isNaN(last) || last <= first) return "";
+    const hours = (last - first) / 36e5;
+    if (hours < 36) return Math.max(1, Math.round(hours)) + " Hours";
+    return Math.round(hours / 24) + " Days";
+  }
+  function drawTitle(ctx, bounds, text, data) {
+    const span = spanLabel(data);
+    if (span) text += " \u2014 " + span;
     ctx.fillStyle = colorText();
     ctx.font = "bold 11px sans-serif";
     ctx.textAlign = "left";
@@ -17042,7 +17079,7 @@ ${beacon.location}`);
     return colorRed();
   }
   function drawKpGraph(ctx, bounds, data) {
-    drawTitle(ctx, bounds, "Kp Index \u2014 7 Days");
+    drawTitle(ctx, bounds, "Kp Index", data);
     const yMin = 0;
     const yMax = 9;
     const ticks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -17053,7 +17090,7 @@ ${beacon.location}`);
     drawThreshold(ctx, bounds, yMin, yMax, 4, "Storm", colorYellow());
     drawThreshold(ctx, bounds, yMin, yMax, 7, "Severe", colorRed());
     const barW = Math.max(2, bounds.w / data.length - 1);
-    const times = data.map((d) => (/* @__PURE__ */ new Date(d.time_tag + (d.time_tag.includes("Z") ? "" : "Z"))).getTime());
+    const times = data.map((d) => parseUtcMs(d.time_tag));
     const tMin = times[0];
     const tMax = times[times.length - 1];
     const range = tMax - tMin || 1;
@@ -17068,7 +17105,7 @@ ${beacon.location}`);
     }
   }
   function drawXrayGraph(ctx, bounds, data) {
-    drawTitle(ctx, bounds, "X-Ray Flux \u2014 7 Days");
+    drawTitle(ctx, bounds, "X-Ray Flux", data);
     const logMin = -9;
     const logMax = -3;
     const classes = [
@@ -17095,7 +17132,7 @@ ${beacon.location}`);
     });
   }
   function drawSfiGraph(ctx, bounds, data) {
-    drawTitle(ctx, bounds, "Solar Flux Index \u2014 90 Days");
+    drawTitle(ctx, bounds, "Solar Flux Index", data);
     const vals = data.map((d) => d.value).filter((v) => !isNaN(v));
     const dataMin = Math.min(...vals);
     const dataMax = Math.max(...vals);
@@ -17114,7 +17151,7 @@ ${beacon.location}`);
     drawLine(ctx, bounds, data, yMin, yMax, colorAccent());
   }
   function drawWindGraph(ctx, bounds, data) {
-    drawTitle(ctx, bounds, "Solar Wind Speed \u2014 7 Days");
+    drawTitle(ctx, bounds, "Solar Wind Speed", data);
     const vals = data.map((d) => d.value).filter((v) => !isNaN(v));
     const yMin = 0;
     const yMax = Math.max(800, Math.ceil(Math.max(...vals) * 1.1));
@@ -17127,7 +17164,7 @@ ${beacon.location}`);
     drawThreshold(ctx, bounds, yMin, yMax, 400, "400 km/s", colorYellow());
     drawThreshold(ctx, bounds, yMin, yMax, 600, "600 km/s", colorRed());
     if (data.length >= 2) {
-      const times = data.map((d) => (/* @__PURE__ */ new Date(d.time_tag + (d.time_tag.includes("Z") ? "" : "Z"))).getTime());
+      const times = data.map((d) => parseUtcMs(d.time_tag));
       const tMin = times[0];
       const tMax = times[times.length - 1];
       const range = tMax - tMin || 1;
@@ -17150,7 +17187,7 @@ ${beacon.location}`);
     }
   }
   function drawBzGraph(ctx, bounds, data) {
-    drawTitle(ctx, bounds, "Bz (IMF) & Bt \u2014 7 Days");
+    drawTitle(ctx, bounds, "Bz (IMF) & Bt", data);
     const bzVals = data.map((d) => d.value).filter((v) => !isNaN(v));
     const btVals = data.map((d) => d.value2).filter((v) => v !== void 0 && !isNaN(v));
     const allVals = bzVals.concat(btVals);
@@ -17172,7 +17209,7 @@ ${beacon.location}`);
       });
     }
     if (data.length >= 2) {
-      const times = data.map((d) => (/* @__PURE__ */ new Date(d.time_tag + (d.time_tag.includes("Z") ? "" : "Z"))).getTime());
+      const times = data.map((d) => parseUtcMs(d.time_tag));
       const tMin = times[0];
       const tMax = times[times.length - 1];
       const range = tMax - tMin || 1;
@@ -17454,9 +17491,10 @@ ${beacon.location}`);
     }
     visible.sort((a, b) => {
       if (a._active !== b._active) return a._active ? -1 : 1;
-      const aDate = a.startDate ? new Date(a.startDate).getTime() : 0;
-      const bDate = b.startDate ? new Date(b.startDate).getTime() : 0;
-      return aDate - bDate;
+      const aDate = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+      const bDate = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+      if (aDate === bDate) return 0;
+      return aDate < bDate ? -1 : 1;
     });
     if (countEl) countEl.textContent = visible.length;
     list.textContent = "";
@@ -17701,11 +17739,12 @@ ${beacon.location}`);
   var AUTO_REFRESH_JOB_ID = "auto-refresh-countdown";
   var dxcSse = null;
   var rbnSse = null;
+  var sseLive = { dxc: false, rbn: false };
   function handleSseEvents(source, eventSource, sourceName) {
     eventSource.addEventListener("init", (e) => {
       try {
         const spots = JSON.parse(e.data);
-        if (Array.isArray(spots)) {
+        if (Array.isArray(spots) && spots.length > 0) {
           state_default.sourceData[sourceName] = spots;
           if (state_default.currentSource === sourceName) {
             applyFilter();
@@ -17737,8 +17776,15 @@ ${beacon.location}`);
     });
     eventSource.addEventListener("status", (e) => {
       if (state_default.debug) console.log(`[SSE:${sourceName}] status:`, e.data);
+      try {
+        const status = JSON.parse(e.data);
+        sseLive[sourceName] = !!(status && status.live);
+      } catch (err2) {
+        sseLive[sourceName] = false;
+      }
     });
     eventSource.onerror = () => {
+      sseLive[sourceName] = false;
       if (state_default.debug) console.warn(`[SSE:${sourceName}] connection error`);
     };
   }
@@ -17757,10 +17803,10 @@ ${beacon.location}`);
     handleSseEvents(rbnSse, rbnSse, "rbn");
   }
   function isDxcSseActive() {
-    return dxcSse !== null;
+    return dxcSse !== null && sseLive.dxc;
   }
   function isRbnSseActive() {
-    return rbnSse !== null;
+    return rbnSse !== null && sseLive.rbn;
   }
   var SOURCE_JOBS = [
     {
@@ -17772,7 +17818,13 @@ ${beacon.location}`);
         return s;
       })
     },
-    { id: "source-sota", source: "sota", cacheable: false },
+    {
+      id: "source-sota",
+      source: "sota",
+      cacheable: false,
+      featureFlag: "sota_spots"
+      // Off: SOTA spots API unavailable, so don't poll.
+    },
     {
       id: "source-dxc",
       source: "dxc",
@@ -18001,13 +18053,22 @@ ${beacon.location}`);
       interactive: false
     }).addTo(state_default.map);
   }
+  async function satFetchError(resp) {
+    let msg = `HTTP ${resp.status}`;
+    try {
+      const body = await resp.json();
+      if (body && body.error) msg += `: ${body.error}`;
+    } catch (e) {
+    }
+    return new Error(msg);
+  }
   async function fetchSatelliteList() {
     if (!state_default.n2yoApiKey) return;
     try {
       const resp = await fetch("/api/satellites/list", {
         headers: { "X-Api-Key": state_default.n2yoApiKey }
       });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) throw await satFetchError(resp);
       const data = await resp.json();
       state_default.satellites.available = data;
       renderSatelliteSelectList();
@@ -18026,7 +18087,7 @@ ${beacon.location}`);
       const resp = await fetch(`/api/satellites/positions?ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`, {
         headers: { "X-Api-Key": state_default.n2yoApiKey }
       });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) throw await satFetchError(resp);
       const data = await resp.json();
       const issPos = state_default.satellites.positions["25544"];
       state_default.satellites.positions = data;
@@ -18043,7 +18104,7 @@ ${beacon.location}`);
       const resp = await fetch(`/api/satellites/passes?id=${satId}&lat=${state_default.myLat}&lon=${state_default.myLon}&days=2&minEl=10`, {
         headers: { "X-Api-Key": state_default.n2yoApiKey }
       });
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      if (!resp.ok) throw await satFetchError(resp);
       const data = await resp.json();
       state_default.satellites.passes[satId] = {
         ...data,
@@ -25790,8 +25851,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.74.0";
-    $("aboutVersion").textContent = "0.74.0";
+    $("splashVersion").textContent = "0.74.1";
+    $("aboutVersion").textContent = "0.74.1";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

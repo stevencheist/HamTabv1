@@ -9,7 +9,7 @@ const { XMLParser } = require('fast-xml-parser');
 const { securePost, fetchJSON, fetchText } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
 const { setFreshnessHeaders } = require('../services/freshness-headers');
-const { freqToBandStr, extractModeFromComment, parseHamqthDxcLine } = require('../services/spot-parse');
+const { freqToBandStr, parseHamqthDxcLine, parseDxcSpot, parseRbnSpot, isLoginPrompt, toUtcIso } = require('../services/spot-parse');
 const { isUSCallsign, lookupHamqth, gridToLatLon } = require('./callsign');
 
 const router = express.Router();
@@ -22,6 +22,7 @@ router.get('/spots', async (req, res) => {
     const spots = (Array.isArray(data) ? data : []).map(s => ({
       ...s,
       frequency: s.frequency ? (parseFloat(s.frequency) / 1000).toFixed(3) : '',
+      spotTime: toUtcIso(s.spotTime), // POTA sends UTC without a zone ("2026-10-11T00:43:38").
     }));
     res.json(spots);
   } catch (err) {
@@ -469,19 +470,27 @@ initMqttClient();
 // Connected when first SSE client subscribes, disconnected after idle timeout.
 // Uses node:net (no new dependencies). Skipped in hostedmode (no long-lived TCP).
 
-const DXC_TCP_HOST = process.env.DXC_TCP_HOST || 'dxc.ai8w.net';
-const DXC_TCP_PORT = parseInt(process.env.DXC_TCP_PORT, 10) || 7300;
+// Default DX cluster: W3LPL's AR-Cluster node (verified reachable 2026-10; dxc.ai8w.net no longer
+// resolves). Public clusters require the operator's own callsign, so DXC only connects when a real
+// callsign is available (client config or DXC_CALLSIGN/HAMTAB_CALLSIGN); otherwise the client keeps
+// polling the HamQTH HTTP feed. RBN accepts a generic login, so it falls back to HAMTAB.
+const DXC_TCP_HOST = process.env.DXC_TCP_HOST || 'w3lpl.net';
+const DXC_TCP_PORT = parseInt(process.env.DXC_TCP_PORT, 10) || 7373;
 const RBN_TCP_HOST = 'telnet.reversebeacon.net';
 const RBN_TCP_PORT = 7000;
+const RBN_DEFAULT_LOGIN = 'HAMTAB';
 const DXC_TCP_RING_SIZE = 500;  // max spots in ring buffer per source
 const DXC_TCP_SPOT_TTL = 60 * 60 * 1000; // 1 hour
 const DXC_TCP_RECONNECT_MS = 30 * 1000;  // 30s backoff
 const DXC_TCP_IDLE_MS = 5 * 60 * 1000;   // 5 min idle disconnect
 const DXC_TCP_HEARTBEAT_MS = 30 * 1000;  // 30s SSE heartbeat
+const DXC_TCP_CONNECT_TIMEOUT_MS = 15 * 1000; // 15s to establish the TCP connection
+const DXC_TCP_KEEPALIVE_MS = 60 * 1000;  // 60s TCP keepalive probe once connected
 
 // Shared state for each TCP source
-function createTcpSource() {
+function createTcpSource(name) {
   return {
+    name,               // 'dxc' | 'rbn' (log prefix)
     socket: null,
     connected: false,
     ring: [],           // ring buffer of parsed spots
@@ -490,65 +499,24 @@ function createTcpSource() {
     idleTimer: null,
     lineBuffer: '',     // partial-line accumulator
     loginSent: false,
+    spotsSinceConnect: 0, // spots parsed on the current connection (0 = not live yet)
+    reason: '',         // why we're not connected ('no-callsign', 'error', ...)
   };
 }
 
-const dxcTcp = createTcpSource();
-const rbnTcp = createTcpSource();
+const dxcTcp = createTcpSource('dxc');
+const rbnTcp = createTcpSource('rbn');
 
-// --- DXC Spot Parser ---
-// Format: "DX de <spotter>:     <freq_khz>  <dx_call>       <comment>           <time>Z"
-// Example: "DX de W3LPL:     14025.0  JA1ABC       CW 10 dB 25 WPM             1423Z"
-const DXC_SPOT_RE = /^DX\s+de\s+(\S+):\s+([\d.]+)\s+(\S+)\s+(.*?)\s+(\d{4})Z\s*$/;
-
-function parseDxcSpot(line) {
-  const m = line.match(DXC_SPOT_RE);
-  if (!m) return null;
-  const [, spotter, freqKhz, dxCall, comment, timeZ] = m;
-  const freqMHz = (parseFloat(freqKhz) / 1000).toFixed(3);
-  const now = new Date();
-  const hh = timeZ.substring(0, 2);
-  const mm = timeZ.substring(2, 4);
-  const spotTime = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(),
-    parseInt(hh, 10), parseInt(mm, 10))).toISOString();
-
+// Connection status sent to SSE clients. `live` means the cluster accepted our login and spots
+// are flowing; until then the client must keep its HTTP polling fallback running.
+function tcpStatus(source, host) {
   return {
-    callsign: dxCall.trim(),
-    frequency: freqMHz,
-    mode: extractModeFromComment(comment),
-    spotter: spotter.replace(/:$/, ''),
-    band: freqToBandStr(parseFloat(freqMHz)),
-    spotTime,
-    comments: comment.trim(),
-    source: 'dxc-tcp',
-    latitude: null,
-    longitude: null,
+    connected: source.connected,
+    loggedIn: source.loginSent,
+    live: source.connected && source.loginSent && source.spotsSinceConnect > 0,
+    host,
+    reason: source.reason,
   };
-}
-
-// --- RBN Spot Parser ---
-// Same DX-spot format but often includes dB, WPM, and type in comment
-// Example: "DX de KM3T-2-#:  14040.1  UA3AKO      CW    18 dB  25 WPM  CQ      1423Z"
-const RBN_DB_RE = /(\d+)\s*dB/i;
-const RBN_WPM_RE = /(\d+)\s*WPM/i;
-const RBN_TYPE_RE = /\b(CQ|BEACON|NCDXF|DX)\b/i;
-
-function parseRbnSpot(line) {
-  const base = parseDxcSpot(line);
-  if (!base) return null;
-  base.source = 'rbn';
-
-  // Extract RBN-specific fields from comment
-  const dbMatch = base.comments.match(RBN_DB_RE);
-  const wpmMatch = base.comments.match(RBN_WPM_RE);
-  const typeMatch = base.comments.match(RBN_TYPE_RE);
-
-  base.db = dbMatch ? parseInt(dbMatch[1], 10) : null;
-  base.wpm = wpmMatch ? parseInt(wpmMatch[1], 10) : null;
-  base.spotType = typeMatch ? typeMatch[1].toUpperCase() : '';
-  base.skimmer = base.spotter; // RBN spotters are CW Skimmer stations
-
-  return base;
 }
 
 // --- Ring Buffer Management ---
@@ -569,25 +537,44 @@ function ringPush(source, spot) {
 
 // --- TCP Connection Manager ---
 
-function connectTcpSource(source, host, port, callsign, parseFn) {
+function connectTcpSource(source, host, port, callsign, parseFn, fallbackLogin = '') {
   if (process.env.HOSTED_MODE === '1') return; // no TCP in hostedmode
   if (source.socket) return; // already connected or connecting
   if (source.reconnectTimer) { clearTimeout(source.reconnectTimer); source.reconnectTimer = null; }
 
-  const loginCall = callsign || process.env.DXC_CALLSIGN || process.env.HAMTAB_CALLSIGN || 'HAMTAB';
+  const loginCall = callsign || process.env.DXC_CALLSIGN || process.env.HAMTAB_CALLSIGN || fallbackLogin;
+  if (!loginCall) {
+    // Public DX clusters reject made-up logins; wait for a client that supplies a callsign.
+    source.reason = 'no-callsign';
+    console.log(`[TCP] ${source.name}: no callsign configured, not connecting to ${host}:${port}`);
+    broadcastSseStatus(source, tcpStatus(source, host));
+    return;
+  }
   console.log(`[TCP] Connecting to ${host}:${port} as ${loginCall}`);
 
-  const sock = net.createConnection({ host, port, timeout: 15000 });
+  const sock = net.createConnection({ host, port, timeout: DXC_TCP_CONNECT_TIMEOUT_MS });
   source.socket = sock;
   source.loginSent = false;
   source.lineBuffer = '';
+  source.spotsSinceConnect = 0;
+  source.reason = '';
 
   sock.setEncoding('utf8');
 
+  const sendLogin = () => {
+    sock.write(loginCall + '\r\n');
+    source.loginSent = true;
+    broadcastSseStatus(source, tcpStatus(source, host));
+  };
+
   sock.on('connect', () => {
     source.connected = true;
+    // The connect timeout must not apply to an established session: quiet clusters can go
+    // minutes without a spot. Rely on TCP keepalive to notice dead peers instead.
+    sock.setTimeout(0);
+    sock.setKeepAlive(true, DXC_TCP_KEEPALIVE_MS);
     console.log(`[TCP] Connected to ${host}:${port}`);
-    broadcastSseStatus(source, { connected: true, host });
+    broadcastSseStatus(source, tcpStatus(source, host));
   });
 
   sock.on('data', (chunk) => {
@@ -599,28 +586,38 @@ function connectTcpSource(source, host, port, callsign, parseFn) {
       const line = rawLine.replace(/\r/g, '').trim();
       if (!line) continue;
 
-      // Login prompt detection — send callsign once
-      if (!source.loginSent && (line.includes('login:') || line.includes('call:') || line.includes('Please enter your call'))) {
-        sock.write(loginCall + '\r\n');
-        source.loginSent = true;
+      // Login prompt on its own line (some nodes newline-terminate it) — send callsign once.
+      if (!source.loginSent && isLoginPrompt(line)) {
+        sendLogin();
         continue;
       }
 
       // Parse spot
       const spot = parseFn(line);
       if (spot) {
+        source.spotsSinceConnect++;
+        if (source.spotsSinceConnect === 1) broadcastSseStatus(source, tcpStatus(source, host));
         ringPush(source, spot);
         broadcastSseSpot(source, spot);
       }
+    }
+
+    // Prompts like "login: " and "Please enter your call: " arrive without a newline, so they sit
+    // in the leftover buffer. Answer them there and clear the buffer.
+    if (!source.loginSent && isLoginPrompt(source.lineBuffer)) {
+      sendLogin();
+      source.lineBuffer = '';
     }
   });
 
   sock.on('timeout', () => {
     console.warn(`[TCP] Connection to ${host}:${port} timed out`);
+    source.reason = 'timeout';
     sock.destroy();
   });
 
   sock.on('error', (err) => {
+    source.reason = 'error';
     console.error(`[TCP] Error on ${host}:${port}:`, err.message);
   });
 
@@ -629,13 +626,15 @@ function connectTcpSource(source, host, port, callsign, parseFn) {
     source.socket = null;
     source.loginSent = false;
     source.lineBuffer = '';
+    source.spotsSinceConnect = 0;
+    if (!source.reason) source.reason = 'closed';
     console.log(`[TCP] Disconnected from ${host}:${port}`);
-    broadcastSseStatus(source, { connected: false, host });
+    broadcastSseStatus(source, tcpStatus(source, host));
 
     // Reconnect if there are still SSE clients
     if (source.sseClients.size > 0) {
       source.reconnectTimer = setTimeout(() => {
-        connectTcpSource(source, host, port, callsign, parseFn);
+        connectTcpSource(source, host, port, callsign, parseFn, fallbackLogin);
       }, DXC_TCP_RECONNECT_MS);
     }
   });
@@ -654,6 +653,7 @@ function disconnectTcpSource(source) {
   source.connected = false;
   source.loginSent = false;
   source.lineBuffer = '';
+  source.spotsSinceConnect = 0;
 }
 
 function resetIdleTimer(source, host, port) {
@@ -669,7 +669,8 @@ function resetIdleTimer(source, host, port) {
 // --- SSE Broadcasting ---
 
 function broadcastSseSpot(source, spot) {
-  const data = JSON.stringify(spot);
+  const { _ts, ...rest } = spot; // _ts is ring-buffer bookkeeping, not part of the spot.
+  const data = JSON.stringify(rest);
   for (const res of source.sseClients) {
     res.write(`data: ${data}\n\n`);
   }
@@ -682,7 +683,7 @@ function broadcastSseStatus(source, status) {
   }
 }
 
-function addSseClient(source, res, host, port, callsign, parseFn) {
+function addSseClient(source, res, host, port, callsign, parseFn, fallbackLogin = '') {
   // SSE headers
   res.writeHead(200, {
     'Content-Type': 'text/event-stream',
@@ -696,7 +697,7 @@ function addSseClient(source, res, host, port, callsign, parseFn) {
   res.write(`event: init\ndata: ${initData}\n\n`);
 
   // Send current connection status
-  res.write(`event: status\ndata: ${JSON.stringify({ connected: source.connected, host })}\n\n`);
+  res.write(`event: status\ndata: ${JSON.stringify(tcpStatus(source, host))}\n\n`);
 
   source.sseClients.add(res);
 
@@ -707,7 +708,7 @@ function addSseClient(source, res, host, port, callsign, parseFn) {
 
   // Start TCP connection if not already connected
   if (!source.socket) {
-    connectTcpSource(source, host, port, callsign, parseFn);
+    connectTcpSource(source, host, port, callsign, parseFn, fallbackLogin);
   }
 
   // Cleanup on client disconnect
@@ -733,7 +734,7 @@ if (process.env.HOSTED_MODE !== '1') {
   // RBN live TCP stream
   router.get('/spots/rbn/stream', (req, res) => {
     const callsign = (req.query.callsign || '').replace(/[^A-Z0-9/]/gi, '').substring(0, 10);
-    addSseClient(rbnTcp, res, RBN_TCP_HOST, RBN_TCP_PORT, callsign, parseRbnSpot);
+    addSseClient(rbnTcp, res, RBN_TCP_HOST, RBN_TCP_PORT, callsign, parseRbnSpot, RBN_DEFAULT_LOGIN);
   });
 
   // RBN HTTP snapshot (polling fallback)
@@ -1226,7 +1227,7 @@ router.get('/spots/wspr', async (req, res) => {
         rxLon: parseFloat(r.rx_lon) || null,
         name: `RX: ${r.rx_sign || '?'}`,
         comments: `SNR: ${snrStr || '?'} dB · Power: ${r.power} dBm · Dist: ${r.distance || '?'} km`,
-        spotTime: r.time || '',
+        spotTime: toUtcIso(r.time), // wspr.live DateTime is UTC without a zone ("2026-10-11 01:14:00").
         reference: '',
       };
     });
@@ -1243,6 +1244,13 @@ router.get('/spots/wspr', async (req, res) => {
     res.status(502).json({ error: 'Failed to fetch WSPR spots' });
   }
 });
+
+// --- SOTA spots (disabled) ---
+// SOTA api2 spots deprecated 2026; new API requires SOTA reflector API-consumers registration and
+// approval; disabled until then. While false, /api/spots/sota returns [] without contacting SOTA
+// (no spot fetch, no summit lookups). To re-enable: get approval, point the fetch below at the new
+// API, set this to true, and set the client flag sota_spots in src/feature-flags.js.
+const SOTA_SPOTS_ENABLED = false;
 
 // --- SOTA summit coordinate cache (TTL-based) ---
 
@@ -1274,6 +1282,7 @@ async function fetchSummitCoords(associationCode, summitCode) {
 
 // Proxy SOTA spots API
 router.get('/spots/sota', async (req, res) => {
+  if (!SOTA_SPOTS_ENABLED) return res.json([]);
   try {
     const data = await fetchJSON('https://api2.sota.org.uk/api/spots/50/all');
     const spots = (Array.isArray(data) ? data : []).map(s => ({
@@ -1283,7 +1292,7 @@ router.get('/spots/sota', async (req, res) => {
       reference:   s.associationCode && s.summitCode
                      ? s.associationCode + '/' + s.summitCode : (s.summitCode || ''),
       name:        s.summitDetails || '',
-      spotTime:    s.timeStamp || '',
+      spotTime:    toUtcIso(s.timeStamp), // SOTA timeStamp is UTC without a zone.
       comments:    s.comments || '',
       points:      s.points || 0,
       latitude:    null,

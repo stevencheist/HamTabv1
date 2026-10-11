@@ -8,6 +8,7 @@ const { fetchJSON, fetchText } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
 const { setFreshnessHeaders } = require('../services/freshness-headers');
 const voacap = require('../../voacap-bridge.js');
+const { pickPredictedSsn } = require('../services/spacewx-parse');
 
 const router = express.Router();
 
@@ -22,36 +23,21 @@ async function getCurrentSSN() {
   }
 
   try {
-    // NOAA predicted monthly sunspot number (JSON array of [year, month, ssn, ...])
-    const raw = await fetchJSON('https://services.swpc.noaa.gov/json/predicted_monthly_sunspot_number.json');
+    // NOAA predicted solar cycle: [{ "time-tag": "YYYY-MM", predicted_ssn, ... }]. The older
+    // json/predicted_monthly_sunspot_number.json feed stopped updating in 2022.
+    const raw = await fetchJSON('https://services.swpc.noaa.gov/json/solar-cycle/predicted-solar-cycle.json');
     const now = new Date();
     const currentYear = now.getUTCFullYear();
     const currentMonth = now.getUTCMonth() + 1;
+    const predicted = pickPredictedSsn(raw, currentYear, currentMonth);
 
-    // Find entry matching current UTC month/year
-    let entry = null;
-    if (Array.isArray(raw)) {
-      entry = raw.find(e =>
-        e['time-tag'] &&
-        new Date(e['time-tag']).getUTCFullYear() === currentYear &&
-        (new Date(e['time-tag']).getUTCMonth() + 1) === currentMonth
-      );
-    }
-
-    if (entry && entry['predicted_ssn'] != null) {
-      ssnCache.data = {
-        ssn: parseFloat(entry['predicted_ssn']),
-        month: currentMonth,
-        year: currentYear,
-        source: 'noaa',
-      };
+    if (predicted !== null) {
+      ssnCache.data = { ssn: predicted, month: currentMonth, year: currentYear, source: 'noaa' };
     } else {
-      // Fallback: use first entry or a reasonable default
-      const fallbackSSN = Array.isArray(raw) && raw.length > 0 && raw[0]['predicted_ssn'] != null
-        ? parseFloat(raw[0]['predicted_ssn'])
-        : 50;
+      // Current month missing from the feed: fall back to its first row, else a mid-cycle default.
+      const first = Array.isArray(raw) && raw.length > 0 ? parseFloat(raw[0].predicted_ssn) : NaN;
       ssnCache.data = {
-        ssn: fallbackSSN,
+        ssn: Number.isFinite(first) ? first : 50,
         month: currentMonth,
         year: currentYear,
         source: 'noaa-fallback',

@@ -8,6 +8,9 @@ const { XMLParser } = require('fast-xml-parser');
 const { fetchJSON, fetchText, isPrivateIP, resolveHost, secureFetch } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
 const { setFreshnessHeaders } = require('../services/freshness-headers');
+const { SPACEWX_URLS, normalizeSpacewx } = require('../services/spacewx-parse');
+const { parseContestDates, parseDxpedDates } = require('../services/calendar-parse');
+const { svsMoonFrameUrl } = require('../services/svs-moon');
 
 const router = express.Router();
 
@@ -99,87 +102,11 @@ router.get('/solar', async (req, res) => {
 //  Space Weather History (NOAA SWPC)
 // =====================================================================
 
-// Per-type in-memory cache, 15-minute TTL
+// Per-type in-memory cache. The RTSW wind/mag feeds update every minute, so cache them for
+// 5 minutes; Kp (3-hourly), X-ray and F10.7 (daily) are fine at 15 minutes.
 const spacewxCache = registerCache({}); // { type: { data, expires } }
 const SPACEWX_TTL = 15 * 60 * 1000; // 15 minutes
-
-const SPACEWX_URLS = {
-  kp:   'https://services.swpc.noaa.gov/products/noaa-planetary-k-index.json',
-  xray: 'https://services.swpc.noaa.gov/json/goes/primary/xrays-7-day.json',
-  sfi:  'https://services.swpc.noaa.gov/json/f107_cm_flux.json',
-  wind: 'https://services.swpc.noaa.gov/products/solar-wind/plasma-7-day.json',
-  mag:  'https://services.swpc.noaa.gov/products/solar-wind/mag-7-day.json',
-};
-
-// Downsample high-resolution data by bucket-averaging into ~targetPts points
-function downsampleSpacewx(arr, targetPts) {
-  if (arr.length <= targetPts) return arr;
-  const bucketSize = Math.ceil(arr.length / targetPts);
-  const result = [];
-  for (let i = 0; i < arr.length; i += bucketSize) {
-    const bucket = arr.slice(i, i + bucketSize);
-    const avgTime = bucket[Math.floor(bucket.length / 2)].time_tag;
-    // Average each numeric field in the bucket
-    const keys = Object.keys(bucket[0]).filter(k => k !== 'time_tag');
-    const avg = { time_tag: avgTime };
-    for (const k of keys) {
-      const vals = bucket.map(b => b[k]).filter(v => v !== null && !isNaN(v));
-      avg[k] = vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
-    }
-    result.push(avg);
-  }
-  return result;
-}
-
-// Normalize NOAA data into uniform { time_tag, value, [value2] } format
-function normalizeSpacewx(type, raw) {
-  switch (type) {
-    case 'kp': {
-      // First row is header: ["time_tag","Kp","Kp_fraction",...]
-      const rows = raw.slice(1);
-      return rows.map(r => ({
-        time_tag: r[0],
-        value: parseFloat(r[1]),
-      })).filter(r => !isNaN(r.value));
-    }
-    case 'xray': {
-      // Array of objects: { time_tag, flux }
-      const parsed = raw.map(r => ({
-        time_tag: r.time_tag,
-        value: parseFloat(r.flux),
-      })).filter(r => !isNaN(r.value) && r.value > 0);
-      return downsampleSpacewx(parsed, 500);
-    }
-    case 'sfi': {
-      // Array of objects: { time_tag, flux }
-      return raw.map(r => ({
-        time_tag: r.time_tag,
-        value: parseFloat(r.flux),
-      })).filter(r => !isNaN(r.value));
-    }
-    case 'wind': {
-      // First row is header: ["time_tag","density","speed","temperature"]
-      const rows = raw.slice(1);
-      const parsed = rows.map(r => ({
-        time_tag: r[0],
-        value: parseFloat(r[2]), // speed column
-      })).filter(r => !isNaN(r.value));
-      return downsampleSpacewx(parsed, 500);
-    }
-    case 'mag': {
-      // First row is header: ["time_tag","bx_gsm","by_gsm","bz_gsm","lon_gsm","lat_gsm","bt"]
-      const rows = raw.slice(1);
-      const parsed = rows.map(r => ({
-        time_tag: r[0],
-        value: parseFloat(r[3]),  // bz_gsm
-        value2: parseFloat(r[6]), // bt (total field magnitude)
-      })).filter(r => !isNaN(r.value));
-      return downsampleSpacewx(parsed, 500);
-    }
-    default:
-      return [];
-  }
-}
+const SPACEWX_TTL_BY_TYPE = { wind: 5 * 60 * 1000, mag: 5 * 60 * 1000 }; // 5 minutes
 
 router.get('/spacewx/history', async (req, res) => {
   const type = req.query.type;
@@ -199,7 +126,7 @@ router.get('/spacewx/history', async (req, res) => {
     const data = normalizeSpacewx(type, raw);
 
     const now = Date.now();
-    spacewxCache[type] = { data, fetchedAt: now, expires: now + SPACEWX_TTL };
+    spacewxCache[type] = { data, fetchedAt: now, expires: now + (SPACEWX_TTL_BY_TYPE[type] || SPACEWX_TTL) };
     setFreshnessHeaders(res, { fetchedAt: now, expires: spacewxCache[type].expires, cacheHit: false });
     res.json(data);
   } catch (err) {
@@ -452,13 +379,15 @@ async function scrapeSDODay(dateKey, type) {
   const frames = [];
   let match;
   while ((match = pattern.exec(html)) !== null) frames.push(match[0]);
+  // The directory listing names each file twice (link text and href); keep one of each.
+  const uniqueFrames = [...new Set(frames)];
 
   // Yesterday's listing is immutable — cache for 6 hours; today's for 10 minutes
   const now = new Date();
   const todayKey = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${String(now.getUTCDate()).padStart(2, '0')}`;
   const ttl = (dateKey === todayKey) ? 10 * 60 * 1000 : 6 * 3600 * 1000;
-  sdoDirCache[cacheKey] = { frames, expires: Date.now() + ttl };
-  return frames;
+  sdoDirCache[cacheKey] = { frames: uniqueFrames, expires: Date.now() + ttl };
+  return uniqueFrames;
 }
 
 router.get('/solar/frames', async (req, res) => {
@@ -479,7 +408,7 @@ router.get('/solar/frames', async (req, res) => {
     ]);
 
     // Combine and return last 48 frames (~8 hours of coverage)
-    const allFrames = [...yesterdayFrames, ...todayFrames];
+    const allFrames = [...new Set([...yesterdayFrames, ...todayFrames])];
     const frames = allFrames.slice(-48);
     res.json(frames);
   } catch (err) {
@@ -573,14 +502,14 @@ router.get('/solar/image', async (req, res) => {
 //  /lunar/image — proxy NASA SVS moon phase image
 // =====================================================================
 
-// Frame number = hour of year (1-8760), gives accurate texture + libration + lighting
+// Frame number = hour of year, gives accurate texture + libration + lighting.
 router.get('/lunar/image', async (req, res) => {
   try {
-    const now = new Date();
-    const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
-    const hourOfYear = Math.floor((now - startOfYear) / 3600000) + 1;
-    const frame = String(Math.min(hourOfYear, 8760)).padStart(4, '0');
-    const url = `https://svs.gsfc.nasa.gov/vis/a000000/a005500/a005587/frames/730x730_1x1_30p/moon.${frame}.jpg`;
+    const url = svsMoonFrameUrl(new Date());
+    if (!url) {
+      // Unknown year: the client falls back to its drawn moon when the image fails to load.
+      return res.status(404).json({ error: 'Moon image set not available for this year' });
+    }
     const parsed = new URL(url);
     const resolvedIP = await resolveHost(parsed.hostname);
     if (isPrivateIP(resolvedIP)) {
@@ -616,6 +545,12 @@ router.get('/lunar/image', async (req, res) => {
 // =====================================================================
 //  DXpeditions (NG3K ADXO feed)
 // =====================================================================
+
+// Sort key for ISO dates; undated entries sort last instead of first.
+function sortTime(iso) {
+  const t = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(t) ? Number.MAX_SAFE_INTEGER : t;
+}
 
 const dxpeditionCache = registerCache({ data: null, expires: 0 });
 const DXPEDITION_TTL = 2 * 60 * 60 * 1000; // 2 hours
@@ -781,28 +716,11 @@ function parseDxpeditionItem(item) {
     qsl = parts[2].replace(/^QSL\s*via:\s*/i, '').trim();
   }
 
-  // Parse date range with best-effort regex
-  // Patterns: "Jan 1-Feb 16, 2026", "January 1 - February 16, 2026"
-  let startDate = null, endDate = null;
+  // Parse the date range (same-month, month-change and cross-year forms).
   const now = new Date();
-  const year = now.getUTCFullYear();
-
-  const rangeMatch = dateStr.match(/(\w+)\s+(\d+)\s*[-\u2013]\s*(\w+)\s+(\d+)(?:\s*,?\s*(\d{4}))?/);
-  if (rangeMatch) {
-    const yr = rangeMatch[5] ? parseInt(rangeMatch[5]) : year;
-    startDate = parseDatePart(rangeMatch[1], parseInt(rangeMatch[2]), yr);
-    endDate = parseDatePart(rangeMatch[3], parseInt(rangeMatch[4]), yr);
-    if (endDate) endDate.setUTCHours(23, 59, 59);
-  } else {
-    // Single month range: "Jan 1-16, 2026"
-    const singleMatch = dateStr.match(/(\w+)\s+(\d+)\s*[-\u2013]\s*(\d+)(?:\s*,?\s*(\d{4}))?/);
-    if (singleMatch) {
-      const yr = singleMatch[4] ? parseInt(singleMatch[4]) : year;
-      startDate = parseDatePart(singleMatch[1], parseInt(singleMatch[2]), yr);
-      endDate = parseDatePart(singleMatch[1], parseInt(singleMatch[3]), yr);
-      if (endDate) endDate.setUTCHours(23, 59, 59);
-    }
-  }
+  const range = parseDxpedDates(dateStr, now);
+  const startDate = range ? range.start : null;
+  const endDate = range ? range.end : null;
 
   const active = startDate && endDate && now >= startDate && now <= endDate;
 
@@ -821,14 +739,6 @@ function parseDxpeditionItem(item) {
     lat: coords ? coords[0] : null,
     lon: coords ? coords[1] : null,
   };
-}
-
-function parseDatePart(monthStr, day, year) {
-  const months = { jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5, jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11,
-    january: 0, february: 1, march: 2, april: 3, june: 5, july: 6, august: 7, september: 8, october: 9, november: 10, december: 11 };
-  const m = months[monthStr.toLowerCase()];
-  if (m === undefined || isNaN(day)) return null;
-  return new Date(Date.UTC(year, m, day));
 }
 
 router.get('/dxpeditions', async (req, res) => {
@@ -853,9 +763,7 @@ router.get('/dxpeditions', async (req, res) => {
       .sort((a, b) => {
         // Active first, then by start date ascending
         if (a.active !== b.active) return a.active ? -1 : 1;
-        const aDate = a.startDate ? new Date(a.startDate).getTime() : 0;
-        const bDate = b.startDate ? new Date(b.startDate).getTime() : 0;
-        return aDate - bDate;
+        return sortTime(a.startDate) - sortTime(b.startDate);
       });
 
     const now = Date.now();
@@ -882,34 +790,12 @@ function parseContestItem(item) {
   const description = (item.description || '').trim();
   const link = (item.link || '').trim();
 
-  // Parse dates from description: "0000Z, Feb 7 to 2400Z, Feb 8"
-  let startDate = null, endDate = null, dateStr = description;
+  // Parse dates from description (ranges, same-day windows, multi-segment, local time).
   const now = new Date();
-  const year = now.getUTCFullYear();
-
-  const dateMatch = description.match(/(\d{4})Z\s*,?\s*(\w+)\s+(\d+)\s+to\s+(\d{4})Z\s*,?\s*(\w+)\s+(\d+)/i);
-  if (dateMatch) {
-    const startHour = parseInt(dateMatch[1].substring(0, 2));
-    const startMin = parseInt(dateMatch[1].substring(2));
-    const endHourRaw = parseInt(dateMatch[4].substring(0, 2));
-    const endMin = parseInt(dateMatch[4].substring(2));
-
-    startDate = parseDatePart(dateMatch[2], parseInt(dateMatch[3]), year);
-    endDate = parseDatePart(dateMatch[5], parseInt(dateMatch[6]), year);
-
-    if (startDate) {
-      startDate.setUTCHours(startHour, startMin);
-    }
-    if (endDate) {
-      // 2400Z means midnight of the next day
-      if (endHourRaw === 24) {
-        endDate.setUTCDate(endDate.getUTCDate() + 1);
-        endDate.setUTCHours(0, 0);
-      } else {
-        endDate.setUTCHours(endHourRaw, endMin);
-      }
-    }
-  }
+  const range = parseContestDates(description, now);
+  const startDate = range ? range.start : null;
+  const endDate = range ? range.end : null;
+  const dateStr = description;
 
   // Infer mode from contest name
   const upper = name.toUpperCase();
@@ -943,7 +829,8 @@ router.get('/contests', async (req, res) => {
       return res.json(contestCache.data);
     }
 
-    const xml = await fetchText('https://www.contestcalendar.com/contestcal.php?rss');
+    // contestcal.php?rss now serves an HTML page; calendar.rss is the RSS feed.
+    const xml = await fetchText('https://www.contestcalendar.com/calendar.rss');
     const parser = new XMLParser({ ignoreAttributes: false });
     const parsed = parser.parse(xml);
 
@@ -952,18 +839,22 @@ router.get('/contests', async (req, res) => {
     if (!items) items = [];
     if (!Array.isArray(items)) items = [items];
 
-    const results = items
-      .map(parseContestItem)
-      .filter(c => c.status !== 'past') // exclude past contests
+    const parsedItems = items.map(parseContestItem);
+    // Items whose dates we can't parse have no way to expire, so drop them rather than let them
+    // pin to the top of the list forever. Log so a format change upstream is noticed.
+    const undated = parsedItems.filter(c => !c.startDate || !c.endDate);
+    if (undated.length > 0) {
+      console.warn(`Contests: ${undated.length}/${parsedItems.length} items had unparseable dates, e.g. "${undated[0].dateStr}"`);
+    }
+    const results = parsedItems
+      .filter(c => c.startDate && c.endDate && c.status !== 'past')
       .sort((a, b) => {
         // Active first, then upcoming by start date
         if (a.status !== b.status) {
           if (a.status === 'active') return -1;
           if (b.status === 'active') return 1;
         }
-        const aDate = a.startDate ? new Date(a.startDate).getTime() : 0;
-        const bDate = b.startDate ? new Date(b.startDate).getTime() : 0;
-        return aDate - bDate;
+        return sortTime(a.startDate) - sortTime(b.startDate);
       });
 
     const now = Date.now();

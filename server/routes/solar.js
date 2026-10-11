@@ -10,6 +10,7 @@ const { registerCache } = require('../services/cache-store');
 const { setFreshnessHeaders } = require('../services/freshness-headers');
 const { SPACEWX_URLS, normalizeSpacewx } = require('../services/spacewx-parse');
 const { parseContestDates, parseDxpedDates } = require('../services/calendar-parse');
+const { svsMoonFrameUrl } = require('../services/svs-moon');
 
 const router = express.Router();
 
@@ -378,13 +379,15 @@ async function scrapeSDODay(dateKey, type) {
   const frames = [];
   let match;
   while ((match = pattern.exec(html)) !== null) frames.push(match[0]);
+  // The directory listing names each file twice (link text and href); keep one of each.
+  const uniqueFrames = [...new Set(frames)];
 
   // Yesterday's listing is immutable — cache for 6 hours; today's for 10 minutes
   const now = new Date();
   const todayKey = `${now.getUTCFullYear()}/${String(now.getUTCMonth() + 1).padStart(2, '0')}/${String(now.getUTCDate()).padStart(2, '0')}`;
   const ttl = (dateKey === todayKey) ? 10 * 60 * 1000 : 6 * 3600 * 1000;
-  sdoDirCache[cacheKey] = { frames, expires: Date.now() + ttl };
-  return frames;
+  sdoDirCache[cacheKey] = { frames: uniqueFrames, expires: Date.now() + ttl };
+  return uniqueFrames;
 }
 
 router.get('/solar/frames', async (req, res) => {
@@ -405,7 +408,7 @@ router.get('/solar/frames', async (req, res) => {
     ]);
 
     // Combine and return last 48 frames (~8 hours of coverage)
-    const allFrames = [...yesterdayFrames, ...todayFrames];
+    const allFrames = [...new Set([...yesterdayFrames, ...todayFrames])];
     const frames = allFrames.slice(-48);
     res.json(frames);
   } catch (err) {
@@ -499,14 +502,14 @@ router.get('/solar/image', async (req, res) => {
 //  /lunar/image — proxy NASA SVS moon phase image
 // =====================================================================
 
-// Frame number = hour of year (1-8760), gives accurate texture + libration + lighting
+// Frame number = hour of year, gives accurate texture + libration + lighting.
 router.get('/lunar/image', async (req, res) => {
   try {
-    const now = new Date();
-    const startOfYear = new Date(Date.UTC(now.getUTCFullYear(), 0, 1));
-    const hourOfYear = Math.floor((now - startOfYear) / 3600000) + 1;
-    const frame = String(Math.min(hourOfYear, 8760)).padStart(4, '0');
-    const url = `https://svs.gsfc.nasa.gov/vis/a000000/a005500/a005587/frames/730x730_1x1_30p/moon.${frame}.jpg`;
+    const url = svsMoonFrameUrl(new Date());
+    if (!url) {
+      // Unknown year: the client falls back to its drawn moon when the image fails to load.
+      return res.status(404).json({ error: 'Moon image set not available for this year' });
+    }
     const parsed = new URL(url);
     const resolvedIP = await resolveHost(parsed.hostname);
     if (isPrivateIP(resolvedIP)) {

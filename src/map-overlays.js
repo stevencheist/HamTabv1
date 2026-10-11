@@ -395,6 +395,9 @@ async function fetchRadarAndShow() {
     if (weatherRadarLayer) state.map.removeLayer(weatherRadarLayer);
 
     weatherRadarLayer = L.tileLayer(tileUrl, {
+      // RainViewer's free tiles stop at zoom 7 and return a "Zoom Level Not Supported" image
+      // above it, so let Leaflet upscale z7 tiles when the map is zoomed in further.
+      maxNativeZoom: 7,
       opacity: 0.35,
       pane: 'propagation', // z-300, below mapOverlays (350)
       interactive: false,

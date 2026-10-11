@@ -29,7 +29,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **HF Band Conditions** — Day/night conditions for 160m through 6m with reliability percentages, color-coded from green (open) to red (closed). 6m includes sporadic E detection from live HamQSL data
 - **Band Score** — "What band should I be on right now?" Composite 0–100 score per band combining propagation reliability (50%), PSK/WSPR activity density (30%), and space weather (20%), with top 3 bands highlighted
 - **VOACAP DE→DX** — 24-hour propagation prediction grid with adjustable power (5W/100W/1kW), mode (CW/SSB/FT8), and path (short/long). Uses the Voice of America Coverage Analysis Program engine with automatic simplified fallback
-- **Space Weather History** — Historical graphs for Kp index, X-ray flux, SFI, solar wind speed, and Bz over the past week (90 days for SFI)
+- **Space Weather History** — Historical graphs for Kp index, X-ray flux, SFI, solar wind speed, and Bz (Kp and X-ray: past week; solar wind and Bz: past 24 hours; SFI: about 40 days)
 
 ### DX & Contesting
 - **Contests** — Active and upcoming contest calendar from WA7BNM with mode badges (CW/Phone/Digital) and links to contest rules
@@ -705,9 +705,9 @@ Historical space weather data graphed over time. Switch between tabs:
 |-----|------|--------|
 | **Kp** | Geomagnetic Kp index | 7 days |
 | **X-Ray** | GOES X-ray flux | 7 days |
-| **SFI** | Solar Flux Index (10.7 cm) | 90 days |
-| **Wind** | Solar wind speed | 7 days |
-| **Bz** | IMF Bz component | 7 days |
+| **SFI** | Solar Flux Index (10.7 cm) | ~40 days |
+| **Wind** | Solar wind speed | 24 hours |
+| **Bz** | IMF Bz component | 24 hours |
 
 ### Live Spots
 

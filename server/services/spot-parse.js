@@ -3,6 +3,31 @@
 // Pure spot-parsing helpers shared by the spot routes (no I/O, so unit tests can load them
 // without starting the MQTT/TCP feeds in routes/spots.js).
 
+// --- Timestamp normalization ---
+// Several upstreams (POTA spotTime, WSPR, SWPC time_tag, ...) send UTC timestamps with no zone
+// suffix. `new Date('2026-10-11T00:43:38')` would read those as server-local time, so normalize
+// everything to an ISO string ending in Z here. Returns '' when the input can't be parsed.
+const NAIVE_TS_RE = /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?))?\s*(Z|UTC|GMT|[+-]\d{2}:?\d{2})?$/i;
+
+function toUtcIso(value) {
+  if (value == null || value === '') return '';
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? '' : value.toISOString();
+  const str = String(value).trim();
+  const m = NAIVE_TS_RE.exec(str);
+  let d;
+  if (m) {
+    let zone = (m[3] || 'Z').toUpperCase();
+    if (zone === 'UTC' || zone === 'GMT') zone = 'Z';
+    d = new Date(`${m[1]}T${m[2] || '00:00:00'}${zone}`);
+  } else if (/(?:Z|GMT|UTC|[+-]\d{2}:?\d{2})$/i.test(str)) {
+    // Other formats that carry an explicit zone (e.g. RFC 2822) are safe for Date to parse.
+    d = new Date(str);
+  } else {
+    return '';
+  }
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
 // Convert frequency to band string
 function freqToBandStr(freqMHz) {
   const freq = parseFloat(freqMHz);
@@ -82,4 +107,4 @@ function parseHamqthDxcLine(line) {
   };
 }
 
-module.exports = { freqToBandStr, extractModeFromComment, parseHamqthDxcLine, hamqthTimeToIso };
+module.exports = { toUtcIso, freqToBandStr, extractModeFromComment, parseHamqthDxcLine, hamqthTimeToIso };

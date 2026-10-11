@@ -475,11 +475,11 @@ export const WIDGET_HELP = {
   },
   'widget-spacewx': {
     title: 'Space Weather History',
-    description: 'Historical graphs of key space weather indices over the past week (or 90 days for Solar Flux). These charts help you spot trends and understand how conditions are changing — not just a single snapshot, but the bigger picture.',
+    description: 'Historical graphs of key space weather indices: the past week for Kp and X-Ray, the past 24 hours for Solar Wind and Bz, and about the past 40 days for Solar Flux (each graph title shows the span it covers). These charts help you spot trends and understand how conditions are changing — not just a single snapshot, but the bigger picture.',
     sections: [
       { heading: 'Tabs', content: 'Five tabs let you switch between different measurements: Kp index (geomagnetic activity), X-Ray flux (solar flare intensity), SFI (Solar Flux Index — overall solar activity), Solar Wind speed, and Bz (interplanetary magnetic field direction).' },
-      { heading: 'What the graphs show', content: 'Kp: Bar chart colored green/yellow/red — values above 4 mean geomagnetic storms that can disrupt HF. X-Ray: Line chart on a log scale — C/M/X class flares marked. SFI: 90-day trend — higher values (100+) mean better HF propagation. Wind: Solar wind speed — above 400 km/s can disturb conditions. Bz: Southward (negative) Bz opens Earth\'s magnetosphere to solar wind, worsening conditions.' },
-      { heading: 'Data source', content: 'All data comes from NOAA Space Weather Prediction Center (SWPC), updated every 15 minutes.' },
+      { heading: 'What the graphs show', content: 'Kp: Bar chart colored green/yellow/red — values above 4 mean geomagnetic storms that can disrupt HF. X-Ray: Line chart on a log scale — C/M/X class flares marked. SFI: roughly 40-day trend — higher values (100+) mean better HF propagation. Wind: Solar wind speed — above 400 km/s can disturb conditions. Bz: Southward (negative) Bz opens Earth\'s magnetosphere to solar wind, worsening conditions.' },
+      { heading: 'Data source', content: 'All data comes from NOAA Space Weather Prediction Center (SWPC). Solar Wind and Bz use the real-time 1-minute feeds from the spacecraft SWPC currently relies on and refresh every 5 minutes; the other graphs refresh every 15 minutes.' },
     ],
     links: [
       { label: 'NOAA SWPC', url: 'https://www.swpc.noaa.gov/' },

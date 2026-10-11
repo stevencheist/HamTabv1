@@ -223,7 +223,7 @@ export function renderMarkers() {
       ${dirLine}
       ${distLine}
       <div class="popup-time">Local time: ${esc(localTime)}</div>
-      ${spot.comments ? '<div style="margin-top:4px;font-size:0.78rem;color:#8899aa;">' + esc(spot.comments) + '</div>' : ''}
+      ${spot.comments ? '<div style="margin-top:4px;font-size:0.78rem;color:var(--text-dim);">' + esc(spot.comments) + '</div>' : ''}
     `);
 
     marker.on('click', () => {

@@ -99,14 +99,16 @@ HamTab includes multiple visual themes to match your operating style and persona
 
 | Theme | Description |
 |-------|-------------|
+| **Auto** | Follows your computer's light/dark setting: Daylight when the system is in light mode, Default when it is in dark mode. Switches live while HamTab is open. This is the default for new installs. |
 | **Default** | Modern dark theme with blue/magenta accents. Clean and readable. |
+| **Daylight** | High-contrast light theme for bright rooms and outdoor operating (POTA/SOTA in the sun). Near-white panels, near-black text, darker status colors, and a light map. |
 | **LCARS** | Inspired by Star Trek: The Next Generation computer displays. Orange, blue, and purple palette with rounded pill-shaped buttons and condensed fonts. |
 | **Terminal** | Retro green-on-black CRT style. Monospace fonts, sharp corners, and a utilitarian feel. |
 | **HamClock** | Dark background with green, cyan, and amber accents matching the real HamClock by WB0OEW. |
-| **Rebel** | Warm desert outpost palette with blazing orange accents and olive green highlights. |
-| **Imperial** | Cold steel command deck with ice blue highlights and gunmetal surfaces. |
-| **Neon** | Digital grid aesthetic with neon cyan glow effects on widgets, headers, and controls. |
-| **Steampunk** | Brass, gears, and gaslight with polished copper accents and aged parchment text. |
+| **Radio Face** | Modern transceiver LCD look: dark metallic panels with a cyan display glow. |
+| **Accessible** | High-contrast black and white with larger text scaling options. |
+
+<div class="tip">Operating outdoors? Choose <strong>Daylight</strong>, or leave the theme on <strong>Auto</strong> and switch your laptop or tablet to light mode. A dark screen is much harder to read in direct sunlight.</div>
 
 <div class="tip">Your theme choice is saved automatically and persists between sessions. You can change it anytime without losing your widget layout or settings.</div>
 
@@ -357,7 +359,7 @@ HamTab stores all data in browser localStorage with the `hamtab_` prefix:
 | `hamtab_solar_fields` | Solar field visibility |
 | `hamtab_lunar_fields` | Lunar field visibility |
 | `hamtab_tracked_sats` | Tracked satellite IDs |
-| `hamtab_theme` | Active theme ID (default, lcars, hamclock, etc.) |
+| `hamtab_theme` | Chosen theme ID (auto, default, daylight, lcars, hamclock, etc.) |
 | `hamtab_band_colors` | Custom band color overrides |
 | `hamtab_radio_profiles` | Saved radio profiles (per model) |
 | `hamtab_worked_list` | POTA Hunter worked callsigns (24h TTL) |

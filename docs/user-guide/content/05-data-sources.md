@@ -33,6 +33,8 @@ Parks on the Air is an amateur radio program that encourages portable operation 
 ### What is SOTA?
 Summits on the Air is an award program for amateur radio operators who operate from mountain summits. Activators hike to summits and make contacts; chasers work them from home or portable locations.
 
+<div class="important">SOTA spots are paused: SOTA retired the spots API HamTab used, and its replacement requires approval for third-party apps. The SOTA tab is hidden until HamTab is approved. SOTA summit references still work everywhere else (QSO logging, activator fields, summit links). The details below describe the SOTA tab as it worked before the pause.</div>
+
 ### Data Provided
 - **Activator callsign** — Station operating on the summit
 - **Frequency** — Operating frequency in kHz
@@ -97,9 +99,9 @@ DX Cluster is a worldwide network where amateur radio operators post "spots" of 
 
 ### Live TCP Mode
 
-When running in self-hosted (lanmode) mode, DX Cluster data can stream in real time via a direct TCP telnet connection to a cluster node (default: dxc.ai8w.net). This replaces the 60-second HTTP polling cycle with instant spot delivery — new spots appear within seconds of being posted to the network.
+When running in self-hosted (lanmode) mode, DX Cluster data can stream in real time via a direct TCP telnet connection to a cluster node (default: W3LPL's cluster at w3lpl.net, port 7373). This replaces the 60-second HTTP polling cycle with instant spot delivery — new spots appear within seconds of being posted to the network.
 
-The TCP connection is established automatically and managed by the server. If the connection drops, it reconnects after 30 seconds. When no browser tabs are open, the connection idles and disconnects after 5 minutes to conserve resources.
+DX clusters require a real amateur callsign to log in, so live TCP only starts once your callsign is set in HamTab (or the server's `DXC_CALLSIGN` is set). Until then, and whenever the cluster is disconnected, HamTab keeps using HTTP polling. The TCP connection is established automatically and managed by the server. If the connection drops, it reconnects after 30 seconds. When no browser tabs are open, the connection idles and disconnects after 5 minutes to conserve resources.
 
 On the hosted version (hamtab.net), DX Cluster uses HTTP polling as a fallback.
 
@@ -315,7 +317,7 @@ Updated every second (client-side timer). No network requests needed.
 | Data Source | Refresh Interval |
 |-------------|-----------------|
 | POTA spots | 60 seconds |
-| SOTA spots | 60 seconds |
+| SOTA spots | Paused |
 | DX Cluster | Real-time (TCP) or 60 seconds (HTTP fallback) |
 | Reverse Beacon Network | Real-time (TCP) or 60 seconds (HTTP fallback) |
 | WWFF spots | 60 seconds |

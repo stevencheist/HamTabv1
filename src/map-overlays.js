@@ -3,6 +3,7 @@
 
 import state from './state.js';
 import { isLightTheme } from './themes.js';
+import { isFeatureVisible } from './feature-flags.js';
 import { renderHeatmapCanvas, clearHeatmap, renderHeatmapLegend, clearHeatmapLegend } from './rel-heatmap.js';
 import { renderWsprHeatmapCanvas, clearWsprHeatmap, renderWsprHeatmapLegend, clearWsprHeatmapLegend } from './wspr-heatmap.js';
 
@@ -441,7 +442,7 @@ export function renderSymbolLegend() {
 
       const items = [
         { symbol: '<span class="legend-dot" style="background:#4CAF50"></span>', label: 'POTA' },
-        { symbol: '<span class="legend-dot" style="background:#FF9800"></span>', label: 'SOTA' },
+        { symbol: '<span class="legend-dot" style="background:#FF9800"></span>', label: 'SOTA', flag: 'sota_spots' },
         { symbol: '<span class="legend-dot" style="background:#f44336"></span>', label: 'DX Cluster' },
         { symbol: '<span class="legend-dot" style="background:#009688"></span>', label: 'WWFF' },
         { symbol: '<span class="legend-dot" style="background:#9C27B0"></span>', label: 'PSKReporter' },
@@ -455,7 +456,7 @@ export function renderSymbolLegend() {
       ];
 
       div.innerHTML = '<div class="legend-title">Legend</div>' +
-        items.map(i => `<div class="legend-row">${i.symbol}<span class="legend-label">${i.label}</span></div>`).join('');
+        items.filter(i => !i.flag || isFeatureVisible(i.flag)).map(i => `<div class="legend-row">${i.symbol}<span class="legend-label">${i.label}</span></div>`).join('');
       return div;
     },
   });

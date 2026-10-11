@@ -59,7 +59,7 @@ paths:
     get:
       tags: [Spots]
       summary: Get SOTA spots
-      description: Fetches current Summits on the Air (SOTA) spots from api2.sota.org.uk
+      description: Disabled — always returns an empty array. The api2.sota.org.uk spots endpoint was deprecated in 2026 and SOTA's new API requires approved registration; HamTab makes no upstream call until then.
       responses:
         '200':
           description: Array of SOTA spots

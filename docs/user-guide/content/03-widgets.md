@@ -114,7 +114,7 @@ Save commonly-used filter combinations:
 
 ## On the Air Widget
 
-Displays live spots in a tabular format with source tabs for POTA, SOTA, DXC, WWFF, PSK, WSPR, and RBN.
+Displays live spots in a tabular format with source tabs for POTA, DXC, WWFF, PSK, WSPR, and RBN. (The SOTA tab is hidden while SOTA spots are paused — see Data Sources.)
 
 ### Source Tabs
 Click tabs to switch between data sources:
@@ -122,7 +122,6 @@ Click tabs to switch between data sources:
 | Tab | Data Source | Content |
 |-----|-------------|---------|
 | POTA | Parks on the Air API | Park activations |
-| SOTA | SOTA Cluster | Summit activations |
 | DXC | DX Cluster | DX spots worldwide |
 | WWFF | World Wide Flora & Fauna | Flora & fauna reserve activations |
 | PSK | PSKReporter | Digital mode reports |

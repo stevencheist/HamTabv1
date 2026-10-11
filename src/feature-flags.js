@@ -7,6 +7,7 @@
 //   'dev:<CALLSIGN>'  — only that developer sees it (building/debugging)
 //   'test'            — both dev callsigns see it (peer testing)
 //   'release'         — everyone sees it (shipped)
+//   'off'             — nobody sees it (feature parked, e.g. an upstream API is unavailable)
 //
 // Usage:
 //   import { isFeatureVisible } from './feature-flags.js';
@@ -30,6 +31,9 @@ const FEATURE_FLAGS = {
   dxc_live_tcp: 'dev:KG5DPV', // DX Cluster live TCP/SSE feed (v0.70.0)
   qso_logging: 'test',       // Log QSOs in HamTab + ADIF export (HT-299, v0.71.0; test v0.73.1)
   daylight_theme: 'release', // Daylight light theme + Auto (follow OS light/dark) (v0.74.0)
+  // SOTA api2 spots deprecated 2026; new API requires SOTA reflector API-consumers registration
+  // and approval; disabled until then. Re-enable here and in server/routes/spots.js (SOTA_SPOTS_ENABLED). (v0.74.1)
+  sota_spots: 'off',
 };
 
 // --- Check if a feature is visible to the current user ---
@@ -38,6 +42,7 @@ export function isFeatureVisible(featureName) {
   if (!tier) return true; // unknown feature = visible (safe default for unregistered features)
 
   if (tier === 'release') return true;
+  if (tier === 'off') return false;
 
   const callsign = (state.myCallsign || '').toUpperCase();
 

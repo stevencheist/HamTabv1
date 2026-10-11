@@ -243,6 +243,7 @@ export const SOURCE_DEFS = {
   sota: {
     label: 'SOTA',
     endpoint: '/api/spots/sota',
+    featureFlag: 'sota_spots', // Tab hidden and polling stopped while the flag is off.
     columns: [
       { key: 'callsign',  label: 'Callsign', class: 'callsign', sortable: true },
       { key: 'frequency',  label: 'Freq',     class: 'freq', sortable: true },
@@ -333,6 +334,7 @@ export const SOURCE_DEFS = {
   rbn: {
     label: 'RBN',
     endpoint: '/api/spots/rbn',
+    featureFlag: 'rbn_source',
     columns: [
       { key: 'callsign',  label: 'DX Station', class: 'callsign', sortable: true },
       { key: 'frequency', label: 'Freq',       class: 'freq', sortable: true },
@@ -438,11 +440,11 @@ export const WIDGET_HELP = {
   },
   'widget-activations': {
     title: 'On the Air',
-    description: 'A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from six sources: POTA (Parks on the Air), SOTA (Summits on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), PSKReporter (digital mode reception reports), and WSPR (weak signal propagation beacons).',
+    description: 'A live feed of stations currently on the air. This is your main view for finding stations to contact. Data comes from five sources: POTA (Parks on the Air), DX Cluster (worldwide DX spots), WWFF (World Wide Flora & Fauna), PSKReporter (digital mode reception reports), and WSPR (weak signal propagation beacons). SOTA (Summits on the Air) spots are paused for now while SOTA moves to a new spots service that requires approval for third-party apps.',
     sections: [
-      { heading: 'How to Use', content: 'Use the tabs at the top to switch between POTA, SOTA, DXC, WWFF, PSK, and WSPR sources. Click any row to select that station — its details will appear in the DX Detail widget and its location will be highlighted on the map.' },
+      { heading: 'How to Use', content: 'Use the tabs at the top to switch between POTA, DXC, WWFF, PSK, and WSPR sources. Click any row to select that station — its details will appear in the DX Detail widget and its location will be highlighted on the map.' },
       { heading: 'POTA', content: 'Shows operators activating parks for the Parks on the Air program. Click the park reference link to see park details on the POTA website.' },
-      { heading: 'SOTA', content: 'Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details.' },
+      { heading: 'SOTA', flag: 'sota_spots', content: 'Shows operators activating mountain summits for the Summits on the Air program. Click the summit reference for details.' },
       { heading: 'DX Cluster', content: 'Worldwide spots from the DX Cluster network. Great for finding rare or distant (DX) stations.' },
       { heading: 'WWFF', content: 'Shows operators activating nature reserves for the World Wide Flora & Fauna program. Similar to POTA but with a worldwide scope — especially popular in Europe. Click the reference link for reserve details.' },
       { heading: 'PSK Reporter', content: 'Digital mode reception reports from PSKReporter. Shows which stations are being decoded and where, useful for checking band conditions.' },

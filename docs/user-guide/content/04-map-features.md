@@ -26,6 +26,7 @@ The map supports standard interactions:
 - Click to select and view park details
 
 ### SOTA Activations
+*Paused while SOTA spots are unavailable (see Data Sources).*
 - **Color**: Orange
 - **Shape**: Circle marker
 - Click to select and view summit details

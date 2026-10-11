@@ -47,8 +47,15 @@ function updateFilterVisibility() {
   }
 }
 
+// A source is available when it exists and its feature flag (if any) is visible.
+export function isSourceAvailable(source) {
+  const def = SOURCE_DEFS[source];
+  return !!def && (!def.featureFlag || isFeatureVisible(def.featureFlag));
+}
+
 export function switchSource(source) {
-  if (!SOURCE_DEFS[source]) source = 'pota';
+  // Fall back to POTA for unknown sources and for tabs that are hidden (e.g. a saved SOTA tab).
+  if (!isSourceAvailable(source)) source = 'pota';
   state.currentSource = source;
   localStorage.setItem('hamtab_spot_source', source);
 
@@ -88,8 +95,8 @@ export function switchSource(source) {
 
 export function initSourceListeners() {
   $('sourceTabs').querySelectorAll('.source-tab').forEach(btn => {
-    // Hide feature-flagged tabs
-    if (btn.dataset.source === 'rbn' && !isFeatureVisible('rbn_source')) {
+    // Hide feature-flagged tabs (RBN in development, SOTA parked).
+    if (!isSourceAvailable(btn.dataset.source)) {
       btn.style.display = 'none';
     }
     btn.addEventListener('mousedown', (e) => e.stopPropagation());

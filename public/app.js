@@ -680,6 +680,7 @@
     if (!spotTime) return "";
     const ts = spotTime.endsWith("Z") ? spotTime : spotTime + "Z";
     const diffMs = Date.now() - new Date(ts).getTime();
+    if (Number.isNaN(diffMs)) return "";
     if (diffMs < 0) return "0s";
     const totalSec = Math.floor(diffMs / 1e3);
     const h = Math.floor(totalSec / 3600);
@@ -11374,7 +11375,7 @@
         if (col.class) td.className = col.class;
         if (col.key === "spotTime") {
           const time = spot.spotTime ? new Date(spot.spotTime) : null;
-          td.textContent = time ? fmtTime(time, { hour: "2-digit", minute: "2-digit" }) : "";
+          td.textContent = time && !isNaN(time) ? fmtTime(time, { hour: "2-digit", minute: "2-digit" }) : "";
         } else if (col.key === "age") {
           td.dataset.col = "age";
           td.dataset.spotTime = spot.spotTime || "";
@@ -18482,7 +18483,7 @@ ${beacon.location}`);
   init_lunar();
   init_dedx_info();
 
-  // node_modules/pako/dist/pako.esm.mjs
+  // ../../../../../../home/steve/code/stevencheist/HamTabV1/node_modules/pako/dist/pako.esm.mjs
   var Z_FIXED$1 = 4;
   var Z_BINARY = 0;
   var Z_TEXT = 1;

@@ -124,7 +124,8 @@ export function renderSpots() {
       if (col.class) td.className = col.class;
       if (col.key === 'spotTime') {
         const time = spot.spotTime ? new Date(spot.spotTime) : null;
-        td.textContent = time ? fmtTime(time, { hour: '2-digit', minute: '2-digit' }) : '';
+        // Blank, not "Invalid Date", if an upstream feed changes its timestamp format.
+        td.textContent = time && !isNaN(time) ? fmtTime(time, { hour: '2-digit', minute: '2-digit' }) : '';
       } else if (col.key === 'age') {
         td.dataset.col = 'age';
         td.dataset.spotTime = spot.spotTime || '';

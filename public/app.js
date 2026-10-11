@@ -682,6 +682,7 @@
     if (!spotTime) return "";
     const ts = spotTime.endsWith("Z") ? spotTime : spotTime + "Z";
     const diffMs = Date.now() - new Date(ts).getTime();
+    if (Number.isNaN(diffMs)) return "";
     if (diffMs < 0) return "0s";
     const totalSec = Math.floor(diffMs / 1e3);
     const h = Math.floor(totalSec / 3600);
@@ -7678,7 +7679,7 @@
     const now = /* @__PURE__ */ new Date();
     const outs = [];
     for (const g of chosen) {
-      const out = writeADIF(g.records, { programVersion: "0.73.3", now });
+      const out = writeADIF(g.records, { programVersion: "0.73.4", now });
       const call = g.records[0].STATION_CALLSIGN || g.records[0].OPERATOR || state_default.myCallsign;
       downloadText(activationFilename(call, g.ref, g.date), out.text);
       outs.push(out);
@@ -7709,7 +7710,7 @@
     const records = scopes[scope];
     if (records.length === 0) return;
     const now = /* @__PURE__ */ new Date();
-    const out = writeADIF(records, { programVersion: "0.73.3", now });
+    const out = writeADIF(records, { programVersion: "0.73.4", now });
     downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
     await finishExport(records, [out], now);
   }
@@ -11376,7 +11377,7 @@
         if (col.class) td.className = col.class;
         if (col.key === "spotTime") {
           const time = spot.spotTime ? new Date(spot.spotTime) : null;
-          td.textContent = time ? fmtTime(time, { hour: "2-digit", minute: "2-digit" }) : "";
+          td.textContent = time && !isNaN(time) ? fmtTime(time, { hour: "2-digit", minute: "2-digit" }) : "";
         } else if (col.key === "age") {
           td.dataset.col = "age";
           td.dataset.spotTime = spot.spotTime || "";
@@ -18484,7 +18485,7 @@ ${beacon.location}`);
   init_lunar();
   init_dedx_info();
 
-  // node_modules/pako/dist/pako.esm.mjs
+  // ../../../../../../home/steve/code/stevencheist/HamTabV1/node_modules/pako/dist/pako.esm.mjs
   var Z_FIXED$1 = 4;
   var Z_BINARY = 0;
   var Z_TEXT = 1;
@@ -25627,8 +25628,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.73.3";
-    $("aboutVersion").textContent = "0.73.3";
+    $("splashVersion").textContent = "0.73.4";
+    $("aboutVersion").textContent = "0.73.4";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

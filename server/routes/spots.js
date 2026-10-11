@@ -9,6 +9,7 @@ const { XMLParser } = require('fast-xml-parser');
 const { securePost, fetchJSON, fetchText } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
 const { setFreshnessHeaders } = require('../services/freshness-headers');
+const { freqToBandStr, extractModeFromComment, parseHamqthDxcLine } = require('../services/spot-parse');
 const { isUSCallsign, lookupHamqth, gridToLatLon } = require('./callsign');
 
 const router = express.Router();
@@ -291,50 +292,6 @@ function mqttPurgeExpiredSpots() {
       if (spot._receivedAt < cutoff) entry.spots.delete(key);
     }
   }
-}
-
-// Convert frequency to band string
-function freqToBandStr(freqMHz) {
-  const freq = parseFloat(freqMHz);
-  if (isNaN(freq)) return '';
-  if (freq >= 1.8 && freq <= 2.0) return '160m';
-  if (freq >= 3.5 && freq <= 4.0) return '80m';
-  if (freq >= 5.3 && freq <= 5.4) return '60m';
-  if (freq >= 7.0 && freq <= 7.3) return '40m';
-  if (freq >= 10.1 && freq <= 10.15) return '30m';
-  if (freq >= 14.0 && freq <= 14.35) return '20m';
-  if (freq >= 18.068 && freq <= 18.168) return '17m';
-  if (freq >= 21.0 && freq <= 21.45) return '15m';
-  if (freq >= 24.89 && freq <= 24.99) return '12m';
-  if (freq >= 28.0 && freq <= 29.7) return '10m';
-  if (freq >= 50.0 && freq <= 54.0) return '6m';
-  if (freq >= 144.0 && freq <= 148.0) return '2m';
-  if (freq >= 420.0 && freq <= 450.0) return '70cm';
-  return '';
-}
-
-// Extract mode from DXC comment field
-function extractModeFromComment(comment) {
-  if (!comment) return '';
-  const c = comment.toUpperCase();
-  // Common digital modes
-  if (c.includes('FT8')) return 'FT8';
-  if (c.includes('FT4')) return 'FT4';
-  if (c.includes('JS8')) return 'JS8';
-  if (c.includes('RTTY')) return 'RTTY';
-  if (c.includes('PSK31') || c.includes('PSK')) return 'PSK';
-  if (c.includes('JT65')) return 'JT65';
-  if (c.includes('JT9')) return 'JT9';
-  if (c.includes('WSPR')) return 'WSPR';
-  if (c.includes('MFSK')) return 'MFSK';
-  if (c.includes('OLIVIA')) return 'OLIVIA';
-  // CW
-  if (c.includes('CW') || c.includes('MORSE')) return 'CW';
-  // Phone modes
-  if (c.includes('SSB') || c.includes('USB') || c.includes('LSB')) return 'SSB';
-  if (c.includes('FM')) return 'FM';
-  if (c.includes('AM')) return 'AM';
-  return '';
 }
 
 // Haversine distance calculation (km)
@@ -797,40 +754,7 @@ router.get('/spots/dxc', async (req, res) => {
     const raw = await fetchText('https://www.hamqth.com/dxc_csv.php');
     const lines = raw.split('\n').filter(l => l.trim());
 
-    const spots = [];
-    for (const line of lines) {
-      // HamQTH CSV is caret-delimited: callsign^freq^datetime^spotter^comment^lotw^eqsl^continent^band^country^adif_id
-      const parts = line.split('^');
-      if (parts.length < 11) continue;
-
-      const [callsign, freqKhz, datetime, spotter, comment, lotw, eqsl, continent, band, country, adifId] = parts;
-
-      // Convert frequency from kHz to MHz
-      const freqMHz = (parseFloat(freqKhz) / 1000).toFixed(3);
-
-      // Parse datetime (format: YYYY-MM-DD HH:MM:SS)
-      let spotTime = '';
-      if (datetime) {
-        spotTime = datetime.replace(' ', 'T') + 'Z';
-      }
-
-      spots.push({
-        callsign: callsign || '',
-        frequency: freqMHz,
-        mode: extractModeFromComment(comment),
-        spotter: spotter || '',
-        name: country || '',
-        continent: continent || '',
-        band: freqToBandStr(parseFloat(freqMHz)) || band || '',
-        spotTime,
-        comments: comment || '',
-        lotwUser: lotw === '1',
-        eqslUser: eqsl === '1',
-        latitude: null,
-        longitude: null,
-        adifId: adifId || '',
-      });
-    }
+    const spots = lines.map(parseHamqthDxcLine).filter(Boolean);
 
     // Batch lookup coordinates for unique US callsigns
     const usCallsigns = new Set();

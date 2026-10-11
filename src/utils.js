@@ -30,6 +30,7 @@ export function formatAge(spotTime) {
   if (!spotTime) return '';
   const ts = spotTime.endsWith('Z') ? spotTime : spotTime + 'Z';
   const diffMs = Date.now() - new Date(ts).getTime();
+  if (Number.isNaN(diffMs)) return '';
   if (diffMs < 0) return '0s';
   const totalSec = Math.floor(diffMs / 1000);
   const h = Math.floor(totalSec / 3600);

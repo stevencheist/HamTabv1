@@ -51,7 +51,7 @@ const EDGE_CACHE_TTLS = [
   // Tier 1
   { prefix: '/api/solar/frames',        ttl: 3600 },   // 1h
   { prefix: '/api/solar',               ttl: 3600 },   // 1h
-  { prefix: '/api/spacewx/history',     ttl: 900 },    // 15m
+  { prefix: '/api/spacewx/history',     ttl: 300 },    // 5m — wind/Bz are 1-min RTSW data
   { prefix: '/api/satellites/positions', ttl: 15 },     // 15s — real-time
   { prefix: '/api/satellites/passes',   ttl: 300 },     // 5m
   { prefix: '/api/satellites/list',     ttl: 86400 },   // 24h

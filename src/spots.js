@@ -4,7 +4,7 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS } from './constants.js';
-import { esc, fmtTime, formatAge } from './utils.js';
+import { esc, fmtTime, formatAge, parseUtcMs } from './utils.js';
 import { spotId, saveCurrentFilters } from './filters.js';
 import { flyToSpot } from './markers.js';
 
@@ -92,7 +92,7 @@ export function renderSpots() {
     // Handle different column types.
     if (sortCol === 'spotTime' || sortCol === 'age') {
       // Sort by actual spotTime for both time and age columns.
-      return dir * (new Date(a.spotTime) - new Date(b.spotTime));
+      return dir * ((parseUtcMs(a.spotTime) || 0) - (parseUtcMs(b.spotTime) || 0));
     } else if (sortCol === 'frequency') {
       // Numeric sort for frequency.
       return dir * ((parseFloat(a.frequency) || 0) - (parseFloat(b.frequency) || 0));
@@ -123,7 +123,7 @@ export function renderSpots() {
       const td = document.createElement('td');
       if (col.class) td.className = col.class;
       if (col.key === 'spotTime') {
-        const time = spot.spotTime ? new Date(spot.spotTime) : null;
+        const time = spot.spotTime ? new Date(parseUtcMs(spot.spotTime)) : null;
         // Blank, not "Invalid Date", if an upstream feed changes its timestamp format.
         td.textContent = time && !isNaN(time) ? fmtTime(time, { hour: '2-digit', minute: '2-digit' }) : '';
       } else if (col.key === 'age') {

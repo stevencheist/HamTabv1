@@ -26,10 +26,21 @@ export function cacheCallsign(key, value) {
   state.callsignCache[key] = value;
 }
 
+// Parse an upstream timestamp to epoch ms, treating zone-less values as UTC. Spot feeds send
+// "2026-10-11T00:43:38" (POTA) or "2026-10-11 01:14:00" (WSPR); `new Date()` would read those
+// as browser-local time. Returns NaN when unparseable.
+export function parseUtcMs(ts) {
+  if (ts === null || ts === undefined || ts === '') return NaN;
+  if (typeof ts === 'number') return ts;
+  let s = String(ts).trim();
+  if (/^\d{4}-\d{2}-\d{2} \d/.test(s)) s = s.replace(' ', 'T');
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?$/.test(s)) s += 'Z';
+  return Date.parse(s);
+}
+
 export function formatAge(spotTime) {
   if (!spotTime) return '';
-  const ts = spotTime.endsWith('Z') ? spotTime : spotTime + 'Z';
-  const diffMs = Date.now() - new Date(ts).getTime();
+  const diffMs = Date.now() - parseUtcMs(spotTime);
   if (Number.isNaN(diffMs)) return '';
   if (diffMs < 0) return '0s';
   const totalSec = Math.floor(diffMs / 1000);

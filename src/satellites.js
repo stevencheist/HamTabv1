@@ -137,6 +137,17 @@ function updateIssOrbitLine() {
 
 // --- API Fetching ---
 
+// Turn a failed /api/satellites/* response into an Error carrying the server's message
+// (e.g. "N2YO: Invalid API Key!") rather than a bare HTTP status.
+async function satFetchError(resp) {
+  let msg = `HTTP ${resp.status}`;
+  try {
+    const body = await resp.json();
+    if (body && body.error) msg += `: ${body.error}`;
+  } catch (e) { /* Non-JSON error body; keep the status only. */ }
+  return new Error(msg);
+}
+
 export async function fetchSatelliteList() {
   if (!state.n2yoApiKey) return;
 
@@ -144,7 +155,7 @@ export async function fetchSatelliteList() {
     const resp = await fetch('/api/satellites/list', {
       headers: { 'X-Api-Key': state.n2yoApiKey },
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw await satFetchError(resp);
     const data = await resp.json();
 
     state.satellites.available = data;
@@ -169,7 +180,7 @@ export async function fetchSatellitePositions() {
     const resp = await fetch(`/api/satellites/positions?ids=${ids}&lat=${lat}&lon=${lon}&seconds=1`, {
       headers: { 'X-Api-Key': state.n2yoApiKey },
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw await satFetchError(resp);
     const data = await resp.json();
 
     // Merge N2YO positions while preserving ISS position from free endpoint.
@@ -192,7 +203,7 @@ export async function fetchSatellitePasses(satId) {
     const resp = await fetch(`/api/satellites/passes?id=${satId}&lat=${state.myLat}&lon=${state.myLon}&days=2&minEl=10`, {
       headers: { 'X-Api-Key': state.n2yoApiKey },
     });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    if (!resp.ok) throw await satFetchError(resp);
     const data = await resp.json();
 
     state.satellites.passes[satId] = {

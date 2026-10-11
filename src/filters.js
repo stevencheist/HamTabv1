@@ -4,7 +4,7 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { SOURCE_DEFS, US_PRIVILEGES, parseFrequencyMHz, getSubBandDefinitions, getNarrowestSubBand, SUB_BAND_MODE_LABELS } from './constants.js';
-import { cacheCallsign } from './utils.js';
+import { cacheCallsign, parseUtcMs } from './utils.js';
 import { renderSpots } from './spots.js';
 import { renderMarkers } from './markers.js';
 import { distanceMi } from './geo.js';
@@ -107,7 +107,9 @@ export function filterByDistance(spot) {
 export function filterByAge(spot) {
   if (state.activeMaxAge === null) return true;
   if (!spot.spotTime) return true;
-  const ageMs = Date.now() - new Date(spot.spotTime).getTime();
+  const spotMs = parseUtcMs(spot.spotTime);
+  if (Number.isNaN(spotMs)) return true; // Unparseable time: don't hide the spot.
+  const ageMs = Date.now() - spotMs;
   const ageMin = ageMs / 60000; // ms to minutes
   return ageMin <= state.activeMaxAge;
 }

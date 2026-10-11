@@ -89,9 +89,11 @@ export function renderContests() {
   // Sort: active first, then by start date ascending.
   visible.sort((a, b) => {
     if (a._active !== b._active) return a._active ? -1 : 1;
-    const aDate = a.startDate ? new Date(a.startDate).getTime() : 0;
-    const bDate = b.startDate ? new Date(b.startDate).getTime() : 0;
-    return aDate - bDate;
+    // Undated entries sort last so they can't pin themselves above real contests.
+    const aDate = a.startDate ? new Date(a.startDate).getTime() : Infinity;
+    const bDate = b.startDate ? new Date(b.startDate).getTime() : Infinity;
+    if (aDate === bDate) return 0;
+    return aDate < bDate ? -1 : 1;
   });
 
   if (countEl) countEl.textContent = visible.length;

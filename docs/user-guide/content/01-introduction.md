@@ -5,7 +5,7 @@
 HamTab is a real-time amateur radio dashboard designed for portable activators and DX enthusiasts. It aggregates live data from multiple sources into a single, customizable interface:
 
 - **POTA** (Parks on the Air) spots and park information
-- **SOTA** (Summits on the Air) spots and summit data
+- **SOTA** (Summits on the Air) summit references for logging (live SOTA spots are paused)
 - **DX Cluster** spots from global DX networks
 - **PSKReporter** digital mode reception reports
 - **Space weather** and propagation forecasts
@@ -18,7 +18,7 @@ Whether you're hunting activators from home or setting up a portable station, Ha
 
 | Feature | Description |
 |---------|-------------|
-| Live Spots | Real-time POTA, SOTA, DX Cluster, and PSK spots |
+| Live Spots | Real-time POTA, DX Cluster, WWFF, and PSK spots |
 | Interactive Map | Markers, overlays, geodesic paths, satellite footprints |
 | Solar Data | 18 configurable space weather metrics with color coding |
 | Band Conditions | Day/night propagation forecast for HF + 6m with sporadic E detection |

@@ -3,6 +3,31 @@
 // Pure spot-parsing helpers shared by the spot routes (no I/O, so unit tests can load them
 // without starting the MQTT/TCP feeds in routes/spots.js).
 
+// --- Timestamp normalization ---
+// Several upstreams (POTA spotTime, WSPR, SWPC time_tag, ...) send UTC timestamps with no zone
+// suffix. `new Date('2026-10-11T00:43:38')` would read those as server-local time, so normalize
+// everything to an ISO string ending in Z here. Returns '' when the input can't be parsed.
+const NAIVE_TS_RE = /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?))?\s*(Z|UTC|GMT|[+-]\d{2}:?\d{2})?$/i;
+
+function toUtcIso(value) {
+  if (value == null || value === '') return '';
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? '' : value.toISOString();
+  const str = String(value).trim();
+  const m = NAIVE_TS_RE.exec(str);
+  let d;
+  if (m) {
+    let zone = (m[3] || 'Z').toUpperCase();
+    if (zone === 'UTC' || zone === 'GMT') zone = 'Z';
+    d = new Date(`${m[1]}T${m[2] || '00:00:00'}${zone}`);
+  } else if (/(?:Z|GMT|UTC|[+-]\d{2}:?\d{2})$/i.test(str)) {
+    // Other formats that carry an explicit zone (e.g. RFC 2822) are safe for Date to parse.
+    d = new Date(str);
+  } else {
+    return '';
+  }
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
 // Convert frequency to band string
 function freqToBandStr(freqMHz) {
   const freq = parseFloat(freqMHz);
@@ -82,4 +107,70 @@ function parseHamqthDxcLine(line) {
   };
 }
 
-module.exports = { freqToBandStr, extractModeFromComment, parseHamqthDxcLine, hamqthTimeToIso };
+// --- DX cluster / RBN telnet lines ---
+// Format: "DX de <spotter>:     <freq_khz>  <dx_call>       <comment>           <time>Z [grid]"
+// Example: "DX de W3LPL:     14025.0  JA1ABC       CW 10 dB 25 WPM             1423Z"
+// Skimmer spotters are long enough that the colon can touch the frequency:
+//          "DX de JI1HFJ-#:430066.10  JA4WWO/1  CW 12 dB 22 WPM CQ  0142Z"
+const DXC_SPOT_RE = /^DX\s+de\s+(\S+?):\s*([\d.]+)\s+(\S+)\s+(?:(.*?)\s+)?(\d{4})Z(?:\s+[A-R]{2}\d{2})?\s*$/i;
+const FUTURE_SLACK_MS = 5 * 60 * 1000; // 5 min — tolerate clock skew before rolling back a day
+
+function parseDxcSpot(line, now = new Date()) {
+  const m = DXC_SPOT_RE.exec(line);
+  if (!m) return null;
+  const [, spotter, freqKhz, dxCall, comment = '', timeZ] = m;
+  const freqNum = parseFloat(freqKhz) / 1000;
+  if (!Number.isFinite(freqNum)) return null;
+  const hh = parseInt(timeZ.substring(0, 2), 10);
+  const mm = parseInt(timeZ.substring(2, 4), 10);
+  if (hh > 23 || mm > 59) return null;
+  // Lines carry only HHMM; a spot stamped 2359 seen at 0001 belongs to yesterday.
+  let t = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hh, mm);
+  if (t > now.getTime() + FUTURE_SLACK_MS) t -= 24 * 60 * 60 * 1000; // ms per day
+  const freqMHz = freqNum.toFixed(3);
+
+  return {
+    callsign: dxCall.trim(),
+    frequency: freqMHz,
+    mode: extractModeFromComment(comment),
+    spotter,
+    band: freqToBandStr(freqNum),
+    spotTime: new Date(t).toISOString(),
+    comments: comment.trim(),
+    source: 'dxc-tcp',
+    latitude: null,
+    longitude: null,
+  };
+}
+
+// RBN uses the same DX-spot format with dB, WPM and spot type in the comment.
+// Example: "DX de KM3T-2-#:  14040.1  UA3AKO      CW    18 dB  25 WPM  CQ      1423Z"
+const RBN_DB_RE = /(-?\d+)\s*dB/i;
+const RBN_WPM_RE = /(\d+)\s*WPM/i;
+const RBN_TYPE_RE = /\b(CQ|BEACON|NCDXF|DX)\b/i;
+
+function parseRbnSpot(line, now = new Date()) {
+  const base = parseDxcSpot(line, now);
+  if (!base) return null;
+  base.source = 'rbn';
+  const dbMatch = base.comments.match(RBN_DB_RE);
+  const wpmMatch = base.comments.match(RBN_WPM_RE);
+  const typeMatch = base.comments.match(RBN_TYPE_RE);
+  base.db = dbMatch ? parseInt(dbMatch[1], 10) : null;
+  base.wpm = wpmMatch ? parseInt(wpmMatch[1], 10) : null;
+  base.spotType = typeMatch ? typeMatch[1].toUpperCase() : '';
+  base.skimmer = base.spotter; // RBN spotters are CW Skimmer stations.
+  return base;
+}
+
+// Telnet login prompts arrive without a trailing newline ("login: ", "Please enter your call: "),
+// so callers must test the unterminated tail of the buffer, not just complete lines.
+function isLoginPrompt(text) {
+  const t = String(text || '').replace(/\r/g, '').trimEnd();
+  return /(?:login|call(?:sign)?)\s*:$/i.test(t) || /please enter your call/i.test(t);
+}
+
+module.exports = {
+  toUtcIso, freqToBandStr, extractModeFromComment, parseHamqthDxcLine, hamqthTimeToIso,
+  parseDxcSpot, parseRbnSpot, isLoginPrompt,
+};

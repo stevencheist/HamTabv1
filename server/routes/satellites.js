@@ -7,6 +7,13 @@ const satellite = require('satellite.js');
 const { fetchJSON, fetchText } = require('../services/http-fetch');
 const { registerCache } = require('../services/cache-store');
 const { setFreshnessHeaders } = require('../services/freshness-headers');
+const { N2yoError, checkN2yoResponse } = require('../services/n2yo');
+
+// Error body for a failed N2YO call: pass N2YO's own message (e.g. "Invalid API Key!") through so
+// the user can act on it; keep the generic text for network/parse failures.
+function n2yoErrorBody(err, fallback) {
+  return { error: err instanceof N2yoError ? err.message : fallback };
+}
 
 const router = express.Router();
 
@@ -45,7 +52,7 @@ router.get('/satellites/list', async (req, res) => {
     }
 
     const url = `https://api.n2yo.com/rest/v1/satellite/above/0/0/0/90/18/&apiKey=${apiKey}`;
-    const data = await fetchJSON(url);
+    const data = checkN2yoResponse(await fetchJSON(url));
 
     // Extract satellite list from response
     const satellites = (data.above || []).map(s => ({
@@ -60,7 +67,7 @@ router.get('/satellites/list', async (req, res) => {
     res.json(satellites);
   } catch (err) {
     console.error('Error fetching satellite list:', err.message);
-    res.status(502).json({ error: 'Failed to fetch satellite list' });
+    res.status(502).json(n2yoErrorBody(err, 'Failed to fetch satellite list'));
   }
 });
 
@@ -100,12 +107,13 @@ router.get('/satellites/positions', async (req, res) => {
 
   try {
     const positions = {};
+    let firstError = null; // First per-satellite failure, reported if every satellite fails.
 
     // Fetch positions for each satellite in parallel
     await Promise.all(satIds.map(async (satId) => {
       try {
         const url = `https://api.n2yo.com/rest/v1/satellite/positions/${encodeURIComponent(satId)}/${obsLat}/${obsLon}/0/${secs}/&apiKey=${apiKey}`;
-        const data = await fetchJSON(url);
+        const data = checkN2yoResponse(await fetchJSON(url));
         if (data.positions && data.positions.length > 0) {
           const pos = data.positions[0];
           positions[satId] = {
@@ -122,9 +130,13 @@ router.get('/satellites/positions', async (req, res) => {
           };
         }
       } catch (err) {
+        if (!firstError) firstError = err;
         console.error(`Error fetching position for sat ${satId}:`, err.message);
       }
     }));
+
+    // Every lookup failed (bad key, rate limit, outage): report it instead of caching {}.
+    if (firstError && Object.keys(positions).length === 0) throw firstError;
 
     const now = Date.now();
     satPosCache = { data: positions, fetchedAt: now, expires: now + SAT_POS_TTL, key: cacheKey };
@@ -132,7 +144,7 @@ router.get('/satellites/positions', async (req, res) => {
     res.json(positions);
   } catch (err) {
     console.error('Error fetching satellite positions:', err.message);
-    res.status(502).json({ error: 'Failed to fetch satellite positions' });
+    res.status(502).json(n2yoErrorBody(err, 'Failed to fetch satellite positions'));
   }
 });
 
@@ -167,7 +179,7 @@ router.get('/satellites/passes', async (req, res) => {
 
   try {
     const url = `https://api.n2yo.com/rest/v1/satellite/radiopasses/${encodeURIComponent(id)}/${obsLat}/${obsLon}/0/${numDays}/${minElevation}/&apiKey=${apiKey}`;
-    const data = await fetchJSON(url);
+    const data = checkN2yoResponse(await fetchJSON(url));
 
     const passes = (data.passes || []).map(p => ({
       startUTC: p.startUTC,
@@ -201,7 +213,7 @@ router.get('/satellites/passes', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error fetching satellite passes:', err.message);
-    res.status(502).json({ error: 'Failed to fetch satellite passes' });
+    res.status(502).json(n2yoErrorBody(err, 'Failed to fetch satellite passes'));
   }
 });
 
@@ -226,7 +238,7 @@ router.get('/satellites/tle', async (req, res) => {
 
   try {
     const url = `https://api.n2yo.com/rest/v1/satellite/tle/${encodeURIComponent(id)}/&apiKey=${apiKey}`;
-    const data = await fetchJSON(url);
+    const data = checkN2yoResponse(await fetchJSON(url));
 
     const result = {
       satId: data.info?.satid,
@@ -246,7 +258,7 @@ router.get('/satellites/tle', async (req, res) => {
     res.json(result);
   } catch (err) {
     console.error('Error fetching satellite TLE:', err.message);
-    res.status(502).json({ error: 'Failed to fetch satellite TLE' });
+    res.status(502).json(n2yoErrorBody(err, 'Failed to fetch satellite TLE'));
   }
 });
 

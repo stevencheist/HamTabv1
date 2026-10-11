@@ -25,11 +25,17 @@ const AUTO_REFRESH_JOB_ID = 'auto-refresh-countdown';
 let dxcSse = null; // EventSource instance for DXC live TCP
 let rbnSse = null; // EventSource instance for RBN live TCP
 
+// Whether each server-side TCP feed is actually delivering spots (from SSE `status` events).
+// An open EventSource alone isn't enough: the server may be disconnected, waiting for a
+// callsign, or not yet logged in, and HTTP polling has to keep running until spots flow.
+const sseLive = { dxc: false, rbn: false };
+
 function handleSseEvents(source, eventSource, sourceName) {
   eventSource.addEventListener('init', (e) => {
     try {
       const spots = JSON.parse(e.data);
-      if (Array.isArray(spots)) {
+      // An empty ring (feed not live yet) must not wipe spots the HTTP fallback already loaded.
+      if (Array.isArray(spots) && spots.length > 0) {
         state.sourceData[sourceName] = spots;
         if (state.currentSource === sourceName) {
           applyFilter(); renderSpots(); renderMarkers();
@@ -59,9 +65,16 @@ function handleSseEvents(source, eventSource, sourceName) {
 
   eventSource.addEventListener('status', (e) => {
     if (state.debug) console.log(`[SSE:${sourceName}] status:`, e.data);
+    try {
+      const status = JSON.parse(e.data);
+      sseLive[sourceName] = !!(status && status.live);
+    } catch (err) {
+      sseLive[sourceName] = false;
+    }
   });
 
   eventSource.onerror = () => {
+    sseLive[sourceName] = false; // EventSource auto-reconnects; poll until it reports live again.
     if (state.debug) console.warn(`[SSE:${sourceName}] connection error`);
   };
 }
@@ -76,6 +89,7 @@ export function connectDxcSse() {
 
 export function disconnectDxcSse() {
   if (dxcSse) { dxcSse.close(); dxcSse = null; }
+  sseLive.dxc = false;
 }
 
 export function connectRbnSse() {
@@ -88,10 +102,12 @@ export function connectRbnSse() {
 
 export function disconnectRbnSse() {
   if (rbnSse) { rbnSse.close(); rbnSse = null; }
+  sseLive.rbn = false;
 }
 
-export function isDxcSseActive() { return dxcSse !== null; }
-export function isRbnSseActive() { return rbnSse !== null; }
+// True only while the stream is open AND the server reports spots flowing.
+export function isDxcSseActive() { return dxcSse !== null && sseLive.dxc; }
+export function isRbnSseActive() { return rbnSse !== null && sseLive.rbn; }
 
 // --- Source job descriptors ---
 //
@@ -121,7 +137,9 @@ const SOURCE_JOBS = [
       return s;
     }),
   },
-  { id: 'source-sota', source: 'sota', cacheable: false },
+  { id: 'source-sota', source: 'sota', cacheable: false,
+    featureFlag: 'sota_spots', // Off: SOTA spots API unavailable, so don't poll.
+  },
   { id: 'source-dxc',  source: 'dxc',  cacheable: false,
     shortCircuit: () => isDxcSseActive(),
   },

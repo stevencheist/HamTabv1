@@ -3,6 +3,14 @@ name: Publish Docker Image
 on:
   release:
     types: [published]
+  # Releases are created by wiki-release.yml with GITHUB_TOKEN, and GitHub doesn't fire
+  # `release` events from GITHUB_TOKEN. That workflow dispatches this one instead.
+  # Also lets a maintainer rebuild an existing tag from the Actions tab.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to build (e.g. v0.74.1)'
+        required: true
 
 jobs:
   docker:
@@ -14,7 +22,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.tag }}
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -34,7 +42,7 @@ jobs:
         with:
           images: stevencheist/hamtab
           tags: |
-            type=semver,pattern={{version}}
+            type=semver,pattern={{version}},value=${{ github.event.release.tag_name || inputs.tag }}
             type=raw,value=latest
 
       - name: Build and push

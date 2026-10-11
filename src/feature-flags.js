@@ -29,7 +29,7 @@ const FEATURE_FLAGS = {
   rbn_source: 'dev:KG5DPV',  // Reverse Beacon Network source tab (v0.70.0)
   dxc_live_tcp: 'dev:KG5DPV', // DX Cluster live TCP/SSE feed (v0.70.0)
   qso_logging: 'test',       // Log QSOs in HamTab + ADIF export (HT-299, v0.71.0; test v0.73.1)
-  daylight_theme: 'test',    // Daylight light theme + Auto (follow OS light/dark) (v0.74.0)
+  daylight_theme: 'release', // Daylight light theme + Auto (follow OS light/dark) (v0.74.0)
 };
 
 // --- Check if a feature is visible to the current user ---

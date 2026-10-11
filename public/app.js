@@ -542,7 +542,7 @@
         // DX Cluster live TCP/SSE feed (v0.70.0)
         qso_logging: "test",
         // Log QSOs in HamTab + ADIF export (HT-299, v0.71.0; test v0.73.1)
-        daylight_theme: "test"
+        daylight_theme: "release"
         // Daylight light theme + Auto (follow OS light/dark) (v0.74.0)
       };
     }
@@ -7708,7 +7708,7 @@
     const now = /* @__PURE__ */ new Date();
     const outs = [];
     for (const g of chosen) {
-      const out = writeADIF(g.records, { programVersion: "0.73.4", now });
+      const out = writeADIF(g.records, { programVersion: "0.74.0", now });
       const call = g.records[0].STATION_CALLSIGN || g.records[0].OPERATOR || state_default.myCallsign;
       downloadText(activationFilename(call, g.ref, g.date), out.text);
       outs.push(out);
@@ -7739,7 +7739,7 @@
     const records = scopes[scope];
     if (records.length === 0) return;
     const now = /* @__PURE__ */ new Date();
-    const out = writeADIF(records, { programVersion: "0.73.4", now });
+    const out = writeADIF(records, { programVersion: "0.74.0", now });
     downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
     await finishExport(records, [out], now);
   }
@@ -25793,8 +25793,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.73.4";
-    $("aboutVersion").textContent = "0.73.4";
+    $("splashVersion").textContent = "0.74.0";
+    $("aboutVersion").textContent = "0.74.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {

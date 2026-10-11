@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 import state from './state.js';
+import { isLightTheme } from './themes.js';
 import { renderHeatmapCanvas, clearHeatmap, renderHeatmapLegend, clearHeatmapLegend } from './rel-heatmap.js';
 import { renderWsprHeatmapCanvas, clearWsprHeatmap, renderWsprHeatmapLegend, clearWsprHeatmapLegend } from './wspr-heatmap.js';
 
@@ -326,12 +327,17 @@ export function renderTropicsLines() {
 
   tropicsLayer = L.layerGroup().addTo(state.map);
 
+  // Pastel lines suit dark tiles; on light tiles they wash out, so use deeper tones.
+  const light = isLightTheme();
+  const polar = light ? '#0b5394' : '#6ec6ff';
+  const tropic = light ? '#b35c00' : '#f0a050';
+  const equator = light ? '#8a6d00' : '#f0d060';
   const lines = [
-    { lat: 66.5634,  name: 'Arctic Circle',        color: '#6ec6ff', dash: '8,6' },
-    { lat: 23.4362,  name: 'Tropic of Cancer',      color: '#f0a050', dash: '8,6' },
-    { lat: 0,        name: 'Equator',                color: '#f0d060', dash: null },
-    { lat: -23.4362, name: 'Tropic of Capricorn',    color: '#f0a050', dash: '8,6' },
-    { lat: -66.5634, name: 'Antarctic Circle',       color: '#6ec6ff', dash: '8,6' },
+    { lat: 66.5634,  name: 'Arctic Circle',        color: polar,   dash: '8,6' },
+    { lat: 23.4362,  name: 'Tropic of Cancer',      color: tropic,  dash: '8,6' },
+    { lat: 0,        name: 'Equator',                color: equator, dash: null },
+    { lat: -23.4362, name: 'Tropic of Capricorn',    color: tropic,  dash: '8,6' },
+    { lat: -66.5634, name: 'Antarctic Circle',       color: polar,   dash: '8,6' },
   ];
 
   const bounds = state.map.getBounds();

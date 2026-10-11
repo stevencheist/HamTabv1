@@ -509,6 +509,47 @@
     }
   });
 
+  // src/feature-flags.js
+  function isFeatureVisible(featureName) {
+    const tier = FEATURE_FLAGS[featureName];
+    if (!tier) return true;
+    if (tier === "release") return true;
+    const callsign = (state_default.myCallsign || "").toUpperCase();
+    if (tier === "test") {
+      return DEV_CALLSIGNS.includes(callsign);
+    }
+    if (tier.startsWith("dev:")) {
+      const devCall = tier.slice(4).toUpperCase();
+      return callsign === devCall;
+    }
+    return false;
+  }
+  var DEV_CALLSIGNS, FEATURE_FLAGS;
+  var init_feature_flags = __esm({
+    "src/feature-flags.js"() {
+      init_state();
+      DEV_CALLSIGNS = ["KG5DPV", "KJ5MMO"];
+      FEATURE_FLAGS = {
+        preset_profiles: "test",
+        // callsign-gated SSB presets (v0.68.0)
+        pota_hunter: "test",
+        // POTA hunting helper — confirm QSO + spot reporter (v0.68.7)
+        pota_self_spot: "dev:KJ5MMO",
+        // POTA activator self-spot from On-Air widget — one-click (v0.70.3)
+        band_score: "dev:KG5DPV",
+        // Band Opportunity Score widget (v0.69.0)
+        rbn_source: "dev:KG5DPV",
+        // Reverse Beacon Network source tab (v0.70.0)
+        dxc_live_tcp: "dev:KG5DPV",
+        // DX Cluster live TCP/SSE feed (v0.70.0)
+        qso_logging: "test",
+        // Log QSOs in HamTab + ADIF export (HT-299, v0.71.0; test v0.73.1)
+        daylight_theme: "release"
+        // Daylight light theme + Auto (follow OS light/dark) (v0.74.0)
+      };
+    }
+  });
+
   // src/geo.js
   var geo_exports = {};
   __export(geo_exports, {
@@ -722,6 +763,7 @@
     calculateBandReliability: () => calculateBandReliability,
     calculateMUF: () => calculateMUF,
     calculateSolarZenith: () => calculateSolarZenith,
+    cellTextColor: () => cellTextColor,
     conditionColorClass: () => conditionColorClass,
     conditionLabel: () => conditionLabel,
     dayFraction: () => dayFraction,
@@ -898,7 +940,7 @@
     return map[condition] || "Unknown";
   }
   function getReliabilityColor(rel) {
-    if (rel < 5) return "rgba(26, 26, 26, 0.6)";
+    if (rel < 5) return isLightTheme() ? "rgba(0, 0, 0, 0.08)" : "rgba(26, 26, 26, 0.6)";
     const t = Math.max(0, Math.min(1, (rel - 5) / 90));
     if (state_default.grayscale) {
       const light2 = 15 + t * 70;
@@ -970,7 +1012,34 @@
     });
   }
   function cellTextColor(reliability) {
-    return reliability < 40 ? "#fff" : "#1a1a1a";
+    if (reliability < 5) return isLightTheme() ? "#000" : "#fff";
+    const bg = hslToRgb(getReliabilityColor(reliability));
+    if (!bg) return reliability < 40 ? "#fff" : "#000";
+    const lin = (v) => {
+      v /= 255;
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+    };
+    const lum = 0.2126 * lin(bg[0]) + 0.7152 * lin(bg[1]) + 0.0722 * lin(bg[2]);
+    const vsWhite = 1.05 / (lum + 0.05);
+    const vsBlack = (lum + 0.05) / 0.05;
+    return vsWhite >= vsBlack ? "#fff" : "#000";
+  }
+  function hslToRgb(str) {
+    const m = /^hsl\(([\d.]+),\s*([\d.]+)%,\s*([\d.]+)%\)$/.exec(str);
+    if (!m) return null;
+    const h = +m[1] / 360, s = +m[2] / 100, l = +m[3] / 100;
+    if (s === 0) return [l * 255, l * 255, l * 255];
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    const hue = (t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1 / 6) return p + (q - p) * 6 * t;
+      if (t < 1 / 2) return q;
+      if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+      return p;
+    };
+    return [hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255];
   }
   function vhfConditionColor(condition) {
     const c = condition.toLowerCase();
@@ -1100,6 +1169,7 @@
       init_state();
       init_dom();
       init_utils();
+      init_themes();
       HF_BANDS = [
         { name: "160m", freqMHz: 1.9, label: "160m" },
         { name: "80m", freqMHz: 3.7, label: "80m" },
@@ -1372,45 +1442,6 @@
         ["Armenia", 38.84, 43.45, 41.3, 46.63],
         ["Azerbaijan", 38.39, 44.79, 41.91, 50.37]
       ];
-    }
-  });
-
-  // src/feature-flags.js
-  function isFeatureVisible(featureName) {
-    const tier = FEATURE_FLAGS[featureName];
-    if (!tier) return true;
-    if (tier === "release") return true;
-    const callsign = (state_default.myCallsign || "").toUpperCase();
-    if (tier === "test") {
-      return DEV_CALLSIGNS.includes(callsign);
-    }
-    if (tier.startsWith("dev:")) {
-      const devCall = tier.slice(4).toUpperCase();
-      return callsign === devCall;
-    }
-    return false;
-  }
-  var DEV_CALLSIGNS, FEATURE_FLAGS;
-  var init_feature_flags = __esm({
-    "src/feature-flags.js"() {
-      init_state();
-      DEV_CALLSIGNS = ["KG5DPV", "KJ5MMO"];
-      FEATURE_FLAGS = {
-        preset_profiles: "test",
-        // callsign-gated SSB presets (v0.68.0)
-        pota_hunter: "test",
-        // POTA hunting helper — confirm QSO + spot reporter (v0.68.7)
-        pota_self_spot: "dev:KJ5MMO",
-        // POTA activator self-spot from On-Air widget — one-click (v0.70.3)
-        band_score: "dev:KG5DPV",
-        // Band Opportunity Score widget (v0.69.0)
-        rbn_source: "dev:KG5DPV",
-        // Reverse Beacon Network source tab (v0.70.0)
-        dxc_live_tcp: "dev:KG5DPV",
-        // DX Cluster live TCP/SSE feed (v0.70.0)
-        qso_logging: "test"
-        // Log QSOs in HamTab + ADIF export (HT-299, v0.71.0; test v0.73.1)
-      };
     }
   });
 
@@ -7679,7 +7710,7 @@
     const now = /* @__PURE__ */ new Date();
     const outs = [];
     for (const g of chosen) {
-      const out = writeADIF(g.records, { programVersion: "0.73.4", now });
+      const out = writeADIF(g.records, { programVersion: "0.74.0", now });
       const call = g.records[0].STATION_CALLSIGN || g.records[0].OPERATOR || state_default.myCallsign;
       downloadText(activationFilename(call, g.ref, g.date), out.text);
       outs.push(out);
@@ -7710,7 +7741,7 @@
     const records = scopes[scope];
     if (records.length === 0) return;
     const now = /* @__PURE__ */ new Date();
-    const out = writeADIF(records, { programVersion: "0.73.4", now });
+    const out = writeADIF(records, { programVersion: "0.74.0", now });
     downloadText(exportFilename(state_default.myCallsign, scope, now), out.text);
     await finishExport(records, [out], now);
   }
@@ -11139,7 +11170,7 @@
       ${dirLine}
       ${distLine}
       <div class="popup-time">Local time: ${esc(localTime)}</div>
-      ${spot.comments ? '<div style="margin-top:4px;font-size:0.78rem;color:#8899aa;">' + esc(spot.comments) + "</div>" : ""}
+      ${spot.comments ? '<div style="margin-top:4px;font-size:0.78rem;color:var(--text-dim);">' + esc(spot.comments) + "</div>" : ""}
     `);
       marker.on("click", () => {
         selectSpot(sid);
@@ -14766,7 +14797,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     rel *= distMod;
     return Math.max(0, Math.min(100, Math.round(rel)));
   }
-  function hslToRgb(h, s, l) {
+  function hslToRgb2(h, s, l) {
     const c = (1 - Math.abs(2 * l - 1)) * s;
     const x = c * (1 - Math.abs(h / 60 % 2 - 1));
     const m = l - c / 2;
@@ -14804,7 +14835,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
       return { r: v, g: v, b: v, a: Math.round(alpha) };
     }
     const hue = (Math.min(rel, 100) - 3) / 97 * 120;
-    const { r, g, b } = hslToRgb(hue, 1, 0.5);
+    const { r, g, b } = hslToRgb2(hue, 1, 0.5);
     return { r, g, b, a: Math.round(alpha) };
   }
   function cellSizeForZoom(zoom) {
@@ -14942,7 +14973,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     if (zoom <= 7) return 1;
     return 0.5;
   }
-  function hslToRgb2(h, s, l) {
+  function hslToRgb3(h, s, l) {
     const c = (1 - Math.abs(2 * l - 1)) * s;
     const x = c * (1 - Math.abs(h / 60 % 2 - 1));
     const m = l - c / 2;
@@ -14975,7 +15006,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   function snrToRGBA(snr) {
     const clamped = Math.max(SNR_MIN, Math.min(SNR_MAX, snr));
     const hue = (clamped - SNR_MIN) / (SNR_MAX - SNR_MIN) * 120;
-    const { r, g, b } = hslToRgb2(hue, 1, 0.5);
+    const { r, g, b } = hslToRgb3(hue, 1, 0.5);
     const alpha = Math.min(210, 140 + (clamped - SNR_MIN) / (SNR_MAX - SNR_MIN) * 70);
     return { r, g, b, a: Math.round(alpha) };
   }
@@ -15436,12 +15467,16 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
     }
     if (!state_default.mapOverlays.tropicsLines) return;
     tropicsLayer = L.layerGroup().addTo(state_default.map);
+    const light = isLightTheme();
+    const polar = light ? "#0b5394" : "#6ec6ff";
+    const tropic = light ? "#b35c00" : "#f0a050";
+    const equator = light ? "#8a6d00" : "#f0d060";
     const lines = [
-      { lat: 66.5634, name: "Arctic Circle", color: "#6ec6ff", dash: "8,6" },
-      { lat: 23.4362, name: "Tropic of Cancer", color: "#f0a050", dash: "8,6" },
-      { lat: 0, name: "Equator", color: "#f0d060", dash: null },
-      { lat: -23.4362, name: "Tropic of Capricorn", color: "#f0a050", dash: "8,6" },
-      { lat: -66.5634, name: "Antarctic Circle", color: "#6ec6ff", dash: "8,6" }
+      { lat: 66.5634, name: "Arctic Circle", color: polar, dash: "8,6" },
+      { lat: 23.4362, name: "Tropic of Cancer", color: tropic, dash: "8,6" },
+      { lat: 0, name: "Equator", color: equator, dash: null },
+      { lat: -23.4362, name: "Tropic of Capricorn", color: tropic, dash: "8,6" },
+      { lat: -66.5634, name: "Antarctic Circle", color: polar, dash: "8,6" }
     ];
     const bounds = state_default.map.getBounds();
     const labelLon = bounds.getWest() + (bounds.getEast() - bounds.getWest()) * 0.02;
@@ -15574,6 +15609,7 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   var init_map_overlays = __esm({
     "src/map-overlays.js"() {
       init_state();
+      init_themes();
       init_rel_heatmap();
       init_wspr_heatmap();
       mufImageLayer = null;
@@ -15694,6 +15730,9 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
   function withCartoKey(url) {
     return state_default.cartoApiKey ? url + "?key=" + encodeURIComponent(state_default.cartoApiKey) : url;
   }
+  function tileUrlForTheme(themeId) {
+    return themeId === "hamclock" || themeId === "daylight" ? TILE_VOYAGER : TILE_DARK;
+  }
   function initMap() {
     const hasLeaflet = typeof L !== "undefined" && L.map;
     if (!hasLeaflet) return;
@@ -15742,10 +15781,16 @@ Click to cycle \u2022 Shift+click to reset to Normal`;
         // added manually for position control
       }).setView([39.8, -98.5], 4);
       L.control.zoom({ position: isMobile ? "bottomright" : "topleft" }).addTo(state_default.map);
-      state_default.tileLayer = L.tileLayer(withCartoKey(TILE_DARK), {
+      state_default.tileLayer = L.tileLayer(withCartoKey(tileUrlForTheme(getEffectiveThemeId())), {
         attribution: "&copy; OpenStreetMap &copy; CARTO",
         maxZoom: 19
       }).addTo(state_default.map);
+      window.addEventListener("hamtab:themechange", () => {
+        if (state_default.mapOverlays.tropicsLines) renderTropicsLines();
+        for (const marker of Object.values(state_default.beaconMarkers)) {
+          marker.setStyle({ color: beaconStroke(marker.options.fillColor) });
+        }
+      });
       state_default.clusterGroup = L.markerClusterGroup({
         maxClusterRadius: 40,
         // px — merge markers within 40px; keeps clusters tight on a dark basemap
@@ -15887,6 +15932,9 @@ ${dec.toFixed(1)}\xB0, ${moonLon.toFixed(1)}\xB0`;
     }
     state_default.moonMarker.setTooltipContent(tooltip);
   }
+  function beaconStroke(color) {
+    return isLightTheme() ? "#1a1a1a" : color;
+  }
   function updateBeaconMarkers() {
     if (!state_default.map) return;
     const active2 = getActiveBeacons();
@@ -15899,7 +15947,7 @@ ${dec.toFixed(1)}\xB0, ${moonLon.toFixed(1)}\xB0`;
       const color = BEACON_COLORS[freq] || "#ffffff";
       const marker = L.circleMarker([beacon.lat, beacon.lon], {
         radius: 5,
-        color,
+        color: beaconStroke(color),
         fillColor: color,
         fillOpacity: 0.8,
         weight: 1,
@@ -15913,7 +15961,7 @@ ${beacon.location}`);
   }
   function swapMapTiles(themeId) {
     if (!state_default.tileLayer) return;
-    const url = withCartoKey(themeId === "hamclock" ? TILE_VOYAGER : TILE_DARK);
+    const url = withCartoKey(tileUrlForTheme(themeId));
     state_default.tileLayer.setUrl(url);
   }
   var TILE_DARK, TILE_VOYAGER, BEACON_COLORS;
@@ -15926,6 +15974,7 @@ ${beacon.location}`);
       init_beacons();
       init_constants();
       init_country_bounds();
+      init_themes();
       TILE_DARK = "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png";
       TILE_VOYAGER = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
       BEACON_COLORS = {
@@ -15940,6 +15989,365 @@ ${beacon.location}`);
         28200: "#4488ff"
         // 10m — blue
       };
+    }
+  });
+
+  // src/themes.js
+  function lightThemesVisible() {
+    return isFeatureVisible("daylight_theme");
+  }
+  function systemPrefersLight() {
+    try {
+      return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia(LIGHT_QUERY).matches;
+    } catch (e) {
+      return false;
+    }
+  }
+  function resolveThemeId(themeId, prefersLight = systemPrefersLight(), lightAllowed = lightThemesVisible()) {
+    if (themeId === AUTO_ID) return lightAllowed && prefersLight ? "daylight" : "default";
+    if (!THEMES[themeId]) return "default";
+    if (themeId === "daylight" && !lightAllowed) return "default";
+    return themeId;
+  }
+  function isValidThemeId(themeId) {
+    return themeId === AUTO_ID || Object.prototype.hasOwnProperty.call(THEMES, themeId);
+  }
+  function getThemeList() {
+    const showLight = lightThemesVisible();
+    const list = Object.values(THEMES).filter((t) => showLight || t.id !== "daylight").map((t) => ({ id: t.id, name: t.name, description: t.description }));
+    if (showLight) list.unshift({ ...AUTO_THEME });
+    return list;
+  }
+  function getCurrentThemeId() {
+    if (activeThemeId === AUTO_ID && !lightThemesVisible()) return effectiveThemeId;
+    return activeThemeId;
+  }
+  function getEffectiveThemeId() {
+    return effectiveThemeId;
+  }
+  function isLightTheme() {
+    return !!(THEMES[effectiveThemeId] && THEMES[effectiveThemeId].light);
+  }
+  function paintTheme(paletteId) {
+    const theme = THEMES[paletteId];
+    if (!theme) return;
+    const root = document.documentElement;
+    for (const [prop, value] of Object.entries(theme.vars)) {
+      root.style.setProperty(prop, value);
+    }
+    for (const t of Object.values(THEMES)) {
+      if (t.bodyClass) document.body.classList.remove(t.bodyClass);
+    }
+    if (theme.bodyClass) document.body.classList.add(theme.bodyClass);
+    const changed = effectiveThemeId !== paletteId;
+    effectiveThemeId = paletteId;
+    Promise.resolve().then(() => (init_map_init(), map_init_exports)).then((m) => m.swapMapTiles(paletteId)).catch(() => {
+    });
+    if (changed && typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("hamtab:themechange", { detail: { themeId: paletteId } }));
+    }
+  }
+  function attachSystemListener() {
+    if (mediaListenerAttached) return;
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    try {
+      const mql = window.matchMedia(LIGHT_QUERY);
+      const onChange = () => {
+        if (activeThemeId === AUTO_ID) paintTheme(resolveThemeId(AUTO_ID));
+      };
+      if (typeof mql.addEventListener === "function") mql.addEventListener("change", onChange);
+      else if (typeof mql.addListener === "function") mql.addListener(onChange);
+      mediaListenerAttached = true;
+    } catch (e) {
+    }
+  }
+  function applyTheme(themeId) {
+    if (!isValidThemeId(themeId)) return;
+    activeThemeId = themeId;
+    localStorage.setItem(STORAGE_KEY, themeId);
+    paintTheme(resolveThemeId(themeId));
+  }
+  function initTheme() {
+    const savedId = localStorage.getItem(STORAGE_KEY) || AUTO_ID;
+    const themeId = isValidThemeId(savedId) ? savedId : AUTO_ID;
+    applyTheme(themeId);
+    attachSystemListener();
+    if (localStorage.getItem("hamtab_slim_header") === "true") {
+      document.body.classList.add("slim-header");
+    }
+    if (localStorage.getItem("hamtab_grayscale") === "true") {
+      document.body.classList.add("grayscale");
+    }
+    const savedScale = parseFloat(localStorage.getItem("hamtab_text_scale"));
+    if (savedScale && savedScale !== 1) {
+      document.documentElement.style.fontSize = 16 * savedScale + "px";
+    }
+  }
+  function currentThemeSupportsGrid() {
+    const theme = THEMES[effectiveThemeId];
+    return theme ? theme.supportsGrid !== false : true;
+  }
+  function getThemeSwatchColors(themeId) {
+    const theme = THEMES[resolveThemeId(themeId)];
+    if (!theme) return [];
+    return [
+      theme.vars["--bg"],
+      theme.vars["--surface2"],
+      theme.vars["--accent"],
+      theme.vars["--text"],
+      theme.vars["--border"]
+    ];
+  }
+  var STORAGE_KEY, AUTO_ID, LIGHT_QUERY, THEMES, AUTO_THEME, activeThemeId, effectiveThemeId, mediaListenerAttached;
+  var init_themes = __esm({
+    "src/themes.js"() {
+      init_feature_flags();
+      STORAGE_KEY = "hamtab_theme";
+      AUTO_ID = "auto";
+      LIGHT_QUERY = "(prefers-color-scheme: light)";
+      THEMES = {
+        default: {
+          id: "default",
+          name: "Default",
+          description: "Modern dark theme",
+          bodyClass: "",
+          supportsGrid: true,
+          vars: {
+            "--bg": "#1a1a2e",
+            "--surface": "#16213e",
+            "--surface2": "#0f3460",
+            "--surface3": "#1a4a7a",
+            "--accent": "#e94560",
+            "--text": "#e0e0e0",
+            "--text-dim": "#8899aa",
+            "--green": "#00c853",
+            "--yellow": "#ffd600",
+            "--red": "#ff1744",
+            "--orange": "#ff9100",
+            "--border": "#2a3a5e",
+            "--bg-secondary": "#1a1a2e",
+            "--bg-tertiary": "#252540",
+            "--de-color": "#4fc3f7",
+            // light blue — DE panel accent
+            "--dx-color": "#81c784"
+            // light green — DX panel accent
+          }
+        },
+        daylight: {
+          id: "daylight",
+          name: "Daylight",
+          description: "High-contrast light for outdoor/sunlight",
+          bodyClass: "theme-daylight",
+          supportsGrid: true,
+          light: true,
+          // light palette — JS-drawn map overlays and cells switch to darker colors
+          vars: {
+            // Every text color below is >= 4.5:1 on --surface, --bg and --surface2
+            // so the dashboard stays legible on a sunlit laptop or tablet screen.
+            "--bg": "#eef1f5",
+            // page background — off-white cuts glare
+            "--surface": "#ffffff",
+            // widget bodies — max contrast for text
+            "--surface2": "#dde4ec",
+            // headers, buttons — visible step from white
+            "--surface3": "#c7d2de",
+            // hover/active fills
+            "--accent": "#b0123a",
+            // deep crimson — default accent, darkened for white
+            "--text": "#0b0f14",
+            // near-black
+            "--text-dim": "#3f4a56",
+            // slate — still ~7:1 on white
+            "--green": "#056b26",
+            // dark green — readable on white
+            "--yellow": "#7a5300",
+            // dark amber — pure yellow vanishes on white
+            "--red": "#b80016",
+            // dark red
+            "--orange": "#9c3d00",
+            // burnt orange
+            "--border": "#8995a3",
+            // >= 3:1 against white so panel edges show in sun
+            "--bg-secondary": "#f6f8fa",
+            "--bg-tertiary": "#e6ebf1",
+            "--de-color": "#0050a0",
+            // dark blue — DE panel accent
+            "--dx-color": "#1b6b1f"
+            // dark green — DX panel accent
+          }
+        },
+        lcars: {
+          id: "lcars",
+          name: "LCARS",
+          description: "Star Trek TNG inspired",
+          bodyClass: "theme-lcars",
+          supportsGrid: true,
+          vars: {
+            "--bg": "#000000",
+            "--surface": "#0a0a14",
+            "--surface2": "#9999CC",
+            // blue-bell (Drexler palette)
+            "--surface3": "#CC99CC",
+            // lilac
+            "--accent": "#FFCC66",
+            // golden-tanoi — signature LCARS gold
+            "--text": "#FF9966",
+            // orange-peel
+            "--text-dim": "#CCBBDD",
+            // light-lavender (brighter for contrast on dark bg)
+            "--green": "#99CCFF",
+            // anakiwa — LCARS uses blue for "go"
+            "--yellow": "#FFFF99",
+            // pale-canary
+            "--red": "#CC6666",
+            // chestnut-rose
+            "--orange": "#FF9933",
+            // neon-carrot
+            "--border": "#9999CC",
+            // blue-bell (matches surface2)
+            "--bg-secondary": "#0a0a14",
+            "--bg-tertiary": "#111122",
+            "--de-color": "#ff9900",
+            // LCARS gold — DE panel accent
+            "--dx-color": "#99ccff"
+            // LCARS blue — DX panel accent
+          }
+        },
+        terminal: {
+          id: "terminal",
+          name: "Terminal",
+          description: "Retro terminal style",
+          bodyClass: "theme-terminal",
+          supportsGrid: true,
+          vars: {
+            "--bg": "#000000",
+            "--surface": "#0a1a0a",
+            "--surface2": "#0d2b0d",
+            "--surface3": "#143014",
+            "--accent": "#00cc66",
+            "--text": "#00ff88",
+            "--text-dim": "#338855",
+            "--green": "#00ff44",
+            "--yellow": "#cccc00",
+            "--red": "#ff3333",
+            "--orange": "#ff8800",
+            "--border": "#1a4a2a",
+            "--bg-secondary": "#0a1a0a",
+            "--bg-tertiary": "#0d200d",
+            "--de-color": "#00ff00",
+            // green — DE panel accent
+            "--dx-color": "#00ff00"
+            // green — DX panel accent
+          }
+        },
+        hamclock: {
+          id: "hamclock",
+          name: "HamClock",
+          description: "Inspired by HamClock by WB0OEW",
+          bodyClass: "theme-hamclock",
+          supportsGrid: true,
+          vars: {
+            "--bg": "#000000",
+            "--surface": "#000000",
+            // pure black — real HamClock has no surface variation
+            "--surface2": "#0a0a0a",
+            "--surface3": "#141414",
+            "--accent": "#00ffff",
+            // cyan — HamClock uses cyan for headings/labels
+            "--text": "#e0e0e0",
+            // white-ish — HamClock main text
+            "--text-dim": "#888899",
+            "--green": "#00ff00",
+            // bright green — active/positive values
+            "--yellow": "#ffff00",
+            // yellow — warnings, highlighted values
+            "--red": "#ff0000",
+            // red — alerts
+            "--orange": "#e8a000",
+            // warm amber — matches real HamClock orange
+            "--border": "#333333",
+            // subtle separator — real HamClock uses very thin borders
+            "--bg-secondary": "#000000",
+            "--bg-tertiary": "#0a0a0a",
+            "--de-color": "#e8a000",
+            // orange — DE panel accent (matches real HamClock)
+            "--dx-color": "#00ff00"
+            // bright green — DX panel accent
+          }
+        },
+        radioface: {
+          id: "radioface",
+          name: "Radio Face",
+          description: "Modern transceiver LCD",
+          bodyClass: "theme-radioface",
+          supportsGrid: true,
+          vars: {
+            "--bg": "#060a12",
+            // very dark blue-black chassis
+            "--surface": "#0c1220",
+            // dark panel
+            "--surface2": "#141e30",
+            // metallic dark blue
+            "--surface3": "#1c2840",
+            // lighter metallic
+            "--accent": "#00e5ff",
+            // bright cyan — LCD glow
+            "--text": "#d0e0f0",
+            // cool white
+            "--text-dim": "#4a6080",
+            // muted steel blue
+            "--green": "#00c853",
+            // bright green — RX
+            "--yellow": "#ffd600",
+            // amber — warnings, mode
+            "--red": "#ff1744",
+            // bright red — TX, alerts
+            "--orange": "#ff9100",
+            // orange — power, caution
+            "--border": "#1a2a44",
+            // dark metallic border
+            "--bg-secondary": "#060a12",
+            "--bg-tertiary": "#080e18",
+            "--de-color": "#00e5ff",
+            // cyan — DE panel accent
+            "--dx-color": "#ff9100"
+            // orange — DX panel accent
+          }
+        },
+        accessibility: {
+          id: "accessibility",
+          name: "Accessible",
+          description: "High contrast + text scale",
+          bodyClass: "high-contrast",
+          supportsGrid: true,
+          vars: {
+            "--bg": "#000000",
+            "--surface": "#111111",
+            "--surface2": "#222222",
+            "--surface3": "#333333",
+            "--accent": "#00ccff",
+            "--text": "#ffffff",
+            "--text-dim": "#cccccc",
+            "--green": "#00ff55",
+            "--yellow": "#ffee00",
+            "--red": "#ff4444",
+            "--orange": "#ff9900",
+            "--border": "#666666",
+            "--bg-secondary": "#0a0a0a",
+            "--bg-tertiary": "#1a1a1a",
+            "--de-color": "#00ccff",
+            "--dx-color": "#00ff55"
+          }
+        }
+      };
+      AUTO_THEME = {
+        id: AUTO_ID,
+        name: "Auto",
+        description: "Match system light/dark"
+      };
+      activeThemeId = AUTO_ID;
+      effectiveThemeId = "default";
+      mediaListenerAttached = false;
     }
   });
 
@@ -15968,260 +16376,16 @@ ${beacon.location}`);
     }
     localStorage.setItem("hamtab_migration_v2", "1");
   }
-
-  // src/themes.js
-  var STORAGE_KEY = "hamtab_theme";
-  var THEMES = {
-    default: {
-      id: "default",
-      name: "Default",
-      description: "Modern dark theme",
-      bodyClass: "",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#1a1a2e",
-        "--surface": "#16213e",
-        "--surface2": "#0f3460",
-        "--surface3": "#1a4a7a",
-        "--accent": "#e94560",
-        "--text": "#e0e0e0",
-        "--text-dim": "#8899aa",
-        "--green": "#00c853",
-        "--yellow": "#ffd600",
-        "--red": "#ff1744",
-        "--orange": "#ff9100",
-        "--border": "#2a3a5e",
-        "--bg-secondary": "#1a1a2e",
-        "--bg-tertiary": "#252540",
-        "--de-color": "#4fc3f7",
-        // light blue — DE panel accent
-        "--dx-color": "#81c784"
-        // light green — DX panel accent
-      }
-    },
-    lcars: {
-      id: "lcars",
-      name: "LCARS",
-      description: "Star Trek TNG inspired",
-      bodyClass: "theme-lcars",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#000000",
-        "--surface": "#0a0a14",
-        "--surface2": "#9999CC",
-        // blue-bell (Drexler palette)
-        "--surface3": "#CC99CC",
-        // lilac
-        "--accent": "#FFCC66",
-        // golden-tanoi — signature LCARS gold
-        "--text": "#FF9966",
-        // orange-peel
-        "--text-dim": "#CCBBDD",
-        // light-lavender (brighter for contrast on dark bg)
-        "--green": "#99CCFF",
-        // anakiwa — LCARS uses blue for "go"
-        "--yellow": "#FFFF99",
-        // pale-canary
-        "--red": "#CC6666",
-        // chestnut-rose
-        "--orange": "#FF9933",
-        // neon-carrot
-        "--border": "#9999CC",
-        // blue-bell (matches surface2)
-        "--bg-secondary": "#0a0a14",
-        "--bg-tertiary": "#111122",
-        "--de-color": "#ff9900",
-        // LCARS gold — DE panel accent
-        "--dx-color": "#99ccff"
-        // LCARS blue — DX panel accent
-      }
-    },
-    terminal: {
-      id: "terminal",
-      name: "Terminal",
-      description: "Retro terminal style",
-      bodyClass: "theme-terminal",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#000000",
-        "--surface": "#0a1a0a",
-        "--surface2": "#0d2b0d",
-        "--surface3": "#143014",
-        "--accent": "#00cc66",
-        "--text": "#00ff88",
-        "--text-dim": "#338855",
-        "--green": "#00ff44",
-        "--yellow": "#cccc00",
-        "--red": "#ff3333",
-        "--orange": "#ff8800",
-        "--border": "#1a4a2a",
-        "--bg-secondary": "#0a1a0a",
-        "--bg-tertiary": "#0d200d",
-        "--de-color": "#00ff00",
-        // green — DE panel accent
-        "--dx-color": "#00ff00"
-        // green — DX panel accent
-      }
-    },
-    hamclock: {
-      id: "hamclock",
-      name: "HamClock",
-      description: "Inspired by HamClock by WB0OEW",
-      bodyClass: "theme-hamclock",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#000000",
-        "--surface": "#000000",
-        // pure black — real HamClock has no surface variation
-        "--surface2": "#0a0a0a",
-        "--surface3": "#141414",
-        "--accent": "#00ffff",
-        // cyan — HamClock uses cyan for headings/labels
-        "--text": "#e0e0e0",
-        // white-ish — HamClock main text
-        "--text-dim": "#888899",
-        "--green": "#00ff00",
-        // bright green — active/positive values
-        "--yellow": "#ffff00",
-        // yellow — warnings, highlighted values
-        "--red": "#ff0000",
-        // red — alerts
-        "--orange": "#e8a000",
-        // warm amber — matches real HamClock orange
-        "--border": "#333333",
-        // subtle separator — real HamClock uses very thin borders
-        "--bg-secondary": "#000000",
-        "--bg-tertiary": "#0a0a0a",
-        "--de-color": "#e8a000",
-        // orange — DE panel accent (matches real HamClock)
-        "--dx-color": "#00ff00"
-        // bright green — DX panel accent
-      }
-    },
-    radioface: {
-      id: "radioface",
-      name: "Radio Face",
-      description: "Modern transceiver LCD",
-      bodyClass: "theme-radioface",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#060a12",
-        // very dark blue-black chassis
-        "--surface": "#0c1220",
-        // dark panel
-        "--surface2": "#141e30",
-        // metallic dark blue
-        "--surface3": "#1c2840",
-        // lighter metallic
-        "--accent": "#00e5ff",
-        // bright cyan — LCD glow
-        "--text": "#d0e0f0",
-        // cool white
-        "--text-dim": "#4a6080",
-        // muted steel blue
-        "--green": "#00c853",
-        // bright green — RX
-        "--yellow": "#ffd600",
-        // amber — warnings, mode
-        "--red": "#ff1744",
-        // bright red — TX, alerts
-        "--orange": "#ff9100",
-        // orange — power, caution
-        "--border": "#1a2a44",
-        // dark metallic border
-        "--bg-secondary": "#060a12",
-        "--bg-tertiary": "#080e18",
-        "--de-color": "#00e5ff",
-        // cyan — DE panel accent
-        "--dx-color": "#ff9100"
-        // orange — DX panel accent
-      }
-    },
-    accessibility: {
-      id: "accessibility",
-      name: "Accessible",
-      description: "High contrast + text scale",
-      bodyClass: "high-contrast",
-      supportsGrid: true,
-      vars: {
-        "--bg": "#000000",
-        "--surface": "#111111",
-        "--surface2": "#222222",
-        "--surface3": "#333333",
-        "--accent": "#00ccff",
-        "--text": "#ffffff",
-        "--text-dim": "#cccccc",
-        "--green": "#00ff55",
-        "--yellow": "#ffee00",
-        "--red": "#ff4444",
-        "--orange": "#ff9900",
-        "--border": "#666666",
-        "--bg-secondary": "#0a0a0a",
-        "--bg-tertiary": "#1a1a1a",
-        "--de-color": "#00ccff",
-        "--dx-color": "#00ff55"
-      }
+  function migrateV3() {
+    if (localStorage.getItem("hamtab_migration_v3")) return;
+    if (localStorage.getItem("hamtab_theme") === "default") {
+      localStorage.setItem("hamtab_theme", "auto");
     }
-  };
-  var activeThemeId = localStorage.getItem(STORAGE_KEY) || "default";
-  function getThemeList() {
-    return Object.values(THEMES).map((t) => ({
-      id: t.id,
-      name: t.name,
-      description: t.description
-    }));
-  }
-  function getCurrentThemeId() {
-    return activeThemeId;
-  }
-  function applyTheme(themeId) {
-    const theme = THEMES[themeId];
-    if (!theme) return;
-    const root = document.documentElement;
-    for (const [prop, value] of Object.entries(theme.vars)) {
-      root.style.setProperty(prop, value);
-    }
-    for (const t of Object.values(THEMES)) {
-      if (t.bodyClass) document.body.classList.remove(t.bodyClass);
-    }
-    if (theme.bodyClass) document.body.classList.add(theme.bodyClass);
-    activeThemeId = themeId;
-    localStorage.setItem(STORAGE_KEY, themeId);
-    Promise.resolve().then(() => (init_map_init(), map_init_exports)).then((m) => m.swapMapTiles(themeId)).catch(() => {
-    });
-  }
-  function initTheme() {
-    const savedId = localStorage.getItem(STORAGE_KEY) || "default";
-    const themeId = THEMES[savedId] ? savedId : "default";
-    applyTheme(themeId);
-    if (localStorage.getItem("hamtab_slim_header") === "true") {
-      document.body.classList.add("slim-header");
-    }
-    if (localStorage.getItem("hamtab_grayscale") === "true") {
-      document.body.classList.add("grayscale");
-    }
-    const savedScale = parseFloat(localStorage.getItem("hamtab_text_scale"));
-    if (savedScale && savedScale !== 1) {
-      document.documentElement.style.fontSize = 16 * savedScale + "px";
-    }
-  }
-  function currentThemeSupportsGrid() {
-    const theme = THEMES[activeThemeId];
-    return theme ? theme.supportsGrid !== false : true;
-  }
-  function getThemeSwatchColors(themeId) {
-    const theme = THEMES[themeId];
-    if (!theme) return [];
-    return [
-      theme.vars["--bg"],
-      theme.vars["--surface2"],
-      theme.vars["--accent"],
-      theme.vars["--text"],
-      theme.vars["--border"]
-    ];
+    localStorage.setItem("hamtab_migration_v3", "1");
   }
 
   // src/main.js
+  init_themes();
   init_state();
   init_dom();
   init_solar();
@@ -16645,6 +16809,7 @@ ${beacon.location}`);
   // src/splash.js
   init_filters();
   init_widgets();
+  init_themes();
   init_constants();
   init_grid_layout();
 
@@ -17752,6 +17917,7 @@ ${beacon.location}`);
   init_constants();
   init_utils();
   init_a11y();
+  init_themes();
   var EARTH_RADIUS_KM = 6371;
   var SPEED_OF_LIGHT_KM_S = 299792.458;
   var DEFAULT_SAT_ALT_KM = 400;
@@ -17831,10 +17997,11 @@ ${beacon.location}`);
     const path = state_default.satellites.issOrbitPath;
     if (!path || path.length < 2) return;
     const segments = splitAtDateline(path);
+    const light = isLightTheme();
     state_default.satellites.orbitLines["25544"] = L.polyline(segments, {
-      color: "#00bcd4",
+      color: light ? "#00838f" : "#00bcd4",
       weight: 1.5,
-      opacity: 0.5,
+      opacity: light ? 0.85 : 0.5,
       dashArray: "6 4",
       interactive: false
     }).addTo(state_default.map);
@@ -25628,8 +25795,8 @@ ${beacon.location}`);
     const cfgReducedMotion = $("cfgReducedMotion");
     if (cfgReducedMotion) cfgReducedMotion.checked = state_default.a11yReducedMotion;
     populateBandColorPickers();
-    $("splashVersion").textContent = "0.73.4";
-    $("aboutVersion").textContent = "0.73.4";
+    $("splashVersion").textContent = "0.74.0";
+    $("aboutVersion").textContent = "0.74.0";
     const gridSection = document.getElementById("gridModeSection");
     const gridPermSection = document.getElementById("gridPermSection");
     if (gridSection) {
@@ -26169,7 +26336,7 @@ ${beacon.location}`);
       if (cartoApiKey !== state_default.cartoApiKey) {
         state_default.cartoApiKey = cartoApiKey;
         localStorage.setItem("hamtab_carto_apikey", cartoApiKey);
-        swapMapTiles(getCurrentThemeId());
+        swapMapTiles(getEffectiveThemeId());
       }
       const envUpdates = {};
       if (state_default.wxApiKey) envUpdates.WU_API_KEY = state_default.wxApiKey;
@@ -28907,6 +29074,7 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   init_cross_tab();
   migrate();
   migrateV2();
+  migrateV3();
   initTheme();
   if (state_default.a11yReducedMotion) document.body.classList.add("reduced-motion");
   state_default.solarFieldVisibility = loadSolarFieldVisibility();
@@ -28987,6 +29155,15 @@ r6IHztIUIH85apHFFGAZkhMtrqHbhc8Er26EILCCHl/7vGS0dfj9WyT1urWcrRbu
   initVoacapListeners();
   initHeatmapListeners();
   initSpaceWxListeners();
+  window.addEventListener("hamtab:themechange", () => {
+    for (const repaint of [renderPropagationWidget, renderVoacapMatrix, renderSpaceWxGraph]) {
+      try {
+        repaint();
+      } catch (e) {
+        if (state_default.debug) console.error("Theme repaint failed:", e);
+      }
+    }
+  });
   initBeaconListeners();
   initDxpeditionListeners();
   initContestListeners();

@@ -5,6 +5,7 @@
 import state from './state.js';
 import { $ } from './dom.js';
 import { esc } from './utils.js';
+import { isLightTheme } from './themes.js';
 
 // HF amateur bands (MHz) — includes 6m (VHF but has meaningful HF-style propagation)
 export const HF_BANDS = [
@@ -359,7 +360,7 @@ export function conditionLabel(condition) {
  * @returns {string} - CSS color string
  */
 export function getReliabilityColor(rel) {
-  if (rel < 5) return 'rgba(26, 26, 26, 0.6)'; // near-transparent — band closed
+  if (rel < 5) return isLightTheme() ? 'rgba(0, 0, 0, 0.08)' : 'rgba(26, 26, 26, 0.6)'; // near-transparent — band closed
   const t = Math.max(0, Math.min(1, (rel - 5) / 90)); // 5-95% → 0-1
 
   if (state.grayscale) {
@@ -468,12 +469,38 @@ export function initDayNightToggle() {
   });
 }
 
-/**
- * Choose text color for readability against a reliability-colored background.
- * Low reliability = dark bg → white text; high reliability = bright bg → dark text.
- */
-function cellTextColor(reliability) {
-  return reliability < 40 ? '#fff' : '#1a1a1a';
+// Choose text color for readability against a reliability-colored background.
+// Picks white or black by the cell color's luminance (WCAG relative luminance);
+// a fixed reliability cutoff put white text on the yellow/orange middle of the ramp.
+// Black (not #1a1a1a) keeps the orange-red middle of the ramp above 4.5:1.
+export function cellTextColor(reliability) {
+  if (reliability < 5) return isLightTheme() ? '#000' : '#fff'; // closed cell is translucent over the widget
+  const bg = hslToRgb(getReliabilityColor(reliability));
+  if (!bg) return reliability < 40 ? '#fff' : '#000';
+  const lin = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+  const lum = 0.2126 * lin(bg[0]) + 0.7152 * lin(bg[1]) + 0.0722 * lin(bg[2]);
+  const vsWhite = 1.05 / (lum + 0.05);
+  const vsBlack = (lum + 0.05) / 0.05;
+  return vsWhite >= vsBlack ? '#fff' : '#000';
+}
+
+// Parse 'hsl(h, s%, l%)' into [r, g, b] 0-255; null for anything else.
+function hslToRgb(str) {
+  const m = /^hsl\(([\d.]+),\s*([\d.]+)%,\s*([\d.]+)%\)$/.exec(str);
+  if (!m) return null;
+  const h = +m[1] / 360, s = +m[2] / 100, l = +m[3] / 100;
+  if (s === 0) return [l * 255, l * 255, l * 255];
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const hue = t => {
+    if (t < 0) t += 1;
+    if (t > 1) t -= 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  return [hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255];
 }
 
 /**

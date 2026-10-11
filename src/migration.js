@@ -27,3 +27,14 @@ export function migrateV2() {
   }
   localStorage.setItem('hamtab_migration_v2', '1');
 }
+
+// V3: Saved 'default' theme becomes 'auto' (follow OS light/dark).
+// InitTheme always persisted 'default', so an explicit choice can't be told apart
+// from the old fallback. On dark-mode machines Auto still paints Default.
+export function migrateV3() {
+  if (localStorage.getItem('hamtab_migration_v3')) return;
+  if (localStorage.getItem('hamtab_theme') === 'default') {
+    localStorage.setItem('hamtab_theme', 'auto');
+  }
+  localStorage.setItem('hamtab_migration_v3', '1');
+}

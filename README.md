@@ -63,7 +63,7 @@ A free, modern amateur radio dashboard and [HamClock](https://www.clearskyinstit
 - **Watch Lists** — HamClock-style per-source watch lists with three modes: Red (highlight matching spots), Only (show only matching), and Not (exclude matching). Match by callsign, DXCC entity, grid prefix, or park/summit reference
 
 ### Customization
-- **Themes** — Eight built-in visual themes: Default, LCARS, Terminal, HamClock, Rebel, Imperial, Neon, and Steampunk
+- **Themes** — Built-in visual themes: Auto (follows your system light/dark setting), Default, Daylight (high-contrast light for outdoor use), LCARS, Terminal, HamClock, Radio Face, and Accessible
 - **Band Colors** — Customize the color assigned to each amateur band in Live Spots and map lines via Config > Appearance
 - **Widget Layout** — All panels are draggable and resizable with snap-to-edge, persisted across sessions
 - **Named Layout Profiles** — Save up to 20 named layout profiles capturing widget positions, visibility, grid/float mode, and grid configuration. Switch between profiles via the Layouts dropdown in the header bar. Also accessible from Config > Display and the mobile menu
@@ -518,7 +518,9 @@ The key is stored in your browser only. It is not sent to the HamTab server and 
 
 ### Theme
 
-Choose from 8 built-in themes: **Default** (dark), **LCARS** (Star Trek TNG-inspired), **Terminal** (retro green CRT), **HamClock** (familiar to HamClock users), **Rebel** (warm desert), **Imperial** (cold steel), **Neon** (cyan glow), or **Steampunk** (brass and copper). Themes swap CSS variables for colors, borders, and shapes.
+Choose from the built-in themes: **Auto** (matches your computer's light/dark setting), **Default** (dark), **Daylight** (high-contrast light theme for sunlight and outdoor operating), **LCARS** (Star Trek TNG-inspired), **Terminal** (retro green CRT), **HamClock** (familiar to HamClock users), **Radio Face** (modern transceiver LCD), or **Accessible** (high contrast with text scaling). Themes swap CSS variables for colors, borders, and shapes.
+
+**Auto** is the default for new installs. When your operating system is in light mode, HamTab uses Daylight; in dark mode it uses Default. It switches live while HamTab is open, so a laptop that changes to light mode at sunrise follows along. Picking any other theme turns Auto off.
 
 ### Layout Mode
 

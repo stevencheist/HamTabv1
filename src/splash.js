@@ -14,7 +14,7 @@ import { renderMarkers } from './markers.js';
 import { fetchWeather, startNwsPolling } from './weather.js';
 import { applyFilter, fetchLicenseClass } from './filters.js';
 import { saveWidgetVisibility, applyWidgetVisibility, loadWidgetVisibility, isWidgetVisible, saveUserLayout, clearUserLayout, hasUserLayout, getNamedLayouts, saveNamedLayout, loadNamedLayout, deleteNamedLayout } from './widgets.js';
-import { getThemeList, getCurrentThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
+import { getThemeList, getCurrentThemeId, getEffectiveThemeId, applyTheme, getThemeSwatchColors, currentThemeSupportsGrid } from './themes.js';
 import { GRID_PERMUTATIONS, GRID_DEFAULT_ASSIGNMENTS, DEFAULT_BAND_COLORS, getBandColor, getBandColorOverrides, saveBandColors } from './constants.js';
 import { activateGridMode, deactivateGridMode, saveGridAssignments, applyGridAssignments, resetGridAssignments, getGridPermutation } from './grid-layout.js';
 import { startAutoRefresh, stopAutoRefresh } from './refresh.js';
@@ -1253,7 +1253,7 @@ function dismissSplash() {
     if (cartoApiKey !== state.cartoApiKey) {
       state.cartoApiKey = cartoApiKey;
       localStorage.setItem('hamtab_carto_apikey', cartoApiKey);
-      swapMapTiles(getCurrentThemeId());
+      swapMapTiles(getEffectiveThemeId());
     }
     // Hamqth password: server-side only, never in localStorage.
     // Persist API keys to server .env so all clients share them.
